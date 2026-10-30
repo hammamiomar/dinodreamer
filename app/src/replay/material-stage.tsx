@@ -1,10 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
 import { Link } from "react-router";
 import { fill, SITE_WORDS } from "../app/site-words";
-import { materialEntry, type MaterialEntry } from "../features/gallery/material-index";
+import type { MaterialEntry } from "../features/gallery/material-index";
 import { fetchPublishedMaterial, materialFileUrl } from "../features/gallery/material-gallery";
-import { figurePlayback, PICTURE_SIDES, strengthStatistic, type FigureMaterial, type FigureMaterialFile } from "../materials/material-file";
+import { figurePlayback, PICTURE_SIDES, strengthStatistic, type FigureMaterial } from "../materials/material-file";
 import { kindLine } from "../features/playground/playground";
+import { MaterialMetadata, metadataRows } from "./material-metadata";
 import { kindWords } from "../features/home/home-material";
 import { BAND_NAMES, STRENGTH_BANDS } from "../features/look/strength-bands";
 import { downloadBlob } from "../ui/files";
@@ -112,20 +113,6 @@ function readingParts(entry: MaterialEntry): string[] {
   }
   parts.push(entry.fired ? WORDS.fired : WORDS.didNotFire);
   return parts;
-}
-
-/**
- * The automaton's metadata in the site's words, read in the Options panel and shown by the publish
- * form: its kind, its measurement and its update count. Never the file's own name, which carries
- * the research runs' vocabulary.
- */
-export function metadataLine(entry: MaterialEntry, updates: number): string {
-  return [kindLine(entry), ...readingParts(entry), fill(WORDS.updates, { updates: updates.toLocaleString("en-US") })].join(" · ");
-}
-
-/** The metadata of a kept file, before it has an entry; a file's own id may be longer than an entry's. */
-export function fileMetadataLine(file: FigureMaterialFile): string {
-  return metadataLine(materialEntry("kept", file, { title: "", credit: "" }, ""), file.training.updates);
 }
 
 /** The recipe as the stage names it: its name without the date, "figure-seeded-2026-10-23" -> "figure-seeded". */
@@ -399,8 +386,8 @@ export function MaterialStage({ entries, source = PUBLISHED_SOURCE, layout = "pa
         <label>{WORDS.grid}<Select value={pictureSide} onChange={(event) => setPictureSide(Number(event.target.value) as 128 | 256)}>
           {PICTURE_SIDES.map((pixels) => <option key={pixels} value={pixels}>{fill(WORDS.gridOption, { cells: pixels / pixelsPerCell })}</option>)}</Select></label>
       </div>
-      {/* The automaton's metadata, read here on request, never on the stage or a tile. */}
-      {material && <p className="stage-message">{[ownTitle, metadataLine(entry, material.file.training.updates)].filter(Boolean).join(" · ")}</p>}
+      {/* The automaton's metadata (material-metadata.tsx), read here on request, never on the stage or a tile. */}
+      {material && <MaterialMetadata rows={metadataRows(entry, material.file.training.updates, ownTitle)} />}
     </div>}
   </>;
 
