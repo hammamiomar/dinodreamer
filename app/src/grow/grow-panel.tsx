@@ -50,10 +50,9 @@ function hintSentence(hint: string): string {
 /**
  * The two choices of a material's kind, each with the chosen option's hint; fixed while a run trains or
  * waits. A continuation keeps its definition's cellular model (`ruleFixed`), so only the start is open.
- * `children` is the Advanced section under them.
  */
-function KindChoices({ kind, open, ruleFixed, onChange, children }: {
-  kind: MaterialKind; open: boolean; ruleFixed: boolean; onChange: (kind: MaterialKind) => void; children?: ReactNode;
+function KindChoices({ kind, open, ruleFixed, onChange }: {
+  kind: MaterialKind; open: boolean; ruleFixed: boolean; onChange: (kind: MaterialKind) => void;
 }) {
   const fixed = { unavailable: !open, reason: open ? undefined : WORDS.stop };
   const ruleChoice = ruleFixed ? { unavailable: true, reason: WORDS.continuedRule } : fixed;
@@ -72,30 +71,42 @@ function KindChoices({ kind, open, ruleFixed, onChange, children }: {
         segments={START_CHOICES.map((choice) => ({ value: choice.value, label: choice.label, ...fixed }))} />
       <p className="grow-hint">{hintSentence(start.hint)}</p>
     </div>
-    {children}
   </div>;
 }
 
 const BATCH_HINT: Record<BatchSize, string> = { 4: WORDS.batchRecipe, 1: WORDS.batchLight };
 
-/**
- * Advanced: closed unless the person opens it, or Train has just fallen back to batch size 1, which
- * `note` then explains in the hint's place. `fixed` is why the batch size cannot change now.
- */
-function AdvancedChoices({ batch, fixed, note, expanded, onExpand, onBatch }: {
-  batch: BatchSize; fixed: string | undefined; note: string | null; expanded: boolean;
-  onExpand: (expanded: boolean) => void; onBatch: (batch: BatchSize) => void;
+/** Advanced's settings: the batch size. `note` replaces the hint after a fallback; `fixed` is why it cannot change now. */
+function AdvancedChoices({ batch, fixed, note, onBatch }: {
+  batch: BatchSize; fixed: string | undefined; note: string | null; onBatch: (batch: BatchSize) => void;
 }) {
   const choice = { unavailable: fixed !== undefined, reason: fixed };
-  return <details className="grow-advanced" open={expanded} onToggle={(event) => onExpand(event.currentTarget.open)}>
-    <summary className="label">{WORDS.advanced}</summary>
+  return <div className="grow-choices">
     <div className="grow-field grow-batch">
       <span className="label">{WORDS.batchSize}</span>
       <Segmented label={WORDS.batchSize} value={String(batch) as "1" | "4"} onChange={(value) => onBatch(value === "1" ? LIGHT_BATCH : RECIPE_BATCH)}
         segments={[{ value: "1", label: "1", ...choice }, { value: "4", label: "4", ...choice }]} />
       <p className="grow-hint">{note ?? BATCH_HINT[batch]}</p>
     </div>
-  </details>;
+  </div>;
+}
+
+/**
+ * The choices' box and the Advanced line under it. The box holds two faces in one place, the kind
+ * choices and Advanced's settings, and shows one at a time; it is as tall as the taller face, so
+ * opening Advanced moves nothing on the page. The faces cross-fade (grow.css).
+ */
+function ChoiceFaces({ choices, advanced, advancedOpen, onAdvanced }: {
+  choices: ReactNode; advanced: ReactNode; advancedOpen: boolean; onAdvanced: (open: boolean) => void;
+}) {
+  return <div className="grow-settings">
+    <div className="grow-faces">
+      <div className="grow-face" data-shown={!advancedOpen || undefined} aria-hidden={advancedOpen || undefined}>{choices}</div>
+      <div className="grow-face" id="grow-advanced" data-shown={advancedOpen || undefined} aria-hidden={!advancedOpen || undefined}>{advanced}</div>
+    </div>
+    <button type="button" className="grow-advanced-toggle label" aria-expanded={advancedOpen} aria-controls="grow-advanced"
+      onClick={() => onAdvanced(!advancedOpen)}>{WORDS.advanced}</button>
+  </div>;
 }
 
 /** The time line: before a run the estimate, during it the time left, after it the time it took. */
@@ -277,11 +288,10 @@ export function GrowPanel({ block, request, continuation, heading }: {
     <aside className="grow-side" aria-label={WORDS.title}>
       {heading}
       {coSelection ? <CoSelectedPictures coSelection={coSelection} region={readingRegion(shownKind)} />
-        : <KindChoices kind={runKind} open={open} ruleFixed={continuation !== null} onChange={setKind}>
-          <AdvancedChoices batch={!open && settings ? settings.batch : runBatch} note={fallbackNote}
-            fixed={continuation ? WORDS.continuedBatch : open ? undefined : WORDS.stop}
-            expanded={advancedOpen} onExpand={setAdvancedOpen} onBatch={chooseBatch} />
-        </KindChoices>}
+        : <ChoiceFaces advancedOpen={advancedOpen} onAdvanced={setAdvancedOpen}
+          choices={<KindChoices kind={runKind} open={open} ruleFixed={continuation !== null} onChange={setKind} />}
+          advanced={<AdvancedChoices batch={!open && settings ? settings.batch : runBatch} note={fallbackNote}
+            fixed={continuation ? WORDS.continuedBatch : open ? undefined : WORDS.stop} onBatch={chooseBatch} />} />}
       <TimeLine time={time.time} template={time.template} />
       {runLine}
     </aside>

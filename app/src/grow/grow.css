@@ -330,34 +330,61 @@
 }
 
 /*
- * Advanced, under the two choices: one label-sized line while closed, a + or − after it. Open, its
- * fields follow a patch under the line, drawn as the choices above.
+ * The choices' box and the Advanced line under it (grow-panel.tsx ChoiceFaces). Both faces, the kind
+ * choices and Advanced's settings, sit in one grid cell, so the box is as tall as the taller one and
+ * opening Advanced moves nothing; the hidden face is invisible to the pointer, the keyboard and
+ * screen readers, and the two cross-fade.
  */
-.grow-advanced > summary {
-  width: max-content;
+.grow-settings {
+  display: grid;
+  grid-row: choices;
+  row-gap: var(--patch);
+}
+
+.grow-faces {
+  display: grid;
+}
+
+.grow-faces > .grow-face {
+  grid-area: 1 / 1;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--motion-move), visibility 0s linear 240ms;
+}
+
+.grow-faces > .grow-face[data-shown] {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity var(--motion-move), visibility 0s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .grow-faces > .grow-face,
+  .grow-faces > .grow-face[data-shown] {
+    transition: none;
+  }
+}
+
+/* One label-sized line, a + or − after it. */
+.grow-advanced-toggle {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: none;
   line-height: 16px;
-  list-style: none;
   cursor: pointer;
 }
 
-.grow-advanced > summary::-webkit-details-marker {
-  display: none;
-}
-
-.grow-advanced > summary::after {
+.grow-advanced-toggle::after {
   content: " +";
 }
 
-.grow-advanced[open] > summary::after {
+.grow-advanced-toggle[aria-expanded="true"]::after {
   content: " \2212";
 }
 
-.grow-advanced > summary:hover {
+.grow-advanced-toggle:hover {
   color: var(--ink);
-}
-
-.grow-advanced > .grow-field {
-  margin-top: var(--patch);
 }
 
 /* Two lines of room whatever the hint says, its words centred in them, so a choice moves nothing under it. */
@@ -419,7 +446,7 @@
   text-underline-offset: 5px;
 }
 
-.grow-side:has(.publish-material-form) :is(.grow-choices, .grow-time) {
+.grow-side:has(.publish-material-form) :is(.grow-settings, .grow-time) {
   display: none;
 }
 
@@ -523,7 +550,8 @@
     margin-top: var(--patch);
   }
 
-  .grow-choices {
+  .grow-choices,
+  .grow-settings {
     row-gap: calc(2 * var(--patch));
   }
 
