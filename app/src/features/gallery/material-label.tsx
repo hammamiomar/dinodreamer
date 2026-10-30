@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { FigureMaterial } from "../../materials/material-file";
 import { useLoaded } from "../../ui/use-loaded";
 import { materialCaption } from "./material-caption";
@@ -23,7 +23,8 @@ export function MaterialLabel({ entry, load = published }: {
     observer.observe(label.current);
     return () => observer.disconnect();
   }, [visible]);
-  const loaded = useLoaded(visible ? entry.id : null, () => visible ? load(entry) : null);
+  const key = useMemo(() => visible ? { id: entry.id, load } : null, [visible, entry.id, load]);
+  const loaded = useLoaded(key, () => key ? load(entry) : null);
   const caption = materialCaption(entry, loaded.status === "ready" ? loaded.value.file : null, loaded.status === "failed");
   return <span ref={label} className="material-label">
     <span className="material-title">{caption.title}</span>

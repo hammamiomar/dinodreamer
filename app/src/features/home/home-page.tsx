@@ -1,5 +1,5 @@
 // The home: an entrance and a high-level view. On entrance, the site's name, the
-// four links and the automaton, alive, nothing else. A wheel gesture, a key or a swipe turns the
+// four links and the automaton with its title and recipe. A wheel gesture, a key or a swipe turns the
 // page to the next section, where the panel at the right changes and its figure plays: the three
 // steps, the model, the basis collection and the automaton, a few sentences each at the left; then
 // the end, with the automaton running again. One specimen throughout: the hibiscus thread the How
