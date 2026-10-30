@@ -4,6 +4,7 @@ import { fill, SITE_WORDS } from "../app/site-words";
 import type { MaterialEntry } from "../features/gallery/material-index";
 import { fetchPublishedMaterial, materialFileUrl } from "../features/gallery/material-gallery";
 import { figurePlayback, PICTURE_SIDES, strengthStatistic, type FigureMaterial } from "../materials/material-file";
+import { materialCaption } from "../features/gallery/material-caption";
 import { kindWords } from "../features/home/home-material";
 import { BAND_NAMES, STRENGTH_BANDS } from "../features/look/strength-bands";
 import { downloadBlob } from "../ui/files";
@@ -11,8 +12,6 @@ import { MaterialFrame } from "../ui/material-frame";
 import { Select } from "../ui/select";
 import { Slider } from "../ui/slider";
 import { SAMPLE_EVERY_TICKS, sampledAccent } from "../ui/sampled-accent";
-import { MaterialLabel } from "../features/gallery/material-label";
-import { materialCaption } from "../features/gallery/material-caption";
 import { createFigureReplay } from "./figure-replay";
 import { FIGURE_SHADERS } from "./figure-shaders";
 import { KeepMaterial, KeepWord } from "./keep-material";
@@ -74,9 +73,10 @@ export function brushAfterWheel(brush: number, notches: number): number {
   return Math.min(BRUSH.max, Math.max(BRUSH.min, brush + notches * BRUSH.step));
 }
 
-/** Keep the submitted title, or name an untitled entry by its recipe. */
+/** "12002 · strongest, mean · seed 1" → "strongest, mean · seed 1": the block is said once. */
 export function variationName(entry: MaterialEntry): string {
-  return materialCaption(entry, null).title;
+  const prefix = `${entry.block} · `;
+  return entry.title.startsWith(prefix) ? entry.title.slice(prefix.length) : entry.title;
 }
 
 /** The stored value's words on the quiet line, by what the rule's settings say it holds. */
@@ -338,6 +338,7 @@ export function MaterialStage({ entries, source = PUBLISHED_SOURCE, layout = "pa
 
   const instrument = layout === "instrument";
   const togglePanel = (next: "downloads" | "options") => setPanel(panel === next ? "none" : next);
+  const caption = materialCaption(entry, material?.file ?? null, replayStatus === "failed");
   const controls = <div className="stage-controls" role="toolbar" aria-label={WORDS.controls}>
     <button type="button" className="stage-icon" onClick={togglePlay} disabled={recording || replayStatus === "failed"} aria-label={playing ? WORDS.pause : WORDS.play}>{playing ? <PauseIcon /> : <PlayIcon />}</button>
     <button type="button" className="stage-icon stage-reset reset-control" onClick={() => reset()} disabled={recording || replayStatus === "failed"} aria-label={WORDS.resetName} title={WORDS.resetName}><ResetMark /></button>
@@ -377,6 +378,8 @@ export function MaterialStage({ entries, source = PUBLISHED_SOURCE, layout = "pa
         <label>{WORDS.grid}<Select value={pictureSide} onChange={(event) => setPictureSide(Number(event.target.value) as 128 | 256)}>
           {PICTURE_SIDES.map((pixels) => <option key={pixels} value={pixels}>{fill(WORDS.gridOption, { cells: pixels / pixelsPerCell })}</option>)}</Select></label>
       </div>
+      {/* The automaton's title and recipe: metadata, read here on request, never on the stage or a tile. */}
+      <p className="stage-message">{caption.title}{caption.recipe && ` · ${caption.recipe}`}</p>
     </div>}
   </>;
 
@@ -385,7 +388,7 @@ export function MaterialStage({ entries, source = PUBLISHED_SOURCE, layout = "pa
       <button type="button" aria-pressed={candidate.id === entry.id} data-fired={candidate.fired || undefined}
         onClick={() => { if (candidate.id !== entry.id) { setSelectedId(candidate.id); setPlaying(startPlaying()); } }}>
         <img src={source.poster(candidate)} width={candidate.side} height={candidate.side} alt="" loading="lazy" />
-        <MaterialLabel entry={candidate} load={source.load} />
+        <span>{variationName(candidate)}</span>
       </button>
     </li>)}
   </ul>;
@@ -398,10 +401,10 @@ export function MaterialStage({ entries, source = PUBLISHED_SOURCE, layout = "pa
         onPointerEnter={() => { hovering.current = true; }} onPointerLeave={() => { hovering.current = false; setRing(null); }}
         ref={view}>
         <canvas ref={canvas} width={CANVAS_PIXELS} height={CANVAS_PIXELS} style={{ width: canvasSize, height: canvasSize, visibility: replayStatus === "ready" ? "visible" : "hidden" }}
-          aria-label={fill(WORDS.canvasName, { title: variationName(entry) })}
+          aria-label={fill(WORDS.canvasName, { title: entry.title })}
           onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); const { x, y } = cellAt(event); last.current = { x, y }; }}
           onPointerMove={moveBrush} onPointerUp={() => { last.current = null; }} onPointerCancel={() => { last.current = null; }} />
-        {replayStatus !== "ready" && <img className="stage-poster" src={source.poster(entry)} alt={variationName(entry)} />}
+        {replayStatus !== "ready" && <img className="stage-poster" src={source.poster(entry)} alt={entry.title} />}
         {replayStatus === "ready" && ring && <span className="stage-ring" style={{ left: ring.x, top: ring.y, width: ringSize, height: ringSize }} aria-hidden="true" />}
         {replayStatus === "opening" && <span className="stage-loading">{fill(WORDS.loading, { name: variationName(entry) })}</span>}
       </div>
@@ -409,7 +412,7 @@ export function MaterialStage({ entries, source = PUBLISHED_SOURCE, layout = "pa
   </div>;
 
   if (instrument) {
-    return <section ref={stageElement} className="material-stage" data-layout="instrument" aria-label={variationName(entry)}>
+    return <section ref={stageElement} className="material-stage" data-layout="instrument" aria-label={entry.title}>
       <div className="stage-instrument">
         {framed}
         <aside className="stage-readouts" aria-label={INSTRUMENT_WORDS.readoutsName}>
@@ -439,7 +442,7 @@ export function MaterialStage({ entries, source = PUBLISHED_SOURCE, layout = "pa
 
   return <section ref={stageElement} className="material-stage" aria-label={WORDS.name}>
     <header className="stage-head">
-      <h2><MaterialLabel entry={entry} load={source.load} /></h2>
+      <h2>{variationName(entry)}</h2>
       <p>{readingLine(entry)} · {fill(WORDS.by, { credit: entry.credit || WORDS.anonymous })} · <Link to={growVariationPath(entry)}>{WORDS.growAnother}</Link>
         {" · "}<Link to={continueTrainingPath(entry)}>{WORDS.continueTraining}</Link></p>
     </header>

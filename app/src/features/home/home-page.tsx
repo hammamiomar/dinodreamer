@@ -1,5 +1,5 @@
 // The home: an entrance and a high-level view. On entrance, the site's name, the
-// four links and the automaton with its title and recipe. A wheel gesture, a key or a swipe turns the
+// four links and the automaton, alive, nothing else. A wheel gesture, a key or a swipe turns the
 // page to the next section, where the panel at the right changes and its figure plays: the three
 // steps, the model, the basis collection and the automaton, a few sentences each at the left; then
 // the end, with the automaton running again. One specimen throughout: the hibiscus thread the How
@@ -16,8 +16,7 @@ import { useLoaded } from "../../ui/use-loaded";
 import { explorePath } from "../atlas/atlas-position";
 import { useMaterialIndex, usePublishedMaterial } from "../gallery/material-gallery";
 import type { MaterialEntry } from "../gallery/material-index";
-import { MaterialLabel } from "../gallery/material-label";
-import { playgroundPath, featuredMaterials } from "../playground/playground";
+import { featuredMaterials } from "../playground/playground";
 import { HOW_AUTOMATON, loadHowStory } from "../how/figures/figure-data";
 import { loadAutomatonState } from "../how/automaton-record";
 import { HOW_PICTURE } from "../how/how-source";
@@ -168,7 +167,6 @@ export function HomePage() {
           <Link to="/" className="home-title">{SITE_WORDS.frame.wordmark}</Link>
           {links}
           <div className="home-foot">
-            {shownEntry && <Link className="home-automaton-label" to={playgroundPath(shownEntry)}><MaterialLabel entry={shownEntry} /></Link>}
             {pool.length > 1 && (
               <div className="home-turn" role="group" aria-label={WORDS.turnName}>
                 <button type="button" aria-label={WORDS.previousAutomaton} onClick={() => setTurned((count) => count - 1)}><Chevron direction="left" /></button>

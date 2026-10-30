@@ -177,7 +177,7 @@
   image-rendering: pixelated;
 }
 
-/* The complete title and recipe wrap below the poster. */
+/* Three 16 px lines and the rule above them: the tile is 208 px, thirteen patches. */
 .look-material-name {
   display: grid;
   padding-top: 7px;
@@ -186,7 +186,9 @@
 }
 
 .look-material-name > span {
-  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .look-material-reading {
