@@ -8,8 +8,9 @@
 .home {
   --home-words: 448px;
   /* The window's height as a page length: the site is drawn at --page-scale (styles.css), and a viewport unit inside it scales too. */
-  /* Track the visible window when mobile browser bars open or close. */
-  --window: calc(100dvh / var(--page-scale));
+  /* The small viewport: the window with a phone browser's bars shown. It stays fixed while the bars
+     hide during a scroll, so the panel and the sections never resize under the finger. */
+  --window: calc(100svh / var(--page-scale));
   /* The panel's width: the window less the band's edge, the words and a module. The words sit centred in the room left of it. */
   --home-panel: calc(100% - var(--edge) - var(--home-words) - var(--m));
   display: grid;
@@ -17,16 +18,6 @@
   grid-template-columns: minmax(var(--m), 1fr) var(--home-words) minmax(var(--m), 1fr) var(--home-panel);
   align-items: start;
   overflow-anchor: none;
-}
-
-/* Home owns vertical gestures before they move. Pinch zoom and horizontal navigation stay native.
-   An open menu or dialog uses its own input. The document remains the only vertical scroll owner. */
-.site[data-home]:not(:has(.frame-nav[data-open], .block-panel, dialog[open])) {
-  touch-action: pan-x pinch-zoom;
-}
-
-html:has(.site[data-home]) {
-  overscroll-behavior-y: none;
 }
 
 .home-words {
@@ -145,7 +136,7 @@ html:has(.site[data-home]) {
   color: var(--ink-3);
 }
 
-/* A beat: one window, its words centred; a gesture turns the page to the next (home-paging.ts). */
+/* A beat: one window, its words centred. */
 .home-beat,
 .home-end {
   display: grid;
@@ -313,10 +304,21 @@ html:has(.site[data-home]) {
     height: 24px;
   }
 
-  /* The pager places the words under the panel, keeping its part of the window clear. */
+  /*
+   * Only the window's lower 40 % shows the words, and they are usually taller than that. Each section
+   * is as tall as its words, so one beat's words follow the last with no empty window between them.
+   * A scroll to a section (the chevron) lands its words under the panel.
+   */
   .home-beat,
   .home-end {
     align-content: start;
+    min-height: 0;
+    scroll-margin-top: calc(0.6 * var(--window));
+  }
+
+  /* The footer follows the end's words: at the page's end both fit under the panel. */
+  .home-end .home-beat-words {
+    padding-bottom: var(--patch);
   }
 
   .home-beat-words {
