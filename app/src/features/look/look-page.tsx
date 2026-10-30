@@ -304,6 +304,7 @@ function LookBlock({ data, origin, scroller }: { data: LookData; origin: CloudTo
         <div className="look-workspace">
           <CloudView ref={cloudView} codes={prepared.display} bands={prepared.bands} extent={prepared.extent} strength={strength} colours={prepared.colours}
             hovered={hovered} onHover={setHovered} onPick={setInspected} onSeed={chooseSeed} tool={tool} selected={selectedSet} seeds={seeds}
+            pointPicture={(index) => <TokenPicture point={token(index)} uploadUrl={uploadUrl} />}
             highlighted={highlighted} anchor={anchor} lift={cloudLift} onLasso={finishLasso} advanced={advanced}
             tools={
               <CloudTools tool={tool} onTool={setTool} advanced={advanced} onAdvanced={openAdvanced}

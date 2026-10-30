@@ -41,6 +41,22 @@ const EMPTY = new Set<number>();
 const KEY_DRAGS: Record<string, Position> = { ArrowLeft: { x: -1, y: 0 }, ArrowRight: { x: 1, y: 0 }, ArrowUp: { x: 0, y: -1 }, ArrowDown: { x: 0, y: 1 } };
 const KEY_TURN_PX = 15;
 const KEY_PAN_PX = 40;
+const POINT_PICTURE_SIZE = 128;
+const POINT_PICTURE_GAP = 12;
+
+/** Place the patch picture beside its dot, inside the visible part of the plot. */
+export function placeCloudPicture(at: Position, bounds: { left: number; top: number; right: number; bottom: number }): Position & { size: number } {
+  const size = Math.min(POINT_PICTURE_SIZE, bounds.right - bounds.left, bounds.bottom - bounds.top);
+  const right = at.x + POINT_PICTURE_GAP;
+  const above = at.y - POINT_PICTURE_GAP - size;
+  const x = right + size <= bounds.right ? right : at.x - POINT_PICTURE_GAP - size;
+  const y = above >= bounds.top ? above : at.y + POINT_PICTURE_GAP;
+  return {
+    x: Math.max(bounds.left, Math.min(x, bounds.right - size)),
+    y: Math.max(bounds.top, Math.min(y, bounds.bottom - size)),
+    size,
+  };
+}
 
 /**
  * The view's height for its width: on the 64 px module, 60 % of the width at most 576 px
@@ -69,6 +85,8 @@ export const CloudView = forwardRef<CloudViewHandle, {
   tool?: LookTool;
   /** A click on a dot with Turn or Lasso: the page shows its picture. */
   onPick?: (index: number) => void;
+  /** The patch picture shown beside a tapped dot. The page owns its image source. */
+  pointPicture?: (index: number) => ReactNode;
   onSeed?: (index: number, additive: boolean) => void;
   onLasso?: (points: readonly ScreenPoint[], polygon: readonly Position[]) => void;
   /** The page's tools, in a separate row above the plot. */
@@ -76,7 +94,7 @@ export const CloudView = forwardRef<CloudViewHandle, {
   /** Advanced shows the three flat views at the view's edges. */
   advanced?: boolean;
 }>(function CloudView({ codes, bands, extent, strength, colours, selected = EMPTY, seeds = [], highlighted = EMPTY, hovered, anchor = null, lift = null,
-  onHover, tool = "turn", onPick, onSeed, onLasso, tools, advanced = false,
+  onHover, tool = "turn", onPick, pointPicture, onSeed, onLasso, tools, advanced = false,
 }, ref) {
   const frameElement = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -97,6 +115,9 @@ export const CloudView = forwardRef<CloudViewHandle, {
   const frame: CameraFrame = useMemo(() => ({ extent, width, height }), [extent, width, height]);
   const view = useMemo(() => cameraView(camera, frame), [camera, frame]);
   const positions = useMemo(() => (measured === null ? [] : projectCloud(codes, view)), [codes, view, measured]);
+  const [picture, setPicture] = useState<{ index: number; at: ReturnType<typeof placeCloudPicture>; view: typeof view } | null>(null);
+  // A camera change or resize invalidates the placement made at the tap.
+  const shownPicture = picture?.view === view ? picture : null;
 
   useLayoutEffect(() => {
     const element = frameElement.current;
@@ -170,8 +191,9 @@ export const CloudView = forwardRef<CloudViewHandle, {
     context.clearRect(0, 0, layer.width, layer.height);
     context.drawImage(layer, 0, 0);
     context.setTransform(ratio, 0, 0, ratio, 0, 0);
-    if (hovered !== null && positions[hovered]) drawHoverRing(context, positions[hovered]);
-  }, [layer, layerVersion, hovered, positions]);
+    if (shownPicture && positions[shownPicture.index]) drawHoverRing(context, positions[shownPicture.index]);
+    if (hovered !== null && hovered !== shownPicture?.index && positions[hovered]) drawHoverRing(context, positions[hovered]);
+  }, [layer, layerVersion, hovered, positions, shownPicture]);
 
   function zoomToward(at: Position, factor: number) {
     setCamera((current) => zoomAt(current, frame, at, factor));
@@ -217,6 +239,7 @@ export const CloudView = forwardRef<CloudViewHandle, {
     setCamera((current) => panBy(current, frame, dx, dy));
   }
   function reset() {
+    setPicture(null);
     setPlane(null);
     setCamera(LOOK_CAMERA);
   }
@@ -229,6 +252,7 @@ export const CloudView = forwardRef<CloudViewHandle, {
     event.currentTarget.focus({ preventScroll: true });
     event.currentTarget.setPointerCapture(event.pointerId);
     const at = pointer(event);
+    setPicture(null);
     held.current.set(event.pointerId, at);
     onHover(null);
     // A second finger ends the first one's turn or lasso; the two now pinch.
@@ -267,6 +291,19 @@ export const CloudView = forwardRef<CloudViewHandle, {
     }
     current.last = at;
   }
+  function showPointPicture(index: number, element: HTMLCanvasElement) {
+    if (!pointPicture) return;
+    const box = element.getBoundingClientRect();
+    const scale = box.width / width;
+    const headerHeight = parseFloat(getComputedStyle(element).getPropertyValue("--top"));
+    const visible = {
+      left: 0,
+      right: width,
+      top: Math.max(0, headerHeight - box.top) / scale,
+      bottom: Math.min(height, (window.innerHeight - box.top) / scale),
+    };
+    setPicture({ index, at: placeCloudPicture(positions[index], visible), view });
+  }
   function up(event: PointerEvent<HTMLCanvasElement>) {
     held.current.delete(event.pointerId);
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
@@ -277,8 +314,11 @@ export const CloudView = forwardRef<CloudViewHandle, {
     if (current.gesture === "lasso" && current.path.length >= 3) onLasso?.(positions, current.path);
     else if (!current.dragged) {
       const index = pickPoint(positions, at, -1);
-      if (index !== null && tool === "wand") onSeed?.(index, event.shiftKey);
-      else if (index !== null) onPick?.(index);
+      if (index !== null) {
+        showPointPicture(index, event.currentTarget);
+        if (tool === "wand") onSeed?.(index, event.shiftKey);
+        else onPick?.(index);
+      }
     }
     setLasso([]);
   }
@@ -318,15 +358,21 @@ export const CloudView = forwardRef<CloudViewHandle, {
             else if (drag) turn(drag.x * KEY_TURN_PX, drag.y * KEY_TURN_PX);
             else if (event.key === "+" || event.key === "=") zoomToward(middle, 1.2);
             else if (event.key === "-") zoomToward(middle, 1 / 1.2);
-            else if (event.key === "Escape" && (press.current !== null || lasso.length > 0)) {
+            else if (event.key === "Escape" && (press.current !== null || lasso.length > 0 || shownPicture !== null)) {
               press.current = null;
               held.current.clear();
               setLasso([]);
+              setPicture(null);
             }
             else return;
             event.preventDefault();
           }}
         />
+        {shownPicture && (
+          <div className="look-point-picture" style={{ left: shownPicture.at.x, top: shownPicture.at.y, width: shownPicture.at.size }} aria-hidden="true">
+            {pointPicture?.(shownPicture.index)}
+          </div>
+        )}
         <p className="look-view-hint" aria-hidden="true">{LOOK_TEXT.cloud.hints[tool]}</p>
         {advanced && (
           <>
