@@ -68,7 +68,7 @@ test("recorded grids resume at their tick and match the poster and CPU update", 
 });
 
 for (const width of [390, 1440]) {
-  test(`fast training-to-end paging starts from tick 600 without hidden updates at ${width}px`, async () => {
+  test(`fast training-to-end scrolling starts from tick 600 without hidden updates at ${width}px`, async () => {
     const page = await browser.newPage({ viewport: { width, height: 900 } });
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
@@ -111,7 +111,7 @@ for (const width of [390, 1440]) {
       await page.waitForTimeout(200);
       assert.equal(await page.evaluate(() => window.recordedQueues[0].ticks.length), paused);
       assert.deepEqual(errors, []);
-      console.log(`${width}px first update after direct paging: ${(ticks[0].time - started).toFixed(1)} ms; no catch-up updates`);
+      console.log(`${width}px first update after a direct scroll: ${(ticks[0].time - started).toFixed(1)} ms; no catch-up updates`);
     } finally { await page.close(); }
   });
 }

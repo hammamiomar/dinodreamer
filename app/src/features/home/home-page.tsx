@@ -1,6 +1,6 @@
 // The home: an entrance and a high-level view. On entrance, the site's name, the
-// four links and the automaton, alive, nothing else. A wheel gesture, a key or a swipe turns the
-// page to the next section, where the panel at the right changes and its figure plays: the three
+// four links and the automaton, alive, nothing else. The page scrolls natively; as each section's
+// words reach the middle, the panel at the right changes and its figure plays: the three
 // steps, the model, the basis collection and the automaton, a few sentences each at the left; then
 // the end, with the automaton running again. One specimen throughout: the hibiscus thread the How
 // page records (features/how/). The header is out of view on the entrance and slides in after it
@@ -24,7 +24,6 @@ import { usePrefersReducedMotion } from "../landing/motion";
 import type { HomeStill } from "./home-material-view";
 import { HomePanel, type Shown } from "./home-panel";
 import { BEAT_PLAY_MS, HOME_BEATS, NARROW_PANEL_SHARE, readingLine, sectionAt, type HomeBeat } from "./home-scroll";
-import { measureSections, useHomePaging } from "./home-paging";
 import { ResetMark } from "../../ui/reset-mark";
 import "./home.css";
 
@@ -112,10 +111,10 @@ export function HomePage() {
   const [place, setPlace] = useState<{ beat: HomeBeat; scrolled: boolean }>({ beat: "entrance", scrolled: false });
   useEffect(() => {
     const read = () => {
-      const places = measureSections(sections.current);
-      if (places.length === 0) return;
+      const tops = sections.current.flatMap((element) => (element ? [element.getBoundingClientRect().top + window.scrollY] : []));
+      if (tops.length === 0) return;
       const line = readingLine(window.innerHeight, narrow ? NARROW_PANEL_SHARE : 0);
-      const next = { beat: HOME_BEATS[sectionAt(places, window.scrollY, line)] ?? "entrance", scrolled: window.scrollY > 0 };
+      const next = { beat: HOME_BEATS[sectionAt(tops, window.scrollY, line)] ?? "entrance", scrolled: window.scrollY > 0 };
       setPlace((previous) => (previous.beat === next.beat && previous.scrolled === next.scrolled ? previous : next));
     };
     read();
@@ -126,7 +125,6 @@ export function HomePage() {
       window.removeEventListener("resize", read);
     };
   }, [narrow]);
-  const turn = useHomePaging(sections, narrow ? NARROW_PANEL_SHARE : 0, reducedMotion);
   const progress = useBeatPlay(place.beat, reducedMotion);
   const section = (at: number) => (element: HTMLElement | null) => {
     sections.current[at] = element;
@@ -174,8 +172,8 @@ export function HomePage() {
                 <button type="button" aria-label={WORDS.nextAutomaton} onClick={() => setTurned((count) => count + 1)}><Chevron direction="right" /></button>
               </div>
             )}
-            {/* The hint that the page goes on: a chevron down, which turns the page. */}
-            <button type="button" className="home-down" aria-label={WORDS.nextSection} onClick={() => turn(1)}><Chevron direction="down" /></button>
+            {/* The hint that the page goes on: a chevron down, which scrolls to the first beat (its scroll margin clears the narrow panel, home.css). */}
+            <button type="button" className="home-down" aria-label={WORDS.nextSection} onClick={() => sections.current[1]?.scrollIntoView({ behavior: reducedMotion ? "instant" : "smooth" })}><Chevron direction="down" /></button>
           </div>
           {problem && <p className="home-note" role="status">{problem}</p>}
         </section>
