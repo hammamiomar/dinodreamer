@@ -13,6 +13,7 @@ import {
 } from "./train-run";
 import { CoSelectedPictures } from "./co-selected-pictures";
 import { TrainLoading } from "./train-loading";
+import { PhoneNotice, asksBeforeTraining } from "./phone-notice";
 import { GrowStatus } from "./grow-status";
 import { durationText, timeBefore, timeLeft, timeTaken, type GrowTime } from "./grow-time";
 import {
@@ -113,6 +114,8 @@ export function GrowPanel({ block, request, continuation, heading }: {
   const [kind, setKind] = useState<MaterialKind>(() => kindFromSearch(new URLSearchParams(globalThis.location?.search)));
   // Off by default: Grow trains on after the first fire and keeps both materials.
   const [stopAtFirstFire, setStopAtFirstFire] = useState(false);
+  // On a phone, the first run of a session asks first (phone-notice.tsx).
+  const [asking, setAsking] = useState(false);
   const { record, settings } = run;
   const state = growState(record);
   // A continuation starts from its definition's start; its cellular model is the definition's.
@@ -168,9 +171,13 @@ export function GrowPanel({ block, request, continuation, heading }: {
     last.current = next;
   };
 
+  const startRun = () => {
+    if (request && ready) trainRun.start(request, { ...chosen, picture });
+  };
   const onPrimary = () => {
     if (primary === "grow") {
-      if (request && ready) trainRun.start(request, { ...chosen, picture });
+      if (asksBeforeTraining()) setAsking(true);
+      else startRun();
     } else if (primary === "resume") {
       trainRun.resumeTraining();
     } else if (primary === "restart") {
@@ -243,6 +250,7 @@ export function GrowPanel({ block, request, continuation, heading }: {
     </aside>
     {/* The primary: in the foot row beside the status, or at the bottom of a phone's screen. */}
     <div className="grow-go">{goControl}</div>
+    {asking && <PhoneNotice onTrain={() => { setAsking(false); startRun(); }} onCancel={() => setAsking(false)} />}
     {(state === "loading" || (state === "failed" && record.progress === null))
       && <TrainLoading message={record.phaseMessage} failure={record.failure} onStop={trainRun.end} />}
     {/* Expose save completion for browser checks. */}
