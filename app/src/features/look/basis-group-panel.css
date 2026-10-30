@@ -1,0 +1,165 @@
+/*
+ * The basis group panel (basis-group-panel.tsx): it slides over the page from the right, the
+ * window's full height, and leaves one module of the page at the left, dimmed, where a press
+ * closes it. Inside, the block view sits in a band one module inside the panel's edge at least: the
+ * page band's width where the panel holds it (from 1504 px, where it lies exactly over the page's
+ * own band), the panel less two modules below that. The view lays itself out by that band's width
+ * (look.css, its container), not the window's.
+ */
+.basis-panel {
+  position: fixed;
+  inset: 0 0 0 var(--m);
+  width: auto;
+  height: auto;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  /* The edge as an outline (a line outside the box, no shadow), so the band inside starts on the module. */
+  outline: 1px solid var(--line-2);
+  background: var(--black);
+  color: var(--ink);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.basis-panel::backdrop {
+  background: rgb(0 0 0 / 0.6);
+}
+
+/*
+ * In with the slide, out the same way, the dimming with it; the view, which mounts after the slide
+ * (basis-group-panel.tsx), comes in by its opacity alone. Only the transform and the opacity move,
+ * so nothing is laid out again while they do.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .basis-panel[open] {
+    animation: basis-panel-in 240ms cubic-bezier(0.33, 1, 0.68, 1);
+  }
+
+  .basis-panel[open]::backdrop {
+    animation: basis-panel-dim 240ms ease-out;
+  }
+
+  .basis-panel[data-closing] {
+    animation: basis-panel-out 200ms cubic-bezier(0.32, 0, 0.67, 0) forwards;
+  }
+
+  .basis-panel[data-closing]::backdrop {
+    animation: basis-panel-dim 200ms ease-in reverse forwards;
+  }
+
+  .basis-panel-content {
+    animation: basis-panel-content-in 140ms ease-out;
+  }
+}
+
+@keyframes basis-panel-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes basis-panel-out {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes basis-panel-dim {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes basis-panel-content-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* One module, held at the top while the panel scrolls: the way back, at the band's right edge. */
+.basis-panel-bar {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  height: var(--m);
+  border-bottom: 1px solid var(--line);
+  background: var(--black);
+}
+
+.basis-panel-bar-row {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  height: 100%;
+}
+
+/* The band: the page band's width at most, one module of the panel's edge at least, centred by whole modules. */
+.basis-panel-band {
+  --panel-band: min(var(--content), 100% - 2 * var(--m));
+  width: var(--panel-band);
+  margin-left: max(var(--m), round(nearest, (100% - var(--panel-band)) / 2, var(--m)));
+}
+
+.basis-panel-message {
+  margin: var(--m) 0 0;
+  color: var(--ink-2);
+}
+
+/* Keep the cloud heading one module below the sticky Close bar after scrolling. */
+.basis-panel .look-cloud {
+  scroll-margin-top: calc(2 * var(--m));
+}
+
+/* The reference patch section (look-page.tsx, OriginPlace): the picture and its words side by side. */
+.look-origin {
+  margin-top: var(--m);
+}
+
+.look-origin-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--m);
+  margin-top: var(--patch);
+}
+
+/* The picture at five modules, its patch marked: 20 px a patch, so the mark is plain to see. */
+.look-origin-body > .look-token-picture {
+  flex: none;
+  width: calc(5 * var(--m));
+}
+
+.look-origin-words {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.look-origin-words p {
+  margin: 0;
+}
+
+.look-origin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--patch) var(--space-6);
+}
+
+/* A phone: the panel takes the whole window, with the 16 px gutters. */
+@media (max-width: 640px) {
+  .basis-panel {
+    inset: 0;
+    outline: 0;
+  }
+
+  .basis-panel-band {
+    width: calc(100% - 2 * var(--patch));
+    margin-left: var(--patch);
+  }
+
+  .look-origin-body > .look-token-picture {
+    width: 100%;
+  }
+}

@@ -1,0 +1,21 @@
+/* A picture with the reader's patch grid (how-figures.tsx, PictureWithPatches): the grid and heat on a canvas over the picture. */
+
+.how-picture {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  background: var(--black);
+  aspect-ratio: 1;
+}
+
+.how-picture img,
+.how-picture canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.how-picture canvas {
+  position: absolute;
+  inset: 0;
+}

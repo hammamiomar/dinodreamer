@@ -1,0 +1,266 @@
+/*
+ * The creation's canvas and the brush palette, shared by the Create screen and the
+ * dock, on the tokens of styles.css. The canvas scales with its container; drawing
+ * is in 512 display units.
+ */
+
+.creation-canvas {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  border: 1px solid var(--line);
+  overflow: clip;
+  user-select: none;
+}
+
+.creation-canvas canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.canvas-label {
+  position: absolute;
+  pointer-events: none;
+  padding: 2px 6px;
+  font-size: var(--s-1);
+  color: var(--ink-2);
+  background: var(--black);
+  border: 1px solid var(--line-2);
+  white-space: nowrap;
+}
+
+/* The held token waits for its first stroke: the label is in the ink its request will get. */
+.canvas-label.held {
+  left: var(--space-2);
+  top: var(--space-2);
+  color: var(--paint);
+  border-color: var(--paint);
+}
+
+/*
+ * Why a request was refused: an error's own words, sometimes with a path. It wraps inside the
+ * canvas, breaking a long path anywhere, and its text can be selected.
+ */
+.canvas-label.refusal {
+  left: var(--space-2);
+  bottom: var(--space-2);
+  max-inline-size: calc(100% - 2 * var(--space-2));
+  white-space: normal;
+  overflow-wrap: anywhere;
+  user-select: text;
+  pointer-events: auto;
+  color: var(--warn);
+  border-color: var(--warn);
+}
+
+.canvas-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--space-10);
+  color: var(--ink-2);
+  pointer-events: none;
+}
+
+.canvas-empty-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--s0);
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.canvas-empty p {
+  margin: 0;
+}
+
+/*
+ * The brush on one line (brush-palette.tsx): three groups, size, opacity and paint or
+ * erase, each a glyph and its control, 4 px inside a group and 16 px between groups. The
+ * brush's controls and the lock share one height, --brush-control: 28 px
+ * for a mouse, the 44 px touch target for a finger. On a finger the contents grow with
+ * the box: digits 16 px instead of 12, glyphs 20 px instead of 16, the
+ * fields wider by the same 4/3, so each control reads as the same control, larger.
+ */
+:root {
+  --brush-control: 28px;
+}
+
+.brush-palette {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+/*
+ * One glyph size for both pointers: the footprint glyph and the opacity
+ * glyph are the same width, so the size and opacity steppers start at the same x.
+ */
+.brush-palette .glyph {
+  width: 20px;
+  height: 20px;
+}
+
+/* A brush that paints another selection keeps its place, greyed. */
+.brush-palette:disabled {
+  opacity: 0.4;
+}
+
+/* The size's glyph, the brush's footprint (brush-palette.tsx), in the card's ink. */
+.footprint-glyph {
+  color: var(--paint, var(--ink-2));
+}
+
+/*
+ * The readout slot at the palette's foot (cell-readout.tsx): "cell (12, 4) · Code 50 %",
+ * words muted, numbers bright, each field's number in its ink. Two lines, empty or not, so
+ * nothing under it moves: a card is too narrow for the cell, both fields and the Code error
+ * on one line. It wraps only between its parts.
+ */
+.brush-slot {
+  flex-basis: 100%;
+  min-width: 0;
+  height: 2lh;
+  margin: 0;
+  overflow: hidden;
+  color: var(--ink-2);
+  font-size: var(--s-1);
+}
+
+.brush-slot > span {
+  white-space: nowrap;
+}
+
+/*
+ * A request's longest readout, "cell (16, 16) · Code 100 % · Appearance 100 % · Code error
+ * 0.123", needs three lines in a palette narrower than about 252 px: phones under 375 px,
+ * where the palette is 210 to 250 px. The card decides, since the palette is 78 px narrower
+ * than its card: a container on the palette itself collapses, as its strip is as wide as its
+ * brush. The height stays fixed at each width. Other palettes read a cell and one word.
+ */
+@container request-card (max-width: 333px) {
+  .brush-slot {
+    height: 3lh;
+  }
+}
+
+.brush-slot b {
+  font-weight: inherit;
+  color: var(--ink);
+}
+
+.brush-slot .cell-field-value {
+  color: var(--paint);
+}
+
+/*
+ * Opacity and paint or erase: one item, so a narrow strip wraps the two together. On the
+ * narrowest phone (320 px) even the pair is wider than the card with the steppers,
+ * so it wraps once more, paint or erase under the opacity.
+ */
+.brush-groups {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+}
+
+/* A glyph and its stepper (cards/stepper.tsx). */
+.brush-group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--ink-2);
+}
+
+/* Paint or erase: two square segments, the whole control one --brush-control high. */
+.brush-palette .segmented > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  width: calc(var(--brush-control) - 2px);
+  height: calc(var(--brush-control) - 2px);
+  padding: 0;
+}
+
+/*
+ * The lock between a request's two fields (lock-square.tsx), one --brush-control square: on
+ * the card's strip, where it is the hinge of the sections' edges, and in the dock.
+ */
+.lock-square {
+  position: relative;
+  background: var(--black);
+  z-index: 1;
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--brush-control);
+  height: var(--brush-control);
+  padding: 0;
+  border: 1px solid var(--line-2);
+  border-radius: 0;
+  color: var(--ink-2);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+/* Locked: the ink's border round the closed glyph, the glyph bright as a chosen control. */
+.lock-square[aria-pressed="true"] {
+  border-color: var(--paint);
+  color: var(--ink);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lock-square:hover {
+    color: var(--ink);
+  }
+}
+
+/* Held, the lock fades like the house controls (styles.css). */
+.lock-square:active {
+  opacity: 0.8;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .lock-square {
+    transition:
+      border-color var(--motion),
+      color var(--motion),
+      opacity var(--motion-press);
+  }
+}
+
+@media (pointer: coarse) {
+  :root {
+    --brush-control: var(--touch-target);
+  }
+
+  .lock-square .glyph {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+/* A glyph's word: its accessible name, not shown. */
+.glyph-name {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.anchor-pick-hint { position: absolute; z-index: 5; top: 8px; left: 8px; padding: 6px; background: var(--scrim); color: var(--ink); font-size: var(--s-1); }

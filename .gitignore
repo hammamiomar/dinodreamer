@@ -1,0 +1,14 @@
+node_modules/
+dist/
+target/
+pkg/
+pkg-harness/
+dist-harness/
+local/
+# The fixture's Local order pages are fixture data, not a local copy.
+!app/fixtures/**/atlas/*/local/
+.DS_Store
+*.safetensors
+*.pack
+.wrangler/
+.dev.vars

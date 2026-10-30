@@ -1,0 +1,74 @@
+/*
+ * The status row (grow-status.tsx): the selection map, two lines of words, and the Kept mark
+ * or Download. Its own stylesheet: the corner tray (train-tray.tsx) shows the first line on
+ * any page, where the Train page's stylesheet may not be loaded.
+ */
+.grow-status {
+  display: grid;
+  grid-template-columns: var(--m) minmax(0, 1fr) auto;
+  gap: var(--patch);
+  align-items: center;
+}
+
+.grow-status p {
+  margin: 0;
+}
+
+.grow-status-first {
+  color: var(--ink);
+  line-height: 24px;
+}
+
+.grow-status-second {
+  min-height: 16px;
+  color: var(--ink-2);
+  font-size: var(--s-1);
+  line-height: 16px;
+}
+
+/* Download is two patches high to align with the status row. */
+.grow-status .button {
+  min-height: calc(2 * var(--patch));
+}
+
+.grow-fired {
+  color: var(--strongest);
+}
+
+.grow-failure {
+  color: var(--danger);
+}
+
+/* The Kept mark: a label with a square before it, filled once a fired material is kept on this device. */
+.grow-kept {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ink-3);
+  font-size: var(--s-1);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.grow-kept::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border: 1px solid var(--line-2);
+}
+
+.grow-kept[data-on] {
+  color: var(--ink);
+}
+
+.grow-kept[data-on]::before {
+  border-color: var(--ink);
+  background: var(--ink);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .grow-kept::before {
+    transition: background-color var(--motion), border-color var(--motion);
+  }
+}

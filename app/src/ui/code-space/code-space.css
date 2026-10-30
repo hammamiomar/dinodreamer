@@ -1,0 +1,239 @@
+/* A block's code space (ui/code-space/). */
+
+.code-space {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/*
+ * The 3D view is square, but it learns its width a frame after it mounts (useWidth), and
+ * its canvas has no size until then. The frame holds the square from the first frame, so
+ * nothing under a code space moves when it appears. The plane (reduced motion) has its axes
+ * choice under its square; the ratio is only a preference, so that frame grows to its content.
+ */
+.code-space-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+}
+
+/*
+ * As maps on the web: a drag turns the view, so the pointer says so; one finger
+ * scrolls the page (two fingers are the view's, code-space-3d.tsx), and the page
+ * cannot be pinch-zoomed from over the view. Focused, by a click or the keyboard,
+ * the view has a thin outline: the wheel then zooms it.
+ */
+.code-space-canvas {
+  display: block;
+  border-radius: 0;
+  cursor: grab;
+  touch-action: pan-x pan-y;
+}
+
+.code-space-canvas:active {
+  cursor: grabbing;
+}
+
+/* Over a point a click would choose, a pointing finger, pressed too: a drag starts by leaving the point (code-space-3d.tsx). */
+.code-space-canvas[data-pointing] {
+  cursor: pointer;
+}
+
+/* Over the ring the visitor can drag, or holding it, a move cursor: a press there moves the ring, not the view (mark-drag.ts). */
+.code-space-canvas[data-moving-mark],
+.code-plane[data-moving-mark] {
+  cursor: move;
+}
+
+.code-space-canvas[data-engaged] {
+  outline: 1px solid var(--line-2);
+  outline-offset: 0;
+}
+
+/* Engaged from the keyboard, it keeps the house focus ring. */
+.code-space-canvas[data-engaged]:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.code-space-reset {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  padding: 2px 8px;
+  border: 1px solid var(--line-2);
+  border-radius: 0;
+  background: var(--scrim);
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--s-1);
+  cursor: pointer;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .code-space-reset:hover {
+    color: var(--ink);
+  }
+}
+
+/* A finger: the control grows as a whole: 16 px text, padding by 4/3, a 44 px target. */
+@media (pointer: coarse) {
+  .code-space-reset {
+    min-height: var(--touch-target);
+    padding: 3px 11px;
+  }
+}
+
+/* What a map gesture does here ("Use Ctrl + scroll to zoom"), over the view's middle for a moment. */
+.code-space-hint {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: var(--space-4);
+  border-radius: 0;
+  background: var(--scrim);
+  color: var(--ink);
+  font-size: var(--s0);
+  text-align: center;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .code-space-hint {
+    animation: code-space-hint-in var(--motion);
+  }
+
+  @keyframes code-space-hint-in {
+    from {
+      opacity: 0;
+    }
+  }
+}
+
+.code-space-tooltip {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 180px;
+  padding: 6px;
+  border: 1px solid var(--line-2);
+  border-radius: 0;
+  background: var(--line-faint);
+  font-size: var(--s-1);
+  pointer-events: none;
+}
+
+.code-space-tooltip img {
+  display: block;
+  background: var(--black);
+}
+
+/* What a screen reader says about the point the arrow keys stepped to; not drawn. */
+.code-space-announce {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  overflow: clip;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.code-space-axes {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--s-1);
+}
+
+/* The plane's square: a point's tooltip opens inside it, above the axes choice (code-plane.tsx). */
+.code-plane-square {
+  position: relative;
+}
+
+.code-plane {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 0;
+  background: var(--black);
+}
+
+.code-plane-axis {
+  stroke: var(--line-2);
+}
+
+.code-plane-dots {
+  fill: var(--measure);
+  opacity: 0.6;
+}
+
+/* A chain of arrows on the plane (code-plane.tsx), as the turning view draws it: --measure, the lit one in the accent. */
+.code-plane-arrows line {
+  stroke: var(--measure);
+  stroke-width: 1.5;
+}
+
+.code-plane-arrows polygon {
+  fill: var(--measure);
+}
+
+.code-plane-arrows [data-faint] {
+  opacity: 0.45;
+}
+
+.code-plane-arrows [data-lit] line {
+  stroke: var(--ink);
+  stroke-width: 2.5;
+}
+
+.code-plane-arrows [data-lit] polygon {
+  fill: var(--ink);
+}
+
+.code-plane-origin {
+  fill: none;
+  stroke: var(--ink-3);
+  stroke-width: 1;
+}
+
+.code-plane-arrows text {
+  fill: var(--ink-2);
+  font-size: var(--s-1);
+  dominant-baseline: central;
+  stroke: var(--black);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  paint-order: stroke;
+}
+
+.code-plane-arrows text[data-lit] {
+  fill: var(--ink);
+}
+
+.code-plane-selected {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .code-space-reset {
+    transition: color 120ms;
+  }
+}
+
+/* Palette selectors share the cloud's camera; only their handles take pointer input. */
+.code-target-overlay { position: absolute; inset: 0; width: 100%; aspect-ratio: 1; pointer-events: none; overflow: hidden; }
+.code-target-handle { pointer-events: all; cursor: move; touch-action: none; }
+.code-target-handle:focus { outline: none; stroke-width: 4; }
+
+.palette-controls { display: grid; gap: 8px; padding-bottom: 8px; }
+.palette-radius { display: flex; align-items: center; gap: 8px; }
+.palette-radius input { min-width: 0; flex: 1; }
+.palette-controls input[type="number"] { width: 5em; margin-left: 4px; }
+.palette-controls p { margin: 0; }

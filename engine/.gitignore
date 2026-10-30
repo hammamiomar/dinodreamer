@@ -1,0 +1,10 @@
+/target/
+/pkg/
+/pkg-harness/
+/node_modules/
+/dist/
+/dist-harness/
+/public/assets/
+/local/
+__pycache__/
+.DS_Store

@@ -1,0 +1,160 @@
+/* Your canvases (your-canvases.tsx), on the Canvas page: a list of creations, each a 160 px picture with its title, date and actions. */
+
+.saved {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  width: 100%;
+  max-width: 960px;
+  margin-inline: auto;
+}
+
+.saved-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.saved-header h2 {
+  font-size: var(--s1);
+  line-height: 32px;
+}
+
+.saved-header p,
+.saved > p {
+  margin: 0;
+}
+
+.saved-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  margin-top: var(--space-2);
+}
+
+/* One line of status, only when something happened or blocks. */
+.saved-notice {
+  color: var(--warn);
+  font-size: var(--s-1);
+}
+
+.saved-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.saved-card {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  gap: var(--space-4) var(--space-6);
+  padding: var(--space-4) 0;
+  border-top: 1px solid var(--line);
+}
+
+.saved-card:last-child {
+  border-bottom: 1px solid var(--line);
+}
+
+.saved-card p {
+  margin: 0;
+}
+
+.saved-image {
+  width: 160px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  overflow: clip;
+  aspect-ratio: 1;
+  background: var(--black);
+  cursor: pointer;
+}
+
+.saved-image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* An unreadable record's picture opens nothing. */
+.saved-image-still {
+  cursor: default;
+}
+
+/* Unreadable records appear below readable ones. */
+.saved-unreadable {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.saved-unreadable h2,
+.saved-unreadable > p {
+  margin: 0;
+}
+
+.saved-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/*
+ * A title is the visitor's own words, up to 80 characters, perhaps with no space among
+ * them: it wraps inside the card's column instead of running past it.
+ */
+.saved-title {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  margin: 0;
+  font-size: var(--s0);
+  overflow-wrap: break-word;
+}
+
+.saved-title button {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-weight: 500;
+  text-align: left;
+  overflow-wrap: break-word;
+  cursor: text;
+}
+
+@media (pointer: coarse) {
+  .saved-title button {
+    min-height: var(--touch-target);
+  }
+}
+
+.saved-title-input {
+  font-weight: 500;
+}
+
+.saved-meta {
+  margin: 0;
+}
+
+.saved-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  margin-top: auto;
+}
+
+@media (max-width: 640px) {
+  .saved-card {
+    grid-template-columns: 112px minmax(0, 1fr);
+    gap: var(--space-3);
+  }
+
+  .saved-image {
+    width: 112px;
+  }
+}

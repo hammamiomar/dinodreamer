@@ -1,0 +1,95 @@
+/*
+ * A frame around a material (material-frame.tsx): one patch (16 px) of room on every side, the
+ * frame's line at its edge, ticks in that room at every patch boundary of the cells, and the
+ * corner labels on the line, cut out of it by the ground. Nothing is drawn on the cells.
+ */
+.frame {
+  --frame-room: var(--patch);
+  --tick-length: 6px;
+  position: relative;
+  padding: var(--frame-room);
+}
+
+/* The one sampled line: the material's own colour, or the plain line before it has one. */
+.frame::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--sampled, var(--line));
+  pointer-events: none;
+}
+
+.frame .cells {
+  position: relative;
+  aspect-ratio: 1;
+  background: var(--black);
+  outline: 1px solid var(--line-2);
+}
+
+/* A tick at every patch boundary of the side, both ends included: SVG lines (material-frame.tsx). */
+.frame-ticks {
+  position: absolute;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.frame-ticks line {
+  stroke: var(--line-2);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+
+.frame-ticks-top,
+.frame-ticks-bottom {
+  right: var(--frame-room);
+  left: var(--frame-room);
+  width: calc(100% - 2 * var(--frame-room));
+  height: var(--tick-length);
+}
+
+.frame-ticks-top {
+  top: calc((var(--frame-room) - var(--tick-length)) / 2);
+}
+
+.frame-ticks-bottom {
+  bottom: calc((var(--frame-room) - var(--tick-length)) / 2);
+}
+
+.frame-ticks-left,
+.frame-ticks-right {
+  top: var(--frame-room);
+  bottom: var(--frame-room);
+  width: var(--tick-length);
+  height: calc(100% - 2 * var(--frame-room));
+}
+
+.frame-ticks-left {
+  left: calc((var(--frame-room) - var(--tick-length)) / 2);
+}
+
+.frame-ticks-right {
+  right: calc((var(--frame-room) - var(--tick-length)) / 2);
+}
+
+.frame-corner {
+  position: absolute;
+  max-width: calc(100% - 2 * var(--frame-room));
+  overflow: hidden;
+  padding: 0 6px;
+  background: var(--black);
+  color: var(--ink-3);
+  font-size: var(--s-1);
+  line-height: 16px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.frame-corner-top {
+  top: -8px;
+  left: var(--frame-room);
+}
+
+.frame-corner-bottom {
+  right: var(--frame-room);
+  bottom: -8px;
+}

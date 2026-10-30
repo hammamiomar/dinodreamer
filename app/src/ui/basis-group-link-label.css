@@ -1,0 +1,48 @@
+.basis-group-link-label {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.25em;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.basis-group-link-number {
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+  text-decoration-color: var(--ink-2);
+}
+
+.basis-group-link-chevron {
+  color: var(--ink-2);
+  font-size: 0.8em;
+}
+
+:is(a, button):is(:hover, :focus-visible) .basis-group-link-number {
+  text-decoration-color: var(--ink);
+}
+
+:is(a, button):is(:hover, :focus-visible) .basis-group-link-chevron {
+  color: var(--ink);
+}
+
+.basis-group-number-link {
+  position: relative;
+  display: inline-flex;
+  text-decoration: none;
+}
+
+@media (pointer: coarse) {
+  /* Extend a number's hit area without moving its heading or adjacent controls. */
+  .basis-group-number-link::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 100%;
+    height: 100%;
+    min-width: var(--touch-target);
+    min-height: var(--touch-target);
+    transform: translate(-50%, -50%);
+  }
+}

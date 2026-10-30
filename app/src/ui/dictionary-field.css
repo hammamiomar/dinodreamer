@@ -1,0 +1,7 @@
+/* The dictionary's field (dictionary-field.tsx): square, on black, in a hairline. The caller sets its width. */
+.dictionary-field {
+  display: block;
+  aspect-ratio: 1;
+  background: var(--black);
+  outline: 1px solid var(--line);
+}

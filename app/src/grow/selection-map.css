@@ -1,0 +1,33 @@
+/*
+ * The selection map (selection-map.tsx): 8 × 8 patches. Outside the read region a cell is a faint
+ * square; a read patch is a line-coloured square until the group is selected on it, then ink; once
+ * the automaton has met the target, the selected cells take its sampled colour, as the frame line
+ * does. Its own stylesheet: the corner tray shows it on any page.
+ */
+.selection-map {
+  flex: none;
+  width: var(--m);
+  height: var(--m);
+}
+
+.selection-map rect[data-cell="unread"] {
+  fill: rgb(255 255 255 / 0.05);
+}
+
+.selection-map rect[data-cell="off"] {
+  fill: var(--line);
+}
+
+.selection-map rect[data-cell="on"] {
+  fill: var(--ink);
+}
+
+.selection-map[data-lit] rect[data-cell="on"] {
+  fill: var(--sampled, var(--ink));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .selection-map rect {
+    transition: fill var(--motion);
+  }
+}

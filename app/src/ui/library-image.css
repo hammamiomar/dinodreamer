@@ -1,0 +1,16 @@
+/* A waiting thumbnail keeps its own size and uses the site's patch grid. */
+img[data-library-loading] {
+  background-color: var(--black);
+  background-image: repeating-conic-gradient(var(--line) 0% 25%, transparent 0% 50%);
+  background-size: 16px 16px;
+  animation: library-picture-loading 1.6s ease-in-out infinite;
+}
+
+@keyframes library-picture-loading {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  img[data-library-loading] { animation: none; }
+}

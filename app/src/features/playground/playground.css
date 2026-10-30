@@ -1,0 +1,647 @@
+/*
+ * The Playground (playground-page.tsx) on the 64 px module. From 1200 px wide, two panes: the
+ * stage at the left fits the window and never moves; the shelf at the right is the one thing that
+ * scrolls. Narrower, one column: the stage, then the shelf, and the page scrolls as usual.
+ *
+ * Every section starts on the module: the stage at x 64, its material at y 192 (the head is 128),
+ * the bar and the step's line under the frame, the
+ * shelf one module right of the frame and at y 128, and each of the shelf's groups on a module line,
+ * since its lines are 64 px and its tile rows 256.
+ *
+ * The cells take --cells, a whole number of pixels per cell: the largest multiple of 128 px that
+ * leaves room for the head (128), the frame's room (16 a side), the bar (16 + 48), the step's line
+ * and a module at the foot, and for the shelf (416 + a module a side). So the material is never
+ * resampled on desktop; at 512 (a 900 px window) a cell is 4 px. Phones use the
+ * available width with an 8 px frame margin so the canvas remains easy to touch.
+ */
+
+/* An instrument keeps the window: the page takes the site grid's full width (styles.css). */
+.playground {
+  --cells: 256px;
+  display: grid;
+  grid-column: full;
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+  padding: 0 var(--patch) var(--m);
+}
+
+/* One column: the content is a whole number of patches wide (352 at 390), so its edges stay on the 16 px grid. */
+@supports (width: round(down, 100px, 128px)) {
+  .playground {
+    --cells: max(256px, round(down, 100vw / var(--page-scale) - 288px, 128px));
+    grid-template-columns: minmax(0, round(down, 100%, 16px));
+  }
+}
+
+.playground-stage {
+  min-width: 0;
+}
+
+/* 128 px under the 64 px header, so the frame starts on a module boundary at any width. */
+.playground-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: end;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-6);
+  height: 128px;
+  padding-bottom: var(--patch);
+}
+
+.playground-head h1,
+.playground-head p {
+  margin: 0;
+}
+
+.playground-head p {
+  color: var(--ink-2);
+}
+
+.playground-status {
+  margin: var(--m) 0;
+  color: var(--ink-2);
+}
+
+@media (min-width: 1200px) {
+  .playground {
+    --cells: 512px;
+    /* At least a 512 frame's width, so the bar and the step's line stay one line each under a smaller frame. */
+    grid-template-columns: max(calc(var(--cells) + 2 * var(--patch)), 544px) minmax(0, 1fr);
+    column-gap: var(--m);
+    height: calc(100dvh / var(--page-scale) - var(--top));
+    padding: 0 0 0 var(--m);
+    /* clip, not hidden: a hidden box still takes the shelf's chained scroll and moves the stage. */
+    overflow: clip;
+  }
+
+  @supports (width: round(down, 100px, 128px)) {
+    .playground {
+      /* At most 1024 px, the canvas's own limit (zoom 8 × 128), so no gap opens between the stage and the shelf. */
+      --cells: min(1024px, max(256px, round(down, min(100dvh / var(--page-scale) - 352px, 100vw / var(--page-scale) - 608px), 128px)));
+    }
+
+    /* The owner mode: its block (about 145 px) stands under the step's line, so the cells leave it room. */
+    .playground:has(.stage-owner) {
+      --cells: min(1024px, max(256px, round(down, min(100dvh / var(--page-scale) - 512px, 100vw / var(--page-scale) - 608px), 128px)));
+    }
+
+    /* With a finger the owner's actions are 48 px rows and the block is taller: one more step of room. */
+    @media (pointer: coarse) {
+      .playground:has(.stage-owner) {
+        --cells: min(1024px, max(256px, round(down, min(100dvh / var(--page-scale) - 640px, 100vw / var(--page-scale) - 608px), 128px)));
+      }
+    }
+  }
+
+  /* The head is 128 px, so the material starts at 192, a module line; the number stands on the frame. */
+  .playground-head {
+    padding-bottom: 0;
+  }
+
+  .playground-shelf {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: var(--m) var(--m) var(--m) 0;
+  }
+}
+
+/* The shelf: lines, headings and tiles; no boxes. */
+
+.playground-shelf {
+  display: grid;
+  align-content: start;
+  min-width: 0;
+}
+
+/* One column: a module between the stage and the shelf. */
+@media (max-width: 1199px) {
+  .playground {
+    justify-content: center;
+  }
+
+  /* With the shelf below it, the stage and canvas share the center of the page. */
+  .playground .stage-instrument {
+    justify-content: center;
+  }
+
+  .playground .stage-fit {
+    justify-self: center;
+    width: 100%;
+  }
+
+  .playground .stage-fit > .frame {
+    margin-inline: auto;
+  }
+
+  .playground-head {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: flex-end;
+    height: auto;
+    min-height: 128px;
+    padding-top: var(--patch);
+    text-align: center;
+  }
+
+  .playground-tiles {
+    justify-content: center;
+  }
+
+  .playground-shelf {
+    padding-top: var(--m);
+  }
+}
+
+/* A line of the shelf is one module high, so the groups after it start on a module line. */
+.playground-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--patch);
+  min-height: var(--m);
+  border-bottom: 1px solid var(--line);
+}
+
+.playground-line h2 {
+  margin: 0;
+}
+
+.playground-empty {
+  color: var(--ink-3);
+  font-size: var(--s-1);
+}
+
+.playground-count {
+  margin-left: auto;
+  color: var(--ink-2);
+  font-size: var(--s-1);
+  font-variant-numeric: tabular-nums;
+}
+
+.playground-yours .playground-empty + .playground-word {
+  margin-left: auto;
+}
+
+/* A quiet word: an action that is not the page's one button. */
+.playground-word {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--s-1);
+  text-decoration: underline;
+  text-decoration-color: var(--line-2);
+  text-underline-offset: 5px;
+  cursor: pointer;
+}
+
+.playground-danger {
+  color: var(--danger);
+}
+
+/* Under the Featured and Yours lines, the tiles start at once: the line is a module, the rows are four. */
+.playground-group > .playground-tiles,
+.playground-yours > .playground-tiles {
+  padding-top: 0;
+}
+
+.playground-kept-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--patch);
+  min-height: var(--m);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-2);
+  font-size: var(--s-1);
+}
+
+/* The choices' line: a word per row, the chosen value after it, the count at the end. */
+.playground-choice {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--s-1);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.playground-choice .label {
+  margin-right: var(--space-2);
+}
+
+.playground-choice[aria-expanded="true"],
+.playground-choice[aria-expanded="true"] .label {
+  color: var(--ink);
+}
+
+.playground-choice-row {
+  display: flex;
+  align-items: center;
+  min-height: var(--m);
+  border-bottom: 1px solid var(--line);
+}
+
+.playground-choice-row .segmented {
+  border-bottom: 0;
+}
+
+/* A block: a module above it, its heading on a line, its tiles under it. */
+.playground-block {
+  padding-top: var(--m);
+}
+
+/* 48 px with its line, so the tiles under it start on the 16 px grid. */
+.playground-block-head {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-end;
+  align-items: baseline;
+  gap: var(--patch);
+  height: 48px;
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--line);
+}
+
+.playground-block-head h2 {
+  margin: 0;
+}
+
+.playground-block-head h2 a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/*
+ * Tiles: 128 px, so a 128-cell material shows at one pixel a cell. A tile is 208 px high and the
+ * rows 48 apart, with 48 after the last: four modules a row, so a block (a module above it, its
+ * heading and the 16 under it, its rows) is a whole number of modules and the next starts on one.
+ */
+.playground-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 128px);
+  gap: 48px var(--patch);
+  margin: 0;
+  padding: var(--patch) 0 48px;
+  list-style: none;
+}
+
+.playground-tile {
+  display: grid;
+  gap: var(--space-2);
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--s-1);
+  line-height: 16px;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+/*
+ * Two lines on a line, 40 px with it, so the picture starts on the 16 px grid. The owner mode's
+ * marks take a column at the right, one per line, from the bottom; the words at the left give way.
+ */
+.playground-tile-name {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-content: end;
+  height: 40px;
+  padding-bottom: var(--space-1);
+  border-bottom: 1px solid var(--line);
+}
+
+.playground-tile-name > span {
+  grid-column: 1;
+  min-height: 16px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.playground-tile-name > .playground-tile-marks {
+  display: grid;
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-content: end;
+  justify-items: end;
+  padding-left: var(--space-2);
+  color: var(--ink-3);
+}
+
+.playground-tile img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  background: var(--black);
+  image-rendering: pixelated;
+}
+
+/* 24 px with the gap above it: a tile is 208 px, so every picture starts on the 16 px grid. */
+.playground-tile-reading {
+  height: 24px;
+  font-variant-numeric: tabular-nums;
+}
+
+.playground-tile[aria-pressed="true"] {
+  color: var(--ink);
+}
+
+.playground-tile[aria-pressed="true"] .playground-tile-name {
+  border-bottom-color: var(--ink);
+}
+
+/*
+ * A material that did not fire stays dim: the dimming alone says so (its reading is its strength,
+ * as for any tile). In the owner mode a material taken out of the public Playground (hidden, purged,
+ * rejected) is dim the same way, and its mark says so.
+ */
+button.playground-tile:not([data-fired]),
+button.playground-tile[data-withdrawn] {
+  color: var(--ink-3);
+}
+
+button.playground-tile:not([data-fired]) img,
+button.playground-tile[data-withdrawn] img {
+  opacity: 0.45;
+}
+
+/*
+ * The stage's display number (StageBlockNumber): the header is the peek's box, so the peek opens beside
+ * the stage, one module right of its column, over the shelf, and never over the frame.
+ */
+.playground-head {
+  position: relative;
+}
+
+.playground-head-number h1 {
+  margin: 0;
+}
+
+.playground-head-number h1 a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* The number owns the heading's center; its opening cue sits outside that width. */
+.playground-head-number .basis-group-link-label {
+  position: relative;
+  gap: 0;
+}
+
+.playground-head-number .basis-group-link-chevron {
+  position: absolute;
+  left: calc(100% + 0.4em);
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.5em;
+}
+
+.playground-head-number .playground-preview {
+  top: 0;
+  left: calc(100% + var(--m));
+}
+
+/* The peek: a card on black over the tiles under the heading, never over the stage. */
+.playground-preview {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  left: 0;
+  z-index: 4;
+  width: min(100%, 416px);
+  padding: var(--patch);
+  border: 1px solid var(--line-2);
+  background: var(--black);
+}
+
+.playground-preview-card {
+  display: grid;
+  gap: var(--patch);
+  font-size: var(--s-1);
+}
+
+.playground-preview-card p {
+  margin: 0;
+}
+
+.playground-preview-band {
+  display: grid;
+  grid-template-columns: 96px repeat(4, minmax(0, 64px));
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.playground-preview-picture {
+  position: relative;
+  aspect-ratio: 1;
+  overflow: clip;
+  background: var(--line-faint);
+}
+
+.playground-preview-picture img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* The winning patch: one of the picture's 16 × 16, a light square with a dark edge so it reads on any picture. */
+.playground-preview-picture i {
+  position: absolute;
+  width: 6.25%;
+  height: 6.25%;
+  border: 1px solid var(--ink);
+  outline: 1px solid var(--black);
+}
+
+.playground-preview-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--patch);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+  color: var(--ink-2);
+}
+
+.playground-preview-foot a {
+  color: var(--ink);
+}
+
+/* On a finger, the same card as a sheet at the window's foot. */
+.playground-preview-sheet {
+  width: 100%;
+  max-width: 100%;
+  max-height: calc(85dvh / var(--page-scale));
+  margin: auto 0 0;
+  padding: var(--space-6) var(--patch) var(--m);
+  border: 0;
+  border-top: 1px solid var(--line-2);
+  background: var(--black);
+  color: var(--ink);
+}
+
+.playground-preview-sheet::backdrop {
+  background: var(--scrim);
+}
+
+.playground-preview-sheet-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: var(--patch);
+}
+
+.playground-preview-sheet .playground-preview-band {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.playground-preview-sheet .playground-preview-band .band {
+  grid-column: 1 / -1;
+}
+
+/* The one movement: an ink outline between a tile and the frame (outline-travel.ts). */
+.outline-travel {
+  position: fixed;
+  z-index: 20;
+  border: 1px solid var(--ink);
+  pointer-events: none;
+}
+
+@media (max-width: 640px) {
+  .playground {
+    grid-template-columns: minmax(0, 1fr);
+    padding-inline: 8px;
+  }
+
+  .playground-head {
+    min-height: 96px;
+  }
+
+  .playground-head-number h1 {
+    font-size: var(--s1);
+    line-height: 32px;
+  }
+
+  .playground .stage-fit > .frame {
+    --frame-room: 8px;
+  }
+
+  .playground .stage-controls {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .playground .stage-controls > .stage-icon:first-child {
+    justify-self: end;
+  }
+
+  .playground .stage-reset {
+    justify-self: start;
+  }
+
+  .playground .stage-controls .slider {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .playground .stage-readouts dl {
+    grid-template-columns: auto auto;
+    justify-content: center;
+  }
+
+  .playground .stage-actions {
+    height: auto;
+    justify-items: center;
+  }
+
+  .playground .stage-words {
+    justify-content: center;
+  }
+
+  .playground .stage-actions > .button {
+    width: auto;
+    max-width: 100%;
+  }
+
+  .playground-choice-row {
+    min-width: 0;
+  }
+
+  .playground-choice-row .segmented {
+    flex-wrap: wrap;
+  }
+
+  /* The Yours line keeps the count and Import on its first row; the empty sentence takes a second row, a module each. */
+  .playground-yours .playground-line {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-auto-rows: 1fr;
+    align-items: center;
+    gap: 0 var(--patch);
+  }
+
+  .playground-yours .playground-line:has(.playground-empty) {
+    height: calc(2 * var(--m));
+  }
+
+  .playground-yours .playground-line > .playground-word {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .playground-yours .playground-empty {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  /* 96 px tiles a patch apart: three to a row in 320 to 400 px, each on the 16 px grid; a tile is 176 px, a row three modules. */
+  .playground-tiles {
+    grid-template-columns: repeat(auto-fill, 96px);
+    row-gap: var(--patch);
+    padding-bottom: var(--patch);
+  }
+}
+
+@media (pointer: coarse) {
+  .playground-word,
+  .playground-choice {
+    min-height: var(--touch-target);
+  }
+
+  /* The number opens the sheet: a finger's whole target, also for a number of one or two digits. */
+  .playground-block-head h2 a {
+    display: inline-flex;
+    align-items: center;
+    min-width: var(--touch-target);
+    min-height: var(--touch-target);
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .playground-word:hover,
+  .playground-choice:hover,
+  .playground-block-head h2 a:hover {
+    color: var(--ink);
+  }
+
+  .playground-tile:hover {
+    color: var(--ink);
+  }
+
+  .playground-tile:hover .playground-tile-name {
+    border-bottom-color: var(--line-2);
+  }
+}

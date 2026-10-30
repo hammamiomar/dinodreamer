@@ -1,0 +1,125 @@
+/*
+ * The Train tray (train-tray.tsx): the image editor's corner object (styles.css .library-dock,
+ * features/editor/dock-canvas.css) on Train's run. Fixed at the window's bottom-right, flush with
+ * both edges, never in a page's flow, so nothing moves when it shows, opens or folds. Its tab sits
+ * on its top edge at the right; folded, only the tab shows at the window's bottom edge. The window
+ * onto the run is four modules: the 128-cell grid at 2 px a cell.
+ */
+.train-tray {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  z-index: 12;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  pointer-events: none;
+}
+
+.train-tray > * {
+  pointer-events: auto;
+}
+
+/* Folded, the tray slides down until only its tab shows; one motion each way, on the transform alone. */
+.train-tray[data-folded] {
+  transform: translateY(calc(100% - var(--dock-tab-height)));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .train-tray {
+    transition: transform 240ms cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+}
+
+/* The tab: the live thumbnail, the run's name and the chevron of the way the tray will move. */
+.train-tray-tab {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--dock-tab-height);
+  margin-bottom: -1px;
+  padding: 0 var(--space-3) 0 var(--space-2);
+  border: 1px solid var(--line);
+  border-right: 0;
+  border-bottom-color: var(--black);
+  background: var(--black);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--s-1);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.train-tray-thumbnail {
+  display: block;
+  width: 24px;
+  height: 24px;
+  background: var(--black);
+  image-rendering: pixelated;
+}
+
+.train-tray-chevron {
+  color: var(--ink-2);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .train-tray-tab:hover .train-tray-chevron {
+    color: var(--ink);
+  }
+}
+
+.train-tray-body {
+  display: grid;
+  gap: var(--patch);
+  padding: var(--patch);
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+  background: var(--black);
+}
+
+.train-tray-window {
+  display: block;
+  width: calc(4 * var(--m));
+  /* The frame's line: the automaton's colour once it has fired, the plain line before. */
+  outline: 1px solid var(--sampled, var(--line-2));
+}
+
+.train-tray-cells {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  background: var(--black);
+  image-rendering: pixelated;
+}
+
+.train-tray-status {
+  display: grid;
+  grid-template-columns: var(--m) minmax(0, 1fr);
+  gap: var(--patch);
+  align-items: center;
+  width: calc(4 * var(--m));
+}
+
+.train-tray-status p {
+  margin: 0;
+}
+
+.train-tray-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--patch);
+  width: calc(4 * var(--m));
+}
+
+/* On a phone the tray is a sheet across the window, folded or open, so it only moves down and up. */
+.train-tray[data-sheet] {
+  left: 0;
+}
+
+.train-tray[data-sheet] > .train-tray-body {
+  align-self: stretch;
+  justify-items: center;
+}

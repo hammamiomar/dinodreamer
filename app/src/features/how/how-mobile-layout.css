@@ -1,0 +1,59 @@
+@media (max-width: 1023px) {
+  /* The browser document is the only vertical scroll owner on mobile How. */
+  .site:has(.how-mobile-layout) > .frame-header {
+    position: sticky;
+    top: 0;
+    z-index: 4;
+    background: var(--black);
+  }
+
+  .how-mobile-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+    padding-block: 8px 24px;
+  }
+
+  .how-mobile-layout .how-stage {
+    grid-template-rows: 96px auto;
+    align-content: start;
+  }
+
+  .how-mobile-layout .how-figure {
+    /* Width still drives responsive figures; their contents determine the height. */
+    container-type: inline-size;
+    place-items: start center;
+  }
+
+  .how-mobile-layout .how-figure > * {
+    height: auto;
+  }
+
+  .how-mobile-layout .how-pair {
+    height: auto;
+    grid-template-rows: auto;
+    align-items: start;
+  }
+
+  .how-mobile-layout .how-pair[data-columns="3"],
+  .how-mobile-layout .how-visualization .how-pair {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .how-mobile-layout .how-visual {
+    flex: none;
+  }
+
+  .how-mobile-layout .how-cloud {
+    height: auto;
+  }
+}
+
+/* At the smallest phone width, chart labels and captions need the complete column. */
+@media (max-width: 359px) {
+  .how-mobile-layout .how-pair,
+  .how-mobile-layout .how-pair[data-columns="3"],
+  .how-mobile-layout .how-visualization .how-pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -1,0 +1,979 @@
+/*
+ * The block view (look-page.tsx) on the 64 px module, in the basis group panel's band
+ * (basis-group-panel.css). It lays itself out by its own width, the container `look`, not by the
+ * window's: the panel's band is narrower than the page's at the same window, and the view is the
+ * same at either. The widths below are the page band's at the windows they were designed at (a
+ * 1312 px band at 1440, 1279 at 1407, 772 at 900, 608 on a 640 px phone). Section edges sit on the
+ * module; pictures are 144 px on a 160 px pitch, so their edges sit on the 16 px patch.
+ * The patch pictures, strips and the request are shared with the picture page and Grow.
+ */
+
+.look-page {
+  container: look / inline-size;
+  padding: var(--m) 0;
+}
+
+/* 1 · The head: the number, its cloud, one line, the one primary. */
+.look-head {
+  display: grid;
+  grid-template-columns: 384px 256px minmax(0, 1fr) auto;
+  grid-template-rows: 96px 32px;
+  align-items: end;
+}
+
+.look-head .display {
+  margin: 0;
+  line-height: 96px;
+}
+
+.look-glyph {
+  width: 256px;
+  height: 96px;
+}
+
+.look-glyph canvas {
+  display: block;
+  width: 100%;
+}
+
+.look-head-actions {
+  grid-column: 4;
+  grid-row: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.look-head-actions .look-star {
+  min-width: 112px;
+  gap: 8px;
+}
+
+.look-star[aria-pressed="true"] {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+/* Three modules wide, so its left edge is on the patch as its right edge is on the module. */
+.look-grow {
+  min-width: 192px;
+}
+
+.look-line {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  margin: 0;
+  line-height: 16px;
+  color: var(--ink-2);
+}
+
+.look-line > span + span::before,
+.look-details > span + span::before {
+  content: "·";
+  padding: 0 8px;
+  color: var(--ink-3);
+}
+
+/* A group's heading line: the word, the count, a link at the end. */
+.look-group-head {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  height: 16px;
+  margin-bottom: 16px;
+}
+
+.look-group-head h2 {
+  margin: 0;
+}
+
+.look-count {
+  font-size: var(--s-1);
+  color: var(--ink-2);
+}
+
+.look-all {
+  font-size: var(--s-1);
+}
+
+/* 2 · The Level 4 pictures; the current one's action is a word at the end of the heading line. */
+/* The 32 px between the Strongest pictures and the materials is half each section's, so both boxes end on the module. */
+.look-fires {
+  margin-top: var(--m);
+  padding-bottom: 16px;
+}
+
+/*
+ * "Train from this patch" for the picture under the pointer, in focus or tapped (strongest-pictures.tsx).
+ * It keeps its place in the line while hidden, so the line never changes, and nothing covers a picture.
+ */
+.look-fires-action {
+  margin-left: auto;
+  font-size: var(--s-1);
+  color: var(--ink);
+  white-space: nowrap;
+  visibility: hidden;
+}
+
+.look-fires[data-current] .look-fires-action {
+  visibility: visible;
+}
+
+.look-pictures,
+.look-material-tiles {
+  display: grid;
+  grid-template-columns: repeat(8, 144px);
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.look-picture-face {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+/* The current picture, and the one Grow a material grows toward while it is hovered: an outline on the black margin. */
+.look-picture[data-current],
+.look-picture[data-lit] {
+  outline: 1px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* 3 · The materials: boxless tiles. The section holds four modules (one without tiles), so the cloud starts on one. */
+.look-materials {
+  min-height: var(--m);
+  padding-top: 16px;
+}
+
+.look-materials:has(.look-material-tiles) {
+  min-height: calc(4 * var(--m));
+}
+
+.look-materials > .muted {
+  margin: 0;
+  line-height: 16px;
+}
+
+.look-material {
+  display: grid;
+  gap: 8px;
+  color: var(--ink-2);
+  font-size: var(--s-1);
+  text-decoration: none;
+}
+
+.look-material img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  image-rendering: pixelated;
+}
+
+/* Three 16 px lines and the rule above them: the tile is 208 px, thirteen patches. */
+.look-material-name {
+  display: grid;
+  padding-top: 7px;
+  border-top: 1px solid var(--line);
+  line-height: 16px;
+}
+
+.look-material-name > span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.look-material-reading {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.look-material:not([data-fired]) .look-material-reading {
+  color: var(--ink-3);
+}
+
+.look-material:not([data-fired]) {
+  color: var(--ink-3);
+}
+
+.look-material:not([data-fired]) img {
+  opacity: 0.5;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .look-material:hover {
+    color: var(--ink);
+  }
+
+  .look-material:hover .look-material-name {
+    border-top-color: var(--ink);
+  }
+}
+
+/* 4 · The cloud: the view and the picked patch in one frame. */
+.look-cloud {
+  margin-top: var(--m);
+}
+
+.look-cloud > .heading {
+  margin: 0 0 32px;
+  line-height: 32px;
+}
+
+.look-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  outline: 1px solid var(--line);
+  outline-offset: -1px;
+}
+
+.look-view {
+  container: response-plot / inline-size;
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.look-view-stage {
+  position: relative;
+}
+
+/* The toolbar has its own row, so panned or enlarged rings cannot cover its controls. */
+.look-view-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 32px;
+  padding: 16px;
+}
+
+.look-view-planes {
+  display: contents;
+}
+
+.look-cloud-under {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+  width: 100%;
+  pointer-events: none;
+}
+
+/* Positioned, so it lies over the two canvases under it and takes the pointer. */
+.look-cloud-canvas {
+  position: relative;
+  display: block;
+  cursor: grab;
+  touch-action: none;
+}
+
+.look-cloud-canvas:active {
+  cursor: grabbing;
+}
+
+.look-cloud-canvas[data-tool="lasso"] {
+  cursor: crosshair;
+}
+
+.look-view-tools {
+  display: contents;
+}
+
+.look-view-tools .segmented {
+  border-bottom: 0;
+}
+
+.look-view-tools .slider {
+  width: 256px;
+}
+
+.look-view-reset {
+  flex: none;
+  margin-left: auto;
+  min-height: 40px;
+  font-size: var(--s-1);
+}
+
+.look-region-count {
+  font-size: var(--s-1);
+  color: var(--ink-2);
+}
+
+.look-advanced {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+/* With Advanced, the hint stays above the end-on flat-view control. */
+.look-view-stage:has(.look-plane) .look-view-hint {
+  bottom: 56px;
+}
+
+.look-band-label button,
+.look-request-bands button {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.look-view-hint {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  margin: 0;
+  font-size: var(--s-1);
+  color: var(--ink-3);
+  pointer-events: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .look-band-label button:hover,
+  .look-request-bands button:hover {
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+}
+
+/* Advanced: the three flat views at the view's edges, and the flat view's name. */
+.look-view-label {
+  position: absolute;
+  top: 72px;
+  left: 16px;
+  font-size: var(--s-1);
+  color: var(--ink-3);
+  pointer-events: none;
+}
+
+.look-plane {
+  position: absolute;
+  padding: 8px;
+  border: 1px solid var(--line);
+  background: var(--black);
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--s-1);
+  cursor: pointer;
+}
+
+.look-plane[aria-pressed="true"] {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.look-plane-0 {
+  top: 112px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.look-plane-1 {
+  top: 50%;
+  right: 0;
+  border-right: 0;
+  transform: translateY(-50%);
+  writing-mode: vertical-rl;
+}
+
+.look-plane-2 {
+  bottom: 0;
+  left: 50%;
+  border-bottom: 0;
+  transform: translateX(-50%);
+}
+
+.look-plane:focus-visible {
+  outline-offset: -2px;
+}
+
+/* The picked patch, beside the view. */
+.look-preview {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  padding: 32px;
+  border-left: 1px solid var(--line);
+}
+
+.look-preview > .look-token-picture {
+  width: 256px;
+}
+
+.look-preview-where {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 16px;
+  margin: 0;
+  font-size: var(--s-1);
+  color: var(--ink-2);
+}
+
+.look-preview-from {
+  margin: 0;
+  font-size: var(--s-1);
+  color: var(--ink-3);
+  overflow-wrap: anywhere;
+}
+
+.look-preview-actions {
+  display: grid;
+  gap: 8px;
+}
+
+/* 5 · The bands under the cloud: four uniform rows. */
+.look-bands {
+  display: grid;
+  gap: 16px;
+  margin-top: var(--m);
+}
+
+.look-band {
+  display: grid;
+  grid-template-columns: 192px minmax(0, 1fr);
+  align-items: center;
+  min-height: 64px;
+}
+
+.look-band-label {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+  font-size: var(--s-1);
+  color: var(--ink-2);
+}
+
+.look-band-empty {
+  margin: 0;
+  font-size: var(--s-1);
+  color: var(--ink-3);
+}
+
+/* 6 · The details line, a module under the bands, so the page ends on the module. */
+.look-details {
+  margin: var(--m) 0 0;
+  font-size: var(--s-1);
+  line-height: 16px;
+  color: var(--ink-3);
+}
+
+.look-details .link-control {
+  font-size: var(--s-1);
+}
+
+.look-notice {
+  color: var(--warn);
+}
+
+/* A patch's picture with its patch marked: here, on the picture page and on Grow. */
+.look-token-picture {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+}
+
+.look-token-picture img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.look-patch {
+  position: absolute;
+  width: 6.25%;
+  height: 6.25%;
+  border: 1px solid #fff;
+  outline: 1px solid var(--black);
+  pointer-events: none;
+}
+
+/* A library patch without a public picture: a plain tile that says so. */
+.look-no-picture {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  padding: 4px;
+  border: 1px solid var(--line);
+  background: var(--black);
+  color: var(--ink-3);
+  font-size: var(--s-1);
+  text-align: center;
+}
+
+/* A strip: a contact sheet of 64 px pictures that scrolls sideways. */
+.look-token-strip {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+}
+
+.look-token-scroll {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.look-token-track {
+  position: relative;
+  height: 64px;
+}
+
+/* The picture is 60 px inside the 64 px button: its outlines land on the 2 px black margin, never on the picture. */
+.look-token {
+  position: absolute;
+  top: 0;
+  width: 64px;
+  height: 64px;
+  padding: 2px;
+  border: 0;
+  background: var(--black);
+  cursor: pointer;
+}
+
+.look-token[aria-pressed="true"] {
+  outline: 1px solid var(--ink);
+  outline-offset: -1px;
+}
+
+/* The ring is drawn inside the box, on the black margin: the strip clips anything outside it. */
+.look-token:focus-visible {
+  outline-offset: -2px;
+}
+
+.look-strip-step {
+  width: 24px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  cursor: pointer;
+}
+
+.look-strip-step:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .look-token:hover {
+    outline: 1px solid var(--ink);
+    outline-offset: -1px;
+  }
+}
+
+/* Shared words: a quiet line, a sub-heading, a warning. */
+.look-hint {
+  margin: 8px 0;
+  font-size: var(--s-1);
+  line-height: 16px;
+  color: var(--ink-3);
+}
+
+.look-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 32px 0 16px;
+}
+
+.look-section-head h2 {
+  margin: 0;
+  font-size: var(--s0);
+  font-weight: 400;
+}
+
+.look-section-head > span {
+  font-size: var(--s-1);
+  color: var(--ink-3);
+}
+
+.look-subhead {
+  margin: 16px 0 8px;
+  font-size: var(--s-1);
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.look-warning {
+  margin: 8px 0;
+  font-size: var(--s-1);
+  line-height: 16px;
+  color: var(--warn);
+}
+
+.look-primary:not(:disabled) {
+  border-color: var(--ink);
+}
+
+/* Your picture in this block (picture-place.tsx), after the head. */
+.look-own {
+  margin-top: var(--m);
+}
+
+.look-picture-here {
+  padding-bottom: 16px;
+}
+
+.look-picture-here > .look-strength-counts {
+  margin-bottom: 16px;
+}
+
+.look-lift {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+}
+
+.look-lift-patch {
+  display: grid;
+  gap: 8px;
+  width: 224px;
+  margin: 0;
+  font-size: var(--s-1);
+  color: var(--ink-2);
+}
+
+.look-lift-patch figcaption {
+  color: var(--ink-3);
+}
+
+.look-lift-patch .look-token-picture {
+  width: 160px;
+}
+
+.look-lift-patch p {
+  margin: 0;
+  line-height: 16px;
+}
+
+.look-lift-arrow {
+  font-size: var(--s1);
+  color: var(--ink-2);
+}
+
+.look-picture-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 16px;
+}
+
+/* The request, inside Advanced (request-panel.tsx). */
+.look-request {
+  margin-top: 32px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.look-request > h2 {
+  margin: 0 0 16px;
+}
+
+.look-request-anchor {
+  display: grid;
+  grid-template-columns: 144px minmax(0, 1fr);
+  align-items: start;
+  gap: 16px;
+}
+
+.look-request-anchor > .look-request-words:only-child {
+  grid-column: 1 / -1;
+}
+
+.look-request-words .label {
+  margin: 0 0 8px;
+}
+
+.look-request-words > p {
+  margin: 0 0 8px;
+  font-size: var(--s-1);
+}
+
+.look-request-band {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.look-request-lift {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.look-request-lift .look-token-picture {
+  flex: none;
+  width: 64px;
+}
+
+.look-request-lift p {
+  margin: 8px 0 0;
+}
+
+.look-request-region {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.look-request-bands {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 24px;
+}
+
+.look-request-bands button[aria-pressed="true"] {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.look-request-count {
+  margin: 0;
+}
+
+.look-request-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.look-request-actions .look-hint {
+  margin: 0;
+}
+
+.look-handoff {
+  color: var(--ink);
+}
+
+/*
+ * Below 1280 px, picture sizes use whole 8 px steps to keep later rows on the baseline.
+ * Pictures pack left with 16 px gaps; keepOnModule aligns section tops to the 64 px module.
+ */
+@container look (max-width: 1279px) {
+  .look-pictures,
+  .look-material-tiles {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+    grid-template-columns: repeat(8, min(144px, round(down, (100% - 7 * 16px) / 8, 8px)));
+    justify-content: start;
+  }
+}
+
+@container look (max-width: 772px) {
+  .look-head {
+    grid-template-columns: auto 256px minmax(0, 1fr);
+    grid-template-rows: 96px auto auto;
+    row-gap: 16px;
+  }
+
+  .look-head .display {
+    grid-column: 1;
+  }
+
+  .look-glyph {
+    margin-left: 32px;
+  }
+
+  .look-head-actions {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    justify-self: start;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .look-pictures {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .look-material-tiles {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .look-materials:has(.look-material-tiles) {
+    min-height: 0;
+  }
+
+  .look-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .look-preview {
+    grid-template-columns: 128px minmax(0, 1fr);
+    align-items: start;
+    padding: 16px;
+    border-top: 1px solid var(--line);
+    border-left: 0;
+  }
+
+  .look-preview > .look-token-picture {
+    grid-row: span 3;
+    width: 128px;
+  }
+
+  .look-preview > .button,
+  .look-preview-actions {
+    grid-column: 1 / -1;
+  }
+}
+
+/* A phone: the module steps down to 16 px gutters; the view starts two patches under the bar. */
+@media (max-width: 640px) {
+  .look-page {
+    padding: 32px 0 var(--m);
+  }
+}
+
+/* A phone's band: the number is 64 px. */
+@container look (max-width: 608px) {
+  .look-head {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: 64px auto auto;
+    column-gap: 16px;
+  }
+
+  .look-head .display {
+    line-height: 64px;
+  }
+
+  .look-glyph {
+    width: min(128px, 100%);
+    height: 64px;
+    margin-left: 0;
+  }
+
+  .look-line {
+    line-height: 24px;
+  }
+
+  .look-fires {
+    margin-top: 48px;
+  }
+
+  /* A phone's line holds the level and its count or the word, not all three: while a picture is current, the word takes the count's place. */
+  .look-fires-action {
+    display: none;
+  }
+
+  .look-fires[data-current] .look-fires-action {
+    display: block;
+  }
+
+  .look-fires[data-current] .look-count {
+    display: none;
+  }
+
+  /*
+   * Pictures of 80 px and tiles of 112 px, smaller by whole 8 px steps where the band is narrower
+   * (a 360 px window): the sections' heights stay on the 8 px baselines, so the next one's top does too.
+   */
+  .look-pictures {
+    grid-template-columns: repeat(4, minmax(0, 80px));
+    grid-template-columns: repeat(4, min(80px, round(down, (100% - 24px) / 4, 8px)));
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .look-material-tiles {
+    grid-template-columns: repeat(3, minmax(0, 112px));
+    grid-template-columns: repeat(3, min(112px, round(down, (100% - 16px) / 3, 8px)));
+    justify-content: space-between;
+    gap: 16px 8px;
+  }
+
+  .look-material-tiles > li:nth-child(n + 4) {
+    display: none;
+  }
+
+  .look-band {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .look-request-anchor {
+    grid-template-columns: 96px minmax(0, 1fr);
+  }
+
+  .look-lift-patch {
+    width: calc(50% - 24px);
+  }
+
+  .look-lift-patch .look-token-picture {
+    width: 100%;
+  }
+}
+
+/* A finger: every target is 44 px. */
+@media (pointer: coarse) {
+  .look-plane,
+  .look-view-reset,
+  .look-band-label button,
+  .look-request-bands button {
+    min-height: var(--touch-target);
+  }
+
+  .look-strip-step {
+    width: var(--touch-target);
+  }
+
+  /* The link keeps its 44 px target with padding and cancels it with a margin, so the line does not grow. */
+  .look-details .link-control {
+    min-height: 0;
+    padding-block: 14px;
+    margin-block: -14px;
+  }
+}
+
+/* Narrow plots also place the flat-view controls below the plot. */
+@container response-plot (max-width: 608px) {
+  .look-view-toolbar {
+    column-gap: 16px;
+  }
+
+  .look-view-tools .slider {
+    width: 100%;
+  }
+
+  .look-view-hint,
+  .look-view-label {
+    display: none;
+  }
+
+  .look-view-planes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 0 16px 16px;
+  }
+
+  .look-plane {
+    position: static;
+    transform: none;
+    writing-mode: horizontal-tb;
+    border: 1px solid var(--line);
+  }
+}

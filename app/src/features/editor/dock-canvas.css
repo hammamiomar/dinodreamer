@@ -1,0 +1,261 @@
+/*
+ * The dock (dock-canvas.tsx). One object in
+ * two forms. In the rail, the panel's column draws the --black ground and the left
+ * hairline; the dock adds nothing but its padding, and the rail scrolls. As a tray, it
+ * draws the same ground and hairline itself, and a hairline on top; the window's edges
+ * are its other sides. Every part is as wide as the canvas.
+ */
+
+.dock {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.dock > *,
+.dock-body > * {
+  width: var(--dock-canvas);
+  max-width: 100%;
+}
+
+.dock-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/*
+ * A tray and its tab are never taller than the window below the block panel's 48 px bar,
+ * so they never cover Close (the phone sheet too). The header stays at the tray's top;
+ * the body under it scrolls, in the order canvas, slots, brush, pictures. The body reaches
+ * into the tray's right padding, so a scrollbar there takes no width from the canvas.
+ */
+.dock[data-form="tray"] {
+  max-height: calc(100dvh - var(--top) - var(--dock-tab-height));
+  background: var(--black);
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+  border-top-left-radius: 0;
+}
+
+/*
+ * On a phone the tray shows its header and canvas, while the remaining controls scroll.
+ * This leaves the Atlas header and a row of cards visible from 360 × 740 px up.
+ * A shorter window uses the general cap above.
+ */
+.library-dock[data-sheet] > .dock[data-form="tray"] {
+  max-height: min(
+    calc(100dvh - var(--top) - var(--dock-tab-height)),
+    calc(var(--dock-canvas) + var(--touch-target) + var(--space-3) + 2 * var(--space-4) + 1px)
+  );
+}
+
+.dock[data-form="tray"] > .dock-body {
+  min-height: 0;
+  width: calc(var(--dock-canvas) + var(--space-4));
+  max-width: calc(100% + var(--space-4));
+  margin-right: calc(-1 * var(--space-4));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* The name keeps at least 96 px; past that the step, run and Open wrap under it. */
+.dock-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.dock-title {
+  flex: 1 1 96px;
+  min-width: 96px;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--s0);
+  font-weight: 500;
+  text-overflow: ellipsis;
+}
+
+/* A finger: the name is a 44 px target, in 16 px text, so focusing it does not zoom a phone's page. */
+@media (pointer: coarse) {
+  .dock-title {
+    min-height: var(--touch-target);
+    font-size: 16px;
+  }
+}
+
+/* A Gallery entry not yet changed (the gallery rule, state.ts): "from the gallery:" on its own line, reading into the title under it. */
+.dock-origin {
+  flex-basis: 100%;
+  margin: 0 0 calc(-1 * var(--space-1));
+}
+
+.dock-title:focus {
+  outline: 0;
+  border-bottom-color: var(--line-2);
+}
+
+.dock-step {
+  white-space: nowrap;
+}
+
+/*
+ * Play and Pause share one width, so the header does not move when a run starts or stops.
+ * The type is monospaced: 5ch is "Pause", and the rest is the chip's padding and border.
+ */
+.dock-run {
+  min-width: calc(5ch + 18px);
+}
+
+@media (pointer: coarse) {
+  .dock-run {
+    min-width: calc(5ch + 24px);
+  }
+}
+
+/*
+ * The tray's tab (DockTab): on the tray's top edge at the window's right, the live
+ * thumbnail, "Canvas" and the chevron of the way the tray will move. It shares the
+ * tray's ground and hairlines and overlaps the tray's top hairline, so the two read as
+ * one piece; folded, it is all that shows at the window's bottom edge.
+ */
+.dock-tab {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--dock-tab-height);
+  margin-bottom: -1px;
+  padding: 0 var(--space-3) 0 var(--space-2);
+  border: 1px solid var(--line);
+  border-right: 0;
+  border-bottom-color: var(--black);
+  border-top-left-radius: 0;
+  background: var(--black);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--s-1);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.dock-tab-chevron {
+  color: var(--ink-2);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .dock-tab:hover .dock-tab-chevron {
+    color: var(--ink);
+  }
+}
+
+/*
+ * Held, the tab's contents fade like the house controls (styles.css); the tab
+ * itself stays opaque, since it is one piece with the tray under it.
+ */
+.dock-tab:active > * {
+  opacity: 0.8;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .dock-tab > * {
+    transition: opacity var(--motion-press);
+  }
+}
+
+.dock-thumbnail {
+  display: block;
+  width: 24px;
+  height: 24px;
+  background: var(--black);
+}
+
+/* The request slots: four cells in one row, and one line under them. A slot is at least 28 px, and as tall as a touch-size chip on a coarse pointer, so the line stays under the row. */
+.dock-slot-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dock-slot {
+  display: flex;
+  min-width: 0;
+  min-height: 28px;
+}
+
+.dock-slot[data-kind="empty"] {
+  border: 1px dashed var(--line);
+}
+
+.dock-slot-request {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: 0 var(--space-2);
+  font-size: var(--s-1);
+}
+
+.dock-slot-request[data-on-show] {
+  font-weight: 500;
+}
+
+/* The held token is not placed yet: its slot's edge is dashed, in the ink its request will get. */
+.dock-slot-held {
+  border-style: dashed;
+  border-color: var(--paint);
+}
+
+
+.dock-slot-ink {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  background: var(--paint);
+}
+
+.dock-slots-line {
+  margin: var(--space-1) 0 0;
+}
+
+/* The brush, under the slots while something is selected: what it paints, then the palette. */
+.dock-brush {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.dock-target {
+  font-size: var(--s-1);
+}
+
+/* What the brush paints, ended by the request's lock (canvas/lock-square.tsx), as on the card. */
+.dock-target-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.dock-lock {
+  display: inline-flex;
+}
+
+/* What size and opacity mean: a touch screen has no tooltip, so the words stay under the brush. */
+.dock-brush-help {
+  margin: 0;
+  color: var(--ink-3);
+}

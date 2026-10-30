@@ -1,0 +1,8 @@
+[target.wasm32-unknown-unknown]
+rustflags = ['--cfg', 'getrandom_backend="wasm_js"']
+
+# Reproducible builds: turso_core (through cubecl-environment) embeds a build time unless
+# SOURCE_DATE_EPOCH is set; without it, two builds of one commit differ in those 19 bytes.
+# Every cargo run in engine/ (wasm-pack, the deploy, the harness) reads this table.
+[env]
+SOURCE_DATE_EPOCH = "0"

@@ -1,0 +1,58 @@
+{
+  "format": 1,
+  "release": "fixture",
+  "library": {
+    "publication_id": "a8d6b0022652213f3916c6c348655a0af47bd51c7b1563e058fec4bfb81d6990",
+    "asset_id": "1a2404b551a94a6436731db541c9a4f299a56624b32d043b6d171c5193147761",
+    "strongest_blocks": "web/v2/readouts/a8d6b0022652213f3916c6c348655a0af47bd51c7b1563e058fec4bfb81d6990/strongest-blocks/",
+    "provenance": {
+      "prefix": "web/v2/readouts/a8d6b0022652213f3916c6c348655a0af47bd51c7b1563e058fec4bfb81d6990/provenance/be913f021c39735e/",
+      "format": 1,
+      "table_sha256": "be913f021c39735efc038b0f9dbf9973671703d296904c2c0ff49bae56b37340",
+      "sample": {
+        "images": 8192,
+        "seed": 13,
+        "min_winning_tokens": 20,
+        "near_radius": 2,
+        "near_window": "5 x 5 patches"
+      },
+      "family_rule": "the table's family column",
+      "orders": [
+        "context",
+        "local",
+        "neighbourhood",
+        "surround",
+        "global",
+        "position"
+      ],
+      "blocks": {
+        "patch": {
+          "context": 23,
+          "local": 3,
+          "neighbourhood": 4,
+          "surround": 6,
+          "global": 3,
+          "position": 4
+        },
+        "cls": {
+          "context": 4,
+          "local": 1,
+          "neighbourhood": 0,
+          "surround": 1,
+          "global": 0,
+          "position": 0
+        }
+      }
+    }
+  },
+  "model": {
+    "encoder": "model/fixture-encoder/",
+    "dictionary": "model/fixture-dictionary/",
+    "files": [],
+    "blocks": 26,
+    "rank": 3,
+    "image_size": 256,
+    "grid": 16
+  },
+  "licenses": []
+}

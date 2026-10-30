@@ -1,0 +1,151 @@
+// The published materials: published/materials.json on the public bucket, newest first. The
+// gallery's owner operations write it (gallery/src/material-review.ts); Explore, the basis group
+// panel and Automata read it through the Worker (GET /api/materials). Every entry is built
+// from a material file that passed readFigureMaterial, never from the submission form's claims.
+// This module has no browser or React imports: the gallery Worker and scripts use it too.
+
+import type { StrengthBand } from "../../recipe";
+import { FIGURE_LAYOUT, FIGURE_PYRAMID_LAYOUT, fired, type FigureLayout, type FigureMaterialFile, type PixelsPerCell } from "../../materials/material-file.ts";
+
+export const MATERIAL_INDEX_KEY = "published/materials.json";
+export const MATERIAL_FILES = ["material.json", "poster.png"] as const;
+export type MaterialFileName = (typeof MATERIAL_FILES)[number];
+
+/** One published material, with the readouts a tile shows without opening the file. */
+export interface MaterialEntry {
+  id: string;
+  title: string;
+  credit: string;
+  publishedAt: string;
+  /** The material file's own id: a kept file with this id is published. */
+  materialId: string;
+  block: number;
+  recipe: string;
+  /** The band of the request's anchor. */
+  band: StrengthBand;
+  strength: number | null;
+  winnerFraction: number | null;
+  /** Winner fraction at the reading >= 0.9 (grow/figure-recipe.ts). */
+  fired: boolean;
+  /** The patches the winner fraction counts, when not every patch: a seeded start reads the central 4 × 4. */
+  region?: "centre-4x4";
+  /** The state the reading names: grid side, replay seed and tick. */
+  side: number;
+  seed: number;
+  tick: number;
+  engine: string;
+  trainerCommit: string;
+  /** The material's kind, from its file: the rule layout, the start and the picture's pixels per cell. */
+  layout: FigureLayout;
+  start: MaterialStartKind;
+  pixelsPerCell: PixelsPerCell;
+  /** The research experiment that trained the rule (E18 to E21); absent for a rule grown in the browser. */
+  experiment?: string;
+  /** The direction the measurement projects on, from the file's settings: "training target", or absent for the main direction. */
+  measurementDirection?: string;
+  /**
+   * The owner's mark: featured materials are the home's pool and the Playground's
+   * first group. Not the visitor's starred blocks of Explore. The gallery writes it on every entry;
+   * absent in an older index, which means false.
+   */
+  featured?: boolean;
+}
+export type MaterialStartKind = "noise" | "centre-disc";
+export interface MaterialIndex { entries: MaterialEntry[] }
+export const EMPTY_MATERIAL_INDEX: MaterialIndex = { entries: [] };
+
+/** Bucket keys of a published material's files, relative to the public bucket. */
+export function materialKey(id: string, file: MaterialFileName): string {
+  return `gallery/materials/${id}/${file}`;
+}
+
+/** An entry id is a submission id or a project seed's slug: safe in keys and URLs. */
+export function isMaterialEntryId(id: string): boolean {
+  return /^[a-z0-9][a-z0-9-]{0,95}$/.test(id);
+}
+
+export function materialEntry(id: string, file: FigureMaterialFile, label: { title: string; credit: string }, publishedAt: string): MaterialEntry {
+  if (!isMaterialEntryId(id)) throw new Error(`"${id}" cannot name a published automaton`);
+  const { experiment, measurementDirection } = file.recipe.settings;
+  return {
+    id, title: label.title, credit: label.credit, publishedAt,
+    materialId: file.id, block: file.block, recipe: file.recipe.name, band: file.anchor.band,
+    strength: file.reading.strength, winnerFraction: file.reading.winnerFraction, fired: fired(file.reading),
+    ...(file.reading.region ? { region: file.reading.region } : {}),
+    side: file.reading.side, seed: file.reading.seed, tick: file.reading.tick,
+    engine: file.engine, trainerCommit: file.trainerCommit,
+    layout: file.rule.layout, start: file.start?.kind ?? "noise", pixelsPerCell: file.picture?.pixelsPerCell ?? 1,
+    ...(typeof experiment === "string" ? { experiment } : {}),
+    ...(typeof measurementDirection === "string" ? { measurementDirection } : {}),
+    featured: false,
+  };
+}
+
+/** The index with this entry added, or replacing an entry with the same id; newest first. */
+export function withMaterialEntry(index: MaterialIndex, entry: MaterialEntry): MaterialIndex {
+  const entries = [...index.entries.filter((existing) => existing.id !== entry.id), entry]
+    .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt) || a.id.localeCompare(b.id));
+  return { entries };
+}
+
+/** The index without the entry of this id; the same object when there is none. */
+export function withoutMaterialEntry(index: MaterialIndex, id: string): MaterialIndex {
+  if (!index.entries.some((entry) => entry.id === id)) return index;
+  return { entries: index.entries.filter((entry) => entry.id !== id) };
+}
+
+const BANDS: readonly unknown[] = ["barely", "weakly", "strongly", "strongest"];
+
+function check(condition: boolean, field: string): asserts condition {
+  if (!condition) throw new Error(`The automata index has an invalid ${field}`);
+}
+
+/** Check the published index once at the boundary; a reader then trusts its fields. */
+export function readMaterialIndex(value: unknown): MaterialIndex {
+  check(typeof value === "object" && value !== null && Array.isArray((value as MaterialIndex).entries), "entries list");
+  const ids = new Set<string>();
+  for (const entry of (value as MaterialIndex).entries) {
+    check(typeof entry === "object" && entry !== null, "entry");
+    check(typeof entry.id === "string" && isMaterialEntryId(entry.id) && !ids.has(entry.id), "entry id");
+    ids.add(entry.id);
+    for (const key of ["title", "credit", "publishedAt", "materialId", "recipe", "engine", "trainerCommit"] as const) {
+      check(typeof entry[key] === "string", key);
+    }
+    check(Number.isInteger(entry.block) && entry.block >= 0 && entry.block < 16384, "block");
+    check(BANDS.includes(entry.band), "band");
+    check(typeof entry.fired === "boolean", "fired");
+    check(entry.strength === null || Number.isFinite(entry.strength), "strength");
+    check(entry.winnerFraction === null || (entry.winnerFraction >= 0 && entry.winnerFraction <= 1), "selection fraction");
+    check(entry.region === undefined || entry.region === "centre-4x4", "measurement region");
+    check([entry.side, entry.seed, entry.tick].every((number) => Number.isInteger(number) && number >= 0), "measurement state");
+    check(entry.layout === FIGURE_LAYOUT || entry.layout === FIGURE_PYRAMID_LAYOUT, "layout");
+    check(entry.start === "noise" || entry.start === "centre-disc", "start");
+    check(entry.pixelsPerCell === 1 || entry.pixelsPerCell === 2, "pixels per cell");
+    check(entry.experiment === undefined || typeof entry.experiment === "string", "experiment");
+    check(entry.measurementDirection === undefined || typeof entry.measurementDirection === "string", "measurement direction");
+    check(entry.featured === undefined || typeof entry.featured === "boolean", "featured mark");
+  }
+  return value as MaterialIndex;
+}
+
+/** Per block: how many published materials, and how many of them fired. */
+export function materialCounts(index: MaterialIndex): Map<number, { total: number; fired: number }> {
+  const counts = new Map<number, { total: number; fired: number }>();
+  for (const entry of index.entries) {
+    const count = counts.get(entry.block) ?? { total: 0, fired: 0 };
+    counts.set(entry.block, { total: count.total + 1, fired: count.fired + (entry.fired ? 1 : 0) });
+  }
+  return counts;
+}
+
+/** One block's materials: those that fired first, then the stronger readings. */
+export function materialsOfBlock(index: MaterialIndex, block: number): MaterialEntry[] {
+  return index.entries.filter((entry) => entry.block === block)
+    .sort((a, b) => Number(b.fired) - Number(a.fired) || (b.strength ?? -Infinity) - (a.strength ?? -Infinity) || a.id.localeCompare(b.id));
+}
+
+/** Every block with a material, in number order, each with its materials in materialsOfBlock's order. */
+export function materialsByBlock(index: MaterialIndex): { block: number; materials: MaterialEntry[] }[] {
+  const blocks = [...new Set(index.entries.map((entry) => entry.block))].sort((a, b) => a - b);
+  return blocks.map((block) => ({ block, materials: materialsOfBlock(index, block) }));
+}

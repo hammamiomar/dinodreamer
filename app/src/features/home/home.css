@@ -1,0 +1,325 @@
+/*
+ * The home (home-page.tsx): the words column at the left scrolling through five sections, the panel
+ * at the right stuck to the window and reaching its top, right and bottom edges. The header is out
+ * of view on the entrance and slides in after it (styles.css, .site[data-home]). Sizes sit on the
+ * 64 px module. The automaton's field is home-material.css. Nothing is drawn on a material's cells.
+ */
+
+.home {
+  --home-words: 448px;
+  /* The window's height as a page length: the site is drawn at --page-scale (styles.css), and a viewport unit inside it scales too. */
+  /* Track the visible window when mobile browser bars open or close. */
+  --window: calc(100dvh / var(--page-scale));
+  /* The panel's width: the window less the band's edge, the words and a module. The words sit centred in the room left of it. */
+  --home-panel: calc(100% - var(--edge) - var(--home-words) - var(--m));
+  display: grid;
+  grid-column: full;
+  grid-template-columns: minmax(var(--m), 1fr) var(--home-words) minmax(var(--m), 1fr) var(--home-panel);
+  align-items: start;
+  overflow-anchor: none;
+}
+
+/* Home owns vertical gestures before they move. Pinch zoom and horizontal navigation stay native.
+   An open menu or dialog uses its own input. The document remains the only vertical scroll owner. */
+.site[data-home]:not(:has(.frame-nav[data-open], .block-panel, dialog[open])) {
+  touch-action: pan-x pinch-zoom;
+}
+
+html:has(.site[data-home]) {
+  overscroll-behavior-y: none;
+}
+
+.home-words {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  /* The title is sized to the column's width (cqw). */
+  container-type: inline-size;
+}
+
+/* The panel: the whole window beside the words, held while they scroll; its ground covers the lattice. */
+.home-panel {
+  position: sticky;
+  top: 0;
+  grid-column: 4;
+  grid-row: 1;
+  height: var(--window);
+  overflow: hidden;
+  background: var(--black);
+}
+
+/* The entrance: the site's name across the top of the column, as large as the column allows, the four links centred under it. */
+.home-entrance {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  justify-items: center;
+  min-height: var(--window);
+  padding-block: var(--m);
+}
+
+/* The display face, fitted to the column: eleven characters of the mono face at about 0.56 em each, 104 px at most. */
+.home-title {
+  color: var(--ink);
+  font-size: min(var(--s2), calc(100cqw / 6.2));
+  font-weight: 300;
+  letter-spacing: -0.04em;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.home-links {
+  display: grid;
+  gap: 8px;
+  align-self: center;
+  justify-items: center;
+  text-align: center;
+}
+
+.home-end .home-links {
+  justify-items: start;
+  text-align: left;
+}
+
+/*
+ * The column's foot: the chevron down at the bottom, the hint that the page goes on, and the arrows
+ * that turn the entrance's automaton close above it. The two are one group, apart from the links.
+ */
+.home-foot {
+  display: grid;
+  gap: var(--space-1);
+  align-self: end;
+  justify-items: center;
+}
+
+.home-turn {
+  display: flex;
+  gap: var(--patch);
+}
+
+.home-turn button,
+.home-down {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--line-2);
+  background: none;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.home-turn button:hover:not(:disabled),
+.home-down:hover {
+  color: var(--ink);
+  border-color: var(--ink);
+}
+
+.home-turn button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.home-down {
+  border-color: transparent;
+  color: var(--ink-3);
+}
+
+.home-links a {
+  color: var(--ink);
+  font-size: var(--s1);
+  line-height: var(--lh1);
+  letter-spacing: -0.02em;
+  text-decoration: none;
+}
+
+.home-links a:hover {
+  text-decoration: underline;
+  text-underline-offset: 6px;
+}
+
+.home-note {
+  grid-row: 3;
+  margin: var(--patch) 0 0;
+  font-size: var(--s-1);
+  color: var(--ink-3);
+}
+
+/* A beat: one window, its words centred; a gesture turns the page to the next (home-paging.ts). */
+.home-beat,
+.home-end {
+  display: grid;
+  align-content: center;
+  min-height: var(--window);
+}
+
+.home-beat-words {
+  display: grid;
+  gap: var(--patch);
+  padding-block: var(--m);
+}
+
+.home-beat-words .label {
+  margin: 0;
+}
+
+.home-sentence {
+  max-width: 44ch;
+  margin: 0;
+  color: var(--ink-2);
+}
+
+.home-end .home-links {
+  margin-top: var(--patch);
+}
+
+/* The panel's layers, one per beat, cross-faded; only the shown one takes the pointer. */
+.home-layer {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.home-layer[data-shown] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* The automaton fills the panel; the figures sit centred under the header's room. */
+.home-layer-live .home-material,
+.home-layer-live .home-field {
+  height: 100%;
+}
+
+.home-layer-live .home-field-ticks {
+  display: none;
+}
+
+/* A replay that stopped says so inside the panel, at its foot. */
+.home-layer-live .home-material-note {
+  top: auto;
+  bottom: var(--patch);
+  left: var(--patch);
+}
+
+.home-layer-figure {
+  display: grid;
+  align-content: center;
+  justify-content: center;
+  padding-top: var(--top);
+}
+
+.home-figure {
+  display: grid;
+  gap: var(--patch);
+  margin: 0;
+}
+
+.home-picture {
+  position: relative;
+}
+
+.home-neighbourhood {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px dashed var(--ink);
+  pointer-events: none;
+}
+
+.home-caption {
+  display: grid;
+  gap: 4px;
+  min-height: 40px;
+  margin: 0;
+  font-size: var(--s-1);
+  line-height: var(--lh-1);
+  color: var(--ink-3);
+}
+
+/* The cloud's label hangs under its figure (ui/atlas-cloud-figure.css), so the caption keeps clear of it. */
+.home-cloud {
+  position: relative;
+  margin-bottom: var(--patch);
+}
+
+/* The levels arrive in order with the beat's progress (home-panel.tsx, data-arrived 0 to 5), the lit point last. */
+.home-cloud .cloud-figure-band,
+.home-cloud .cloud-figure-lit,
+.home-cloud .cloud-figure-label {
+  opacity: 0;
+}
+
+.home-cloud:not([data-arrived="0"]) .cloud-figure-band[data-band="barely"],
+.home-cloud:is([data-arrived="2"], [data-arrived="3"], [data-arrived="4"], [data-arrived="5"]) .cloud-figure-band[data-band="weakly"],
+.home-cloud:is([data-arrived="3"], [data-arrived="4"], [data-arrived="5"]) .cloud-figure-band[data-band="strongly"],
+.home-cloud:is([data-arrived="4"], [data-arrived="5"]) .cloud-figure-band[data-band="strongest"],
+.home-cloud[data-arrived="5"] .cloud-figure-lit,
+.home-cloud[data-arrived="5"] .cloud-figure-label {
+  opacity: 1;
+}
+
+.home-strip {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--line);
+}
+
+.home-strip img {
+  position: absolute;
+  top: 0;
+  max-width: none;
+  image-rendering: pixelated;
+}
+
+/* Continuity: the layers and the cloud's levels fade on the move curve; the scrubs themselves only move with the scroll. */
+@media (prefers-reduced-motion: no-preference) {
+  .home-layer,
+  .home-cloud .cloud-figure-band,
+  .home-cloud .cloud-figure-lit,
+  .home-cloud .cloud-figure-label {
+    transition: opacity var(--motion-move);
+  }
+}
+
+/* Narrow: one column, the panel stuck at the top at 60 % of the window, the words under it in the band. */
+@media (max-width: 1023px) {
+  .home {
+    display: block;
+  }
+
+  .home-panel {
+    z-index: 1;
+    height: calc(0.6 * var(--window));
+  }
+
+  .home-words {
+    padding-inline: var(--edge);
+  }
+
+  /* The lower 40 % of the window holds the title, the links and the foot: the foot keeps a patch above it, and the chevron is a lower hint at the bottom edge. */
+  .home-entrance {
+    min-height: calc(0.4 * var(--window));
+    /* Preserve foreground sizing; continue the background under floating browser controls. */
+    margin-bottom: max(0px, calc(var(--home-background-height, 100lvh) / var(--page-scale) - var(--window)));
+    padding-block: var(--patch) var(--space-2);
+  }
+
+  .home-foot {
+    margin-top: var(--patch);
+  }
+
+  .home-down {
+    height: 24px;
+  }
+
+  /* The pager places the words under the panel, keeping its part of the window clear. */
+  .home-beat,
+  .home-end {
+    align-content: start;
+  }
+
+  .home-beat-words {
+    padding-block: var(--patch) var(--m);
+  }
+}

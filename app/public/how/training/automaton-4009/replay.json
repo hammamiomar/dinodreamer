@@ -1,0 +1,47 @@
+{
+  "definition": "block-4009-figure-pyramid-strongest-seed-0",
+  "block": 4009,
+  "layout": "figure-pyramid-16-96-torus-v1",
+  "side": 128,
+  "coarseSide": 64,
+  "seed": 2026102201,
+  "tick": 600,
+  "fireRate": 0.5,
+  "ruleSha256": "62ed4c33c1331eb3430b600a0a6e759241220ef0054b5efbb314c0cfdc5d0316",
+  "anchor": {
+    "band": "strongest",
+    "norm": 12.785477830323618,
+    "strength": {
+      "ring": 5.472855521186511,
+      "cuts": [
+        7.748643274201119,
+        10.024431027215726,
+        12.300218780230335
+      ],
+      "maximum": 14.576006533244945
+    },
+    "code": [
+      -10.262689590454102,
+      -7.625328063964844,
+      0.004199594259262085
+    ],
+    "slot": 59,
+    "source": "library",
+    "imageId": 2985056820452196
+  },
+  "medianNorm": 5.041611671447754,
+  "reading": {
+    "status": "measured",
+    "strength": 1.5013285957304747,
+    "winnerFraction": 0.90625,
+    "side": 128,
+    "seed": 2026102201,
+    "tick": 600,
+    "note": "Stage-5 readout (E20) of the saved rule at tick 600 on a 128-cell torus from noise, one pixel per fine cell, plus the 64-cell coarse grid upsampled on the torus, 8-bit picture; noise and fire masks from torch's CUDA generator with evaluation seed 2026102201, not the replay contract, so the replay page grows another realization of this rule. The winner fraction counts every patch; strength is the median over those patches of |c|/m, not E18's pole; winners use the strict original reader. The run first fired at update 850; this is the rule saved at update 850."
+  },
+  "training": {
+    "seed": 0,
+    "updates": 850
+  },
+  "replayed": "2026-10-27"
+}

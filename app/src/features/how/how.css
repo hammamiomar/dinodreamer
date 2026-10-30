@@ -1,0 +1,486 @@
+/*
+ * Desktop How it works (how-page.tsx) has two panes under the header: the card of words at the
+ * left, the stage at the right with the model map across its top and the section's figure under
+ * it. CSS divides the window once. The card reserves its tabs and navigation; only its words
+ * scroll. The stage reserves the map and gives the rest to its figure. Below 1024 px,
+ * how-mobile-layout.css places the visual and explanation in the browser document.
+ */
+
+.how {
+  --words: 448px;
+  --card-padding: 24px;
+  --how-room: calc(100dvh / var(--page-scale) - var(--top));
+  display: grid;
+  grid-template-columns: var(--words) minmax(0, 1fr);
+  gap: 32px;
+  grid-template-rows: minmax(0, 1fr);
+  min-height: 0;
+  height: var(--how-room);
+  padding-block: 32px;
+}
+
+/* The card: the act tabs, the section's words, the steps, Continue. */
+.how-card {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: var(--patch);
+  box-sizing: border-box;
+  min-height: 0;
+  padding: var(--card-padding);
+  border: 1px solid var(--line);
+  background: var(--black);
+}
+
+.how-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  margin: 0 0 8px;
+  padding: 0 0 12px;
+  border-bottom: 1px solid var(--line);
+  list-style: none;
+}
+
+.how-chapter-pager {
+  display: none;
+}
+
+.how-acts button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--s-1);
+  line-height: var(--lh-1);
+  cursor: pointer;
+}
+
+.how-acts button[aria-current] {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 6px;
+}
+
+/* A section's words: the label, the heading, the claim, the paragraphs. A new section's rise into place. */
+.how-section-words {
+  display: grid;
+  gap: var(--patch);
+  min-height: 0;
+  align-content: start;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .how-section-words {
+    animation: how-words-enter var(--motion-move) both;
+  }
+}
+
+@keyframes how-words-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+.how-card h2 {
+  margin: 0;
+}
+
+.how-claim {
+  margin: 0;
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.how-words {
+  display: grid;
+  gap: 12px;
+  color: var(--ink-2);
+}
+
+.how-words p {
+  margin: 0;
+}
+
+.how-words ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 16px;
+}
+
+/* The glossary's terms, in the card (glossary-terms.tsx): a term the story explains links to its section. */
+.how-terms {
+  display: grid;
+  gap: 16px;
+  margin: 0;
+}
+
+.how-terms dt {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.how-terms dt a {
+  /* Keep the hidden destination label inside the words' scroll container, also without animation. */
+  position: relative;
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--line-2);
+  text-underline-offset: 3px;
+  transition: text-decoration-color var(--motion);
+}
+
+@media (hover: hover) {
+  .how-terms dt a:hover {
+    text-decoration-color: var(--ink);
+  }
+}
+
+.how-terms dd {
+  margin: 4px 0 0;
+  font-size: var(--s-1);
+  line-height: var(--lh-1);
+}
+
+/* A citation in a sentence: the words highlighted, a link to the reference's page. */
+.how-cite {
+  padding: 1px 3px;
+  background: var(--line-faint);
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--line-2);
+  text-underline-offset: 3px;
+  transition: background var(--motion);
+}
+
+@media (hover: hover) {
+  .how-cite:hover {
+    background: var(--line);
+  }
+}
+
+/* A term the reader should hold on to. */
+.how-term {
+  color: var(--ink);
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* The steps of the act: one square per section, the current one filled. */
+.how-steps {
+  display: flex;
+  gap: 8px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.how-steps button {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid var(--line-2);
+  background: none;
+  cursor: pointer;
+}
+
+.how-steps button[aria-current] {
+  border-color: var(--ink);
+  background: var(--ink);
+}
+
+.how-navigation {
+  display: grid;
+  grid-template-rows: 16px 48px;
+  gap: 16px;
+}
+
+.how-moves {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+  min-width: 0;
+}
+
+.how-moves > .primary {
+  width: 100%;
+  height: 48px;
+  min-width: 0;
+  white-space: normal;
+}
+
+.how-back {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--s-1);
+  cursor: pointer;
+}
+
+.how-back:disabled {
+  color: var(--ink-3);
+  cursor: default;
+}
+
+/* Keep touch targets separate. Two rows of act tabs preserve room for the section words. */
+@media (pointer: coarse) {
+  .how-terms dt a {
+    display: inline-flex;
+    align-items: center;
+    min-width: var(--touch-target);
+    min-height: var(--touch-target);
+  }
+
+  .how-card {
+    gap: 8px;
+  }
+
+  .how-acts {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px 8px;
+    /* The taller buttons provide the space around their words. */
+    margin-bottom: 0;
+    padding-bottom: 0;
+  }
+
+  .how-acts li {
+    display: grid;
+    min-width: 0;
+  }
+
+  .how-acts button {
+    min-width: var(--touch-target);
+    min-height: var(--touch-target);
+    text-align: left;
+  }
+
+  .how-navigation {
+    grid-template-rows: var(--touch-target) 48px;
+    gap: 8px;
+  }
+
+  .how-section-words > .label {
+    /* The words grid already separates the label from the heading. */
+    margin: 0;
+  }
+
+  .how-steps {
+    height: var(--touch-target);
+    gap: 4px;
+  }
+
+  .how-steps button {
+    display: grid;
+    place-items: center;
+    width: var(--touch-target);
+    height: var(--touch-target);
+  }
+
+  .how-steps button,
+  .how-steps button[aria-current] {
+    border: 0;
+    background: none;
+  }
+
+  .how-steps button::before {
+    content: "";
+    box-sizing: border-box;
+    width: 16px;
+    height: 16px;
+    border: 1px solid var(--line-2);
+  }
+
+  .how-steps button[aria-current]::before {
+    border-color: var(--ink);
+    background: var(--ink);
+  }
+
+  .how-back {
+    min-height: var(--touch-target);
+  }
+}
+
+/* One fixed map row, independent of the current section, and the remaining figure area. */
+.how-stage {
+  display: grid;
+  grid-template-rows: 176px minmax(0, 1fr);
+  gap: var(--patch);
+  justify-items: center;
+  min-width: 0;
+  min-height: 0;
+}
+
+.how-stage-map {
+  display: grid;
+  place-items: safe center;
+  min-height: 0;
+  width: 100%;
+}
+
+/* CSS size containment makes this box the coordinate space for the figure layouts. */
+.how-figure {
+  position: relative;
+  display: grid;
+  place-items: safe center;
+  container: how-figure / size;
+  width: 100%;
+  min-height: 0;
+}
+
+.how-figure > * {
+  /* Center the complete figure, including its reserved captions, at its natural height. */
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  height: auto;
+}
+
+/* The explanation owns its wider band; the shared header keeps the site's margins. */
+@media (min-width: 2240px) {
+  .how {
+    --content: 1920px;
+    --edge: var(--edge-minimum);
+    --edge-end: max(var(--edge-minimum), calc(100% - var(--edge) - var(--content)));
+    --words: 512px;
+    grid-column: full;
+    padding-inline: var(--edge) var(--edge-end);
+  }
+
+  @supports (width: round(down, 100px, 64px)) {
+    .how {
+      --edge: calc(var(--edge-minimum) + max(0px, round(nearest, (100% - var(--content) - 2 * var(--edge-minimum)) / 2, var(--m))));
+    }
+  }
+}
+
+/* Scrollable panes are a desktop layout only. Mobile content has no inner scroll owner. */
+@media (min-width: 1024px) {
+  .how-card { overflow: hidden; }
+  .how-section-words { overflow-y: auto; scrollbar-gutter: stable; }
+  .how-figure { overflow: auto; scrollbar-gutter: stable; }
+}
+
+@media (max-width: 1023px) {
+  .how {
+    position: relative;
+    display: block;
+    height: auto;
+    min-height: var(--how-room);
+    padding-block: 0;
+    overflow: visible;
+  }
+
+  .how-chapter-pager {
+    position: sticky;
+    top: var(--top);
+    z-index: 3;
+    display: block;
+    flex: none;
+    padding-block: 8px;
+    background: var(--black);
+  }
+
+  .how-chapter-controls {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    border: 1px solid var(--line);
+  }
+
+  .how-chapter-controls > button {
+    min-height: 44px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--ink);
+    font: inherit;
+    font-size: 24px;
+    cursor: pointer;
+  }
+
+  .how-chapter-controls > button:disabled {
+    opacity: 0.25;
+    cursor: default;
+  }
+
+  .how-chapter-select {
+    position: relative;
+    display: grid;
+    align-items: center;
+    min-width: 0;
+  }
+
+  /* The native picker remains the control. Its label keeps the position visible
+     when a long chapter title needs an ellipsis. */
+  .how-chapter-select .select {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    opacity: 0;
+  }
+
+  .how-chapter-select select {
+    width: 100%;
+    min-width: 0;
+    height: 100%;
+  }
+
+  .how-chapter-select:has(select:focus-visible) {
+    outline: 1px solid var(--ink);
+    outline-offset: -1px;
+  }
+
+  .how-chapter-label {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    min-width: 0;
+    font-size: var(--s-1);
+    line-height: var(--lh-1);
+    pointer-events: none;
+  }
+
+  .how-chapter-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .how-chapter-position {
+    flex: none;
+    white-space: nowrap;
+  }
+
+  .how-card {
+    /* The page scrolls the complete card, including its section navigation. */
+    display: flex;
+    flex-direction: column;
+    padding: var(--patch);
+    /* Keep the card border inside the page column. */
+    border: 0;
+    outline: 1px solid var(--line);
+    outline-offset: -1px;
+  }
+
+  .how-section-words {
+    flex: 1 0 auto;
+    min-height: auto;
+  }
+
+  .how-acts {
+    display: none;
+  }
+
+  .how-navigation {
+    position: static;
+    flex: none;
+    padding-top: 8px;
+  }
+}

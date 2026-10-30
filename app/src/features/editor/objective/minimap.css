@@ -1,0 +1,10 @@
+/* The minimap (minimap.tsx), styled beside the component so any screen that shows it gets its look. */
+
+.minimap {
+  display: block;
+  border: 1px solid var(--line);
+}
+
+.minimap-axis {
+  stroke: var(--line);
+}

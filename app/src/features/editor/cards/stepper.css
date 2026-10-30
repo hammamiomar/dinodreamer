@@ -1,0 +1,133 @@
+/*
+ * The stepper (stepper.tsx): one rectangle of three cells,
+ * − | value | +, drawn like the segmented control, one --brush-control high: 28 px with a
+ * mouse, 44 px with a finger. − and + are square cells; the value is centred digits, an
+ * opacity's "%" after them. The value cell is 40 px for a weight (44 px with a finger), the
+ * size's is square, the opacity's and the zoom's 40 px (52 px), and a request's blocks' 32 px (44 px). It loads with the control, so the dock's
+ * brush has it on the library pages too, where the editor's stylesheet is not loaded.
+ */
+.stepper {
+  --value-width: 40px;
+  display: inline-flex;
+  align-items: stretch;
+  flex: none;
+  height: var(--brush-control);
+  border: 1px solid var(--line-2);
+  border-radius: 0;
+  background: var(--black);
+}
+
+.stepper-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: calc(var(--brush-control) - 2px);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  transition: opacity var(--motion-press);
+}
+
+/* Pressed for the whole of a held press, not at each repeat. */
+.stepper-button[data-held] {
+  opacity: 0.8;
+}
+
+/* At a bound, or in a greyed brush strip. */
+.stepper-button:disabled {
+  color: var(--ink-3);
+  cursor: not-allowed;
+}
+
+.stepper-value {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--value-width);
+  border-inline: 1px solid var(--line-2);
+  font-size: var(--s-1);
+  color: var(--ink);
+}
+
+.stepper-input {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: center;
+  cursor: text;
+  user-select: text;
+}
+
+/* The ring goes round the whole box, as on a number field with a unit. */
+.stepper-input:focus-visible {
+  outline: none;
+}
+
+.stepper:focus-within {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* The unit ("%") is a word, not the field: the label size, even when a finger's field takes 16 px. */
+.stepper-unit {
+  margin-left: 2px;
+  color: var(--ink-3);
+  font-size: var(--s-1);
+}
+
+.stepper[data-kind="size"] {
+  --value-width: calc(var(--brush-control) - 2px);
+}
+
+/* A request's blocks: two digits, 1 to 32. */
+.stepper[data-kind="blocks"] {
+  --value-width: 32px;
+}
+
+/* A percent: the digits right-aligned before the "%", in a fixed width ("100", or the zoom's "0.5"). */
+.stepper[data-kind="opacity"] .stepper-input,
+.stepper[data-kind="zoom"] .stepper-input {
+  width: 3.2ch;
+  text-align: right;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .stepper-button:not(:disabled):hover {
+    color: var(--ink);
+    background: var(--line-faint);
+  }
+}
+
+/* A finger: 16 px digits in the field itself (the one size outside the four, so a phone does not zoom), 20 px glyphs, wider value cells; the box and its unit keep the label size. */
+@media (pointer: coarse) {
+  .stepper-input {
+    font-size: 16px;
+  }
+
+  .stepper[data-kind="weight"],
+  .stepper[data-kind="blocks"] {
+    --value-width: 44px;
+  }
+
+  .stepper[data-kind="opacity"],
+  .stepper[data-kind="zoom"] {
+    --value-width: 52px;
+  }
+
+  .stepper .glyph {
+    width: 20px;
+    height: 20px;
+  }
+}

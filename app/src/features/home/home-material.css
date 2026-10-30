@@ -1,0 +1,72 @@
+/*
+ * A published automaton growing in a field (home-material-view.tsx): the home's bands and tiles
+ * and the How page's players. The field tiles the grid at one tile per field height; the poster,
+ * tiled the same way, is its background until the replay shows. Nothing is drawn on the cells.
+ */
+
+.home-material {
+  position: relative;
+}
+
+.home-field {
+  position: relative;
+  height: 256px;
+  background-color: var(--black);
+  background-repeat: repeat;
+  image-rendering: pixelated;
+}
+
+/* A tick at every patch boundary along both edges, outside the cells (16 cells a patch). */
+.home-field-ticks {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 6px;
+  pointer-events: none;
+}
+
+.home-field-ticks line {
+  stroke: var(--line-2);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+
+.home-field-ticks-top {
+  top: -8px;
+}
+
+.home-field-ticks-bottom {
+  bottom: -8px;
+}
+
+/* Drawn below the device's ratio (drawRatio), the canvas scales up by whole pixels: cells stay crisp. */
+.home-field canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+
+/* Where the canvas is the brush (data-brush), the pointer draws and a touch does not scroll. */
+.home-field[data-brush] canvas {
+  cursor: crosshair;
+  touch-action: none;
+}
+
+/* The poster shows until the replay has something to show (data-live), and again if the replay stops. */
+.home-field:not([data-live]) canvas {
+  opacity: 0;
+}
+
+/* A lost device, under the field's lower edge. */
+.home-material-note {
+  position: absolute;
+  top: calc(100% + var(--patch));
+  left: 0;
+  margin: 0;
+  font-size: var(--s-1);
+  line-height: 16px;
+  color: var(--ink-2);
+}

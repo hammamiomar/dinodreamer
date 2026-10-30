@@ -1,0 +1,53 @@
+/* The strength ring (ring.tsx): four thin arcs in the band colours, the band reached lit, a square mark at the reading. */
+.ring {
+  flex: none;
+  width: 56px;
+  height: 56px;
+}
+
+.ring-small {
+  width: 20px;
+  height: 20px;
+}
+
+.ring path {
+  fill: none;
+  stroke-width: 2;
+  opacity: 0.4;
+}
+
+.ring-small path {
+  stroke-width: 4;
+}
+
+.ring path[data-lit] {
+  opacity: 1;
+}
+
+.ring path[data-band="barely"] {
+  stroke: var(--barely);
+}
+
+.ring path[data-band="weakly"] {
+  stroke: var(--weakly);
+}
+
+.ring path[data-band="strongly"] {
+  stroke: var(--strongly);
+}
+
+.ring path[data-band="strongest"] {
+  stroke: var(--strongest);
+}
+
+.ring-mark {
+  fill: var(--sampled, var(--ink));
+  stroke: var(--black);
+  stroke-width: 1;
+}
+
+.ring text {
+  fill: var(--ink);
+  font: 400 var(--s-1) var(--mono);
+  text-anchor: middle;
+}

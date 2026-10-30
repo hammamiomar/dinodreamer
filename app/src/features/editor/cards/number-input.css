@@ -1,0 +1,22 @@
+/* Number fields for the seed and rule weights, using the shared styles.css tokens. */
+
+/* A number field's width comes from cards/number-input.tsx (--field-width), 56 px when it gives none. */
+.number-input {
+  width: var(--field-width, 56px);
+  padding: 2px 4px;
+  font-size: var(--s-1);
+  cursor: text;
+  user-select: text;
+}
+
+/*
+ * On a finger the field grows as a whole: 16 px digits instead of 12, and
+ * the width by the same 4/3. 16 px also keeps a phone from zooming the page when the field
+ * takes focus. The touch target's height comes from styles.css.
+ */
+@media (pointer: coarse) {
+  .number-input {
+    font-size: 16px;
+    width: calc(var(--field-width, 56px) * 4 / 3);
+  }
+}

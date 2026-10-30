@@ -1,0 +1,245 @@
+.how-map-navigation {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.how-map-progress {
+  display: none;
+}
+
+/* The model map (how-map.tsx): one drawing in the site's lines, sized to the stages it holds and centred in its box. */
+/* CSS selects the arrangement from this fixed box. Neither SVG sets the stage's row height. */
+.how-map-box {
+  display: grid;
+  place-items: center;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: clip;
+  container: model-map / size;
+}
+
+.how-map {
+  display: block;
+  grid-area: 1 / 1;
+  color: var(--ink-2);
+  font-family: var(--mono);
+  overflow: visible;
+  width: min(100cqw, var(--map-width), calc(100cqh * var(--map-width) / var(--map-height)));
+  max-width: 100%;
+  height: auto;
+  max-height: 100%;
+}
+
+.how-map[data-rows="1"] {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* The intrinsic widths come from mapLayout and are checked in how-map.test.ts. */
+@container model-map (min-width: 452px) {
+  .how-map-box[data-count="4"] > .how-map[data-rows="1"] { visibility: visible; opacity: 1; pointer-events: auto; }
+  .how-map-box[data-count="4"] > .how-map[data-rows="2"] { visibility: hidden; opacity: 0; pointer-events: none; }
+}
+
+@container model-map (min-width: 724px) {
+  .how-map-box[data-count="6"] > .how-map[data-rows="1"] { visibility: visible; opacity: 1; pointer-events: auto; }
+  .how-map-box[data-count="6"] > .how-map[data-rows="2"] { visibility: hidden; opacity: 0; pointer-events: none; }
+}
+
+@container model-map (min-width: 932px) {
+  .how-map[data-rows="1"] { visibility: visible; opacity: 1; pointer-events: auto; }
+  .how-map[data-rows="2"] { visibility: hidden; opacity: 0; pointer-events: none; }
+}
+
+.how-map-stage rect {
+  fill: var(--black);
+  stroke: var(--line-2);
+  transition: stroke var(--motion), fill var(--motion);
+}
+
+.how-map-stage text {
+  fill: var(--ink-2);
+  transition: fill var(--motion);
+  pointer-events: none;
+}
+
+.how-map-title {
+  font-size: 13px;
+}
+
+.how-map-detail {
+  font-size: 10px;
+  fill: var(--ink-3);
+}
+
+/* A stage the story has not reached waits unseen inside its neighbour (how-map.tsx places it there). */
+.how-map-stage:not([data-present]) {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.how-map-stage[data-present] {
+  cursor: pointer;
+  opacity: 1;
+}
+
+.how-map-stage[data-lit] rect {
+  stroke: var(--ink);
+}
+
+.how-map-stage[data-lit] .how-map-title {
+  fill: var(--ink);
+}
+
+@media (hover: hover) {
+  .how-map-stage[data-present]:hover rect {
+    fill: var(--line-faint);
+  }
+}
+
+.how-map-stage:focus-visible {
+  outline: none;
+}
+
+.how-map-stage:focus-visible rect {
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+
+.how-map-arrow line,
+.how-map-return {
+  fill: none;
+  stroke: var(--line-2);
+  stroke-width: 1;
+}
+
+/* The return path is dashed: it carries the error, not a value. */
+.how-map-return {
+  stroke-dasharray: 4 4;
+}
+
+.how-map-group rect:first-child {
+  fill: none;
+  stroke: var(--line-2);
+}
+
+.how-map-group rect:last-child {
+  fill: var(--ink);
+}
+
+/*
+ * Motion is continuity. From one section to the next the map keeps its size in step, a stage that
+ * stays slides to its new place, a stage the story adds grows out of its neighbour, and the arrows
+ * that join them appear in place.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .how-map {
+    transition: width var(--motion-move), height var(--motion-move), opacity var(--motion-move);
+  }
+
+  .how-map-stage {
+    transition: transform var(--motion-move), opacity var(--motion-move);
+  }
+
+  .how-map-arrow {
+    transition: transform var(--motion-move);
+    animation: how-map-appear var(--motion-move) both;
+  }
+
+  .how-map-return {
+    animation: how-map-appear var(--motion-move) both;
+  }
+
+  /* Where a section shows the signal, the paths run: forward solid, back dashed. */
+  .how-map[data-signal] .how-map-arrow line {
+    stroke: var(--ink);
+    stroke-dasharray: 6 6;
+    animation: how-map-flow 1.2s linear infinite;
+  }
+
+  /* The return path is drawn from the loss to the automaton, so the same keyframes run it that way. */
+  .how-map[data-signal] .how-map-return {
+    stroke: var(--ink);
+    animation: how-map-appear var(--motion-move) both, how-map-flow 1.2s linear infinite;
+  }
+}
+
+@keyframes how-map-appear {
+  from { opacity: 0; }
+}
+
+@keyframes how-map-flow {
+  from { stroke-dashoffset: 24; }
+  to { stroke-dashoffset: 0; }
+}
+
+/* On a phone, use a shallow row. Longer maps scroll instead of shrinking their labels. */
+@media (max-width: 1023px) {
+  .how-map-box {
+    display: flex;
+    align-items: center;
+    justify-content: safe center;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+
+  .how-map-navigation[data-overflow="true"] {
+    display: grid;
+    grid-template: minmax(0, 1fr) 2px / minmax(0, 1fr);
+    padding-bottom: 4px;
+  }
+
+  .how-map-navigation[data-overflow="true"] .how-map-box {
+    grid-area: 1 / 1;
+  }
+
+  .how-map-navigation[data-overflow="true"] .how-map-progress {
+    display: block;
+    position: relative;
+    grid-area: 2 / 1;
+    background: var(--line);
+  }
+
+  .how-map-progress span {
+    position: absolute;
+    height: 100%;
+    width: calc(100% * var(--map-visible));
+    left: calc((100% - 100% * var(--map-visible)) * var(--map-position));
+    background: var(--ink-2);
+  }
+
+  .how-map {
+    flex: none;
+    width: calc(var(--map-width) * 0.8);
+    max-width: none;
+    height: calc(var(--map-height) * 0.8);
+    max-height: none;
+    /* Keep the selected stage's measured position stable when the map gains stages. */
+    transition: opacity var(--motion-move);
+  }
+
+  .how-map[data-rows="1"] {
+    visibility: visible;
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .how-map[data-rows="2"] {
+    display: none;
+  }
+
+  .how-map-title {
+    font-size: 14px;
+  }
+
+  .how-map-stage {
+    transition: opacity var(--motion-move);
+  }
+}

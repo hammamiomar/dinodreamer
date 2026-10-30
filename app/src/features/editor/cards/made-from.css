@@ -1,0 +1,62 @@
+/*
+ * What a block is made from (made-from.tsx): the viewer's five-part bar in miniature, one
+ * 16 px row per part: its name, its signed number (on the Canvas card), a 3 px meter.
+ * The styles travel with the component, since the Atlas cards use it too.
+ */
+.made-from {
+  margin: var(--space-2) 0 var(--space-1);
+}
+
+.made-from-head {
+  display: block;
+  margin-bottom: 2px;
+}
+
+.made-from ul {
+  display: grid;
+  grid-template-columns: max-content 5ch minmax(0, 1fr);
+  align-items: center;
+  gap: 0 var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Without numbers (an Atlas card), a name and its meter. */
+.made-from:not([data-numbers]) ul {
+  grid-template-columns: max-content minmax(0, 1fr);
+}
+
+/*
+ * Unstable parts (a CLS or storage token) read as numbers without meters: a name and its
+ * number, so each part keeps its own 16 px row and the bar its height.
+ */
+.made-from ul[data-unstable] {
+  grid-template-columns: max-content 5ch;
+}
+
+.made-from li {
+  display: contents;
+}
+
+.made-from li > * {
+  line-height: 16px;
+}
+
+.made-from b {
+  color: var(--ink-2);
+  font-size: var(--s-1);
+  font-weight: 500;
+  text-align: right;
+}
+
+.made-from-meter {
+  height: 3px;
+  background: var(--line);
+}
+
+.made-from-meter i {
+  display: block;
+  height: 100%;
+  background: var(--ink-3);
+}

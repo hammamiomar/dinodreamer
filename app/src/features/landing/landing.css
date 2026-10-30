@@ -1,0 +1,69 @@
+/*
+ * The Image editor's page (canvas-page.tsx), in the site's language: the content in the page band
+ * (styles.css), hairlines between sections, the words at the How page's measure.
+ */
+
+.landing {
+  /* The band gives the sides (styles.css), so a section has no gutter of its own. */
+  --gutter: 0px;
+}
+
+.landing .label {
+  margin: 0;
+}
+
+.landing .button {
+  padding: 0 20px;
+}
+
+/* The first screen: the name, the claim, the words and the way in, in one column at reading width. */
+.landing-introduction {
+  display: grid;
+  gap: var(--patch);
+  max-width: 68ch;
+  padding: var(--m) var(--gutter);
+}
+
+.landing-claim {
+  margin: 0;
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.landing-words {
+  display: grid;
+  gap: 12px;
+  color: var(--ink-2);
+}
+
+.landing-words p {
+  margin: 0;
+}
+
+/* The method's name links to its paper, as a citation does on the How page. */
+.landing-reference {
+  padding: 1px 3px;
+  background: var(--line-faint);
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--line-2);
+  text-underline-offset: 3px;
+}
+
+.landing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 8px 0 0;
+}
+
+/* The sections under the words, the gallery and the visitor's own canvases: each starts on a hairline inside the module. */
+.landing-section {
+  padding: calc(var(--m) - 1px) var(--gutter) var(--m);
+  border-top: 1px solid var(--line);
+}
+
+.landing-section .saved {
+  margin-inline: 0;
+}
+

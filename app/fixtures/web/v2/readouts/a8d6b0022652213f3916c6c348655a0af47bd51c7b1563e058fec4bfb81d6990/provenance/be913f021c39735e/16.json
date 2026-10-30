@@ -1,0 +1,1 @@
+{"format":1,"block":16,"roles":{"patch":{"sample_tokens":5042,"carried":0.0718103126,"self":0.0166413821,"near":0.143345505,"far":0.683890402,"cls":0.0345644616,"storage":0.0024092081,"attention_bias":-0.0914407447,"mlp":0.0182032287,"constant":0.120576128,"context":0.864209592,"local":0.106654927,"family":"surround","border_fraction":0.19773899,"split_partner":17}}}

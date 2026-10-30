@@ -1,0 +1,253 @@
+/*
+ * The Painter's gallery (gallery-page.tsx), a section of the Painter's page: published creations,
+ * a detail dialog and the submit form, in the language. The head is the heading and one line, with
+ * Submit at the right.
+ */
+
+.gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+
+/* Two modules high, so what follows it, the open form or the pictures, starts on the patch. */
+.gallery-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-content: start;
+  align-items: start;
+  gap: 16px 32px;
+  min-height: calc(2 * var(--m));
+}
+
+.gallery-header h2 {
+  margin: 0;
+  line-height: 32px;
+}
+
+/* Four modules wide and three patches high, so every edge of the page's one action is on the patch. */
+.gallery-header .button {
+  grid-column: 2;
+  grid-row: 2 / span 2;
+  min-width: 256px;
+  min-height: 48px;
+}
+
+.gallery-header p {
+  grid-column: 1;
+  margin: 0;
+  line-height: 24px;
+}
+
+/* Status lines between the header and the grid; the page's gap spaces them. */
+.gallery > p {
+  margin: 0;
+}
+
+.gallery-problem {
+  color: var(--warn);
+}
+
+.gallery-note {
+  font-size: var(--s-1);
+}
+
+.gallery-grid {
+  display: grid;
+  /* Two columns on a phone, more as the window allows. */
+  grid-template-columns: repeat(auto-fill, minmax(min(176px, calc(50% - 8px)), 1fr));
+  gap: 32px 16px;
+}
+
+.gallery-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-inline-size: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* A title or a credit is a visitor's own words, perhaps with no space among them: it wraps inside the card. */
+.gallery-card > span,
+.gallery-detail-text > * {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  overflow-wrap: break-word;
+}
+
+.gallery-card img {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  background: var(--black);
+}
+
+.gallery-card-title {
+  font-size: var(--s-1);
+  font-weight: 500;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .gallery-card:hover .gallery-card-title {
+    color: var(--ink);
+  }
+}
+
+/* A phone: the head starts a module under the bar (128), and Submit goes under the line. */
+@media (max-width: 640px) {
+  .gallery-header {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .gallery-header .button {
+    grid-column: 1;
+    grid-row: auto;
+    justify-self: start;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .gallery-card-title {
+    transition: color var(--motion);
+  }
+}
+
+/*
+ * An entry's detail: a native modal dialog (gallery-page.tsx). The browser centres it in
+ * the top layer and draws the scrim as its ::backdrop. The dialog has no padding of its
+ * own, so a click that lands on the dialog element is a click on the backdrop; its body
+ * carries the padding and the layout. A scroll at its end does not move the page.
+ */
+.gallery-detail {
+  max-width: min(900px, calc(100% - 2 * var(--space-4)));
+  max-height: calc(100% - 2 * var(--space-4));
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--black);
+  color: var(--ink);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.gallery-detail::backdrop {
+  background: var(--scrim);
+}
+
+.gallery-detail-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+  padding: var(--space-6);
+}
+
+.gallery-detail img {
+  width: min(512px, 100%);
+  height: auto;
+  aspect-ratio: 1;
+  background: var(--black);
+}
+
+.gallery-detail-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 220px;
+}
+
+.gallery-detail-text > * {
+  margin: 0;
+}
+
+.gallery-detail-text h2 {
+  font-size: var(--s1);
+}
+
+.gallery-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* The 1 px border is inside the 24 px padding, so the panel's height stays on the baselines. */
+.submit-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: calc(var(--space-6) - 1px);
+  border: 1px solid var(--line);
+  border-radius: 0;
+}
+
+.submit-panel > * {
+  margin: 0;
+}
+
+.submit-panel h2 {
+  font-size: var(--s0);
+  font-weight: 500;
+}
+
+.submit-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.submit-choice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 112px;
+  padding: var(--space-1);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: none;
+  font-size: var(--s-1);
+  text-align: left;
+  cursor: pointer;
+}
+
+.submit-choice[aria-checked="true"] {
+  border-color: var(--ink);
+}
+
+.submit-choice img {
+  width: 102px;
+  height: 102px;
+}
+
+.submit-choice span {
+  overflow: clip;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.submit-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: 480px;
+}
+
+.submit-form .gallery-problem,
+.submit-form p {
+  margin: 0;
+}
+
+.submit-form label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/* Turnstile draws a 300 × 65 px frame; keep its place while the script loads. */
+.turnstile-check > div:first-child {
+  min-height: 65px;
+}

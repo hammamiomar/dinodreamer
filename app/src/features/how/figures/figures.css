@@ -1,0 +1,916 @@
+/* The figures of the How page (figures/): shared pieces, then each figure's own layout. */
+
+/*
+ * Stage width sets the drawing size. Caption rows follow it and never take space from it.
+ * The complete block is centered in the desktop stage. Long figures scroll; mobile figures
+ * stay in the document flow.
+ */
+.how-dino,
+.how-basis,
+.how-automaton,
+.how-visualization {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto;
+  place-items: start center;
+  align-content: start;
+}
+
+.how-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 512px));
+  grid-template-rows: auto;
+  gap: 16px;
+  justify-content: center;
+  align-items: start;
+  align-content: start;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+}
+
+.how-pair[data-columns="3"] {
+  grid-template-columns: repeat(3, minmax(128px, 384px));
+  justify-content: safe center;
+}
+
+.how-visualization .how-pair {
+  grid-template-columns: repeat(3, minmax(128px, 256px));
+}
+
+.how-pane {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  align-content: start;
+  align-self: start;
+  justify-self: center;
+  width: 100%;
+  max-width: 512px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.how-visual {
+  display: block;
+  container-type: inline-size;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  max-width: 512px;
+}
+
+.how-visual > :is(.how-picture, .how-picture-wrap, .how-colors, .how-field, .home-material, .how-grown, .how-painted, .how-strip) {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+}
+
+.how-picture-wrap > .how-picture {
+  width: 100%;
+  height: 100%;
+}
+
+.how-schematic-pair {
+  grid-template-rows: auto auto auto;
+}
+
+.how-schematic-pair > .how-pane {
+  grid-row: span 3;
+  grid-template-rows: subgrid;
+}
+
+.how-schematic-pair .how-schematic {
+  width: 100%;
+}
+
+.how-selection {
+  grid-template-columns: minmax(0, 512px) minmax(208px, 256px);
+}
+
+.how-training {
+  grid-template-columns: minmax(0, 512px) minmax(256px, 320px);
+}
+
+/* A picture with a canvas over it (how-figures.tsx PictureWithPatches, the colour map). */
+.how-colors {
+  border: 1px solid var(--line);
+}
+
+.how-colors:not([data-ready]) {
+  background: var(--line-faint);
+}
+
+/* A picture with something drawn over it from outside: the neighbourhood box. */
+.how-picture-wrap {
+  position: relative;
+}
+
+.how-neighbourhood-box {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px dashed var(--ink);
+  pointer-events: none;
+}
+
+.how-caption {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: var(--s-1);
+  line-height: var(--lh-1);
+}
+
+/* Hidden alternatives reserve the longest caption without duplicating accessible text. */
+.how-caption-area {
+  display: grid;
+}
+
+.how-caption-area > div {
+  grid-area: 1 / 1;
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+
+.how-caption-reserve {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* A figure's one line of numbers. */
+.how-figure-line {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--s0);
+  line-height: var(--lh0);
+}
+
+/* Act 1's attention side: the layer slider, the shares, the twelve bars. */
+.how-attention-side {
+  gap: 16px;
+}
+
+/* The patch's attention at the shown layer: one bar split into the three shares, then a row for each. */
+.how-shares {
+  display: grid;
+  gap: 12px;
+}
+
+.how-shares [data-part="outside"] { --share-fill: var(--ink); }
+.how-shares [data-part="inside"] { --share-fill: var(--ink-2); }
+.how-shares [data-part="prefix"] { --share-fill: var(--ink-3); }
+
+.how-shares-bar {
+  display: flex;
+  gap: 2px;
+  height: 8px;
+}
+
+.how-shares-bar span {
+  flex: 0 1 0;
+  min-width: 0;
+  background: var(--share-fill);
+}
+
+.how-shares-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A row: its part's fill as a square, the percentage, then the words. */
+.how-shares-list li {
+  display: grid;
+  grid-template-columns: 8px 3ch minmax(0, 1fr);
+  column-gap: 8px;
+  align-items: baseline;
+}
+
+.how-shares-list li::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  background: var(--share-fill);
+}
+
+.how-shares-value {
+  color: var(--ink);
+  text-align: right;
+}
+
+.how-shares-label {
+  color: var(--ink-2);
+  font-size: var(--s-1);
+  line-height: var(--lh-1);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .how-shares-bar span {
+    transition: flex-grow var(--motion-move);
+  }
+}
+
+.how-bars {
+  display: flex;
+  gap: 4px;
+  align-items: flex-end;
+  height: 96px;
+  padding: 0;
+  border-bottom: 1px solid var(--line-2);
+}
+
+.how-bars button {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: var(--line-2);
+  cursor: pointer;
+  transition: height var(--motion-move), background var(--motion);
+}
+
+.how-bars button[data-lit] {
+  background: var(--ink);
+}
+
+/* The bars' axis: each layer's number under its bar. */
+.how-bars-axis {
+  display: flex;
+  gap: 4px;
+  margin-top: -12px;
+}
+
+.how-bars-axis span {
+  flex: 1 1 0;
+  min-width: 0;
+  color: var(--ink-3);
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+}
+
+.how-bars-axis span[data-lit] {
+  color: var(--ink);
+}
+
+/* Act 2. The drawing of where the basis sits. */
+.how-schematic {
+  display: block;
+  width: 100%;
+  height: auto;
+  font-family: var(--mono);
+  font-size: 11px;
+  fill: var(--ink-3);
+}
+
+.how-schematic-token rect {
+  fill: none;
+  stroke: var(--line-2);
+}
+
+.how-schematic-token line,
+.how-schematic-feature line,
+.how-schematic-group line {
+  stroke: var(--line-2);
+  stroke-width: 1;
+}
+
+.how-schematic-feature rect {
+  fill: none;
+  stroke: var(--line-2);
+}
+
+.how-schematic-feature[data-lit] rect {
+  fill: var(--ink);
+  stroke: var(--ink);
+}
+
+.how-schematic-feature[data-lit] line,
+.how-schematic-group[data-lit] line {
+  stroke: var(--ink);
+}
+
+.how-schematic-group[data-lit] circle {
+  fill: var(--ink);
+}
+
+.how-schematic-feature text {
+  fill: var(--ink);
+}
+
+/* The field of groups, square at the pane's width. */
+.how-field {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+}
+
+/* The 32 selected groups as rows: the number, then a bar by response magnitude. */
+.how-response-bars {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.how-response-bars button {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  min-height: 16px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-3);
+  font: inherit;
+  font-size: 10px;
+  line-height: 10px;
+  text-align: right;
+  cursor: pointer;
+}
+
+.how-response-bars .basis-group-link-label {
+  justify-content: flex-end;
+}
+
+@media (pointer: coarse) {
+  .how-response-bars button {
+    min-height: var(--touch-target);
+    font-size: var(--s-1);
+    line-height: 16px;
+  }
+}
+
+.how-response-bar {
+  display: block;
+  height: 6px;
+  background: var(--line-2);
+  transition: background var(--motion);
+}
+
+.how-response-bars li[data-lit] button {
+  color: var(--ink);
+}
+
+.how-response-bars li[data-lit] .how-response-bar {
+  background: var(--ink);
+}
+
+/* The cloud and the strongest patches. */
+.how-cloud {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  max-width: 576px;
+  height: auto;
+}
+
+.how-cloud .how-strongest {
+  align-self: center;
+  width: 100%;
+  max-width: 280px;
+}
+
+.how-cloud > .how-visual {
+  max-width: 576px;
+}
+
+/* The lit point's label hangs under the figure (atlas-cloud-figure.css): room for it before the caption. */
+.how-cloud-figure {
+  position: relative;
+  margin-bottom: 24px;
+  width: 100%;
+  aspect-ratio: 576 / 448;
+}
+
+/* Paired plots use the same square viewport as the pictures beside them. */
+.how-pair .how-cloud-figure {
+  aspect-ratio: 1;
+  margin-bottom: 0;
+}
+
+.how-pair .cloud-figure svg {
+  height: 100%;
+}
+
+.how-automaton[data-mode="signal"] .how-visual {
+  margin-bottom: 24px;
+}
+
+.how-cloud-figure .cloud-figure {
+  height: 100%;
+}
+
+.how-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.how-tile {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  overflow: hidden;
+}
+
+.how-tile img {
+  display: block;
+}
+
+.how-tile span {
+  position: absolute;
+  width: 6.25%;
+  height: 6.25%;
+  outline: 1px solid var(--ink);
+  outline-offset: -1px;
+}
+
+/* The rebuilding's chart. */
+.how-rebuild {
+  margin-inline: auto;
+  display: grid;
+  gap: 16px;
+  align-content: start;
+  max-width: 576px;
+}
+
+.how-chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  font-family: var(--mono);
+}
+
+.how-chart-axis {
+  stroke: var(--line-2);
+  stroke-width: 1;
+}
+
+.how-chart-label {
+  font-size: 11px;
+  fill: var(--ink-3);
+}
+
+.how-chart-line {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.5;
+}
+
+/* The other passes' curves behind the chosen one (the training figure). */
+.how-chart-line[data-faint] {
+  stroke: var(--line-2);
+  stroke-width: 1;
+}
+
+.how-chart-mark {
+  stroke: var(--line-2);
+  stroke-dasharray: 2 3;
+}
+
+.how-chart-dot {
+  fill: var(--ink);
+}
+
+/* Act 3. The live player in a pane: the home's field at the pane's width, one tile. */
+.how-player .home-field {
+  height: 100%;
+  aspect-ratio: 1;
+}
+
+.how-grid {
+  display: block;
+  border: 1px solid var(--line);
+  image-rendering: pixelated;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+}
+
+.how-pixels,
+.how-grown {
+  display: block;
+  image-rendering: pixelated;
+}
+
+.how-grown {
+  image-rendering: auto;
+}
+
+/*
+ * A painted picture (visualization-figure.tsx): the recorded growth under the Painter's export,
+ * which fades in when the growth ends and out when it plays again. A button, so a click replays.
+ */
+.how-painted {
+  position: relative;
+  display: block;
+  padding: 0;
+  border: 0;
+  background: var(--black);
+  cursor: pointer;
+}
+
+.how-painted video,
+.how-painted img {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.how-painted img {
+  transition: opacity 400ms ease-out;
+}
+
+.how-painted[data-growing] img {
+  opacity: 0;
+}
+
+/*
+ * The two grids stacked (automaton-figure.tsx Scales): three layers in one box, the fine grid at the
+ * base, the coarse grid above it, the image on top. Lifted, the coarse layer is moved and halved by
+ * its CSS transform; stacking moves it back, then the stretched coarse grid and the image fade in.
+ * Lifting runs the other way: the image fades out first, then the layer rises.
+ */
+.how-stack-figure {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  max-width: 560px;
+  height: auto;
+}
+
+.how-stack-figure > .how-visual {
+  max-width: 560px;
+}
+
+.how-stack-figure > .how-caption {
+  flex: none;
+}
+
+.how-stack {
+  --stack-side: max(0px, calc(100cqw - 48px));
+  position: relative;
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  width: calc(var(--stack-side) + 48px);
+  height: calc(var(--stack-side) + 96px);
+}
+
+.how-stack-layer {
+  position: absolute;
+  outline: 1px solid var(--line);
+  width: var(--stack-side);
+  height: var(--stack-side);
+  left: 48px;
+  top: 72px;
+}
+
+.how-stack-layer canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.how-stack-coarse {
+  transform-origin: top left;
+  transition: transform 700ms ease-in-out;
+}
+
+.how-stack:not([data-stacked]) .how-stack-coarse {
+  transform: translate(-48px, -48px) scale(0.5);
+  transition-delay: 250ms;
+}
+
+.how-stack-stretched,
+.how-stack-image {
+  opacity: 0;
+  transition: opacity 300ms ease-out;
+}
+
+.how-stack[data-stacked] .how-stack-stretched {
+  opacity: 1;
+  transition-delay: 500ms;
+}
+
+.how-stack[data-stacked] .how-stack-image {
+  opacity: 1;
+  transition-delay: 800ms;
+}
+
+.how-stack-label {
+  position: absolute;
+  height: 24px;
+  line-height: 24px;
+  white-space: nowrap;
+  color: var(--ink-3);
+  font-size: var(--s-1);
+  transition: transform 700ms ease-in-out, opacity 300ms ease-out;
+  left: 48px;
+  top: calc(72px + var(--stack-side));
+}
+
+.how-stack-coarse-label {
+  margin-top: -24px;
+  top: 72px;
+}
+
+.how-stack:not([data-stacked]) .how-stack-coarse-label {
+  transform: translate(-48px, -48px);
+  transition-delay: 250ms, 0ms;
+}
+
+.how-stack-image-label {
+  opacity: 0;
+}
+
+.how-stack[data-stacked] .how-stack-image-label {
+  opacity: 1;
+  transition-delay: 0ms, 800ms;
+}
+
+.how-stack[data-stacked] .how-stack-fine-label {
+  opacity: 0;
+  transition-delay: 0ms, 800ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .how-stack-coarse,
+  .how-stack-stretched,
+  .how-stack-image,
+  .how-stack-label {
+    transition: none;
+  }
+}
+
+.how-cell-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px;
+  gap: 16px;
+  align-items: flex-start;
+  aspect-ratio: 1;
+}
+
+.how-cell-side {
+  display: grid;
+  gap: 8px;
+}
+
+.how-neighbourhood {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  border: 1px solid var(--line);
+}
+
+.how-neighbourhood span[data-centre] {
+  outline: 1px solid var(--ink);
+  outline-offset: -1px;
+}
+
+/* The cell's rule (Cells): the grid through the four detectors, a picture each with its stencil. */
+.how-rule {
+  gap: 12px;
+}
+
+.how-detectors {
+  display: grid;
+  gap: 6px;
+}
+
+.how-detector-pictures {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.how-detector-picture {
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+  text-align: center;
+}
+
+.how-detector-picture .how-grid {
+  width: 100%;
+  aspect-ratio: 1;
+}
+
+.how-stencil-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 12px);
+  grid-auto-rows: 12px;
+  gap: 1px;
+  border: 1px solid var(--line);
+  background: var(--line);
+}
+
+.how-stencil-grid span {
+  display: grid;
+  place-items: center;
+  background: var(--black);
+  color: var(--ink-3);
+  font-size: 9px;
+  line-height: 1;
+}
+
+.how-stencil-grid span[data-sign="+"] {
+  color: var(--ink);
+}
+
+.how-stencil-grid span[data-sign="-"] {
+  color: var(--ink-2);
+}
+
+/* A narrow stage shows the four pictures two by two. */
+@container how-figure (max-width: 900px) {
+  .how-detector-pictures {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Under the cells section's player: grow it again, in the home's words. */
+.how-regrow {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--s-1);
+  line-height: var(--lh-1);
+  cursor: pointer;
+}
+
+/* The training strip: one frame at a time. */
+.how-strip {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--line);
+}
+
+.how-update-frames {
+  max-width: 256px;
+}
+
+.how-strip img {
+  position: absolute;
+  top: 0;
+  max-width: none;
+  image-rendering: pixelated;
+}
+
+.how-chart-dot[data-fire] {
+  fill: var(--ink);
+}
+
+.how-chart-dot:not([data-fire]) {
+  fill: var(--black);
+  stroke: var(--ink-2);
+}
+
+/* The results: the group's automata and the two doors. */
+.how-kinds {
+  display: grid;
+  gap: 24px;
+  align-content: start;
+  width: 100%;
+}
+
+/* The Index's tiles (look.css) wrap to the figure's width here, every automaton shown; the Index lays them in its own eight columns. */
+.how-kinds .look-material-tiles {
+  grid-template-columns: repeat(auto-fill, 144px);
+  justify-content: start;
+}
+
+@media (max-width: 1023px) {
+  .how-kinds .look-material-tiles {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.how-doors {
+  display: flex;
+  gap: 16px;
+}
+
+/* The player in a pane keeps the home's field only: its corner words belong to the home. */
+.how-player .home-material-note {
+  display: none;
+}
+
+/* The overview's cloud, small: no lead label under it. */
+.how-loop-cloud {
+  margin-bottom: 0;
+}
+
+.how-loop-cloud .cloud-figure-label {
+  display: none;
+}
+
+/* The references, the glossary section's figure (references-figure.tsx): at the top of the stage, one measure wide. */
+.how-references {
+  display: grid;
+  align-content: start;
+  justify-self: start;
+  max-width: 640px;
+}
+
+/*
+ * The references number themselves in a column of their own. The browser's marker hangs outside
+ * the list, where the desktop reference pane would clip a two-digit number.
+ */
+.how-references ol {
+  display: grid;
+  gap: 12px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: reference;
+  color: var(--ink-2);
+}
+
+.how-references li {
+  display: grid;
+  grid-template-columns: 3ch minmax(0, 1fr);
+  gap: 8px;
+}
+
+.how-references li::before {
+  counter-increment: reference;
+  content: counter(reference) ".";
+  text-align: right;
+}
+
+.how-references a {
+  color: var(--ink-2);
+}
+
+@media (pointer: coarse) {
+  .how-references li {
+    align-items: baseline;
+  }
+
+  .how-references a {
+    display: flex;
+    align-items: center;
+    min-height: var(--touch-target);
+  }
+}
+
+/* On a narrow stage, give chart axes and controls the full column. */
+@container how-figure (max-width: 600px) {
+  .how-dino[data-mode="attention"] .how-pair,
+  .how-selection,
+  .how-training {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
+    height: auto;
+    align-self: start;
+  }
+}
+
+/* Only the desktop stage constrains and scrolls figure details. */
+@media (min-width: 1024px) {
+  .how-pair[data-columns="3"] { overflow-x: auto; }
+
+  .how-pair > div.how-pane,
+  .how-cell-detail {
+    max-height: 100%;
+    overflow: auto;
+  }
+
+  .how-rebuild,
+  .how-kinds {
+    max-height: 100%;
+    overflow-y: auto;
+  }
+
+  .how-references { overflow-y: auto; }
+}

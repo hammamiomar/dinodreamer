@@ -1,0 +1,1606 @@
+{
+ "format": 1,
+ "release": "pass-003",
+ "atlasDomain": {
+  "xMin": -25,
+  "xMax": 35,
+  "yMaximum": 25
+ },
+ "records": [
+  {
+   "material": "block-4009-stage-6-2px-2000-strongest-seed-0",
+   "block": 4009,
+   "anchor": {
+    "imageId": 2985056820452196,
+    "slot": 59,
+    "band": "strongest",
+    "atlasPoint": [
+     12.6811,
+     -1.5484
+    ],
+    "atlasPlane": [
+     [
+      -0.759928,
+      -0.640199,
+      0.112493
+     ],
+     [
+      0.528859,
+      -0.508343,
+      0.679629
+     ]
+    ]
+   },
+   "training": {
+    "strip": "block-4009-stage-6-2px-2000-strongest-seed-0-training.webp",
+    "frameSide": 128,
+    "tick": 600,
+    "medianNorm": 5.041611671447754,
+    "frames": [
+     {
+      "update": 25,
+      "winnerFraction": 0.0,
+      "strength": 0.2578
+     },
+     {
+      "update": 50,
+      "winnerFraction": 0.0,
+      "strength": 0.1558
+     },
+     {
+      "update": 100,
+      "winnerFraction": 0.0,
+      "strength": 0.2398
+     },
+     {
+      "update": 125,
+      "winnerFraction": 0.0,
+      "strength": 0.5551
+     },
+     {
+      "update": 150,
+      "winnerFraction": 0.0,
+      "strength": 0.4552
+     },
+     {
+      "update": 200,
+      "winnerFraction": 0.0,
+      "strength": 0.3717
+     },
+     {
+      "update": 225,
+      "winnerFraction": 0.0,
+      "strength": 0.4123
+     },
+     {
+      "update": 250,
+      "winnerFraction": 0.0,
+      "strength": 0.7258
+     },
+     {
+      "update": 300,
+      "winnerFraction": 0.0,
+      "strength": 0.49
+     },
+     {
+      "update": 325,
+      "winnerFraction": 0.0,
+      "strength": 0.9476
+     },
+     {
+      "update": 350,
+      "winnerFraction": 0.0,
+      "strength": 1.0767
+     },
+     {
+      "update": 400,
+      "winnerFraction": 0.0,
+      "strength": 0.29
+     },
+     {
+      "update": 425,
+      "winnerFraction": 0.0312,
+      "strength": 1.2145
+     },
+     {
+      "update": 450,
+      "winnerFraction": 0.0,
+      "strength": 0.434
+     },
+     {
+      "update": 500,
+      "winnerFraction": 0.0,
+      "strength": 1.1592
+     },
+     {
+      "update": 525,
+      "winnerFraction": 1.0,
+      "strength": 1.97
+     }
+    ]
+   },
+   "run": "research/2026-10-22-optimizer-schedule/out/stage-6/pool-64-render-2-2000-updates/block-4009-seed-0-strongest"
+  },
+  {
+   "material": "block-12002-stage-6-pyramid-strongest-seed-0",
+   "block": 12002,
+   "anchor": {
+    "imageId": 3536804379159069,
+    "slot": 74,
+    "band": "strongest",
+    "atlasPoint": [
+     14.9157,
+     -1.2361
+    ],
+    "atlasPlane": [
+     [
+      0.562047,
+      -0.537071,
+      0.629014
+     ],
+     [
+      0.239673,
+      0.833626,
+      0.497619
+     ]
+    ]
+   },
+   "training": {
+    "strip": "block-12002-stage-6-pyramid-strongest-seed-0-training.webp",
+    "frameSide": 128,
+    "tick": 600,
+    "medianNorm": 5.321793079376221,
+    "frames": [
+     {
+      "update": 25,
+      "winnerFraction": 0.0,
+      "strength": 0.1569
+     },
+     {
+      "update": 50,
+      "winnerFraction": 0.0,
+      "strength": 0.2105
+     },
+     {
+      "update": 75,
+      "winnerFraction": 0.0,
+      "strength": 0.2497
+     },
+     {
+      "update": 100,
+      "winnerFraction": 0.0,
+      "strength": 0.3675
+     },
+     {
+      "update": 125,
+      "winnerFraction": 0.0,
+      "strength": 0.8284
+     },
+     {
+      "update": 150,
+      "winnerFraction": 0.0,
+      "strength": 0.3905
+     },
+     {
+      "update": 175,
+      "winnerFraction": 0.2812,
+      "strength": 1.0967
+     },
+     {
+      "update": 200,
+      "winnerFraction": 0.7031,
+      "strength": 1.1991
+     },
+     {
+      "update": 225,
+      "winnerFraction": 0.9688,
+      "strength": 1.5197
+     }
+    ]
+   },
+   "run": "research/2026-10-22-optimizer-schedule/out/stage-6/pool-64-pyramid/block-12002-seed-0-strongest"
+  },
+  {
+   "material": "block-13345-stage-6-pyramid-strongest-seed-0",
+   "block": 13345,
+   "anchor": {
+    "imageId": 8476118887262004,
+    "slot": 187,
+    "band": "strongest",
+    "atlasPoint": [
+     14.661,
+     -0.3651
+    ],
+    "atlasPlane": [
+     [
+      0.206055,
+      0.392312,
+      -0.896456
+     ],
+     [
+      0.340579,
+      0.830084,
+      0.44155
+     ]
+    ]
+   },
+   "training": {
+    "strip": "block-13345-stage-6-pyramid-strongest-seed-0-training.webp",
+    "frameSide": 128,
+    "tick": 600,
+    "medianNorm": 5.592250347137451,
+    "frames": [
+     {
+      "update": 25,
+      "winnerFraction": 0.0,
+      "strength": 0.3224
+     },
+     {
+      "update": 50,
+      "winnerFraction": 0.0,
+      "strength": 0.3383
+     },
+     {
+      "update": 75,
+      "winnerFraction": 0.0,
+      "strength": 0.5666
+     },
+     {
+      "update": 100,
+      "winnerFraction": 0.0,
+      "strength": 0.5574
+     },
+     {
+      "update": 125,
+      "winnerFraction": 0.0,
+      "strength": 0.6376
+     },
+     {
+      "update": 150,
+      "winnerFraction": 0.0,
+      "strength": 0.6468
+     },
+     {
+      "update": 175,
+      "winnerFraction": 0.0,
+      "strength": 0.579
+     },
+     {
+      "update": 200,
+      "winnerFraction": 0.0,
+      "strength": 0.5294
+     },
+     {
+      "update": 250,
+      "winnerFraction": 0.0,
+      "strength": 0.7847
+     },
+     {
+      "update": 275,
+      "winnerFraction": 0.0,
+      "strength": 0.6621
+     },
+     {
+      "update": 300,
+      "winnerFraction": 0.0,
+      "strength": 0.9248
+     },
+     {
+      "update": 325,
+      "winnerFraction": 0.0,
+      "strength": 1.0172
+     },
+     {
+      "update": 350,
+      "winnerFraction": 0.0,
+      "strength": 0.8254
+     },
+     {
+      "update": 375,
+      "winnerFraction": 0.2188,
+      "strength": 1.0608
+     },
+     {
+      "update": 400,
+      "winnerFraction": 0.0469,
+      "strength": 1.1124
+     },
+     {
+      "update": 425,
+      "winnerFraction": 0.9219,
+      "strength": 1.4381
+     }
+    ]
+   },
+   "run": "research/2026-10-22-optimizer-schedule/out/stage-6/pool-64-pyramid/block-13345-seed-0-strongest"
+  },
+  {
+   "material": "block-13364-stage-6-pyramid-strongest-seed-0",
+   "block": 13364,
+   "anchor": {
+    "imageId": 3358357912530755,
+    "slot": 62,
+    "band": "strongest",
+    "atlasPoint": [
+     16.8867,
+     0.8488
+    ],
+    "atlasPlane": [
+     [
+      -0.510438,
+      -0.138247,
+      0.848729
+     ],
+     [
+      0.004652,
+      0.986534,
+      0.163491
+     ]
+    ]
+   },
+   "training": {
+    "strip": "block-13364-stage-6-pyramid-strongest-seed-0-training.webp",
+    "frameSide": 128,
+    "tick": 600,
+    "medianNorm": 5.600273132324219,
+    "frames": [
+     {
+      "update": 25,
+      "winnerFraction": 0.0,
+      "strength": 0.1869
+     },
+     {
+      "update": 50,
+      "winnerFraction": 0.0,
+      "strength": 0.2888
+     },
+     {
+      "update": 75,
+      "winnerFraction": 0.0,
+      "strength": 0.3265
+     },
+     {
+      "update": 100,
+      "winnerFraction": 0.0,
+      "strength": 0.4859
+     },
+     {
+      "update": 125,
+      "winnerFraction": 0.0,
+      "strength": 0.4671
+     },
+     {
+      "update": 150,
+      "winnerFraction": 0.0,
+      "strength": 0.5942
+     },
+     {
+      "update": 175,
+      "winnerFraction": 0.0,
+      "strength": 0.6389
+     },
+     {
+      "update": 200,
+      "winnerFraction": 0.0,
+      "strength": 0.94
+     },
+     {
+      "update": 225,
+      "winnerFraction": 0.0312,
+      "strength": 0.9259
+     },
+     {
+      "update": 250,
+      "winnerFraction": 0.0469,
+      "strength": 0.9741
+     },
+     {
+      "update": 275,
+      "winnerFraction": 0.0,
+      "strength": 0.8937
+     },
+     {
+      "update": 300,
+      "winnerFraction": 0.0312,
+      "strength": 0.9574
+     },
+     {
+      "update": 325,
+      "winnerFraction": 1.0,
+      "strength": 1.5091
+     }
+    ]
+   },
+   "run": "research/2026-10-22-optimizer-schedule/out/stage-6/pool-64-pyramid/block-13364-seed-0-strongest"
+  },
+  {
+   "material": "block-14544-stage-6-noise-strongest-seed-0",
+   "block": 14544,
+   "anchor": {
+    "imageId": 7458416253439473,
+    "slot": 114,
+    "band": "strongest",
+    "atlasPoint": [
+     15.8161,
+     -0.573
+    ],
+    "atlasPlane": [
+     [
+      -0.562469,
+      0.363831,
+      0.742466
+     ],
+     [
+      0.752955,
+      0.596391,
+      0.278166
+     ]
+    ]
+   },
+   "training": {
+    "strip": "block-14544-stage-6-noise-strongest-seed-0-training.webp",
+    "frameSide": 128,
+    "tick": 600,
+    "medianNorm": 5.373767852783203,
+    "frames": [
+     {
+      "update": 25,
+      "winnerFraction": 0.0,
+      "strength": 0.6897
+     },
+     {
+      "update": 50,
+      "winnerFraction": 0.0,
+      "strength": 0.5954
+     },
+     {
+      "update": 75,
+      "winnerFraction": 0.0,
+      "strength": 1.0364
+     },
+     {
+      "update": 100,
+      "winnerFraction": 0.0,
+      "strength": 1.0804
+     },
+     {
+      "update": 125,
+      "winnerFraction": 0.0,
+      "strength": 1.1804
+     },
+     {
+      "update": 150,
+      "winnerFraction": 0.2656,
+      "strength": 1.287
+     },
+     {
+      "update": 175,
+      "winnerFraction": 0.125,
+      "strength": 1.2037
+     },
+     {
+      "update": 200,
+      "winnerFraction": 0.7969,
+      "strength": 1.3471
+     },
+     {
+      "update": 225,
+      "winnerFraction": 0.1406,
+      "strength": 1.0812
+     },
+     {
+      "update": 250,
+      "winnerFraction": 0.0,
+      "strength": 0.9014
+     },
+     {
+      "update": 275,
+      "winnerFraction": 0.2344,
+      "strength": 1.1936
+     },
+     {
+      "update": 300,
+      "winnerFraction": 0.1875,
+      "strength": 1.2161
+     },
+     {
+      "update": 325,
+      "winnerFraction": 0.7656,
+      "strength": 1.3663
+     },
+     {
+      "update": 350,
+      "winnerFraction": 1.0,
+      "strength": 1.8965
+     }
+    ]
+   },
+   "run": "research/2026-10-22-optimizer-schedule/out/stage-6/pool-64/block-14544-seed-0-strongest"
+  },
+  {
+   "material": "block-16250-stage-6-noise-strongest-seed-0",
+   "block": 16250,
+   "anchor": {
+    "imageId": 4981430491626512,
+    "slot": 176,
+    "band": "strongest",
+    "atlasPoint": [
+     11.6177,
+     -1.4174
+    ],
+    "atlasPlane": [
+     [
+      -0.322774,
+      0.802569,
+      -0.501698
+     ],
+     [
+      -0.090485,
+      0.501475,
+      0.860427
+     ]
+    ]
+   },
+   "training": {
+    "strip": "block-16250-stage-6-noise-strongest-seed-0-training.webp",
+    "frameSide": 128,
+    "tick": 600,
+    "medianNorm": 5.105485439300537,
+    "frames": [
+     {
+      "update": 25,
+      "winnerFraction": 0.0,
+      "strength": 1.1602
+     },
+     {
+      "update": 50,
+      "winnerFraction": 0.0,
+      "strength": 1.0807
+     },
+     {
+      "update": 75,
+      "winnerFraction": 0.0,
+      "strength": 1.0413
+     },
+     {
+      "update": 100,
+      "winnerFraction": 0.2812,
+      "strength": 1.1996
+     },
+     {
+      "update": 125,
+      "winnerFraction": 1.0,
+      "strength": 1.7339
+     }
+    ]
+   },
+   "run": "research/2026-10-22-optimizer-schedule/out/stage-6/pool-64/block-16250-seed-0-strongest"
+  },
+  {
+   "material": "block-7178-pyramid-seeded-top-32-margin-delta-0-25-update-0800-seed-1",
+   "block": 7178,
+   "anchor": {
+    "imageId": 2059088733544685,
+    "slot": 62,
+    "band": "strongest",
+    "atlasPoint": [
+     11.3531,
+     0.8423
+    ],
+    "atlasPlane": [
+     [
+      0.697545,
+      -0.35713,
+      -0.621201
+     ],
+     [
+      0.680206,
+      0.057463,
+      0.730766
+     ]
+    ]
+   },
+   "training": {
+    "strip": "block-7178-pyramid-seeded-top-32-margin-delta-0-25-update-0800-seed-1-training.webp",
+    "frameSide": 128,
+    "tick": 600,
+    "medianNorm": 5.047754764556885,
+    "frames": [
+     {
+      "update": 25,
+      "winnerFraction": 0.0,
+      "strength": 0.5577
+     },
+     {
+      "update": 75,
+      "winnerFraction": 0.0,
+      "strength": 0.5587
+     },
+     {
+      "update": 125,
+      "winnerFraction": 0.0,
+      "strength": 0.5403
+     },
+     {
+      "update": 175,
+      "winnerFraction": 0.0,
+      "strength": 0.4152
+     },
+     {
+      "update": 225,
+      "winnerFraction": 0.0,
+      "strength": 0.4624
+     },
+     {
+      "update": 275,
+      "winnerFraction": 0.0,
+      "strength": 0.6017
+     },
+     {
+      "update": 325,
+      "winnerFraction": 0.0,
+      "strength": 0.2347
+     },
+     {
+      "update": 375,
+      "winnerFraction": 0.0,
+      "strength": 0.1702
+     },
+     {
+      "update": 450,
+      "winnerFraction": 0.0,
+      "strength": 0.5676
+     },
+     {
+      "update": 500,
+      "winnerFraction": 0.0,
+      "strength": 0.4209
+     },
+     {
+      "update": 550,
+      "winnerFraction": 0.0,
+      "strength": 0.4754
+     },
+     {
+      "update": 600,
+      "winnerFraction": 0.0,
+      "strength": 0.4396
+     },
+     {
+      "update": 650,
+      "winnerFraction": 0.0,
+      "strength": 0.6542
+     },
+     {
+      "update": 700,
+      "winnerFraction": 0.0,
+      "strength": 0.6626
+     },
+     {
+      "update": 750,
+      "winnerFraction": 0.0,
+      "strength": 0.1944
+     },
+     {
+      "update": 800,
+      "winnerFraction": 0.9375,
+      "strength": 1.1362
+     }
+    ]
+   },
+   "run": "research/2026-10-26-selection-margin/out/group-7178/pyramid-seeded-centre/top-32-margin-delta-0.25/group-7178-seed-1"
+  },
+  {
+   "material": "block-12240-stage-6-pyramid-seeded-strongest-seed-1",
+   "block": 12240,
+   "anchor": {
+    "imageId": 3659045719526781,
+    "slot": 109,
+    "band": "strongest",
+    "atlasPoint": [
+     11.2052,
+     -1.204
+    ],
+    "atlasPlane": [
+     [
+      -0.403601,
+      -0.914766,
+      -0.017586
+     ],
+     [
+      -0.227608,
+      0.081769,
+      0.970314
+     ]
+    ]
+   },
+   "training": {
+    "strip": "block-12240-stage-6-pyramid-seeded-strongest-seed-1-training.webp",
+    "frameSide": 128,
+    "tick": 600,
+    "medianNorm": 5.8602728843688965,
+    "frames": [
+     {
+      "update": 25,
+      "winnerFraction": 0.0,
+      "strength": 0.2866
+     },
+     {
+      "update": 75,
+      "winnerFraction": 0.0,
+      "strength": 0.2193
+     },
+     {
+      "update": 125,
+      "winnerFraction": 0.0,
+      "strength": 0.4146
+     },
+     {
+      "update": 200,
+      "winnerFraction": 0.0,
+      "strength": 0.6769
+     },
+     {
+      "update": 250,
+      "winnerFraction": 0.0,
+      "strength": 0.7595
+     },
+     {
+      "update": 300,
+      "winnerFraction": 0.0,
+      "strength": 0.6626
+     },
+     {
+      "update": 350,
+      "winnerFraction": 0.0,
+      "strength": 0.4167
+     },
+     {
+      "update": 400,
+      "winnerFraction": 0.0,
+      "strength": 0.4396
+     },
+     {
+      "update": 475,
+      "winnerFraction": 0.0,
+      "strength": 0.5104
+     },
+     {
+      "update": 525,
+      "winnerFraction": 0.0,
+      "strength": 0.4597
+     },
+     {
+      "update": 575,
+      "winnerFraction": 0.0,
+      "strength": 0.6897
+     },
+     {
+      "update": 625,
+      "winnerFraction": 0.0,
+      "strength": 0.8137
+     },
+     {
+      "update": 675,
+      "winnerFraction": 0.0,
+      "strength": 0.8059
+     },
+     {
+      "update": 750,
+      "winnerFraction": 0.0,
+      "strength": 0.4909
+     },
+     {
+      "update": 800,
+      "winnerFraction": 0.4375,
+      "strength": 0.9974
+     },
+     {
+      "update": 850,
+      "winnerFraction": 1.0,
+      "strength": 1.7155
+     }
+    ]
+   },
+   "run": "research/2026-10-22-optimizer-schedule/out/stage-6/pool-64-pyramid-seeded-centre/block-12240-seed-1-strongest"
+  },
+  {
+   "material": "block-12240-stage-6-seeded-strongest-seed-0",
+   "block": 12240,
+   "anchor": {
+    "imageId": 3659045719526781,
+    "slot": 109,
+    "band": "strongest",
+    "atlasPoint": [
+     11.2052,
+     -1.204
+    ],
+    "atlasPlane": [
+     [
+      -0.403601,
+      -0.914766,
+      -0.017586
+     ],
+     [
+      -0.227608,
+      0.081769,
+      0.970314
+     ]
+    ]
+   },
+   "training": {
+    "strip": "block-12240-stage-6-seeded-strongest-seed-0-training.webp",
+    "frameSide": 128,
+    "tick": 600,
+    "medianNorm": 5.8602728843688965,
+    "frames": [
+     {
+      "update": 25,
+      "winnerFraction": 0.0,
+      "strength": 0.6355
+     },
+     {
+      "update": 75,
+      "winnerFraction": 0.0,
+      "strength": 0.3982
+     },
+     {
+      "update": 125,
+      "winnerFraction": 0.0,
+      "strength": 0.6105
+     },
+     {
+      "update": 175,
+      "winnerFraction": 0.0,
+      "strength": 0.6673
+     },
+     {
+      "update": 250,
+      "winnerFraction": 0.0,
+      "strength": 0.6542
+     },
+     {
+      "update": 300,
+      "winnerFraction": 0.0,
+      "strength": 0.7492
+     },
+     {
+      "update": 350,
+      "winnerFraction": 0.0,
+      "strength": 0.2761
+     },
+     {
+      "update": 400,
+      "winnerFraction": 0.0,
+      "strength": 0.7014
+     },
+     {
+      "update": 450,
+      "winnerFraction": 0.0,
+      "strength": 0.4981
+     },
+     {
+      "update": 500,
+      "winnerFraction": 0.0,
+      "strength": 0.4451
+     },
+     {
+      "update": 550,
+      "winnerFraction": 0.0,
+      "strength": 0.5437
+     },
+     {
+      "update": 600,
+      "winnerFraction": 0.0,
+      "strength": 0.3369
+     },
+     {
+      "update": 675,
+      "winnerFraction": 0.0,
+      "strength": 0.6248
+     },
+     {
+      "update": 725,
+      "winnerFraction": 0.0,
+      "strength": 0.555
+     },
+     {
+      "update": 775,
+      "winnerFraction": 0.0,
+      "strength": 0.398
+     },
+     {
+      "update": 825,
+      "winnerFraction": 1.0,
+      "strength": 1.4867
+     }
+    ]
+   },
+   "run": "research/2026-10-22-optimizer-schedule/out/stage-6/pool-64-seeded-centre/block-12240-seed-0-strongest"
+  },
+  {
+   "material": "block-12299-stage-6-seeded-strongest-seed-1",
+   "block": 12299,
+   "anchor": {
+    "imageId": 1435147463674627,
+    "slot": 146,
+    "band": "strongest",
+    "atlasPoint": [
+     18.379,
+     0.1718
+    ],
+    "atlasPlane": [
+     [
+      -0.244644,
+      0.528275,
+      -0.813065
+     ],
+     [
+      -0.178733,
+      0.799607,
+      0.573309
+     ]
+    ]
+   },
+   "training": {
+    "strip": "block-12299-stage-6-seeded-strongest-seed-1-training.webp",
+    "frameSide": 128,
+    "tick": 600,
+    "medianNorm": 5.391895294189453,
+    "frames": [
+     {
+      "update": 25,
+      "winnerFraction": 0.0,
+      "strength": 0.2689
+     },
+     {
+      "update": 75,
+      "winnerFraction": 0.0,
+      "strength": 0.2385
+     },
+     {
+      "update": 100,
+      "winnerFraction": 0.0,
+      "strength": 0.2843
+     },
+     {
+      "update": 150,
+      "winnerFraction": 0.0,
+      "strength": 0.1652
+     },
+     {
+      "update": 200,
+      "winnerFraction": 0.0,
+      "strength": 0.3597
+     },
+     {
+      "update": 250,
+      "winnerFraction": 0.0,
+      "strength": 0.5353
+     },
+     {
+      "update": 275,
+      "winnerFraction": 0.0,
+      "strength": 0.6437
+     },
+     {
+      "update": 325,
+      "winnerFraction": 0.0,
+      "strength": 0.295
+     },
+     {
+      "update": 375,
+      "winnerFraction": 0.0,
+      "strength": 1.0501
+     },
+     {
+      "update": 425,
+      "winnerFraction": 0.0,
+      "strength": 0.9166
+     },
+     {
+      "update": 450,
+      "winnerFraction": 0.0,
+      "strength": 0.9813
+     },
+     {
+      "update": 500,
+      "winnerFraction": 0.3125,
+      "strength": 1.1327
+     },
+     {
+      "update": 550,
+      "winnerFraction": 0.1875,
+      "strength": 1.1253
+     },
+     {
+      "update": 600,
+      "winnerFraction": 0.0,
+      "strength": 0.8053
+     },
+     {
+      "update": 625,
+      "winnerFraction": 0.6875,
+      "strength": 1.1196
+     },
+     {
+      "update": 675,
+      "winnerFraction": 0.9375,
+      "strength": 1.2675
+     }
+    ]
+   },
+   "run": "research/2026-10-22-optimizer-schedule/out/stage-6/pool-64-seeded-centre/block-12299-seed-1-strongest"
+  },
+  {
+   "material": "block-13345-stage-6-pyramid-strongest-seed-1",
+   "block": 13345,
+   "anchor": {
+    "imageId": 8476118887262004,
+    "slot": 187,
+    "band": "strongest",
+    "atlasPoint": [
+     14.661,
+     -0.3651
+    ],
+    "atlasPlane": [
+     [
+      0.206055,
+      0.392312,
+      -0.896456
+     ],
+     [
+      0.340579,
+      0.830084,
+      0.44155
+     ]
+    ]
+   },
+   "training": {
+    "strip": "block-13345-stage-6-pyramid-strongest-seed-1-training.webp",
+    "frameSide": 128,
+    "tick": 600,
+    "medianNorm": 5.592250347137451,
+    "frames": [
+     {
+      "update": 25,
+      "winnerFraction": 0.0,
+      "strength": 0.4115
+     },
+     {
+      "update": 50,
+      "winnerFraction": 0.0,
+      "strength": 0.4626
+     },
+     {
+      "update": 75,
+      "winnerFraction": 0.0,
+      "strength": 0.4736
+     },
+     {
+      "update": 100,
+      "winnerFraction": 0.0,
+      "strength": 0.4098
+     },
+     {
+      "update": 125,
+      "winnerFraction": 0.0,
+      "strength": 0.3706
+     },
+     {
+      "update": 150,
+      "winnerFraction": 0.0,
+      "strength": 0.7616
+     },
+     {
+      "update": 175,
+      "winnerFraction": 0.0,
+      "strength": 0.3806
+     },
+     {
+      "update": 200,
+      "winnerFraction": 0.0,
+      "strength": 0.4579
+     },
+     {
+      "update": 250,
+      "winnerFraction": 0.0,
+      "strength": 0.5579
+     },
+     {
+      "update": 275,
+      "winnerFraction": 0.0,
+      "strength": 0.2069
+     },
+     {
+      "update": 300,
+      "winnerFraction": 0.0,
+      "strength": 0.7622
+     },
+     {
+      "update": 325,
+      "winnerFraction": 0.2969,
+      "strength": 1.1034
+     },
+     {
+      "update": 350,
+      "winnerFraction": 0.0,
+      "strength": 0.6475
+     },
+     {
+      "update": 375,
+      "winnerFraction": 0.4219,
+      "strength": 1.0769
+     },
+     {
+      "update": 400,
+      "winnerFraction": 0.5,
+      "strength": 1.1554
+     },
+     {
+      "update": 425,
+      "winnerFraction": 0.9375,
+      "strength": 1.4434
+     }
+    ]
+   },
+   "run": "research/2026-10-22-optimizer-schedule/out/stage-6/pool-64-pyramid/block-13345-seed-1-strongest"
+  },
+  {
+   "material": "block-13364-stage-6-seeded-strongest-seed-1",
+   "block": 13364,
+   "anchor": {
+    "imageId": 3358357912530755,
+    "slot": 62,
+    "band": "strongest",
+    "atlasPoint": [
+     16.8867,
+     0.8488
+    ],
+    "atlasPlane": [
+     [
+      -0.510438,
+      -0.138247,
+      0.848729
+     ],
+     [
+      0.004652,
+      0.986534,
+      0.163491
+     ]
+    ]
+   },
+   "training": {
+    "strip": "block-13364-stage-6-seeded-strongest-seed-1-training.webp",
+    "frameSide": 128,
+    "tick": 600,
+    "medianNorm": 5.600273132324219,
+    "frames": [
+     {
+      "update": 25,
+      "winnerFraction": 0.0,
+      "strength": 0.2754
+     },
+     {
+      "update": 75,
+      "winnerFraction": 0.0,
+      "strength": 0.3966
+     },
+     {
+      "update": 100,
+      "winnerFraction": 0.0,
+      "strength": 0.365
+     },
+     {
+      "update": 150,
+      "winnerFraction": 0.0,
+      "strength": 0.2063
+     },
+     {
+      "update": 175,
+      "winnerFraction": 0.0,
+      "strength": 0.7236
+     },
+     {
+      "update": 225,
+      "winnerFraction": 0.0,
+      "strength": 0.2644
+     },
+     {
+      "update": 275,
+      "winnerFraction": 0.0,
+      "strength": 0.2418
+     },
+     {
+      "update": 300,
+      "winnerFraction": 0.4375,
+      "strength": 0.9127
+     },
+     {
+      "update": 350,
+      "winnerFraction": 0.0,
+      "strength": 0.3973
+     },
+     {
+      "update": 375,
+      "winnerFraction": 0.0,
+      "strength": 0.8117
+     },
+     {
+      "update": 425,
+      "winnerFraction": 0.0,
+      "strength": 0.6967
+     },
+     {
+      "update": 475,
+      "winnerFraction": 0.25,
+      "strength": 0.9181
+     },
+     {
+      "update": 500,
+      "winnerFraction": 0.0,
+      "strength": 0.3169
+     },
+     {
+      "update": 550,
+      "winnerFraction": 0.0,
+      "strength": 0.7652
+     },
+     {
+      "update": 575,
+      "winnerFraction": 0.0,
+      "strength": 0.5875
+     },
+     {
+      "update": 625,
+      "winnerFraction": 0.9375,
+      "strength": 1.4736
+     }
+    ]
+   },
+   "run": "research/2026-10-22-optimizer-schedule/out/stage-6/pool-64-seeded-centre/block-13364-seed-1-strongest"
+  },
+  {
+   "material": "block-15498-stage-6-seeded-strongest-seed-1",
+   "block": 15498,
+   "anchor": {
+    "imageId": 178934562979390,
+    "slot": 242,
+    "band": "strongest",
+    "atlasPoint": [
+     16.2031,
+     -0.403
+    ],
+    "atlasPlane": [
+     [
+      0.251441,
+      -0.965659,
+      0.065426
+     ],
+     [
+      0.860698,
+      0.254005,
+      0.441225
+     ]
+    ]
+   },
+   "training": {
+    "strip": "block-15498-stage-6-seeded-strongest-seed-1-training.webp",
+    "frameSide": 128,
+    "tick": 600,
+    "medianNorm": 5.494993209838867,
+    "frames": [
+     {
+      "update": 25,
+      "winnerFraction": 0.0,
+      "strength": 0.3505
+     },
+     {
+      "update": 75,
+      "winnerFraction": 0.0,
+      "strength": 0.423
+     },
+     {
+      "update": 150,
+      "winnerFraction": 0.0,
+      "strength": 0.7541
+     },
+     {
+      "update": 200,
+      "winnerFraction": 0.0,
+      "strength": 0.5002
+     },
+     {
+      "update": 275,
+      "winnerFraction": 0.0,
+      "strength": 0.8082
+     },
+     {
+      "update": 325,
+      "winnerFraction": 0.0,
+      "strength": 0.2694
+     },
+     {
+      "update": 375,
+      "winnerFraction": 0.0,
+      "strength": 0.4887
+     },
+     {
+      "update": 450,
+      "winnerFraction": 0.0,
+      "strength": 0.448
+     },
+     {
+      "update": 500,
+      "winnerFraction": 0.0,
+      "strength": 0.2046
+     },
+     {
+      "update": 575,
+      "winnerFraction": 0.0,
+      "strength": 0.3085
+     },
+     {
+      "update": 625,
+      "winnerFraction": 0.0,
+      "strength": 0.5204
+     },
+     {
+      "update": 675,
+      "winnerFraction": 0.0,
+      "strength": 0.7844
+     },
+     {
+      "update": 750,
+      "winnerFraction": 0.0,
+      "strength": 0.7449
+     },
+     {
+      "update": 800,
+      "winnerFraction": 0.0,
+      "strength": 0.6717
+     },
+     {
+      "update": 875,
+      "winnerFraction": 0.3125,
+      "strength": 0.8836
+     },
+     {
+      "update": 925,
+      "winnerFraction": 1.0,
+      "strength": 2.027
+     }
+    ]
+   },
+   "run": "research/2026-10-22-optimizer-schedule/out/stage-6/pool-64-seeded-centre/block-15498-seed-1-strongest"
+  },
+  {
+   "material": "block-2632-stage-6-pyramid-seeded-strongest-seed-0",
+   "block": 2632,
+   "anchor": {
+    "imageId": 6544566813991549,
+    "slot": 110,
+    "band": "strongest",
+    "atlasPoint": [
+     13.3298,
+     0.836
+    ],
+    "atlasPlane": [
+     [
+      0.469418,
+      -0.051049,
+      0.881499
+     ],
+     [
+      0.678635,
+      0.659545,
+      -0.323194
+     ]
+    ]
+   },
+   "training": {
+    "strip": "block-2632-stage-6-pyramid-seeded-strongest-seed-0-training.webp",
+    "frameSide": 128,
+    "tick": 600,
+    "medianNorm": 5.270223140716553,
+    "frames": [
+     {
+      "update": 25,
+      "winnerFraction": 0.0,
+      "strength": 0.2594
+     },
+     {
+      "update": 50,
+      "winnerFraction": 0.0,
+      "strength": 0.1979
+     },
+     {
+      "update": 100,
+      "winnerFraction": 0.0,
+      "strength": 0.3123
+     },
+     {
+      "update": 125,
+      "winnerFraction": 0.0,
+      "strength": 0.4652
+     },
+     {
+      "update": 150,
+      "winnerFraction": 0.0,
+      "strength": 0.2241
+     },
+     {
+      "update": 200,
+      "winnerFraction": 0.0,
+      "strength": 0.309
+     },
+     {
+      "update": 225,
+      "winnerFraction": 0.0,
+      "strength": 0.3847
+     },
+     {
+      "update": 250,
+      "winnerFraction": 0.0,
+      "strength": 0.4118
+     },
+     {
+      "update": 300,
+      "winnerFraction": 0.0,
+      "strength": 0.1845
+     },
+     {
+      "update": 325,
+      "winnerFraction": 0.0,
+      "strength": 0.1341
+     },
+     {
+      "update": 350,
+      "winnerFraction": 0.0,
+      "strength": 0.5193
+     },
+     {
+      "update": 400,
+      "winnerFraction": 0.0,
+      "strength": 0.652
+     },
+     {
+      "update": 425,
+      "winnerFraction": 0.0,
+      "strength": 0.4685
+     },
+     {
+      "update": 450,
+      "winnerFraction": 0.0,
+      "strength": 0.645
+     },
+     {
+      "update": 500,
+      "winnerFraction": 0.625,
+      "strength": 1.1065
+     },
+     {
+      "update": 525,
+      "winnerFraction": 1.0,
+      "strength": 1.9758
+     }
+    ]
+   },
+   "run": "research/2026-10-22-optimizer-schedule/out/stage-6/pool-64-pyramid-seeded-centre/block-2632-seed-0-strongest"
+  },
+  {
+   "material": "block-4009-figure-pyramid-strongest-seed-0",
+   "block": 4009,
+   "anchor": {
+    "imageId": 2985056820452196,
+    "slot": 59,
+    "band": "strongest",
+    "atlasPoint": [
+     12.6811,
+     -1.5484
+    ],
+    "atlasPlane": [
+     [
+      -0.759928,
+      -0.640199,
+      0.112493
+     ],
+     [
+      0.528859,
+      -0.508343,
+      0.679629
+     ]
+    ]
+   },
+   "training": {
+    "strip": "block-4009-figure-pyramid-strongest-seed-0-training.webp",
+    "frameSide": 128,
+    "tick": 600,
+    "medianNorm": 5.041611671447754,
+    "frames": [
+     {
+      "update": 25,
+      "winnerFraction": 0.0,
+      "strength": 0.4851
+     },
+     {
+      "update": 75,
+      "winnerFraction": 0.0,
+      "strength": 0.2438
+     },
+     {
+      "update": 125,
+      "winnerFraction": 0.0,
+      "strength": 0.3101
+     },
+     {
+      "update": 200,
+      "winnerFraction": 0.0,
+      "strength": 0.1812
+     },
+     {
+      "update": 250,
+      "winnerFraction": 0.0,
+      "strength": 0.4714
+     },
+     {
+      "update": 300,
+      "winnerFraction": 0.0,
+      "strength": 0.6524
+     },
+     {
+      "update": 350,
+      "winnerFraction": 0.0,
+      "strength": 0.1487
+     },
+     {
+      "update": 400,
+      "winnerFraction": 0.0,
+      "strength": 0.5557
+     },
+     {
+      "update": 475,
+      "winnerFraction": 0.0,
+      "strength": 0.8272
+     },
+     {
+      "update": 525,
+      "winnerFraction": 0.0,
+      "strength": 0.4226
+     },
+     {
+      "update": 575,
+      "winnerFraction": 0.0,
+      "strength": 0.969
+     },
+     {
+      "update": 625,
+      "winnerFraction": 0.0,
+      "strength": 0.8474
+     },
+     {
+      "update": 675,
+      "winnerFraction": 0.0312,
+      "strength": 1.2526
+     },
+     {
+      "update": 750,
+      "winnerFraction": 0.0156,
+      "strength": 1.1396
+     },
+     {
+      "update": 800,
+      "winnerFraction": 0.0,
+      "strength": 0.8526
+     },
+     {
+      "update": 850,
+      "winnerFraction": 0.9062,
+      "strength": 1.5013
+     }
+    ]
+   },
+   "run": "research/2026-10-22-optimizer-schedule/out/stage-5/pool-64-pyramid/block-4009-seed-0-strongest"
+  }
+ ]
+}

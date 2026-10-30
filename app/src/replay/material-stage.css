@@ -1,0 +1,165 @@
+/*
+ * The material stage (material-stage.tsx): the material large in its frame, the canvas as brush,
+ * the bar on black under the frame. The stage holds --sampled, the material's own colour, for the
+ * frame's line and the brush ring.
+ */
+.material-stage { display: grid; gap: var(--space-3); width: 100%; }
+.stage-head h2 { margin: 0; font-size: var(--s0); font-weight: 400; }
+.stage-head p { margin: var(--space-1) 0 0; font-size: var(--s-1); color: var(--ink-2); }
+.stage-head a { color: var(--ink); }
+/*
+ * The material on the left, the block's other materials in a labelled column on the right. The column
+ * grows from 200 px to 360 px only with the room left beside a full-size canvas, so a narrower window
+ * keeps the canvas as large as it was (544 px at 800 px wide, not 384).
+ */
+.stage-body { display: grid; grid-template-columns: minmax(0, 640px) minmax(200px, clamp(200px, 100% - 640px - var(--space-4), 360px)); align-items: start; gap: var(--space-4); }
+.stage-view { display: grid; gap: var(--patch); min-width: 0; }
+.stage-body[data-single] { grid-template-columns: minmax(0, 640px); }
+
+/*
+ * The canvas takes a whole number of pixels per cell (the zoom, material-stage.tsx), set on the
+ * element; the frame wraps it. The phone's Automata stage fills the available width.
+ */
+.stage-fit { min-width: 0; }
+.stage-fit > .frame { width: fit-content; }
+.stage-canvas { position: relative; overflow: hidden; background: var(--black); cursor: none; touch-action: none; }
+.stage-poster { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
+.stage-canvas canvas { display: block; image-rendering: pixelated; }
+/* Before the first frame the cells are black, so the words can sit on them. */
+.stage-loading { position: absolute; inset: auto var(--space-3) var(--space-3) var(--space-3); font-size: var(--s-1); color: var(--ink-2); }
+
+/* The brush ring: where the pointer will disturb the material, and how wide; a cursor, in the material's colour, with a dark edge for bright cells. */
+.stage-ring { position: absolute; border: 1.5px solid var(--sampled, var(--ink)); border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; outline: 1px solid rgb(0 0 0 / 0.5); }
+
+/* The bar: equal outlined playback buttons, then the sliders as label, rail and value. */
+.stage-controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--patch); font-size: var(--s-1); }
+.stage-icon { display: inline-grid; place-items: center; width: 40px; height: 40px; padding: 0; border: 1px solid var(--line-2); background: none; color: var(--ink); cursor: pointer; }
+.stage-icon:disabled { color: var(--ink-3); cursor: default; }
+.stage-icon[aria-expanded="true"] { border-color: var(--ink); background: var(--ink); color: var(--black); }
+/* Inside the box: the list scrolls, so it would clip a ring drawn outside. */
+.stage-thumbnails button:focus-visible { outline-offset: -2px; }
+.stage-controls .slider { width: 200px; }
+.stage-zoom { display: inline-flex; align-items: center; gap: var(--space-1); }
+.stage-zoom output { min-width: 3ch; text-align: center; color: var(--ink-2); }
+.stage-menus { display: inline-flex; gap: var(--space-1); margin-left: auto; }
+
+.stage-panel { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); padding: var(--space-3); border: 1px solid var(--line); background: var(--black); font-size: var(--s-1); }
+.stage-fields { display: flex; flex-wrap: wrap; align-items: end; gap: var(--space-2) var(--space-3); width: 100%; }
+.stage-fields label { display: grid; gap: 4px; color: var(--ink-2); }
+.stage-fields input, .stage-fields select { width: 12ch; min-height: 40px; font: inherit; color: var(--ink); background-color: var(--black); border: 1px solid var(--line-2); padding: 0 12px; }
+.stage-fields input[type="number"] { width: 15ch; }
+/* A select is as wide as its longest option; 12ch cut "128 cells". Its square (styles.css) is as far from the right border as the text is from the left. */
+.stage-fields select { width: auto; padding-right: 30px; }
+.stage-message { margin: 0; font-size: var(--s-1); color: var(--ink-2); }
+/* The page's notice (the owner mode's warning or result) keeps three lines (the purge warning takes three at 390), so its text appearing or wrapping moves nothing. */
+.stage-notice { min-height: 48px; }
+
+/* Thumbnails: the block's other materials; those that did not fire stay dim. */
+.stage-thumbnails { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; max-height: 640px; overflow-y: auto; }
+.stage-thumbnails button { display: grid; grid-template-columns: 48px minmax(0, 1fr); align-items: center; gap: var(--space-2); width: 100%; padding: 4px; border: 1px solid transparent; background: none; color: var(--ink-2); font: inherit; font-size: var(--s-1); text-align: left; cursor: pointer; }
+.stage-thumbnails button[aria-pressed="true"] { border-color: var(--ink); color: var(--ink); }
+.stage-thumbnails button:not([data-fired]) img { opacity: 0.45; }
+.stage-thumbnails img { display: block; width: 48px; height: 48px; image-rendering: pixelated; }
+
+/* Phones: the thumbnails become a strip under the controls. */
+@media (max-width: 720px) {
+  .stage-body { grid-template-columns: minmax(0, 1fr); }
+  .stage-thumbnails { grid-auto-flow: column; grid-auto-columns: 56px; overflow-x: auto; max-height: none; }
+  .stage-thumbnails button { grid-template-columns: 1fr; padding: 2px; }
+  .stage-thumbnails span { display: none; }
+  .stage-menus { margin-left: 0; }
+}
+@media (pointer: coarse) {
+  .stage-canvas { cursor: default; }
+  .stage-ring { display: none; }
+  .stage-icon { width: var(--touch-target); height: var(--touch-target); }
+  /* 16 px text, so a phone does not zoom the page when a field takes focus. */
+  .stage-fields input, .stage-fields select { min-height: var(--touch-target); font-size: 16px; }
+}
+/* Hover is for a mouse: on a finger it stays on after a tap. */
+@media (hover: hover) and (pointer: fine) {
+  .stage-icon:hover:not(:disabled) { background: var(--line-faint); }
+  .stage-thumbnails button:hover { background: var(--line-faint); }
+}
+
+/*
+ * The instrument (layout="instrument", Automata): the frame, playback bar, then readouts and
+ * actions in one column. The page sets the canvas size from the available width.
+ */
+.material-stage[data-layout="instrument"] { container: stage / inline-size; gap: 0; }
+.stage-instrument { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--patch); }
+.stage-instrument .stage-controls .slider { flex: 1 1 160px; width: auto; min-width: 0; }
+/* One column: the bar follows the frame, then the readouts and the actions. */
+.stage-instrument .stage-readouts { order: 1; }
+.stage-instrument .stage-message { line-height: 16px; }
+/* One column on a finger: each part a whole number of patches high, so the shelf after it stays on the grid. */
+.stage-instrument .stage-readouts { gap: var(--patch); }
+.stage-instrument .stage-readouts dl { row-gap: var(--patch); }
+.stage-instrument .stage-actions { height: 112px; align-content: space-between; }
+
+.stage-readouts { display: flex; flex-direction: column; gap: var(--space-6); min-width: 0; }
+.stage-readouts dl { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto; align-items: baseline; gap: var(--space-2) var(--patch); margin: 0; }
+/* A row is 24 px; a label longer than its column wraps in 16 px lines and the row grows. */
+.stage-readouts dl { grid-auto-rows: minmax(24px, auto); }
+.stage-readouts dl[hidden] { display: none; }
+.stage-readouts dt, .stage-readouts dd { line-height: 24px; }
+.stage-readouts dt { white-space: normal; }
+.stage-readouts dt:has(+ dd) { padding-block: 4px; line-height: 16px; }
+.stage-readouts dd { margin: 0; font-size: var(--s0); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.stage-readouts .stage-panel { flex-direction: column; flex-wrap: nowrap; align-items: stretch; }
+.stage-readouts .stage-panel > * { flex-shrink: 0; }
+.stage-readouts .stage-fields { flex-direction: column; align-items: stretch; }
+.stage-readouts .stage-fields input, .stage-readouts .stage-fields input[type="number"], .stage-readouts .stage-fields select { width: 100%; }
+.stage-actions { display: grid; gap: var(--patch); margin-top: auto; }
+.stage-words { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2); margin: 0; color: var(--ink-3); font-size: var(--s-1); }
+/* A quiet word: an action that is not the page's one button. */
+.stage-word { padding: 0; border: 0; background: none; color: var(--ink-2); font: inherit; text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 5px; cursor: pointer; }
+.stage-word[aria-expanded="true"], span.stage-word { color: var(--ink); text-decoration-color: var(--ink); }
+.stage-actions .button { width: 100%; }
+
+@container stage (min-width: 544px) {
+  /*
+   * One column, the frame's width: the frame, the bar
+   * under it, then one line with the step at the left and the quiet words and "Train a variation" at
+   * the right; the owner's block under that line. The shelf takes the width the column gave back.
+   */
+  /* The column is at least a 512 frame's width (544), so the bar and the step's line hold one line each under a smaller frame. */
+  .stage-instrument { position: relative; grid-template-columns: max(calc(var(--cells, 512px) + 2 * var(--patch)), 544px); row-gap: var(--patch); }
+  /* The frame keeps the cells' size (--cells, playground.css): the zoom fits this box, not the wider column. */
+  .stage-instrument .stage-fit { max-width: calc(var(--cells, 512px) + 2 * var(--patch)); }
+  .stage-instrument .stage-controls { grid-row: 2; min-height: 48px; padding-top: var(--space-2); }
+  .stage-instrument .stage-readouts { order: 0; grid-row: 3; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--patch) var(--space-6); min-height: 40px; }
+  /* The step stands as tall as the buttons, so a wrapped line keeps 40 + 16. */
+  .stage-readouts dl { grid-template-columns: auto auto; align-items: center; column-gap: var(--patch); min-height: 40px; }
+  .stage-instrument .stage-actions { display: flex; align-items: center; gap: var(--space-6); height: auto; margin-top: 0; }
+  .stage-instrument .stage-actions .button { width: auto; }
+  .stage-readouts .stage-owner { flex-basis: 100%; order: 3; }
+  .stage-instrument .stage-message { grid-row: 4; }
+  /* In one column a panel (Export, Options) opens in the line's place, under the step and the words. */
+  .stage-readouts .stage-panel { flex-basis: 100%; order: 4; }
+}
+
+/* A column of 544 or more holds the bar on one line. Narrower columns keep wrapping controls. */
+@container stage (min-width: 544px) {
+  .stage-instrument .stage-controls { flex-wrap: nowrap; }
+  .stage-instrument .stage-controls .slider { flex-basis: 0; }
+}
+
+/* Where the shelf stands beside the stage (playground.css, 1200 px and wider), a panel opens beside the frame, on black over the shelf's edge, never over the cells. */
+@media (min-width: 1200px) {
+  @container stage (min-width: 544px) {
+    .stage-readouts .stage-panel { position: absolute; top: 0; left: calc(100% + var(--m)); z-index: 2; width: 256px; max-height: calc(var(--cells, 512px) + 2 * var(--patch)); overflow-y: auto; overscroll-behavior: contain; padding: var(--patch); border: 1px solid var(--line); background: var(--black); }
+  }
+}
+@media (pointer: coarse) {
+  .stage-word { min-height: var(--touch-target); }
+  /* The bar's 44 px controls with 4 above make 48, so the step's line under it stays on the 8 px grid. */
+  .stage-instrument .stage-controls { padding-top: var(--space-1); }
+  /* A finger's quiet words and button are 48 px, so the actions sit on the 8 px grid (720–768 and 784–832 at 390). */
+  .stage-instrument .stage-word, .stage-instrument .stage-actions .button { min-height: 48px; }
+}
+@media (hover: hover) and (pointer: fine) {
+  .stage-word:hover { color: var(--ink); text-decoration-color: var(--ink); }
+}
+
+.stage-message, .stage-notice { overflow-wrap: anywhere; }

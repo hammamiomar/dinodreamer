@@ -1,0 +1,519 @@
+/*
+ * The Train page (grow-panel.tsx): one screen, the material at the left, the panel at the right.
+ *
+ * One grid holds both columns, so they share their lines instead of matching numbers:
+ *   columns  [stage] the cells, a gap, [side] the panel;
+ *   rows     [body] the cells beside the heading, the choices and the time, a module, then
+ *            [foot] the status (the selection map and its words) beside the one primary.
+ * The cells start on the body's top line, and so does the heading: its box is trimmed to its cap
+ * height (text-box), so the words' visible top is that line. The status and the primary share the
+ * foot row and are centred in it, so the button is on the selection map's line whatever the status says.
+ * The side may reach down to the foot's line; it grows the body only when it needs more, and its
+ * own gaps shrink first on a short window with a finger, so nothing reaches the primary.
+ *
+ * The cells are 512 px: 4 px per cell, so one reader patch of 16 cells is one module and the
+ * frame's ticks sit on the lattice. The frame's room (its line, ticks and label) lies outside the
+ * cells. The group is centred in the page band by whole modules (styles.css), so its left edge
+ * stays on the lattice.
+ */
+.grow-page {
+  height: calc(100vh / var(--page-scale) - var(--top));
+  height: round(down, calc(100vh / var(--page-scale) - var(--top)), var(--patch));
+  overflow: hidden;
+}
+
+.grow-panel {
+  --grow-cells: 512px;
+  --grow-gap: calc(2 * var(--m));
+  --grow-side: calc(6 * var(--m));
+  --grow-group: calc(var(--grow-cells) + var(--grow-gap) + var(--grow-side));
+  /* The patch Train aims at, as a picture: its size is also the least height of the occurrence. */
+  --grow-picture: calc(6 * var(--patch));
+  display: grid;
+  grid-template-columns: [stage-start] var(--grow-cells) [stage-end] var(--grow-gap) [side-start] var(--grow-side) [side-end];
+  grid-template-rows: [body-start] auto [body-end] var(--m) [foot-start] auto [foot-end];
+  align-content: start;
+  height: 100%;
+  padding-top: var(--m);
+  /* Without round(), the group at the band's left; with it, centred in the band by whole modules. */
+  padding-left: 0;
+  padding-left: max(0px, round(nearest, (100% - var(--grow-group)) / 2, var(--m)));
+}
+
+/* The stage: the cells in the body row, the status in the foot row, on the panel's own lines. */
+.grow-stage {
+  display: grid;
+  grid-column: stage;
+  grid-row: body-start / foot-end;
+  grid-template-rows: subgrid;
+}
+
+.grow-stage .frame {
+  grid-row: body;
+  align-self: start;
+  margin: calc(-1 * var(--patch));
+}
+
+.grow-cells {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  touch-action: none;
+}
+
+.grow-cells[data-live] {
+  cursor: crosshair;
+}
+
+/* The status row (grow-status.tsx, grow-status.css) in the foot row, beside the primary. */
+.grow-status {
+  grid-row: foot;
+}
+
+/*
+ * The side, in named areas: the heading, the occurrence, the choices (Cellular model and Start, or
+ * the selected groups' pictures in their place while a run trains), the time, and the run's line (the
+ * check, or Publish). Each area is as tall as its content; the gaps between them shrink, down to
+ * none, when the side has less room than they want (a finger's controls on a short window).
+ */
+.grow-side {
+  display: grid;
+  grid-column: side;
+  grid-row: body-start / foot-start;
+  grid-template-rows:
+    [heading] auto minmax(0, var(--patch))
+    [occurrence] auto minmax(0, calc(2 * var(--patch)))
+    [choices] auto minmax(0, var(--patch))
+    [time] auto minmax(0, var(--patch))
+    [run] auto;
+  align-content: start;
+  /* No minimum of its own: the panel's rows set its height, and its gaps take what is left. */
+  min-width: 0;
+  min-height: 0;
+}
+
+/*
+ * The display's box starts at its cap height, so its visible top is the body's top line; it ends on
+ * a whole patch (its cap height and its further lines, --lines from grow-page.tsx, rounded up), so
+ * the areas under it stay on the patches.
+ */
+.grow-title {
+  grid-row: heading;
+  height: round(up, 1cap + (var(--lines, 1) - 1) * 1lh, var(--patch));
+  line-height: 96px;
+  text-box: trim-both cap alphabetic;
+}
+
+.grow-occurrence {
+  grid-row: occurrence;
+  min-height: var(--grow-picture);
+}
+
+.grow-choices {
+  display: grid;
+  grid-row: choices;
+  row-gap: var(--patch);
+}
+
+.grow-time {
+  grid-row: time;
+}
+
+/*
+ * The basis groups DINO sees, as pictures, in the choices' place while those are fixed: the label,
+ * the two sentences, then a row of cards, each a 56 px picture and the group's number. About as
+ * tall as the two choices.
+ */
+.grow-co-selected {
+  grid-row: choices;
+  min-width: 0;
+}
+
+.grow-co-selected h2 {
+  margin: 0 0 var(--space-2);
+}
+
+.grow-co-selected-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.grow-co-selected-card {
+  display: flex;
+  flex-direction: column;
+  width: 56px;
+  font-size: var(--s-1);
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+
+.grow-co-selected-card[data-requested] {
+  color: var(--ink);
+}
+
+/* The requested group's own card is dimmed while no read patch selects it. */
+.grow-co-selected-card[data-off] {
+  opacity: 0.4;
+}
+
+.grow-co-selected-picture {
+  position: relative;
+  display: block;
+  width: 56px;
+  height: 56px;
+  margin-bottom: var(--space-2);
+  background: rgb(255 255 255 / 0.05);
+  overflow: hidden;
+}
+
+.grow-co-selected-picture img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* The selected patch: a square of the patch grid's pitch, outlined in ink over the picture. */
+.grow-co-selected-patch {
+  position: absolute;
+  width: 6.25%;
+  height: 6.25%;
+  box-sizing: border-box;
+  border: 1px solid var(--ink);
+  outline: 1px solid var(--black);
+}
+
+.grow-stop-check,
+.grow-publish {
+  grid-row: run;
+}
+
+/* The one primary: in the foot row beside the status, centred on the selection map's line. */
+.grow-go {
+  grid-column: side;
+  grid-row: foot;
+  align-self: center;
+}
+
+.grow-go .button {
+  width: 100%;
+}
+
+/* Stop holds the primary's place, outlined: the inversion is for the action that starts something. */
+.grow-go .button.grow-stop {
+  min-height: 48px;
+  border-color: var(--ink);
+}
+
+.grow-note,
+.grow-toward p {
+  overflow-wrap: anywhere;
+  margin: 0;
+  color: var(--ink-2);
+  line-height: 24px;
+}
+
+/* The occurrence: the picture with its patch marked, the sentence, the band, the way to another patch. */
+.grow-toward {
+  display: grid;
+  grid-template-columns: var(--grow-picture) minmax(0, 1fr);
+  gap: var(--patch);
+  align-items: start;
+}
+
+.grow-toward .look-token-picture {
+  position: relative;
+  display: block;
+  width: var(--grow-picture);
+  aspect-ratio: 1;
+  overflow: hidden;
+  background: var(--black);
+}
+
+.grow-toward .look-token-picture img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.grow-toward .look-patch {
+  position: absolute;
+  width: 6.25%;
+  height: 6.25%;
+  border: 1px solid #fff;
+  outline: 1px solid var(--black);
+}
+
+.grow-toward .look-no-picture {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  border: 1px solid var(--line);
+  color: var(--ink-3);
+  font-size: var(--s-1);
+  text-align: center;
+}
+
+.grow-toward .band {
+  display: block;
+  line-height: 16px;
+}
+
+.grow-pick {
+  display: block;
+  width: fit-content;
+  color: var(--ink-2);
+  font-size: var(--s-1);
+  line-height: 16px;
+  text-decoration-color: var(--line-2);
+  text-underline-offset: 5px;
+}
+
+.grow-field {
+  display: grid;
+  align-content: start;
+}
+
+.grow-field .label {
+  line-height: 16px;
+}
+
+/*
+ * A choice here is a row of whole halves of the panel, two patches high, so its options' edges sit
+ * on the patches; the line under it is drawn outside its box.
+ */
+.grow-field .segmented {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  width: 100%;
+  height: calc(2 * var(--patch));
+  padding: 0;
+  border-bottom: 0;
+}
+
+.grow-field .segmented::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: 0;
+  height: 1px;
+  background: var(--line);
+}
+
+.grow-field .segmented > button {
+  min-width: 0;
+  height: 100%;
+}
+
+.grow-hint,
+.grow-time {
+  margin: 0;
+  font-size: var(--s-1);
+  line-height: 16px;
+}
+
+/* Two lines of room whatever the hint says, its words centred in them, so a choice moves nothing under it. */
+.grow-hint {
+  display: flex;
+  align-items: center;
+  min-height: 2lh;
+  color: var(--ink-3);
+}
+
+.grow-time {
+  color: var(--ink-2);
+}
+
+.grow-time b {
+  color: var(--ink);
+}
+
+.grow-time-duration {
+  color: var(--ink-3);
+}
+
+.grow-stop-check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ink-2);
+  font-size: var(--s-1);
+  line-height: 16px;
+  cursor: pointer;
+}
+
+/* The check is one patch: its edges sit on the patches like the rows around it. */
+.grow-stop-check input {
+  width: var(--patch);
+  height: var(--patch);
+}
+
+.grow-stop-check:has(input:disabled) {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Publish and Resume, after a run: words on the check's line; Publish's form takes the choices' place while it is open. */
+.grow-publish {
+  display: flex;
+  align-items: center;
+  column-gap: var(--patch);
+  min-width: 0;
+}
+
+.grow-publish > .button {
+  min-height: var(--patch);
+  padding: 0;
+  border: 0;
+  color: var(--ink-2);
+  text-decoration: underline;
+  text-decoration-color: var(--line-2);
+  text-underline-offset: 5px;
+}
+
+.grow-side:has(.publish-material-form) :is(.grow-choices, .grow-time) {
+  display: none;
+}
+
+.grow-side:has(.publish-material-form) .grow-publish {
+  grid-row: choices / -1;
+  align-items: start;
+  overflow: auto;
+}
+
+/* A finger: the choices, the check and Publish are three patches high (the house's 44 px target, rounded up). */
+@media (pointer: coarse) {
+  .grow-field .segmented,
+  .grow-stop-check {
+    height: calc(3 * var(--patch));
+  }
+
+  .grow-publish > .button {
+    min-height: calc(3 * var(--patch));
+  }
+
+  .grow-pick {
+    display: flex;
+    align-items: center;
+    min-height: calc(3 * var(--patch));
+  }
+}
+
+/*
+ * A finger on the one-screen layout: the list keeps the choices' height on a finger (two fields of
+ * 96 and the 16 between) and scrolls inside it; on a phone it runs in the page.
+ */
+@media (pointer: coarse) and (min-width: 960px) {
+  .grow-co-selected {
+    max-height: calc(13 * var(--patch));
+    overflow-y: auto;
+  }
+}
+
+/* Narrower windows: the cells at 3 px per cell (a patch is then 48 px, off the module), the gap one module. */
+@media (max-width: 1151px) {
+  .grow-panel {
+    --grow-cells: 384px;
+    --grow-gap: var(--m);
+  }
+}
+
+/*
+ * A phone, or a narrow window: the frame on top, the status, the panel, the primary last. The
+ * column is the page band, rounded down to whole patches; the stage starts two modules down; every
+ * gap is whole patches.
+ */
+@media (max-width: 959px) {
+  .grow-page {
+    height: auto;
+    overflow: visible;
+  }
+
+  .grow-panel {
+    --grow-picture: var(--m);
+    display: block;
+    height: auto;
+    padding: var(--m) 0;
+  }
+
+  .grow-stage,
+  .grow-side,
+  .grow-go {
+    display: block;
+    width: 100%;
+    width: round(down, 100%, var(--patch));
+    max-width: 512px;
+  }
+
+  .grow-stage .frame {
+    margin: 0;
+  }
+
+  .grow-status {
+    min-height: var(--m);
+    margin-top: var(--patch);
+  }
+
+  .grow-status .button {
+    align-self: end;
+  }
+
+  .grow-side {
+    margin-top: calc(2 * var(--patch));
+  }
+
+  .grow-title {
+    line-height: var(--s2);
+  }
+
+  .grow-side > * + * {
+    margin-top: calc(2 * var(--patch));
+  }
+
+  .grow-side > .grow-stop-check,
+  .grow-side > .grow-publish {
+    margin-top: var(--patch);
+  }
+
+  .grow-choices {
+    row-gap: calc(2 * var(--patch));
+  }
+
+  /* The first option a little under half, the second the rest, so "Central noise" fits a 352 px column. */
+  .grow-field .segmented {
+    grid-template-columns: round(down, 45%, var(--patch)) minmax(0, 1fr);
+  }
+
+  .grow-go {
+    margin-top: calc(2 * var(--patch));
+  }
+}
+
+.train-loading {
+  width: min(448px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  padding: 32px;
+  border: 1px solid var(--line);
+  background: var(--black);
+  color: var(--ink);
+}
+
+.train-loading::backdrop { background: rgb(0 0 0 / 75%); }
+.train-loading h2 { margin: 0 0 24px; font-size: var(--s1); }
+.train-loading p { margin: 24px 0; color: var(--ink-2); line-height: 24px; }
+.train-loading .button { min-height: 44px; }
+
+.grow-levels { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.grow-levels .grow-pick { padding: 0; border: 0; background: none; color: var(--ink-2); font: inherit; cursor: pointer; }
+.grow-levels .grow-pick[aria-pressed="true"] { color: var(--ink); }

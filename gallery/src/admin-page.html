@@ -1,0 +1,643 @@
+<!doctype html>
+<!--
+  The owner page (src/admin.ts): the gallery's review in a browser. Pending submissions with
+  their pictures, shown and hidden entries, and the owner's actions, which run the same
+  operations as the terminal commands. Served only behind Cloudflare Access; not part of the
+  public app. One action at a time: every button waits while one runs.
+  The look follows the app (app/src/styles.css): black ground, hairlines, Paper Mono, one accent.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Gallery review</title>
+    <style>
+      @font-face {
+        font-family: "Paper Mono";
+        src: url("/fonts/PaperMono-Variable.woff2") format("woff2");
+        font-weight: 100 900;
+        font-display: swap;
+      }
+
+      :root {
+        color-scheme: dark;
+        --ground: oklch(0% 0 none);
+        --panel: oklch(14.5% 0 none);
+        --hairline: oklch(30.9% 0 none);
+        --hairline-2: oklch(40.9% 0 none);
+        --text: oklch(95.2% 0 none);
+        --text-2: oklch(73.8% 0 none);
+        --text-3: oklch(54.9% 0 none);
+        --accent: oklch(70.9% 0.159 293.5);
+        --danger: oklch(71.9% 0.169 13.4);
+        --font: "Paper Mono", ui-monospace, Menlo, Consolas, monospace;
+        --s1: 4px;
+        --s2: 8px;
+        --s3: 12px;
+        --s4: 16px;
+        --s6: 24px;
+        --touch-target: 44px;
+      }
+
+      html {
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      /* A control's own display (inline-flex) would otherwise keep a hidden one on screen. */
+      [hidden] {
+        display: none !important;
+      }
+
+      body {
+        margin: 0;
+        background: var(--ground);
+        color: var(--text);
+        font-family: var(--font);
+        font-size: 14px;
+        line-height: 1.45;
+        font-variant-numeric: tabular-nums;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      h1,
+      h2 {
+        margin: 0;
+        font-size: inherit;
+        font-weight: 500;
+      }
+
+      :focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+
+      button {
+        font: inherit;
+        color: inherit;
+      }
+
+      .bar {
+        display: flex;
+        align-items: center;
+        gap: var(--s4);
+        min-height: 48px;
+        padding: 0 var(--s6);
+        border-bottom: 1px solid var(--hairline);
+      }
+
+      .wordmark {
+        font-weight: 500;
+        letter-spacing: -0.01em;
+      }
+
+      .wordmark i {
+        font-style: normal;
+        color: var(--accent);
+      }
+
+      .bar .owner {
+        margin-left: auto;
+        font-size: 12px;
+        color: var(--text-3);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      main {
+        display: grid;
+        gap: 40px;
+        padding: var(--s6);
+        max-width: 1200px;
+      }
+
+      #notices {
+        display: grid;
+        gap: var(--s2);
+      }
+
+      #notices:empty {
+        display: none;
+      }
+
+      .notice {
+        display: grid;
+        gap: var(--s2);
+        padding: var(--s3) var(--s4);
+        border: 1px solid var(--hairline-2);
+      }
+
+      .notice[data-kind="error"] {
+        border-color: var(--danger);
+      }
+
+      .notice code {
+        overflow-wrap: anywhere;
+        color: var(--text);
+      }
+
+      .notice .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--s2);
+      }
+
+      .section-head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: var(--s3);
+        padding-bottom: var(--s3);
+        border-bottom: 1px solid var(--hairline);
+        margin-bottom: var(--s4);
+      }
+
+      .section-head .count {
+        color: var(--text-3);
+      }
+
+      .section-head .button {
+        margin-left: auto;
+      }
+
+      .label,
+      .empty {
+        font-size: 12px;
+        color: var(--text-3);
+      }
+
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(256px, 1fr));
+        gap: var(--s6);
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .card {
+        display: grid;
+        align-content: start;
+        gap: var(--s2);
+      }
+
+      .card img {
+        display: block;
+        width: 100%;
+        max-width: 256px;
+        height: auto;
+        aspect-ratio: 1;
+        object-fit: contain;
+        background: var(--panel);
+        border: 1px solid var(--hairline);
+      }
+
+      .card .title {
+        font-weight: 500;
+        overflow-wrap: anywhere;
+      }
+
+      .card .detail {
+        font-size: 12px;
+        color: var(--text-2);
+        overflow-wrap: anywhere;
+      }
+
+      .card .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--s2);
+        padding-top: var(--s1);
+      }
+
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 7px 12px;
+        border: 1px solid var(--hairline-2);
+        border-radius: 0;
+        background: transparent;
+        color: var(--text);
+        font-size: 13px;
+        line-height: 1.2;
+        cursor: pointer;
+        touch-action: manipulation;
+      }
+
+      .button.primary {
+        border-color: var(--accent);
+        background: var(--accent);
+        color: var(--ground);
+      }
+
+      .button.danger {
+        color: var(--danger);
+      }
+
+      .button:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
+
+      .button:not(:disabled):active {
+        opacity: 0.8;
+      }
+
+      @media (prefers-reduced-motion: no-preference) {
+        .button {
+          transition:
+            background-color 140ms ease-out,
+            border-color 140ms ease-out,
+            color 140ms ease-out,
+            opacity 100ms ease-out;
+        }
+      }
+
+      @media (hover: hover) and (pointer: fine) {
+        .button:hover:not(:disabled) {
+          border-color: var(--text);
+        }
+
+        .button.primary:hover:not(:disabled) {
+          color: var(--ground);
+        }
+      }
+
+      dialog {
+        box-sizing: border-box;
+        max-width: min(480px, calc(100vw - 32px));
+        padding: var(--s6);
+        border: 1px solid var(--hairline-2);
+        border-radius: 2px;
+        background: var(--panel);
+        color: var(--text);
+      }
+
+      dialog::backdrop {
+        background: oklch(0% 0 none / 0.7);
+      }
+
+      dialog p {
+        margin: var(--s3) 0 0;
+        color: var(--text-2);
+        overflow-wrap: anywhere;
+      }
+
+      dialog .row {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: var(--s2);
+        margin-top: var(--s6);
+      }
+
+      /* A finger: 44 px targets and 16 px text in controls, as in the app. */
+      @media (pointer: coarse) {
+        .button {
+          min-height: var(--touch-target);
+          min-width: var(--touch-target);
+          padding: 9px 16px;
+          font-size: 16px;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .bar {
+          padding: 0 var(--s4);
+        }
+
+        main {
+          padding: var(--s4);
+          gap: 32px;
+        }
+
+        .cards {
+          grid-template-columns: 1fr;
+        }
+
+        /* On a phone the picture is what the owner judges: it takes the column's width. */
+        .card img {
+          max-width: none;
+        }
+      }
+      .part { margin: 40px 0 0; font-size: 18px; }
+      .card img.poster { image-rendering: pixelated; }
+    </style>
+  </head>
+  <body>
+    <header class="bar">
+      <h1><span class="wordmark">Dino<i>dreamer</i></span> gallery review</h1>
+      <span class="owner" id="owner"></span>
+    </header>
+    <main>
+      <div id="notices" aria-live="polite"></div>
+
+      <section aria-labelledby="pending-head">
+        <div class="section-head">
+          <h2 id="pending-head">Pending</h2>
+          <span class="count" id="pending-count"></span>
+          <button type="button" class="button primary" id="approve-all" hidden>Approve all</button>
+        </div>
+        <ul class="cards" id="pending"></ul>
+      </section>
+
+      <section aria-labelledby="shown-head">
+        <div class="section-head">
+          <h2 id="shown-head">Shown</h2>
+          <span class="count" id="shown-count"></span>
+        </div>
+        <ul class="cards" id="shown"></ul>
+      </section>
+
+      <section aria-labelledby="hidden-head">
+        <div class="section-head">
+          <h2 id="hidden-head">Hidden</h2>
+          <span class="count" id="hidden-count"></span>
+        </div>
+        <ul class="cards" id="hidden"></ul>
+      </section>
+
+      <h2 class="part">Cellular automata</h2>
+      <section aria-labelledby="material-pending-head">
+        <div class="section-head">
+          <h2 id="material-pending-head">Pending cellular automata</h2>
+          <span class="count" id="material-pending-count"></span>
+        </div>
+        <ul class="cards" id="material-pending"></ul>
+      </section>
+
+      <section aria-labelledby="material-published-head">
+        <div class="section-head">
+          <h2 id="material-published-head">Published cellular automata</h2>
+          <span class="count" id="material-published-count"></span>
+        </div>
+        <!-- The app's automata view shares its player with the public pages. -->
+        <p><a href="/admin/materials">Open the automata view</a>: every shown and hidden automaton by basis group, played in place, with Hide, Show and Purge.</p>
+      </section>
+    </main>
+
+    <dialog id="confirm" aria-labelledby="confirm-title">
+      <h2 id="confirm-title"></h2>
+      <p id="confirm-text"></p>
+      <div class="row">
+        <button type="button" class="button" id="confirm-cancel">Cancel</button>
+        <button type="button" class="button" id="confirm-yes"></button>
+      </div>
+    </dialog>
+
+    <script>
+      // Every title and credit is a visitor's text: it is set with textContent, never as HTML.
+      const pendingList = document.getElementById("pending");
+      const shownList = document.getElementById("shown");
+      const hiddenList = document.getElementById("hidden");
+      const approveAllButton = document.getElementById("approve-all");
+      const notices = document.getElementById("notices");
+      let shownPending = [];
+      let busy = false;
+
+      /** One owner API call; its error message, or the reason when the request failed. */
+      async function api(path, body) {
+        let response;
+        try {
+          response = await fetch(
+            path,
+            body === undefined
+              ? { cache: "no-store" }
+              : { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) },
+          );
+        } catch {
+          // Access answers an expired session with a redirect to its login, which a fetch cannot follow.
+          throw new Error("The request failed. Your sign-in may have expired: reload the page.");
+        }
+        const answer = await response.json().catch(() => {
+          throw new Error("The server response could not be read. Your sign-in may have expired: reload the page.");
+        });
+        if (!response.ok) throw new Error(answer.error ?? `${response.status} ${response.statusText}`);
+        return answer;
+      }
+
+      function element(tag, properties = {}, children = []) {
+        const node = document.createElement(tag);
+        Object.assign(node, properties);
+        node.append(...children);
+        return node;
+      }
+
+      function when(iso) {
+        return new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+      }
+
+      /**
+       * A result above the lists. A new result replaces the last plain one; an error and a purge's
+       * CDN step (a task left for the owner) stay until dismissed.
+       */
+      function notice(kind, lines, extra = [], keep = kind === "error") {
+        for (const old of notices.querySelectorAll('.notice:not([data-keep="true"])')) old.remove();
+        const box = element("div", { className: "notice" }, [...lines.map((line) => element("div", { textContent: line })), ...extra]);
+        box.dataset.kind = kind;
+        box.dataset.keep = String(keep);
+        const close = element("button", { type: "button", className: "button", textContent: "Dismiss" });
+        close.addEventListener("click", () => box.remove());
+        box.append(element("div", { className: "row" }, [close]));
+        notices.prepend(box);
+      }
+
+      /** The confirm dialog: resolves true only when the owner presses the action button. */
+      function confirmAction(title, text, action, danger) {
+        const dialog = document.getElementById("confirm");
+        document.getElementById("confirm-title").textContent = title;
+        document.getElementById("confirm-text").textContent = text;
+        const yes = document.getElementById("confirm-yes");
+        yes.textContent = action;
+        yes.className = danger ? "button danger" : "button primary";
+        return new Promise((resolve) => {
+          const finish = (answer) => {
+            yes.onclick = null;
+            document.getElementById("confirm-cancel").onclick = null;
+            dialog.onclose = null;
+            if (dialog.open) dialog.close();
+            resolve(answer);
+          };
+          yes.onclick = () => finish(true);
+          document.getElementById("confirm-cancel").onclick = () => finish(false);
+          dialog.onclose = () => finish(false);
+          dialog.showModal();
+          document.getElementById("confirm-cancel").focus();
+        });
+      }
+
+      function setBusy(value) {
+        busy = value;
+        for (const button of document.querySelectorAll("main button")) {
+          if (!button.closest(".notice")) button.disabled = value;
+        }
+      }
+
+      /** Run one action, then reload the lists; a failure keeps its message on the page. */
+      async function act(label, request, done) {
+        if (busy) return;
+        setBusy(true);
+        try {
+          const answer = await request();
+          done(answer);
+        } catch (error) {
+          notice("error", [`${label} failed: ${error.message}`]);
+        }
+        await load();
+      }
+
+      function picture(src, alt) {
+        // Same-origin pictures, loaded lazily so a long list does not fetch every image at once.
+        return element("img", { src, alt, width: 256, height: 256, loading: "lazy", decoding: "async" });
+      }
+
+      function card(entry, src, details, buttons) {
+        const lines = [
+          element("div", { className: "title", textContent: entry.title || "(no title)" }),
+          ...details.map((line) => element("div", { className: "detail", textContent: line })),
+        ];
+        return element("li", { className: "card" }, [picture(src, entry.title), ...lines, element("div", { className: "actions" }, buttons)]);
+      }
+
+      function button(text, kind, onClick) {
+        const node = element("button", { type: "button", className: kind ? `button ${kind}` : "button", textContent: text });
+        node.addEventListener("click", onClick);
+        return node;
+      }
+
+      function byLine(entry) {
+        return entry.credit ? `by ${entry.credit}` : "no credit";
+      }
+
+      /** The title and optional credit inside a sentence. */
+      function named(entry) {
+        return entry.credit ? `"${entry.title}" by ${entry.credit}` : `"${entry.title}"`;
+      }
+
+      function blockLine(blocks) {
+        if (blocks === null) return "image-editing configuration missing";
+        return blocks.length === 1 ? `basis group ${blocks[0]}` : `basis groups ${blocks.join(", ")}`;
+      }
+
+      /** An approval whose pending cleanup stopped: the entry is in the gallery; approving again finishes the cleanup. */
+      function unfinishedCard(metadata) {
+        return card(metadata, `/admin/api/gallery/${metadata.id}/thumbnail.webp`, [byLine(metadata), "published, cleanup unfinished", metadata.id], [
+          button("Finish cleanup", "", () =>
+            act(`Finish the cleanup of ${metadata.id}`, () => api("/admin/api/approve", { ids: [metadata.id] }), () =>
+              notice("ok", [`Finished the cleanup of "${metadata.title}".`]),
+            ),
+          ),
+        ]);
+      }
+
+      function pendingCard(metadata) {
+        if (metadata.state === "cleanup unfinished") return unfinishedCard(metadata);
+        return card(metadata, `/admin/api/pending/${metadata.id}/image.png`, [byLine(metadata), `${blockLine(metadata.blocks)} · ${metadata.release}`, `submitted ${when(metadata.submittedAt)}`, metadata.id], [
+          button("Approve", "primary", () =>
+            act(`Approve ${metadata.id}`, () => api("/admin/api/approve", { ids: [metadata.id] }), () => notice("ok", [`Published "${metadata.title}".`])),
+          ),
+          button("Reject", "danger", async () => {
+            if (busy || !(await confirmAction("Reject this submission?", `Reject deletes ${named(metadata)}. You cannot undo this.`, "Reject", true))) return;
+            act(`Reject ${metadata.id}`, () => api("/admin/api/reject", { id: metadata.id }), () => notice("ok", [`Rejected "${metadata.title}".`]));
+          }),
+        ]);
+      }
+
+      async function purgeEntry(entry) {
+        const text = `Purge deletes ${named(entry)}: its picture, thumbnail, image-editing configuration and gallery entry. You cannot undo this.`;
+        if (busy || !(await confirmAction("Purge this entry?", text, "Purge", true))) return;
+        act(`Purge ${entry.id}`, () => api("/admin/api/purge", { id: entry.id }), (answer) => {
+          const prefix = element("code", { textContent: answer.cdnPurge.prefix });
+          const copy = button("Copy the prefix", "", async () => {
+            try {
+              await navigator.clipboard.writeText(answer.cdnPurge.prefix);
+            } catch {
+              notice("error", ["The prefix could not be copied. Select the prefix and copy it manually."]);
+            }
+          });
+          notice(
+            "ok",
+            [`Purged "${entry.title}" from the buckets.`, "The CDN can still serve cached copies for up to a year. Purge them now:", answer.cdnPurge.place],
+            [prefix, element("div", { className: "row" }, [copy])],
+            true,
+          );
+        });
+      }
+
+      function shownCard(entry) {
+        return card(entry, `/admin/api/gallery/${entry.id}/thumbnail.webp`, [byLine(entry), `published ${when(entry.publishedAt)}`, entry.id], [
+          button("Hide", "", () =>
+            act(`Hide ${entry.id}`, () => api("/admin/api/hide", { id: entry.id }), () =>
+              notice("ok", [`Hid "${entry.title}". A gallery loaded after its 60 s cache does not list it.`]),
+            ),
+          ),
+          button("Purge", "danger", () => purgeEntry(entry)),
+        ]);
+      }
+
+      function hiddenCard(entry) {
+        return card(entry, `/admin/api/gallery/${entry.id}/thumbnail.webp`, [byLine(entry), `hidden ${when(entry.hiddenAt)}`, entry.id], [
+          button("Restore", "", () =>
+            act(`Restore ${entry.id}`, () => api("/admin/api/restore", { id: entry.id }), () => notice("ok", [`Restored "${entry.title}".`])),
+          ),
+          button("Purge", "danger", () => purgeEntry(entry)),
+        ]);
+      }
+
+      function materialCard(entry, src, details, buttons) {
+        const node = card(entry, src, details, buttons);
+        node.firstChild.classList.add("poster");
+        return node;
+      }
+
+      function pendingMaterialCard(metadata) {
+        return materialCard(metadata, `/admin/api/materials/pending/${metadata.id}/poster.png`, [byLine(metadata), `basis group ${metadata.block} · ${metadata.materialId}`, `submitted ${when(metadata.submittedAt)}`, metadata.id], [
+          button("Approve", "primary", () =>
+            act(`Approve automaton ${metadata.id}`, () => api("/admin/api/materials/approve", { id: metadata.id }), () => notice("ok", [`Published the automaton "${metadata.title}".`])),
+          ),
+          button("Reject", "danger", async () => {
+            if (busy || !(await confirmAction("Reject this automaton?", `Reject deletes ${named(metadata)}. You cannot undo this.`, "Reject", true))) return;
+            act(`Reject automaton ${metadata.id}`, () => api("/admin/api/materials/reject", { id: metadata.id }), () => notice("ok", [`Rejected "${metadata.title}".`]));
+          }),
+        ]);
+      }
+
+      function fill(list, countNode, items, makeCard, emptyText) {
+        countNode.textContent = String(items.length);
+        list.replaceChildren(...(items.length === 0 ? [element("li", { className: "empty", textContent: emptyText })] : items.map(makeCard)));
+      }
+
+      async function load() {
+        setBusy(true);
+        try {
+          const [entries, materials] = await Promise.all([api("/admin/api/entries"), api("/admin/api/materials")]);
+          document.getElementById("owner").textContent = entries.owner;
+          // Approve all takes the submissions waiting for a decision, not an unfinished cleanup.
+          shownPending = entries.pending.filter((metadata) => metadata.state === "pending");
+          fill(pendingList, document.getElementById("pending-count"), entries.pending, pendingCard, "Nothing pending.");
+          fill(shownList, document.getElementById("shown-count"), entries.published, shownCard, "Nothing shown.");
+          fill(hiddenList, document.getElementById("hidden-count"), entries.hidden, hiddenCard, "Nothing hidden.");
+          approveAllButton.hidden = shownPending.length < 2;
+          approveAllButton.textContent = `Approve all ${shownPending.length}`;
+          fill(document.getElementById("material-pending"), document.getElementById("material-pending-count"), materials.pending, pendingMaterialCard, "No automaton pending.");
+          document.getElementById("material-published-count").textContent = `${materials.published.length} shown · ${materials.hidden.length} hidden`;
+        } catch (error) {
+          notice("error", [`The lists did not load: ${error.message}`]);
+        }
+        setBusy(false);
+      }
+
+      approveAllButton.addEventListener("click", async () => {
+        // Exactly the submissions on screen: one that arrives meanwhile waits for the next review.
+        const ids = shownPending.map((metadata) => metadata.id);
+        const text = `${ids.length} submissions become public in the gallery, oldest first.`;
+        if (busy || !(await confirmAction(`Approve all ${ids.length}?`, text, `Approve ${ids.length}`, false))) return;
+        act("Approve all", () => api("/admin/api/approve", { ids }), (answer) => notice("ok", [`Published ${answer.entries.length}.`]));
+      });
+
+      load();
+    </script>
+  </body>
+</html>

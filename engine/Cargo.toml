@@ -1,0 +1,95 @@
+[package]
+name = "dinodreamer-engine"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[[example]]
+name = "qualify"
+required-features = ["harness"]
+
+[[example]]
+name = "kernel_benchmarks"
+required-features = ["harness"]
+
+[[example]]
+name = "updates"
+required-features = ["harness"]
+
+[[example]]
+name = "painting_cost"
+required-features = ["harness"]
+
+[[example]]
+name = "grow_recipe_parity"
+required-features = ["harness"]
+
+[[example]]
+name = "grow_recipe_train"
+required-features = ["harness"]
+
+[[example]]
+name = "cell_step_check"
+required-features = ["harness"]
+
+[[example]]
+name = "explain_check"
+required-features = ["harness"]
+
+[[example]]
+name = "co_selection_check"
+required-features = ["cpu"]
+
+[[example]]
+name = "grow_continue_check"
+required-features = ["harness"]
+
+[[example]]
+name = "measurement_direction_check"
+required-features = ["cpu"]
+
+[features]
+default = ["gpu"]
+gpu = ["burn/wgpu", "burn/extension", "dep:cubecl", "dep:burn-cubecl"]
+cpu = ["burn/flex"]
+harness = ["gpu"]
+
+[dependencies]
+burn = { version = "=0.22.0", default-features = false, features = ["std", "autodiff"] }
+cubecl = { version = "=0.11.0", optional = true, features = ["wgpu"] }
+burn-cubecl = { version = "=0.22.0", optional = true, default-features = false }
+png = "0.18"
+safetensors = "0.6"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+console_error_panic_hook = "0.1"
+getrandom = { version = "0.3", features = ["wasm_js"] }
+
+[dev-dependencies]
+base64 = "0.22"
+pollster = "0.4"
+
+[profile.release]
+lto = "thin"
+# Drop the 6.7 MiB name section: the Chrome/M1 Max benchmark runs an update in 0.42 s
+# instead of 2.7 s, with identical losses. For readable WASM stack traces, build with
+# CARGO_PROFILE_RELEASE_STRIP=false.
+strip = true
+
+# Binaryen 117 wasm-opt (-O3 or -Oz) made the update about 1.8 times slower; keep it off.
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
+
+# cubecl-wgpu 0.11.0 with one change: on an adapter without timestamp-query a WASM stream is
+# created without a panic; only a profile fails (vendor/cubecl-wgpu-0.11.0/PATCH.md).
+[patch.crates-io]
+cubecl-wgpu = { path = "vendor/cubecl-wgpu-0.11.0" }

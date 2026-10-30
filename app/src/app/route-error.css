@@ -1,0 +1,18 @@
+/* The 404 (route-error.tsx): one line at the page's top left, on the module (x 64, y 128). */
+.not-found h1 {
+  margin: 0;
+  font-size: var(--s0);
+  line-height: 24px;
+  color: var(--ink-2);
+}
+
+.not-found a {
+  color: var(--ink);
+  text-underline-offset: 4px;
+}
+
+@media (max-width: 640px) {
+  .not-found.page {
+    padding-top: var(--m);
+  }
+}

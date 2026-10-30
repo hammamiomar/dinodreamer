@@ -1,0 +1,28 @@
+/* Strength: the band word, the counts and the gauge. The picture page shows them too, so they load with their component. */
+
+/* The band word is styles.css .band; this only keeps it on its line. */
+.look-band-chip { display: inline-block; }
+
+.look-strength-counts { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.look-strength-bar { display: flex; gap: 2px; height: 4px; }
+.look-strength-bar > span { min-width: 2px; }
+.look-strength-counts ol { list-style: none; display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0; padding: 0; font-size: var(--s-1); color: var(--ink-3); }
+.look-strength-counts li b { font-weight: 500; color: var(--band); margin-right: 4px; }
+
+/* The gauge: the four bands as quarters of one line from the ring outward; square marks on it. */
+.look-gauge { margin: 16px 0 8px; }
+.look-gauge-track { position: relative; height: 24px; }
+.look-gauge-inside, .look-gauge-band, .look-gauge-beyond { position: absolute; top: 11px; height: 2px; }
+.look-gauge-inside { left: 0; background: var(--line-2); }
+.look-gauge-band { border-left: 2px solid var(--black); }
+.look-gauge-beyond { border-top: 2px dotted var(--strongest); height: 0; }
+.look-gauge-arrow { position: absolute; top: 17px; height: 1px; background: var(--ink); }
+.look-gauge-arrow[data-direction=out]::after { content: ""; position: absolute; right: -2px; top: -4px; border-left: 7px solid var(--ink); border-top: 4px solid transparent; border-bottom: 4px solid transparent; }
+.look-gauge-mark { position: absolute; top: 6px; width: 12px; height: 12px; margin-left: -6px; }
+.look-gauge-span { position: absolute; top: 4px; height: 16px; border: 1px solid var(--ink); box-sizing: border-box; min-width: 2px; }
+.look-gauge-mark[data-kind=own] { border: 1px solid var(--ink); background: var(--black); }
+.look-gauge-mark[data-kind=anchor] { border: 1px solid var(--ink); background: var(--ink); }
+.look-gauge-mark[data-kind=lift] { background: var(--strongest); border: 1px solid var(--black); transform: rotate(45deg); }
+.look-gauge-scale { position: relative; height: 16px; font-size: var(--s-1); color: var(--ink-3); }
+.look-gauge-scale span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+.look-gauge-scale span[data-align=end] { transform: translateX(calc(-100% - 4px)); }

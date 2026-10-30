@@ -1,0 +1,467 @@
+/*
+ * The Index (atlas-page.tsx) on the 64 px module, in the page band
+ * (styles.css). At 1440 the content runs from x = 64 to 1376: the heading row 128–192, the
+ * controls in two rows after the heading. Two columns of 608 px start
+ * at 64 and 768; a card's four band groups are 128 px squares 32 px apart, boxes on the patch.
+ * Every cloud has a five-module box, including its loading placeholder. Neighbouring cards'
+ * pictures, level headings and count bars therefore share the same rows.
+ */
+
+.cloud-atlas {
+  padding: var(--m) 0;
+}
+
+/* The heading and its optional picture action; browsing remains the main flow. */
+.cloud-atlas-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 32px;
+  min-height: var(--m);
+  margin-bottom: 32px;
+}
+
+.cloud-atlas-heading h1 {
+  margin: 0;
+  line-height: 32px;
+}
+
+/*
+ * The controls in two rows: find, sort and category, then the two checks, the count and Random at the end.
+ * Each row's 40 px controls take the top of a 64 px band, 24 px under them, so the rows
+ * and cards stay aligned when the count changes.
+ */
+.cloud-atlas-controls {
+  display: grid;
+  row-gap: 24px;
+  padding-bottom: 24px;
+}
+
+/* A wrapped line of 40 px controls keeps the 64 px pitch: 40 + 24, the same as between the rows. */
+.atlas-control-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 24px 32px;
+  min-height: 40px;
+}
+
+.atlas-search,
+.atlas-sort,
+.atlas-category {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* Wide enough for its placeholder, "Basis group number, 0 to 16383" (30 characters of 15 px: 273 px, 291 with a finger's 16 px type) and its padding. */
+.atlas-search input {
+  width: 320px;
+}
+
+.atlas-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.atlas-results {
+  margin-left: auto;
+  font-size: var(--s-1);
+  color: var(--ink-3);
+}
+
+/* 96 px wide, so at 1440 the button ends at the right margin (1376) and starts on the module (1280). */
+.atlas-random {
+  min-width: 96px;
+}
+
+/* The cards. */
+/* Two columns of 608 px at the band's full width; narrower, both shrink together, without a step. */
+.atlas-cloud-grid {
+  display: grid;
+  /* Keep card reflow and repaint inside the grid when its layout changes. */
+  contain: layout paint;
+  grid-template-columns: repeat(2, minmax(0, 608px));
+  justify-content: space-between;
+  gap: 64px 96px;
+}
+
+/*
+ * One card (the grid's children are the cards alone, atlas-page.tsx): one column, centred in the
+ * band by whole modules, so its left edge stays on the lattice. Over 900 px, where there are two
+ * columns.
+ */
+@media (min-width: 901px) {
+  @supports (width: round(down, 100px, 64px)) {
+    .atlas-cloud-grid:has(> :only-child) {
+      grid-template-columns: minmax(0, 608px);
+      padding-left: max(0px, round(nearest, (100% - 608px) / 2, var(--m)));
+    }
+  }
+}
+
+.atlas-cloud-card {
+  position: relative;
+  min-width: 0;
+}
+
+/* A card's name on a line: the number, which opens the block, and Grow. 32 px with the line. */
+.atlas-cloud-identity {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  height: 32px;
+  border-bottom: 1px solid var(--line);
+}
+
+.atlas-block-number {
+  line-height: 31px;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.atlas-grow {
+  font-size: var(--s-1);
+  color: var(--ink-2);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+/* The block's response category after its number; Grow stays at the right. A long name is cut on a narrow card. */
+.atlas-cloud-category {
+  min-width: 0;
+  margin-right: auto;
+  overflow: hidden;
+  font-size: var(--s-1);
+  color: var(--ink-2);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* The cloud runs into the band strip's line: 32 + 16 + the cloud + 16 puts the band groups on the module. */
+.atlas-cloud-area {
+  display: block;
+  min-width: 0;
+  height: calc(5 * var(--m));
+  margin-top: 16px;
+}
+
+.atlas-cloud-area canvas {
+  display: block;
+  width: 100%;
+}
+
+/* Until a card's record and pictures are ready, a hidden copy of its layout holds its place. */
+.atlas-cloud-waiting,
+.atlas-cloud-skeleton {
+  display: contents;
+}
+
+.atlas-cloud-skeleton > * {
+  visibility: hidden;
+}
+
+.atlas-cloud-failed {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  font-size: var(--s-1);
+  line-height: 24px;
+  text-align: center;
+  color: var(--ink-3);
+}
+
+.atlas-cloud-status {
+  font-size: var(--s-1);
+  color: var(--ink-3);
+}
+
+/* Four bands share the card's width; each shows up to four pictures, two by two. */
+.atlas-strength-strip {
+  min-width: 0;
+  padding-top: 15px;
+  border-top: 1px solid var(--line);
+}
+
+.atlas-band-groups {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: end;
+  gap: 32px;
+}
+
+.atlas-band-group {
+  min-width: 0;
+}
+
+.atlas-band-group[data-dim="true"] {
+  opacity: 0.3;
+}
+
+/* Two by two with no gap: in a 128 px group each picture is 64 px, one module, edges on the patch. */
+.atlas-band-pictures {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  aspect-ratio: 1;
+}
+
+.atlas-patch-picture {
+  position: relative;
+  display: block;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--black);
+}
+
+/* The band's line along the picture's lower edge, over the picture, so the patch mark stays where it is. */
+.atlas-patch-picture::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  background: var(--band);
+}
+
+/* A picture that could not be read: a quiet square in the band's colour, never a broken image. */
+.atlas-picture-tile {
+  background: color-mix(in srgb, var(--band) 22%, var(--black));
+}
+
+.atlas-patch-picture img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.atlas-patch-picture i {
+  position: absolute;
+  width: 6.25%;
+  height: 6.25%;
+  border: 1px solid #fff;
+  outline: 1px solid var(--black);
+}
+
+/* The band's word and its count: 64 px, two lines for the count. */
+.atlas-band-heading {
+  height: 64px;
+  padding-top: 8px;
+}
+
+.atlas-band-heading b {
+  display: block;
+  font-size: var(--s-1);
+  font-weight: 500;
+  line-height: 16px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--band);
+}
+
+.atlas-band-heading > span {
+  display: block;
+  margin-top: 8px;
+  font-size: var(--s-1);
+  line-height: 16px;
+  color: var(--ink-2);
+}
+
+/* 48 px of bar and 16 under it: the card ends on the module. */
+.atlas-count-bar {
+  display: block;
+  width: 100%;
+  height: 48px;
+  margin-bottom: 16px;
+  overflow: visible;
+}
+
+.atlas-count-ring {
+  fill: var(--black);
+  stroke: var(--ink-2);
+  stroke-width: 1px;
+}
+
+.atlas-count-arrow {
+  fill: none;
+  stroke: var(--ink-2);
+  stroke-width: 1px;
+}
+
+/* The end of the page. */
+.atlas-no-results {
+  padding: var(--m) 0;
+  color: var(--ink-2);
+}
+
+.atlas-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: var(--m);
+  font-size: var(--s-1);
+  color: var(--ink-3);
+}
+
+/* 40 px of pagination, 24 px, and a 64 px band for this line: the page ends on the module. */
+.atlas-cloud-footer {
+  height: var(--m);
+  margin: 24px 0 0;
+  font-size: var(--s-1);
+  line-height: 16px;
+  color: var(--ink-3);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .atlas-grow:hover {
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+}
+
+@media (max-width: 1439px) {
+  .atlas-band-groups {
+    gap: 16px;
+  }
+}
+
+@media (max-width: 900px) {
+  .atlas-cloud-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* A phone: 16 px gutters; the controls wrap; a band's count may take three lines. */
+@media (max-width: 640px) {
+  .cloud-atlas {
+    padding: 32px 0 var(--m);
+  }
+
+  .cloud-atlas-heading {
+    flex-direction: column;
+    align-items: flex-start;
+    margin-bottom: 24px;
+  }
+
+  /* The label over the field, so the field and the longest order take the full width. */
+  .atlas-search,
+  .atlas-sort,
+  .atlas-category {
+    display: grid;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .atlas-search input,
+  .atlas-sort .select,
+  .atlas-category .select {
+    width: 100%;
+  }
+
+  .cloud-atlas-controls {
+    row-gap: 16px;
+  }
+
+  /* The count fills the last row, and Random ends it at the right gutter. */
+  .atlas-results {
+    flex: 1 0 auto;
+    margin-left: 0;
+  }
+
+  /* Up to 80 px per group, reduced in 8 px steps when four groups do not fit. */
+  .atlas-band-groups {
+    grid-template-columns: repeat(4, minmax(0, 80px));
+    grid-template-columns: repeat(4, min(80px, round(down, (100% - 24px) / 4, 8px)));
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .atlas-band-heading {
+    height: auto;
+    min-height: 64px;
+  }
+
+  .atlas-pagination {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .atlas-pagination > span {
+    order: -1;
+    width: 100%;
+    text-align: center;
+  }
+}
+
+/* A finger: every target is 44 px. */
+@media (pointer: coarse) {
+  .atlas-check,
+  .atlas-grow {
+    min-height: var(--touch-target);
+  }
+
+  .atlas-grow {
+    display: inline-flex;
+    align-items: center;
+  }
+}
+
+/*
+ * A finger on a wider screen: the fields and buttons are 44 px, so each line of controls takes the top
+ * of a 64 px band with 20 px under it.
+ */
+@media (min-width: 641px) and (pointer: coarse) {
+  .cloud-atlas-controls {
+    row-gap: 20px;
+    padding-bottom: 20px;
+  }
+
+  .atlas-control-row {
+    row-gap: 20px;
+  }
+}
+
+/*
+ * A phone with a finger: a field's 16 px label, 12 px, and its 44 px target make 72 px, so each row of
+ * fields stays on the 8 px baselines; the rows of 44 px checks and buttons get 20 px under them, so a
+ * line of controls is 64, two are 128 and three 192, independent of the count's width.
+ */
+@media (max-width: 640px) and (pointer: coarse) {
+  .atlas-search,
+  .atlas-sort,
+  .atlas-category {
+    gap: 12px;
+  }
+
+  .cloud-atlas-controls {
+    padding-bottom: 20px;
+  }
+
+  .atlas-control-row {
+    row-gap: 20px;
+  }
+
+  /* The find field has no label over it, so its 44 px target sits in 48: the rows stay on the 8 px baselines. */
+  .atlas-search input {
+    min-height: 48px;
+  }
+}
+
+.atlas-cloud-loading {
+  position: absolute;
+  inset: 48px 0 auto;
+  height: calc(5 * var(--m));
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}

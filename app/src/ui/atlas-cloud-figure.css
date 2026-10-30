@@ -1,0 +1,100 @@
+/* A block's cloud drawn large (atlas-cloud-figure.tsx). The caller sets the figure's height. */
+.cloud-figure {
+  position: relative;
+}
+
+.cloud-figure svg {
+  display: block;
+  width: 100%;
+  background: var(--black);
+  outline: 1px solid var(--line);
+}
+
+.cloud-figure-axis {
+  stroke: var(--line);
+}
+
+.cloud-figure-ring {
+  fill: var(--line-faint);
+  stroke: var(--line-2);
+}
+
+.cloud-figure-band circle {
+  opacity: 0.8;
+}
+
+.cloud-figure-band[data-band="barely"] {
+  fill: var(--barely);
+}
+
+.cloud-figure-band[data-band="weakly"] {
+  fill: var(--weakly);
+}
+
+.cloud-figure-band[data-band="strongly"] {
+  fill: var(--strongly);
+}
+
+.cloud-figure-band[data-band="strongest"] {
+  fill: var(--strongest);
+}
+
+/* Another picture's patches landed in the plane, their mean, and the line to the lit point. */
+.cloud-figure-landed circle {
+  fill: var(--ink);
+  opacity: 0.7;
+}
+
+.cloud-figure-landed circle[data-marked] {
+  opacity: 1;
+  stroke: var(--black);
+  stroke-width: 1.5;
+}
+
+.cloud-figure-distance {
+  stroke: var(--ink);
+  stroke-dasharray: 4 3;
+}
+
+.cloud-figure-mean {
+  fill: var(--ink);
+  stroke: var(--black);
+  stroke-width: 1.5;
+}
+
+.cloud-figure-mean-label {
+  fill: var(--ink);
+  stroke: var(--black);
+  stroke-width: 3px;
+  paint-order: stroke;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.cloud-figure-lit-ring {
+  fill: none;
+  stroke: var(--ink);
+}
+
+.cloud-figure-lit-dot {
+  fill: var(--ink);
+  stroke: var(--black);
+  stroke-width: 1.5;
+}
+
+.cloud-figure-lead {
+  stroke: var(--ink-2);
+}
+
+/* Under the figure, at the lead's foot: to the lead's left when the dot is in the right half, so it stays inside. */
+.cloud-figure-label {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  font-size: var(--s-1);
+  white-space: nowrap;
+  color: var(--ink-2);
+}
+
+.cloud-figure-label[data-side="left"] {
+  transform: translateX(-100%);
+}

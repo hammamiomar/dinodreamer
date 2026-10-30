@@ -1,0 +1,15 @@
+/* The patch grid (patch-grid.tsx): over its picture, never a target; the caller's class colours the lines. */
+.patch-grid {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.patch-grid line {
+  stroke: currentColor;
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
