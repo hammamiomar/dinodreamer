@@ -1,10 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
 import { Link } from "react-router";
 import { fill, SITE_WORDS } from "../app/site-words";
-import type { MaterialEntry } from "../features/gallery/material-index";
+import { materialEntry, type MaterialEntry } from "../features/gallery/material-index";
 import { fetchPublishedMaterial, materialFileUrl } from "../features/gallery/material-gallery";
-import { figurePlayback, PICTURE_SIDES, strengthStatistic, type FigureMaterial } from "../materials/material-file";
-import { materialCaption } from "../features/gallery/material-caption";
+import { figurePlayback, PICTURE_SIDES, strengthStatistic, type FigureMaterial, type FigureMaterialFile } from "../materials/material-file";
+import { kindLine } from "../features/playground/playground";
 import { kindWords } from "../features/home/home-material";
 import { BAND_NAMES, STRENGTH_BANDS } from "../features/look/strength-bands";
 import { downloadBlob } from "../ui/files";
@@ -73,9 +73,10 @@ export function brushAfterWheel(brush: number, notches: number): number {
   return Math.min(BRUSH.max, Math.max(BRUSH.min, brush + notches * BRUSH.step));
 }
 
-/** "12002 · strongest, mean · seed 1" → "strongest, mean · seed 1": the block is said once. */
+/** "12002 · strongest, mean · seed 1" → "strongest, mean · seed 1": the block is said once. An automaton without a title is named by its kind. */
 export function variationName(entry: MaterialEntry): string {
   const prefix = `${entry.block} · `;
+  if (entry.title === "") return kindLine(entry);
   return entry.title.startsWith(prefix) ? entry.title.slice(prefix.length) : entry.title;
 }
 
@@ -96,8 +97,13 @@ const READING_STRENGTH_WORDS = {
  * selection target was met.
  */
 export function readingLine(entry: MaterialEntry): string {
+  return [fill(WORDS.readingBlock, { block: entry.block }), recipeWord(entry.recipe), ...readingParts(entry)].join(" · ");
+}
+
+/** The quiet line's measurement: the reference patch's level, the stored value, the selection fraction, the target. */
+function readingParts(entry: MaterialEntry): string[] {
   const band = BAND_NAMES[STRENGTH_BANDS.indexOf(entry.band)];
-  const parts = [fill(WORDS.readingBlock, { block: entry.block }), recipeWord(entry.recipe), fill(WORDS.readingToward, { band })];
+  const parts = [fill(WORDS.readingToward, { band })];
   const strengthWords = READING_STRENGTH_WORDS[strengthStatistic(entry.experiment, entry.measurementDirection)];
   if (entry.strength !== null) parts.push(fill(strengthWords, { strength: entry.strength.toFixed(2) }));
   if (entry.winnerFraction !== null) {
@@ -105,7 +111,21 @@ export function readingLine(entry: MaterialEntry): string {
     parts.push(fill(wins, { percent: Math.round(entry.winnerFraction * 100) }));
   }
   parts.push(entry.fired ? WORDS.fired : WORDS.didNotFire);
-  return parts.join(" · ");
+  return parts;
+}
+
+/**
+ * The automaton's metadata in the site's words, read in the Options panel and shown by the publish
+ * form: its kind, its measurement and its update count. Never the file's own name, which carries
+ * the research runs' vocabulary.
+ */
+export function metadataLine(entry: MaterialEntry, updates: number): string {
+  return [kindLine(entry), ...readingParts(entry), fill(WORDS.updates, { updates: updates.toLocaleString("en-US") })].join(" · ");
+}
+
+/** The metadata of a kept file, before it has an entry; a file's own id may be longer than an entry's. */
+export function fileMetadataLine(file: FigureMaterialFile): string {
+  return metadataLine(materialEntry("kept", file, { title: "", credit: "" }, ""), file.training.updates);
 }
 
 /** The recipe as the stage names it: its name without the date, "figure-seeded-2026-10-23" -> "figure-seeded". */
@@ -338,7 +358,8 @@ export function MaterialStage({ entries, source = PUBLISHED_SOURCE, layout = "pa
 
   const instrument = layout === "instrument";
   const togglePanel = (next: "downloads" | "options") => setPanel(panel === next ? "none" : next);
-  const caption = materialCaption(entry, material?.file ?? null, replayStatus === "failed");
+  // A title of the person's own; a title copied from the file's name is the research run's, not shown.
+  const ownTitle = material !== null && entry.title !== "" && entry.title !== material.file.name ? entry.title : "";
   const controls = <div className="stage-controls" role="toolbar" aria-label={WORDS.controls}>
     <button type="button" className="stage-icon" onClick={togglePlay} disabled={recording || replayStatus === "failed"} aria-label={playing ? WORDS.pause : WORDS.play}>{playing ? <PauseIcon /> : <PlayIcon />}</button>
     <button type="button" className="stage-icon stage-reset reset-control" onClick={() => reset()} disabled={recording || replayStatus === "failed"} aria-label={WORDS.resetName} title={WORDS.resetName}><ResetMark /></button>
@@ -378,8 +399,8 @@ export function MaterialStage({ entries, source = PUBLISHED_SOURCE, layout = "pa
         <label>{WORDS.grid}<Select value={pictureSide} onChange={(event) => setPictureSide(Number(event.target.value) as 128 | 256)}>
           {PICTURE_SIDES.map((pixels) => <option key={pixels} value={pixels}>{fill(WORDS.gridOption, { cells: pixels / pixelsPerCell })}</option>)}</Select></label>
       </div>
-      {/* The automaton's title and recipe: metadata, read here on request, never on the stage or a tile. */}
-      <p className="stage-message">{caption.title}{caption.recipe && ` · ${caption.recipe}`}</p>
+      {/* The automaton's metadata, read here on request, never on the stage or a tile. */}
+      {material && <p className="stage-message">{[ownTitle, metadataLine(entry, material.file.training.updates)].filter(Boolean).join(" · ")}</p>}
     </div>}
   </>;
 

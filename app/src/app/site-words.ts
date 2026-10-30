@@ -567,6 +567,8 @@ export const SITE_WORDS = {
     readingCentreWins: "central selection fraction {percent}%",
     fired: "selection target met",
     didNotFire: "selection target not met",
+    /** The update count at the end of the metadata line (the Options panel, the publish form). */
+    updates: "{updates} updates",
     /** After the measurement line: the person who trained it. {credit} is the name. */
     by: "by {credit}",
     /** The trainer when none is named. */
@@ -691,14 +693,6 @@ export const SITE_WORDS = {
     rejected: "Rejected. It stays here, greyed, until the page is reloaded.",
     /** Beside the bar when an action failed. {action} is its word, {message} the Worker's reason. */
     actionFailed: "{action} failed: {message}",
-  },
-
-  material: {
-    /** Draft: recipe labels shared by Automata, home and owner review. */
-    basisGroup: "Basis group {block}",
-    updates: "{updates} updates",
-    updatesLoading: "Reading update count…",
-    updatesUnavailable: "Update count unavailable",
   },
 
   publish: {
