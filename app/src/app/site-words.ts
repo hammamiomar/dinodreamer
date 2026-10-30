@@ -490,7 +490,8 @@ export const SITE_WORDS = {
       /** The signal. */
       grownCaption: "The image at step 600, as DINO reads it.",
       spaceCaption: "Group {group}'s cloud again, with the grown image's 256 patches landed in it: each patch a point, their mean, and the hibiscus patch the rule was trained toward. The loss is the line from the mean to the target. Hover a patch of the image to find it.",
-      signalLine: "The mean is {distance} m from the target · the group selected on {wins}% of the patches",
+      signalLine: "The mean is {distance} m from the target",
+      signalDistance: "{distance} m",
       targetLabel: "target",
       meanLabel: "mean",
       /** The training. */

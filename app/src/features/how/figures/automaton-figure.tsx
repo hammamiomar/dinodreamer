@@ -254,7 +254,6 @@ function Signal({ record }: { record: AutomatonRecord }) {
   const reading = record.reading;
   const tokens = useSourced(reading, (source) => source.final());
   const frame = useSourced(reading, (source) => source.frame(HOW_PICTURE.block));
-  const addresses = useSourced(reading, (source) => source.addresses());
   const calibration = useLoaded("calibration", () => record.dictionary.calibration());
   const library = useLibrary();
   const cloud = useLoaded("cloud", () => library.atlasCloud(HOW_PICTURE.block));
@@ -283,22 +282,11 @@ function Signal({ record }: { record: AutomatonRecord }) {
       distance: Math.hypot(...average.map((value, axis) => value - target[axis]!)) / m,
     };
   }, [tokens, frame, calibration, story, target, m]);
-  const wins = addresses.status === "ready"
-    ? Array.from({ length: 256 }, (_, patch) => addresses.value.blocks.subarray(patch * 32, (patch + 1) * 32).includes(HOW_PICTURE.block)).filter(Boolean).length
-    : null;
-  const failed = [tokens, frame, addresses, calibration, cloud, story].find((result) => result.status === "failed");
+  const failed = [tokens, frame, calibration, cloud, story].find((result) => result.status === "failed");
   if (failed) return <p className="how-caption" role="alert">{fill(SITE_WORDS.how.failed, { message: failed.message })}</p>;
-  const signalLine = landed && wins !== null
-    ? fill(WORDS.signalLine, { distance: landed.distance.toFixed(2), wins: Math.round((100 * wins) / 256) })
-    : " ";
+  const distance = landed?.distance.toFixed(2);
   const spaceCaption = fill(WORDS.spaceCaption, { group: HOW_PICTURE.block });
-  const signalCaption = (
-    <>
-      <p className="how-figure-line">{signalLine}</p>
-      <p className="how-caption">{spaceCaption}</p>
-    </>
-  );
-  const captionReserve = [WORDS.grownCaption, signalCaption];
+  const captionReserve = [WORDS.grownCaption, spaceCaption];
   return (
     <div className="how-pair">
       <figure className="how-pane">
@@ -317,11 +305,15 @@ function Signal({ record }: { record: AutomatonRecord }) {
                 label={WORDS.targetLabel}
                 landed={landed ? { points: landed.points, mean: landed.mean, marked: hovered } : null}
                 meanLabel={WORDS.meanLabel}
+                distanceLabel={distance ? {
+                  text: fill(WORDS.signalDistance, { distance }),
+                  description: fill(WORDS.signalLine, { distance }),
+                } : undefined}
               />
             )}
           </div>
         </div>
-        <FigureCaption reserve={captionReserve}>{signalCaption}</FigureCaption>
+        <FigureCaption reserve={captionReserve}>{spaceCaption}</FigureCaption>
       </figure>
     </div>
   );

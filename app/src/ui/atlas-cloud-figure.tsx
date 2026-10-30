@@ -40,7 +40,7 @@ export interface LandedPoints {
   marked: number | null;
 }
 
-export function AtlasCloudFigure({ cloud, lit, label, landed = null, meanLabel }: {
+export function AtlasCloudFigure({ cloud, lit, label, landed = null, meanLabel, distanceLabel }: {
   cloud: Pick<AtlasCloud, "points" | "ring">;
   /** The lit point in the record's plane: (c · a1, c · a2). */
   lit: readonly [number, number];
@@ -50,13 +50,20 @@ export function AtlasCloudFigure({ cloud, lit, label, landed = null, meanLabel }
   landed?: LandedPoints | null;
   /** Over the landed mean. */
   meanLabel?: string;
+  /** At the midpoint of the mean-to-target line, with its full description for assistive technology. */
+  distanceLabel?: { text: string; description: string };
 }) {
   const { width, height, margin } = CLOUD_VIEW;
   const fit = fitCloud(cloud, lit, width, height, margin, landed ? landed.points : []);
   const [litX, litY] = [fit.x(lit[0]), fit.y(lit[1])];
   return (
     <div className="cloud-figure">
-      <svg viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        role={distanceLabel ? "img" : undefined}
+        aria-label={distanceLabel?.description}
+        aria-hidden={distanceLabel ? undefined : true}
+      >
         <line className="cloud-figure-axis" x1={0} x2={width} y1={fit.y(0)} y2={fit.y(0)} />
         <circle className="cloud-figure-ring" cx={fit.x(0)} cy={fit.y(0)} r={cloud.ring * fit.scale} />
         {STRENGTH_BANDS.map((band, index) => (
@@ -83,6 +90,19 @@ export function AtlasCloudFigure({ cloud, lit, label, landed = null, meanLabel }
           <line className="cloud-figure-lead" x1={litX} x2={litX} y1={litY + 12} y2={height} />
         </g>
       </svg>
+      {landed && distanceLabel && (
+        <div className="cloud-figure-distance-plane" aria-hidden="true" style={{ aspectRatio: `${width} / ${height}` }}>
+          <span
+            className="cloud-figure-distance-label"
+            style={{
+              left: `${((fit.x(landed.mean[0]) + litX) / 2 / width) * 100}%`,
+              top: `${((fit.y(landed.mean[1]) + litY) / 2 / height) * 100}%`,
+            }}
+          >
+            {distanceLabel.text}
+          </span>
+        </div>
+      )}
       <span className="cloud-figure-label" data-side={litX > width / 2 ? "left" : "right"} style={{ left: `${(litX / width) * 100}%` }}>
         {label}
       </span>
