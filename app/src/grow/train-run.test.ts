@@ -3,14 +3,26 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { MaterialAnchor, MaterialRequest } from "../recipe";
 import { NO_RECORD } from "./grow-view";
 import type { GrowEvent } from "./protocol";
-import { createTrainRun, sameTarget, SIDE, trayShown, type GrowSettings, type TrainRunClient } from "./train-run";
+import { readFigureMaterial } from "../materials/material-file";
+import { continuationSource } from "./continuation";
+import { changedFromRun, createTrainRun, sameTarget, SIDE, trayShown, type GrowSettings, type TrainRunClient } from "./train-run";
 import { SAMPLE_EVERY_TICKS } from "../ui/sampled-accent";
 
 const anchor: MaterialAnchor = {
   source: "library", imageId: 7, slot: 40, code: [1, 2, 3], band: "strongest", norm: 2, strength: { ring: 1, cuts: [1.2, 1.5, 1.8], maximum: 3 },
 };
 const request: MaterialRequest = { block: 12002, points: [], anchor };
-const choices = { kind: { rule: "cell", start: "noise" }, stopAtFirstFire: false, continuation: null, picture: null } as const;
+const choices = { kind: { rule: "cell", start: "noise" }, stopAtFirstFire: false, continuation: null, picture: null, batch: 4 } as const;
+/** The tab's record of a run, as calls. */
+function fakeRunRecord() {
+  const calls: string[] = [];
+  return {
+    calls,
+    started: (batch: 1 | 4) => { calls.push(`started ${batch}`); },
+    ended: () => { calls.push("ended"); },
+    deviceLost: (batch: 1 | 4) => { calls.push(`device lost ${batch}`); },
+  };
+}
 
 /** Workers as the store creates them, each with the commands it was given and a way to speak. */
 function fakeWorkers() {
@@ -33,8 +45,9 @@ function fakeWorkers() {
 
 function store() {
   const workers = fakeWorkers();
-  const run = createTrainRun({ createClient: workers.createClient, keep: async () => {}, release: { url: "", name: "test" } as never, batch: () => 4 });
-  return { run, workers };
+  const runRecord = fakeRunRecord();
+  const run = createTrainRun({ createClient: workers.createClient, keep: async () => {}, release: { url: "", name: "test" } as never, runRecord });
+  return { run, workers, runRecord };
 }
 
 const frame = (tick: number) => ({ type: "live", frame: { pixels: new Uint8ClampedArray(SIDE * SIDE * 4), seed: 0, tick, rule: "training", completed: 0 } }) as GrowEvent;
@@ -44,6 +57,51 @@ afterEach(() => {
 });
 
 describe("the site's Train run (train-run.ts)", () => {
+  it.each([1, 4] as const)("continues a saved batch-%i definition at its recorded batch", (savedBatch) => {
+    const material = readFigureMaterial(JSON.parse(readFileSync(
+      new URL("../../fixtures/materials/block-12002-figure-strongest-mean-seed-1.material.json", import.meta.url), "utf8",
+    )));
+    const source = { ...continuationSource(material), batch: savedBatch };
+    const chosenBatch = savedBatch === 1 ? 4 : 1;
+    const workers = fakeWorkers();
+    const start = vi.fn<TrainRunClient["start"]>();
+    const run = createTrainRun({
+      createClient: (onEvent) => ({ ...workers.createClient(onEvent), start }),
+      keep: async () => {},
+      release: { url: "", name: "test" } as never,
+      runRecord: fakeRunRecord(),
+    });
+    run.start(request, { ...choices, batch: chosenBatch });
+    expect(start.mock.lastCall?.[3]).toBe(chosenBatch);
+    run.start(request, { ...choices, batch: chosenBatch, continuation: source });
+    expect(start.mock.lastCall?.[3]).toBe(savedBatch);
+    expect(run.state().settings?.batch).toBe(savedBatch);
+  });
+
+  it("treats another batch size after Stop as another run, as it does another kind", () => {
+    const held: GrowSettings = { ...choices, request, batch: 1 };
+    expect(changedFromRun(held, { ...choices, batch: 1 })).toBe(false);
+    expect(changedFromRun(held, { ...choices, batch: 4 })).toBe(true);
+    expect(changedFromRun(held, { ...choices, batch: 1, kind: { rule: "pyramid", start: "noise" } })).toBe(true);
+    expect(changedFromRun(held, { ...choices, batch: 1, stopAtFirstFire: true })).toBe(true);
+  });
+
+  it("tells the tab while a run trains, and a lost device apart from other errors", () => {
+    const { run, workers, runRecord } = store();
+    run.start(request, { ...choices, batch: 4 });
+    const say = workers.made[0]!.say;
+    say({ type: "phase", phase: "training", message: "" });
+    say({ type: "phase", phase: "live", message: "" });
+    say({ type: "phase", phase: "training", message: "" });
+    say({ type: "error", message: "The GPU device was lost", deviceLost: true });
+    expect(runRecord.calls).toEqual(["ended", "started 4", "started 4", "ended", "started 4", "device lost 4"]);
+    runRecord.calls.length = 0;
+    run.start(request, { ...choices, batch: 1 });
+    workers.made[1]!.say({ type: "error", message: "a worker error" });
+    run.end();
+    expect(runRecord.calls).toEqual(["ended", "started 1", "ended", "ended"]);
+  });
+
   it("starts one worker with the target and choices, and records what it says", () => {
     const { run, workers } = store();
     const changes = vi.fn();
@@ -110,7 +168,7 @@ describe("the site's Train run (train-run.ts)", () => {
   it("reports a worker construction failure instead of remaining active", () => {
     const run = createTrainRun({
       createClient: () => { throw new Error("Worker blocked"); },
-      keep: async () => {}, release: { url: "", name: "test" } as never, batch: () => 4,
+      keep: async () => {}, release: { url: "", name: "test" } as never, runRecord: fakeRunRecord(),
     });
     expect(() => run.start(request, choices)).not.toThrow();
     expect(run.state().record).toMatchObject({ active: false, failure: "Error: Worker blocked" });
@@ -120,7 +178,7 @@ describe("the site's Train run (train-run.ts)", () => {
     const workers = fakeWorkers();
     let finish!: () => void;
     const keep = () => new Promise<void>((resolve, reject) => { finish = result === "resolve" ? resolve : () => reject(new Error("quota")); });
-    const run = createTrainRun({ createClient: workers.createClient, keep, release: { url: "", name: "test" } as never, batch: () => 4 });
+    const run = createTrainRun({ createClient: workers.createClient, keep, release: { url: "", name: "test" } as never, runRecord: fakeRunRecord() });
     const file = JSON.parse(readFileSync(new URL("../../fixtures/materials/block-12002-figure-strongest-mean-seed-1.material.json", import.meta.url), "utf8"));
     run.start(request, choices);
     workers.made[0].say({ type: "material", file, run: 1, stage: "final", fired: true });

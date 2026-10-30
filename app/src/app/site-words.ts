@@ -788,13 +788,23 @@ export const SITE_WORDS = {
     start: "Start",
     /** The check above the primary. The first accepted checkpoint: the first checkpoint whose cellular model meets the selection target at simulation step 600, and for a noise start again at step 2,000. */
     stopAtFirstFire: "Stop at the first accepted checkpoint",
-    /** The dialog before the first run of a session on a phone (grow/phone-notice.tsx). */
-    phoneNotice: {
-      title: "Training works best on a computer",
-      body: "Training runs the vision model in this browser. On a phone, the page can reload during a run.",
-      train: "Train anyway",
-      cancel: "Cancel",
-    },
+    /** The closed section under the two choices, for settings most people never change (grow-panel.tsx). */
+    advanced: "Advanced",
+    /** Its one setting: the grids grown per optimizer update. */
+    batchSize: "Batch size",
+    /** Under it, for batch size 4. GPU memory measured on an RTX 2080 Super in Chromium 155, 2026-10-30. */
+    batchRecipe: "The recipe: four grids per update. Needs 1.5 to 1.8 GB of GPU memory.",
+    /** Under it, for batch size 1: 0.8 to 0.9 GB, and 0.29 to 0.31 of the time per update, in the same measurements. */
+    batchLight: "Half the memory and a third of the time of 4. It may meet the selection target less often.",
+    /** Why a continuation's batch size cannot change. */
+    continuedBatch: "A continued automaton keeps its batch size.",
+    /** In place of the hint when Train fell back to batch size 1 because a run at 4 took the page down. */
+    fallbackReload: "A run at batch size 4 stopped this page, likely for lack of memory. Train now uses 1.",
+    /** In the start dialog when the browser gives Train no GPU (protocol.ts adapterUnavailable), with a Reload button. */
+    noAdapter: "The browser gave Train no GPU. This can happen just after a run stopped the page. Reload the page, then press Train again.",
+    reload: "Reload",
+    /** The same when a run at 4 lost the graphics device. */
+    fallbackDevice: "A run at batch size 4 lost the graphics device, likely for lack of memory. Train now uses 1.",
     /** The time line before a run. {updates} is a number of optimizer updates, {duration} the time ("6.6 min"). */
     timeBefore: "about {updates} updates · {duration}",
     /** The time line while a run trains. */

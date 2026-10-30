@@ -16,6 +16,9 @@ describe("the time before a run", () => {
     expect(timeBefore(FINE_NOISE, false)).toEqual({ updates: 1000, seconds: 395, measured: false });
     expect(timeBefore(FINE_NOISE, true)).toEqual({ updates: 250, seconds: 98.75, measured: false });
     expect(timeBefore(COARSE_SEED, true)).toEqual({ updates: 450, seconds: 288.45, measured: false });
+    // Batch size 1 takes about 0.3 of the time per update.
+    expect(timeBefore(FINE_NOISE, false, 0, 1).seconds).toBeCloseTo(118.5, 6);
+    expect(timeLeft(FINE_NOISE, false, { completed: 10, total: 1000, trainingMs: 900 }, 0, 1).seconds).toBeCloseTo(117.315, 6);
   });
 });
 

@@ -8,12 +8,12 @@ import { downloadBlob } from "../ui/files";
 import { MaterialFrame } from "../ui/material-frame";
 import { Segmented } from "../ui/segmented";
 import {
-  drawCells, sameTarget, SIDE, trainRun, useLiveCells, useTrainRun, useTrainTick,
+  changedFromRun, drawCells, sameTarget, SIDE, trainRun, useLiveCells, useTrainRun, useTrainTick,
   type GrowSettings, type KeepFailure, type TrainRunState,
 } from "./train-run";
 import { CoSelectedPictures } from "./co-selected-pictures";
 import { TrainLoading } from "./train-loading";
-import { PhoneNotice, asksBeforeTraining } from "./phone-notice";
+import { LIGHT_BATCH, RECIPE_BATCH, batchFallback, clearBatchFallback, presetBatch, type BatchSize } from "./batch-size";
 import { GrowStatus } from "./grow-status";
 import { durationText, timeBefore, timeLeft, timeTaken, type GrowTime } from "./grow-time";
 import {
@@ -74,6 +74,41 @@ function KindChoices({ kind, open, ruleFixed, onChange }: {
   </div>;
 }
 
+const BATCH_HINT: Record<BatchSize, string> = { 4: WORDS.batchRecipe, 1: WORDS.batchLight };
+
+/** Advanced's settings: the batch size. `note` replaces the hint after a fallback; `fixed` is why it cannot change now. */
+function AdvancedChoices({ batch, fixed, note, onBatch }: {
+  batch: BatchSize; fixed: string | undefined; note: string | null; onBatch: (batch: BatchSize) => void;
+}) {
+  const choice = { unavailable: fixed !== undefined, reason: fixed };
+  return <div className="grow-choices">
+    <div className="grow-field grow-batch">
+      <span className="label">{WORDS.batchSize}</span>
+      <Segmented label={WORDS.batchSize} value={String(batch) as "1" | "4"} onChange={(value) => onBatch(value === "1" ? LIGHT_BATCH : RECIPE_BATCH)}
+        segments={[{ value: "1", label: "1", ...choice }, { value: "4", label: "4", ...choice }]} />
+      <p className="grow-hint">{note ?? BATCH_HINT[batch]}</p>
+    </div>
+  </div>;
+}
+
+/**
+ * The choices' box and the Advanced line under it. The box holds two faces in one place, the kind
+ * choices and Advanced's settings, and shows one at a time; it is as tall as the taller face, so
+ * opening Advanced moves nothing on the page. The faces cross-fade (grow.css).
+ */
+function ChoiceFaces({ choices, advanced, advancedOpen, onAdvanced }: {
+  choices: ReactNode; advanced: ReactNode; advancedOpen: boolean; onAdvanced: (open: boolean) => void;
+}) {
+  return <div className="grow-settings">
+    <div className="grow-faces">
+      <div className="grow-face" data-shown={!advancedOpen || undefined} aria-hidden={advancedOpen || undefined}>{choices}</div>
+      <div className="grow-face" id="grow-advanced" data-shown={advancedOpen || undefined} aria-hidden={!advancedOpen || undefined}>{advanced}</div>
+    </div>
+    <button type="button" className="grow-advanced-toggle label" aria-expanded={advancedOpen} aria-controls="grow-advanced"
+      onClick={() => onAdvanced(!advancedOpen)}>{WORDS.advanced}</button>
+  </div>;
+}
+
 /** The time line: before a run the estimate, during it the time left, after it the time it took. */
 function TimeLine({ time, template }: { time: GrowTime; template: string }) {
   const where = time.measured ? WORDS.onThisDevice : WORDS.onReference;
@@ -85,13 +120,13 @@ function TimeLine({ time, template }: { time: GrowTime; template: string }) {
 
 /** Which time the line shows, by state: the run's own while it runs or after, the chosen kind's before. */
 function growTime(record: GrowRecord, settings: GrowSettings | null,
-  chosen: Pick<GrowSettings, "kind" | "stopAtFirstFire" | "continuation">, primary: ReturnType<typeof primaryAction>): { time: GrowTime; template: string } {
+  chosen: Pick<GrowSettings, "kind" | "stopAtFirstFire" | "continuation" | "batch">, primary: ReturnType<typeof primaryAction>): { time: GrowTime; template: string } {
   if ((primary === "open" || primary === "restart") && record.progress) return { time: timeTaken(record.progress, settings?.continuation?.fromUpdate ?? 0), template: WORDS.timeTaken };
   if ((primary === "stop" || primary === "resume") && settings && record.progress) {
-    return { time: timeLeft(settings.kind, settings.stopAtFirstFire, record.progress, settings.continuation?.fromUpdate ?? 0), template: WORDS.timeLeft };
+    return { time: timeLeft(settings.kind, settings.stopAtFirstFire, record.progress, settings.continuation?.fromUpdate ?? 0, settings.batch), template: WORDS.timeLeft };
   }
   const before = settings && primary === "stop" ? settings : chosen;
-  return { time: timeBefore(before.kind, before.stopAtFirstFire, before.continuation?.fromUpdate ?? 0), template: WORDS.timeBefore };
+  return { time: timeBefore(before.kind, before.stopAtFirstFire, before.continuation?.fromUpdate ?? 0, before.batch), template: WORDS.timeBefore };
 }
 
 export function GrowPanel({ block, request, continuation, heading }: {
@@ -114,8 +149,8 @@ export function GrowPanel({ block, request, continuation, heading }: {
   const [kind, setKind] = useState<MaterialKind>(() => kindFromSearch(new URLSearchParams(globalThis.location?.search)));
   // Off by default: Grow trains on after the first fire and keeps both materials.
   const [stopAtFirstFire, setStopAtFirstFire] = useState(false);
-  // On a phone, the first run of a session asks first (phone-notice.tsx).
-  const [asking, setAsking] = useState(false);
+  // The batch size the person chose under Advanced, or null for the preset (batch-size.ts).
+  const [chosenBatch, setChosenBatch] = useState<BatchSize | null>(null);
   const { record, settings } = run;
   const state = growState(record);
   // A continuation starts from its definition's start; its cellular model is the definition's.
@@ -137,10 +172,23 @@ export function GrowPanel({ block, request, continuation, heading }: {
     return () => trainRun.showOnPage(false);
   }, [ours]);
   const runKind = continuation ? continuedKind(continuation, kind) : kind;
-  const chosen = { kind: runKind, stopAtFirstFire, continuation };
-  const changed = settings !== null
-    && (settings.kind.rule !== runKind.rule || settings.kind.start !== runKind.start || settings.stopAtFirstFire !== stopAtFirstFire
-      || settings.continuation?.id !== continuation?.id);
+  // A held run (stopped, or ended with its live grid) trains on at its own batch size. A continuation
+  // keeps its definition's. Otherwise the person's choice, or the preset.
+  const held = settings !== null && record.active;
+  const runBatch = continuation ? continuation.batch : chosenBatch ?? (held ? settings.batch : presetBatch());
+  // After a run at 4 took the page or the device down, the preset is 1, and the hint says why.
+  const fallback = !continuation && !held && chosenBatch === null && runBatch === LIGHT_BATCH ? batchFallback() : null;
+  const fallbackNote = fallback ? (fallback.reason === "reload" ? WORDS.fallbackReload : WORDS.fallbackDevice) : null;
+  const [advancedOpen, setAdvancedOpen] = useState(fallbackNote !== null);
+  useEffect(() => {
+    if (fallbackNote) setAdvancedOpen(true);
+  }, [fallbackNote]);
+  const chooseBatch = (batch: BatchSize) => {
+    clearBatchFallback();
+    setChosenBatch(batch);
+  };
+  const chosen = { kind: runKind, stopAtFirstFire, continuation, batch: runBatch };
+  const changed = settings !== null && changedFromRun(settings, chosen);
   const primary = primaryAction(state, changed);
   const open = choicesOpen(state);
   const coSelection = shownCoSelection(state, record);
@@ -171,13 +219,9 @@ export function GrowPanel({ block, request, continuation, heading }: {
     last.current = next;
   };
 
-  const startRun = () => {
-    if (request && ready) trainRun.start(request, { ...chosen, picture });
-  };
   const onPrimary = () => {
     if (primary === "grow") {
-      if (asksBeforeTraining()) setAsking(true);
-      else startRun();
+      if (request && ready) trainRun.start(request, { ...chosen, picture });
     } else if (primary === "resume") {
       trainRun.resumeTraining();
     } else if (primary === "restart") {
@@ -244,13 +288,15 @@ export function GrowPanel({ block, request, continuation, heading }: {
     <aside className="grow-side" aria-label={WORDS.title}>
       {heading}
       {coSelection ? <CoSelectedPictures coSelection={coSelection} region={readingRegion(shownKind)} />
-        : <KindChoices kind={runKind} open={open} ruleFixed={continuation !== null} onChange={setKind} />}
+        : <ChoiceFaces advancedOpen={advancedOpen} onAdvanced={setAdvancedOpen}
+          choices={<KindChoices kind={runKind} open={open} ruleFixed={continuation !== null} onChange={setKind} />}
+          advanced={<AdvancedChoices batch={!open && settings ? settings.batch : runBatch} note={fallbackNote}
+            fixed={continuation ? WORDS.continuedBatch : open ? undefined : WORDS.stop} onBatch={chooseBatch} />} />}
       <TimeLine time={time.time} template={time.template} />
       {runLine}
     </aside>
     {/* The primary: in the foot row beside the status, or at the bottom of a phone's screen. */}
     <div className="grow-go">{goControl}</div>
-    {asking && <PhoneNotice onTrain={() => { setAsking(false); startRun(); }} onCancel={() => setAsking(false)} />}
     {(state === "loading" || (state === "failed" && record.progress === null))
       && <TrainLoading message={record.phaseMessage} failure={record.failure} onStop={trainRun.end} />}
     {/* Expose save completion for browser checks. */}

@@ -11,7 +11,7 @@ import {
 } from "./figure-recipe";
 import { coSelection, type CoSelectedColumns } from "./co-selection";
 import type { MaterialKind } from "./material-kind";
-import type { Checkpoint, GrowCommand, GrowEvent, GrowProgress, LiveReading, LiveRule } from "./protocol";
+import { adapterUnavailable, type Checkpoint, type GrowCommand, type GrowEvent, type GrowProgress, type LiveReading, type LiveRule } from "./protocol";
 
 /** Live ticks per training update: the material visibly forms while the rule trains. */
 const LIVE_TICKS_PER_UPDATE = 8;
@@ -21,6 +21,9 @@ const READ_EVERY = 10;
 const LIVE_TICKS_PER_FRAME = 4;
 const LIVE_READ_MS = 2000;
 const FRAME_MS = 33;
+/** Further adapter requests, and the wait before each, when the browser has no adapter at first (adapterUnavailable). */
+const ADAPTER_RETRIES = 2;
+const ADAPTER_RETRY_MS = 1500;
 
 const send = (event: GrowEvent, transfer: Transferable[] = []) => self.postMessage(event, { transfer });
 let currentPhase: Extract<GrowEvent, { type: "phase" }>["phase"] = "loading";
@@ -63,11 +66,23 @@ class ReaderLoad {
   async finish() { while (!this.ready) await this.step(); }
 }
 
+/** The engine, asking again for an adapter when the browser had none to give at first. */
+async function createEngine(): Promise<BrowserEngine> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await BrowserEngine.create();
+    } catch (error) {
+      if (attempt >= ADAPTER_RETRIES || !adapterUnavailable(String(error))) throw error;
+      await new Promise((resolve) => setTimeout(resolve, ADAPTER_RETRY_MS));
+    }
+  }
+}
+
 async function loadModel(release: ModelRelease, assets: AssetLoader, block: number) {
   phase("loading", "Preparing graphics on this device…");
   await initializeEngine();
-  engine = await BrowserEngine.create();
-  engine.on_device_lost((message: string) => send({ type: "error", message }));
+  engine = await createEngine();
+  engine.on_device_lost((message: string) => send({ type: "error", message, deviceLost: true }));
   const files = [...release.encoder, release.calibration];
   for (const [index, file] of files.entries()) {
     phase("loading", `Loading the training models · ${index + 1}/${files.length}`);

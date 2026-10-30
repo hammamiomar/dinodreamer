@@ -6,6 +6,16 @@ import type { ContinuationChange, ContinuationSource } from "./continuation";
 import type { MaterialKind } from "./material-kind";
 import type { ReleaseLocation } from "../synthesis/protocol";
 
+/**
+ * Whether an error is the browser answering the request for a GPU adapter with none. On an iPhone
+ * 16 Pro Max this happened on the first page load after a run took the page down, and a reload
+ * then had an adapter again (2026-10-30). wgpu reports it as "No adapter available ... webgpu
+ * found no adapters".
+ */
+export function adapterUnavailable(message: string): boolean {
+  return /no adapter available|found no adapters/i.test(message);
+}
+
 export interface GrowProgress {
   /** Which run of RUNS, 1-based; a run that did not fire is followed by the next seed. */
   run: number;
@@ -106,4 +116,5 @@ export type GrowEvent =
   | { type: "live"; frame: LiveFrame }
   | { type: "reading"; reading: LiveReading }
   | { type: "material"; file: FigureMaterialFile; run: number; stage: KeptStage; fired: boolean }
-  | { type: "error"; message: string };
+  /** `deviceLost`: WebGPU lost the device, which on a device without room for the run means out of memory. */
+  | { type: "error"; message: string; deviceLost?: boolean };

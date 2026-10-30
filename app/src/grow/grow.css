@@ -329,6 +329,64 @@
   line-height: 16px;
 }
 
+/*
+ * The choices' box and the Advanced line under it (grow-panel.tsx ChoiceFaces). Both faces, the kind
+ * choices and Advanced's settings, sit in one grid cell, so the box is as tall as the taller one and
+ * opening Advanced moves nothing; the hidden face is invisible to the pointer, the keyboard and
+ * screen readers, and the two cross-fade.
+ */
+.grow-settings {
+  display: grid;
+  grid-row: choices;
+  row-gap: var(--patch);
+}
+
+.grow-faces {
+  display: grid;
+}
+
+.grow-faces > .grow-face {
+  grid-area: 1 / 1;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--motion-move), visibility 0s linear 240ms;
+}
+
+.grow-faces > .grow-face[data-shown] {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity var(--motion-move), visibility 0s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .grow-faces > .grow-face,
+  .grow-faces > .grow-face[data-shown] {
+    transition: none;
+  }
+}
+
+/* One label-sized line, a + or − after it. */
+.grow-advanced-toggle {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: none;
+  line-height: 16px;
+  cursor: pointer;
+}
+
+.grow-advanced-toggle::after {
+  content: " +";
+}
+
+.grow-advanced-toggle[aria-expanded="true"]::after {
+  content: " \2212";
+}
+
+.grow-advanced-toggle:hover {
+  color: var(--ink);
+}
+
 /* Two lines of room whatever the hint says, its words centred in them, so a choice moves nothing under it. */
 .grow-hint {
   display: flex;
@@ -388,7 +446,7 @@
   text-underline-offset: 5px;
 }
 
-.grow-side:has(.publish-material-form) :is(.grow-choices, .grow-time) {
+.grow-side:has(.publish-material-form) :is(.grow-settings, .grow-time) {
   display: none;
 }
 
@@ -492,7 +550,8 @@
     margin-top: var(--patch);
   }
 
-  .grow-choices {
+  .grow-choices,
+  .grow-settings {
     row-gap: calc(2 * var(--patch));
   }
 
@@ -506,9 +565,7 @@
   }
 }
 
-/* The two Train dialogs: preparing a run (train-loading.tsx), and the phone notice before one (phone-notice.tsx). */
-.train-loading,
-.train-notice {
+.train-loading {
   width: min(448px, calc(100vw - 32px));
   max-height: calc(100dvh - 32px);
   margin: auto;
@@ -518,15 +575,10 @@
   color: var(--ink);
 }
 
-.train-loading::backdrop,
-.train-notice::backdrop { background: rgb(0 0 0 / 75%); }
-.train-loading h2,
-.train-notice h2 { margin: 0 0 24px; font-size: var(--s1); }
-.train-loading p,
-.train-notice p { margin: 24px 0; color: var(--ink-2); line-height: 24px; }
-.train-loading .button,
-.train-notice .button { min-height: 44px; }
-.train-notice-actions { display: flex; flex-wrap: wrap; gap: var(--patch); }
+.train-loading::backdrop { background: rgb(0 0 0 / 75%); }
+.train-loading h2 { margin: 0 0 24px; font-size: var(--s1); }
+.train-loading p { margin: 24px 0; color: var(--ink-2); line-height: 24px; }
+.train-loading .button { min-height: 44px; }
 
 .grow-levels { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .grow-levels .grow-pick { padding: 0; border: 0; background: none; color: var(--ink-2); font: inherit; cursor: pointer; }

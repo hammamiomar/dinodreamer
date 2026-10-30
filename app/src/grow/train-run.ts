@@ -12,6 +12,7 @@ import { continuationChange, type ContinuationSource } from "./continuation";
 import { NO_RECORD, markSaved, recordEvent, type GrowRecord } from "./grow-view";
 import type { MaterialKind } from "./material-kind";
 import type { GrowEvent } from "./protocol";
+import { clearRunOnPageHide, noteInterruptedRun, runMemory, type BatchSize } from "./batch-size";
 
 // One site-wide Train run owns the worker, saved files and live grid. The page and corner tray
 // are views of the same store, so navigation does not end training. Frames have separate listeners
@@ -27,6 +28,8 @@ export interface GrowSettings {
   continuation: ContinuationSource | null;
   /** The visitor's picture the target's patch is on, if it is theirs: the way back to Train shows it again. */
   picture: MaterialRequestPicture | null;
+  /** Grids per optimizer update (batch-size.ts). A continuation trains at its definition's own. */
+  batch: BatchSize;
 }
 
 /** A kept file Keep could not save on this device, so the views offer it as a download. */
@@ -64,12 +67,13 @@ export interface TrainRunClient {
   dispose(): void;
 }
 
-/** What the store needs from outside: the worker, Keep, the release and the batch. Tests give their own. */
+/** What the store needs from outside: the worker, Keep, the release and the tab's record of a run. Tests give their own. */
 export interface TrainRunDependencies {
   createClient(onEvent: (event: GrowEvent) => void): TrainRunClient;
   keep(file: FigureMaterialFile): Promise<void>;
   release: ReleaseLocation;
-  batch(): 1 | 4;
+  /** Whether a run is training now, so a page that goes down mid-run can be told from one the person left (batch-size.ts). */
+  runRecord: Pick<typeof runMemory, "started" | "ended" | "deviceLost">;
 }
 
 export interface TrainRun {
@@ -105,6 +109,8 @@ export function createTrainRun(dependencies: TrainRunDependencies): TrainRun {
   let live: LiveCells | null = null;
   let client: TrainRunClient | null = null;
   let sampledAt = -1;
+  /** The batch size the current run trains at. */
+  let runBatch: BatchSize = 4;
   const listeners = new Set<() => void>();
   const liveListeners = new Set<() => void>();
 
@@ -146,7 +152,15 @@ export function createTrainRun(dependencies: TrainRunDependencies): TrainRun {
       return;
     }
     if (event.type === "material") keep(event.file);
+    if (event.type === "phase") {
+      // The trainer holds its memory while it loads, trains and measures; not while the live grid only runs.
+      const training = event.phase === "loading" || event.phase === "training" || event.phase === "finishing";
+      if (training) dependencies.runRecord.started(runBatch);
+      else dependencies.runRecord.ended();
+    }
     if (event.type === "error") {
+      if (event.deviceLost) dependencies.runRecord.deviceLost(runBatch);
+      else dependencies.runRecord.ended();
       client?.dispose();
       client = null;
       update({ record: { ...recordEvent(state.record, event), active: false } });
@@ -159,6 +173,7 @@ export function createTrainRun(dependencies: TrainRunDependencies): TrainRun {
   };
 
   const clear = () => {
+    dependencies.runRecord.ended();
     client?.dispose();
     client = null;
     live = null;
@@ -180,17 +195,20 @@ export function createTrainRun(dependencies: TrainRunDependencies): TrainRun {
     },
     start(request, settings) {
       clear();
-      update({ files: new Map(), keepFailure: null, settings: { ...settings, request }, record: { ...NO_RECORD, active: true } });
+      // A continuation trains at its definition's batch size.
+      runBatch = settings.continuation?.batch ?? settings.batch;
+      update({ files: new Map(), keepFailure: null, settings: { ...settings, batch: runBatch, request }, record: { ...NO_RECORD, active: true } });
+      dependencies.runRecord.started(runBatch);
       try {
         // Events of a run that has ended are not this run's.
         const created = dependencies.createClient((event) => {
           if (client === created) onEvent(event);
         });
         client = created;
-        // A continuation trains at its definition's batch and records what it changed.
+        // A continuation records what it changed.
         const source = settings.continuation;
         const continuation = source && request.anchor ? { source, change: continuationChange(source, settings.kind.start, request.anchor) } : undefined;
-        created.start(request, dependencies.release, settings.kind, source?.batch ?? dependencies.batch(), settings.stopAtFirstFire, continuation);
+        created.start(request, dependencies.release, settings.kind, runBatch, settings.stopAtFirstFire, continuation);
       } catch (error) {
         onEvent({ type: "error", message: String(error) });
       }
@@ -205,6 +223,18 @@ export function createTrainRun(dependencies: TrainRunDependencies): TrainRun {
       if (state.shownOnPage !== shown) update({ shownOnPage: shown });
     },
   };
+}
+
+/**
+ * Whether the page's choices describe another run than the held one: another kind, stop rule,
+ * continuation or batch size. Then Train starts that run; otherwise Resume trains the held one on.
+ */
+export function changedFromRun(run: GrowSettings, chosen: Pick<GrowSettings, "kind" | "stopAtFirstFire" | "continuation" | "batch">): boolean {
+  return run.kind.rule !== chosen.kind.rule
+    || run.kind.start !== chosen.kind.start
+    || run.stopAtFirstFire !== chosen.stopAtFirstFire
+    || run.continuation?.id !== chosen.continuation?.id
+    || run.batch !== chosen.batch;
 }
 
 /**
@@ -234,10 +264,10 @@ export function trayShown(state: Pick<TrainRunState, "record" | "shownOnPage">, 
   return !state.shownOnPage || panelOpen;
 }
 
-/** `?growBatch=1` runs the measured fallback; batch 4 is the recipe. */
-function requestedBatch(): 1 | 4 {
-  return new URLSearchParams(globalThis.location?.search).get("growBatch") === "1" ? 1 : 4;
-}
+// A run the page went down in (a phone's browser ends a page that takes too much memory) leaves the
+// tab's fallback to batch size 1; a page the person leaves clears the record first.
+noteInterruptedRun();
+clearRunOnPageHide();
 
 /** The site's one run. */
 export const trainRun: TrainRun = createTrainRun({
@@ -247,7 +277,7 @@ export const trainRun: TrainRun = createTrainRun({
     announceKept("train");
   },
   release: RELEASE_LOCATION,
-  batch: requestedBatch,
+  runRecord: runMemory,
 });
 
 /** The run as views show it; re-renders on each change of its record, choices, files or tray state, not on its frames. */
