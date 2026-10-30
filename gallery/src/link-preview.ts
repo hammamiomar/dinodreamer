@@ -3,8 +3,8 @@
 import { SITE_WORDS, fill } from "../../app/src/app/site-words.ts";
 
 export const SITE_PREVIEW = {
-  image: "/previews/site/dinodreamer-hibiscus-v1.jpg",
-  video: "/previews/site/dinodreamer-hibiscus-v1.mp4",
+  image: "/previews/site/dinodreamer-hibiscus-v2.jpg",
+  video: "/previews/site/dinodreamer-hibiscus-v2.mp4",
   width: 1280,
   height: 640,
 } as const;
