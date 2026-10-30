@@ -4,6 +4,8 @@ import type { MaterialRequest } from "../recipe";
 export interface MaterialRequestPicture {
   name: string;
   preview: Blob;
+  /** True when the reference patch is the lift from the picture's patch: the nearest Level 4 library patch in its direction. Train says so. */
+  lift?: boolean;
 }
 
 interface MaterialRequestState {

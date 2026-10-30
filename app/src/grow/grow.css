@@ -219,6 +219,13 @@
   line-height: 24px;
 }
 
+.grow-toward .grow-warning {
+  margin: 8px 0;
+  font-size: var(--s-1);
+  line-height: 16px;
+  color: var(--warn);
+}
+
 /* The occurrence: the picture with its patch marked, the sentence, the band, the way to another patch. */
 .grow-toward {
   display: grid;

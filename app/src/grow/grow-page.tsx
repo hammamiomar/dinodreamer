@@ -6,6 +6,7 @@ import { SITE_WORDS, fill } from "../app/site-words";
 import type { MaterialAnchor } from "../recipe";
 import { useObjectUrl } from "../ui/files";
 import { fetchPublishedMaterial } from "../features/gallery/material-gallery";
+import { WARNED_BELOW } from "../features/look/grow-from-picture";
 import { STRENGTH_BANDS, sampleStrengthCuts, type BandIndex } from "../features/look/strength-bands";
 import { anchorToken, bandRequest, strongestBandRequest } from "../features/look/strongest-request";
 import { BasisGroupLink } from "../features/look/basis-group-panel";
@@ -20,16 +21,18 @@ import "./grow.css";
 
 const WORDS = SITE_WORDS.grow;
 
-/** The patch Grow aims at: its picture with the patch marked, one sentence, its band, and the way to another. */
-function Occurrence({ block, anchor, uploadUrl }: { block: number; anchor: MaterialAnchor; uploadUrl?: string }) {
+/** The patch Train aims at: its picture with the patch marked, one sentence, its band, the warning near the ring, and the way to another. */
+function Occurrence({ block, anchor, uploadUrl, lift }: { block: number; anchor: MaterialAnchor; uploadUrl?: string; lift: boolean }) {
   let toward: string = WORDS.towardLibrary;
   if (anchor.source === "upload") toward = WORDS.towardUpload;
-  else if (uploadUrl) toward = WORDS.towardNearest;
+  else if (lift) toward = WORDS.towardNearest;
+  const warned = STRENGTH_BANDS.indexOf(anchor.band) < WARNED_BELOW;
   return <div className="grow-toward">
     <TokenPicture point={anchorToken(anchor)} uploadUrl={uploadUrl} />
     <div>
       <p>{toward}</p>
       <span className={`band ${anchor.band}`}>{bandName(anchor.band)}</span>
+      {warned && <p className="grow-warning">{WORDS.weakReference}</p>}
       <BasisGroupLink className="grow-pick" block={block}>{WORDS.pickAnother}</BasisGroupLink>
     </div>
   </div>;
@@ -188,7 +191,7 @@ export function GrowPage() {
   else if (continuing && !sourceReady) occurrence = <p className="grow-note" role="status">{WORDS.loading}</p>;
   else if (request?.mode === "plant") occurrence = <p className="grow-note">{WORDS.plant}</p>;
   else if (request && !request.anchor) occurrence = <p className="grow-note">{WORDS.noAnchor}</p>;
-  else if (request?.anchor) occurrence = <Occurrence block={request.block} anchor={request.anchor} uploadUrl={uploadUrl} />;
+  else if (request?.anchor) occurrence = <Occurrence block={request.block} anchor={request.anchor} uploadUrl={uploadUrl} lift={picture?.lift ?? false} />;
   else occurrence = <p className="grow-note">{WORDS.nothing}</p>;
 
   return <main className="grow-page">

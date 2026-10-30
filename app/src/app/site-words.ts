@@ -738,8 +738,10 @@ export const SITE_WORDS = {
     towardLibrary: "Trains toward the marked patch of a library picture.",
     /** Beside the occurrence's picture, when the reference patch is in the visitor's own picture. */
     towardUpload: "Trains toward the marked patch of your picture.",
-    /** Beside a library picture, when the visitor came with their own picture but its patch has a low response magnitude in this basis group. */
-    towardNearest: "Your picture's patch has a low response magnitude. The automaton trains toward the nearest Level 4 library patch instead.",
+    /** Beside a library picture, when the visitor chose the lift from their own patch: the nearest Level 4 library patch in its direction. */
+    towardNearest: "Trains toward the nearest Level 4 library patch in your patch's direction.",
+    /** Under the response level when the reference patch is at Level 1 or Level 2. */
+    weakReference: "This patch is near the ring. In the training tests so far, automata trained toward a patch here did not meet the selection target; automata trained toward Level 3 and Level 4 patches did.",
     /** The link under the occurrence to the basis group's page, where the visitor picks another patch. */
     pickAnother: "Pick another patch",
     /**

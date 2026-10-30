@@ -129,7 +129,7 @@ function useGrowFromPicture() {
       if (current !== operation.current) return;
       const grow = pictureGrowRequest(cloud, entry.tokens, sampleStrengthCuts(cloud.whole.gateMedian, cloud.sample.norms));
       if (!grow) {
-        setProblem(text.tooWeak(entry.block));
+        setProblem(LOOK_TEXT.picture.none);
         return;
       }
       setRequest(grow.request, upload.picture ? { name: upload.picture.name, preview: upload.picture.preview } : null);
