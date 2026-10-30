@@ -12,6 +12,7 @@ import { continuationChange, type ContinuationSource } from "./continuation";
 import { NO_RECORD, markSaved, recordEvent, type GrowRecord } from "./grow-view";
 import type { MaterialKind } from "./material-kind";
 import type { GrowEvent } from "./protocol";
+import { trainingBatch } from "./training-device";
 
 // One site-wide Train run owns the worker, saved files and live grid. The page and corner tray
 // are views of the same store, so navigation does not end training. Frames have separate listeners
@@ -234,11 +235,6 @@ export function trayShown(state: Pick<TrainRunState, "record" | "shownOnPage">, 
   return !state.shownOnPage || panelOpen;
 }
 
-/** `?growBatch=1` runs the measured fallback; batch 4 is the recipe. */
-function requestedBatch(): 1 | 4 {
-  return new URLSearchParams(globalThis.location?.search).get("growBatch") === "1" ? 1 : 4;
-}
-
 /** The site's one run. */
 export const trainRun: TrainRun = createTrainRun({
   createClient: (onEvent) => new GrowClient(onEvent),
@@ -247,7 +243,7 @@ export const trainRun: TrainRun = createTrainRun({
     announceKept("train");
   },
   release: RELEASE_LOCATION,
-  batch: requestedBatch,
+  batch: trainingBatch,
 });
 
 /** The run as views show it; re-renders on each change of its record, choices, files or tray state, not on its frames. */

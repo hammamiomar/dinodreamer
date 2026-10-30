@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { MaterialAnchor, MaterialRequest } from "../recipe";
 import { NO_RECORD } from "./grow-view";
 import type { GrowEvent } from "./protocol";
+import { readFigureMaterial } from "../materials/material-file";
+import { continuationSource } from "./continuation";
 import { createTrainRun, sameTarget, SIDE, trayShown, type GrowSettings, type TrainRunClient } from "./train-run";
 import { SAMPLE_EVERY_TICKS } from "../ui/sampled-accent";
 
@@ -44,6 +46,26 @@ afterEach(() => {
 });
 
 describe("the site's Train run (train-run.ts)", () => {
+  it.each([1, 4] as const)("continues a saved batch-%i definition at its recorded batch", (savedBatch) => {
+    const material = readFigureMaterial(JSON.parse(readFileSync(
+      new URL("../../fixtures/materials/block-12002-figure-strongest-mean-seed-1.material.json", import.meta.url), "utf8",
+    )));
+    const source = { ...continuationSource(material), batch: savedBatch };
+    const defaultBatch = savedBatch === 1 ? 4 : 1;
+    const workers = fakeWorkers();
+    const start = vi.fn<TrainRunClient["start"]>();
+    const run = createTrainRun({
+      createClient: (onEvent) => ({ ...workers.createClient(onEvent), start }),
+      keep: async () => {},
+      release: { url: "", name: "test" } as never,
+      batch: () => defaultBatch,
+    });
+    run.start(request, choices);
+    expect(start.mock.lastCall?.[3]).toBe(defaultBatch);
+    run.start(request, { ...choices, continuation: source });
+    expect(start.mock.lastCall?.[3]).toBe(savedBatch);
+  });
+
   it("starts one worker with the target and choices, and records what it says", () => {
     const { run, workers } = store();
     const changes = vi.fn();

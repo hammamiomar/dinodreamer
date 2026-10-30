@@ -1,17 +1,10 @@
 import { useEffect, useRef } from "react";
 import { SITE_WORDS } from "../app/site-words";
+import { onPhone } from "./training-device";
 
 const WORDS = SITE_WORDS.grow.phoneNotice;
 /** The session's answer, so a page that reloads during a run does not ask again. */
 const ANSWERED_KEY = "dinodreamer.train.phone-notice";
-/** A phone's shorter side, in CSS pixels; a tablet's is 744 or more. */
-const PHONE_SIDE = 600;
-
-/** A phone: a coarse pointer and a screen whose shorter side is under PHONE_SIDE. */
-export function onPhone(): boolean {
-  return matchMedia("(pointer: coarse)").matches && Math.min(screen.width, screen.height) < PHONE_SIDE;
-}
-
 /** Whether to ask before a run: on a phone, until the person trains anyway in this tab. */
 export function asksBeforeTraining(): boolean {
   if (!onPhone()) return false;
