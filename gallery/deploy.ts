@@ -1,43 +1,23 @@
-// Deploy the committed app and Worker:
-//   pnpm run deploy [revision] [--without-gpu] [--engine-sha256=<hex>]   (default main)
-//
-// 1. Check out main HEAD in a separate worktree, ../dinodreamer-public-deploy, so edits
-//    in progress in the shared checkout never reach production.
-// 2. Build the engine there, and upload its .wasm to the library bucket under
-//    app/<content hash>/. Workers static assets refuse files over 25 MiB, and the
-//    engine is larger; the bucket serves it with the CDN, CORS and immutable caching.
-//    With --engine-sha256, the built .wasm must have that SHA-256: the runtime package
-//    built from the numerically qualified engine revision; otherwise the deploy stops here, before anything is uploaded or deployed.
-//    The Chrome qualification itself runs a separate harness build (--features harness),
-//    so this hash is the identity of the runtime package, not of the bytes it tested.
-// 3. Build the app with ASSET_ENGINE_WASM naming that object, exclude *.wasm from the
-//    static assets, and deploy the Worker with the commit in its version message.
-// 4. Wait until production serves the new build, then run the deployment check (check-deployment.ts)
-//    against it; a failure fails the deploy. With --without-gpu, the deployment check runs
-//    the pages on the fake engine; run pnpm run check:deployment separately to check the engine.
+// Deploy a committed revision, or the current CI checkout:
+//   pnpm run deploy [revision] [--ci] [--without-gpu] [--preview-alias=pr-<number>]
+// CI builds engine/pkg first. Local runs build in a separate worktree.
+// Engine publication belongs to GPU qualification: this script only checks its public URL.
+// Releases require engine/qualified-engine.json to match the built WASM exactly.
+// A preview uploads a Worker version without changing production traffic.
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { request } from "node:https";
 import { dirname, join, resolve } from "node:path";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
-import { RestBucket, wranglerToken } from "./src/rest-bucket.ts";
-import { CACHE_IMMUTABLE, PUBLIC_BUCKET, engineWasmKey, listKeys } from "./src/storage.ts";
+import { engineWasmKey } from "./src/storage.ts";
 import { DINODREAMER_ORIGIN } from "./src/site-location.ts";
 
 const GALLERY = dirname(fileURLToPath(import.meta.url));
 const REPOSITORY = resolve(GALLERY, "..");
 const WORKTREE = resolve(REPOSITORY, "..", "dinodreamer-public-deploy");
-const ARGS = process.argv.slice(2);
-// A revision other than main deploys a known-good commit while main is mid-change.
-const REVISION = ARGS.find((arg) => !arg.startsWith("--")) ?? "main";
-const CHECK_WITHOUT_GPU = ARGS.includes("--without-gpu");
-// The reviewed runtime package's full SHA-256, built from the qualified engine revision.
-const REVIEWED_ENGINE_SHA256 = ARGS.find((arg) => arg.startsWith("--engine-sha256="))?.split("=")[1] ?? null;
-if (REVIEWED_ENGINE_SHA256 !== null && !/^[0-9a-f]{64}$/.test(REVIEWED_ENGINE_SHA256)) {
-  throw new Error(`--engine-sha256 must be 64 lowercase hex digits, not ${REVIEWED_ENGINE_SHA256}`);
-}
 const ENGINE_WASM = "dinodreamer_engine_bg.wasm";
 const PRODUCTION = DINODREAMER_ORIGIN;
 // Allow edge propagation before checking the deployed build.
@@ -53,42 +33,36 @@ function run(command: string, args: string[], cwd: string, env: Record<string, s
   return execFileSync(command, args, { cwd, env: { ...process.env, ...env }, encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] });
 }
 
-function checkoutMain(): string {
-  if (!existsSync(WORKTREE)) run("git", ["worktree", "add", "--detach", WORKTREE, REVISION], REPOSITORY);
-  else run("git", ["checkout", "--detach", REVISION], WORKTREE);
+function checkoutRevision(revision: string): string {
+  if (!existsSync(WORKTREE)) run("git", ["worktree", "add", "--detach", WORKTREE, revision], REPOSITORY);
+  else run("git", ["checkout", "--detach", revision], WORKTREE);
   return run("git", ["rev-parse", "HEAD"], WORKTREE).trim();
 }
 
-/**
- * With --engine-sha256: the engine this deploy built is the reviewed runtime package, byte for
- * byte. The same source and command can still give other bytes (another toolchain, another path
- * in a panic message); then the reviewed package is not the one that would ship, and that needs
- * reconciling by hand, not a deploy.
- */
-function checkQualifiedEngine(wasm: Uint8Array): void {
-  const built = createHash("sha256").update(wasm).digest("hex");
-  if (REVIEWED_ENGINE_SHA256 === null) {
-    console.log(`Engine built: sha256 ${built} (no reviewed SHA-256 given)`);
-    return;
+/** A release may only serve the exact runtime recorded by GPU qualification. */
+export function checkQualifiedEngine(built: string, qualified: string): void {
+  if (!/^[0-9a-f]{64}$/.test(qualified)) throw new Error("qualified-engine.json must contain a full lowercase SHA-256");
+  if (built !== qualified) {
+    throw new Error(`Built engine SHA-256 ${built} differs from the qualified ${qualified}. Qualify the CI artifact before releasing.`);
   }
-  if (built !== REVIEWED_ENGINE_SHA256) {
-    throw new Error(
-      `the engine built at ${REVISION} has sha256 ${built}, not the reviewed ${REVIEWED_ENGINE_SHA256}; nothing was uploaded or deployed`,
-    );
-  }
-  console.log(`Engine built: sha256 ${built}, the reviewed runtime package`);
 }
 
-async function uploadEngine(wasm: Uint8Array, library: RestBucket): Promise<string> {
-  const sha256 = createHash("sha256").update(wasm).digest("hex");
-  const key = engineWasmKey(sha256, ENGINE_WASM);
-  if ((await listKeys(library, key)).includes(key)) {
-    console.log(`Engine already published: ${key}`);
-  } else {
-    await library.put(key, wasm, { httpMetadata: { contentType: "application/wasm", cacheControl: CACHE_IMMUTABLE } });
-    console.log(`Published the engine: ${key} (${wasm.length} bytes, sha256 ${sha256})`);
+/** Check the public object without R2 credentials or writes. HTML fallback is not an engine. */
+export async function publishedEngineExists(url: string, fetcher: typeof fetch = fetch): Promise<boolean> {
+  const response = await fetcher(url, { method: "HEAD", signal: AbortSignal.timeout(REQUEST_MS) });
+  if (response.status === 404) return false;
+  if (!response.ok || response.headers.get("content-type")?.split(";")[0] !== "application/wasm") {
+    throw new Error(`Engine is not published at ${url} (HTTP ${response.status}). Publish the qualified artifact outside CI first.`);
   }
-  return key;
+  return true;
+}
+
+/** Wrangler writes one JSON object per line; use its alias URL rather than its console format. */
+export function previewUrl(output: string): string {
+  const record = output.trim().split(/\r?\n/).map((line) => JSON.parse(line)).reverse().find((entry) => entry.type === "version-upload");
+  const url = record?.preview_alias_url;
+  if (typeof url !== "string" || !url.startsWith("https://")) throw new Error("Wrangler did not return a preview alias URL");
+  return url;
 }
 
 /**
@@ -168,24 +142,72 @@ function answerBefore(path: string, deadline: number, read: boolean): Promise<{ 
   });
 }
 
-const commit = checkoutMain();
-run("wasm-pack", ["build", "--target", "web", "--release"], join(WORKTREE, "engine"));
-const wasm = new Uint8Array(readFileSync(join(WORKTREE, "engine", "pkg", ENGINE_WASM)));
-checkQualifiedEngine(wasm);
-const library = new RestBucket(PUBLIC_BUCKET, wranglerToken(GALLERY));
-const engineKey = await uploadEngine(wasm, library);
+function reportPreview(message: string, url?: string): void {
+  console.log(message);
+  if (process.env.GITHUB_OUTPUT) {
+    appendFileSync(process.env.GITHUB_OUTPUT, `message=${message}\n${url ? `url=${url}\n` : ""}`);
+  }
+}
 
-const app = join(WORKTREE, "app");
-run("pnpm", ["install", "--frozen-lockfile"], app);
-run("pnpm", ["build"], app, { ASSET_ENGINE_WASM: engineKey });
-writeFileSync(join(app, "dist", ".assetsignore"), "# Served from the library bucket; see gallery/deploy.ts.\n*.wasm\n");
+async function main(): Promise<void> {
+  const args = process.argv.slice(2);
+  const revision = args.find((arg) => !arg.startsWith("--")) ?? "main";
+  const ci = args.includes("--ci");
+  const alias = args.find((arg) => arg.startsWith("--preview-alias="))?.split("=")[1];
+  if (alias !== undefined && !/^pr-[1-9][0-9]*$/.test(alias)) throw new Error("Use --preview-alias=pr-<number>");
+  const repository = ci ? REPOSITORY : WORKTREE;
+  const commit = ci ? run("git", ["rev-parse", "HEAD"], repository).trim() : checkoutRevision(revision);
+  if (!ci) run("wasm-pack", ["build", "--target", "web", "--release", "--", "--locked"], join(repository, "engine"));
 
-const gallery = join(WORKTREE, "gallery");
-run("pnpm", ["install", "--frozen-lockfile"], gallery);
-console.log(run("pnpm", ["exec", "wrangler", "deploy", "--message", `${REVISION} ${commit}`], gallery));
-console.log(`Deployed ${REVISION} at ${commit} with engine ${engineKey}`);
-// The .wasm is excluded from the static assets (.assetsignore above); the bucket serves it.
-const assets = readdirSync(join(app, "dist", "assets")).filter((name) => !name.endsWith(".wasm"));
-await waitForBuild(readFileSync(join(app, "dist", "index.html"), "utf8"), assets);
-// A deploy that breaks /create or the gallery's checks fails loudly here.
-execFileSync(process.execPath, [join(GALLERY, "check-deployment.ts"), PRODUCTION, ...(CHECK_WITHOUT_GPU ? ["--without-gpu"] : [])], { stdio: "inherit" });
+  const wasm = readFileSync(join(repository, "engine", "pkg", ENGINE_WASM));
+  const sha256 = createHash("sha256").update(wasm).digest("hex");
+  const qualified = JSON.parse(readFileSync(join(repository, "engine", "qualified-engine.json"), "utf8"));
+  if (alias === undefined) checkQualifiedEngine(sha256, qualified.sha256);
+  const engineKey = engineWasmKey(qualified.sha256, ENGINE_WASM);
+  const app = join(repository, "app");
+  const library = readFileSync(join(app, ".env"), "utf8").match(/^ASSET_BASE_URL=(https:\/\/\S+)$/m)?.[1];
+  if (!library) throw new Error("app/.env must name the public HTTPS library in ASSET_BASE_URL");
+  const url = `${library.replace(/\/$/, "")}/${engineKey}`;
+  if (!await publishedEngineExists(url)) {
+    if (alias !== undefined) {
+      reportPreview(`Preview skipped: the recorded qualified engine is not published at ${url}. GPU qualification and publication must finish outside CI.`);
+      return;
+    }
+    throw new Error(`Qualified engine is not published at ${url}. Nothing was deployed.`);
+  }
+  if (alias !== undefined && sha256 !== qualified.sha256) {
+    reportPreview(`Preview skipped: built engine ${sha256} differs from qualified ${qualified.sha256}. Qualify the CI artifact before previewing it.`);
+    return;
+  }
+  if (!ci) run("pnpm", ["install", "--frozen-lockfile"], app);
+  run("pnpm", ["build"], app, { ASSET_ENGINE_WASM: engineKey });
+  writeFileSync(join(app, "dist", ".assetsignore"), "# Engine served by the public library.\n*.wasm\n");
+
+  const gallery = join(repository, "gallery");
+  if (!ci) run("pnpm", ["install", "--frozen-lockfile"], gallery);
+  const message = `${revision} ${commit}`;
+  if (alias !== undefined) {
+    const temporary = mkdtempSync(join(tmpdir(), "dinodreamer-preview-"));
+    try {
+      const output = join(temporary, "wrangler.jsonl");
+      console.log(run("pnpm", ["exec", "wrangler", "versions", "upload", "--preview-alias", alias, "--message", message], gallery, {
+        WRANGLER_OUTPUT_FILE_PATH: output,
+      }));
+      const url = previewUrl(readFileSync(output, "utf8"));
+      reportPreview(`Preview: ${url}`, url);
+    } finally {
+      rmSync(temporary, { recursive: true, force: true });
+    }
+    return;
+  }
+
+  console.log(run("pnpm", ["exec", "wrangler", "deploy", "--message", message], gallery));
+  console.log(`Deployed ${revision} at ${commit} with engine ${engineKey}`);
+  const assets = readdirSync(join(app, "dist", "assets")).filter((name) => !name.endsWith(".wasm"));
+  await waitForBuild(readFileSync(join(app, "dist", "index.html"), "utf8"), assets);
+  execFileSync(process.execPath, [join(gallery, "check-deployment.ts"), PRODUCTION, ...(args.includes("--without-gpu") ? ["--without-gpu"] : [])], {
+    stdio: "inherit",
+  });
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main();

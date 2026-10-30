@@ -10,7 +10,7 @@
   "compatibility_date": "2026-09-01",
   "account_id": "ca9d38a784a1dbc033775ecfd6551682",
   "workers_dev": true,
-  "preview_urls": false,
+  "preview_urls": true,
   // Production. The workers.dev address stays on as staging.
   "routes": [{ "pattern": "dinodreamer.computervision.vision", "custom_domain": true }],
   "assets": {

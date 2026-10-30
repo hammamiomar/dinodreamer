@@ -1,0 +1,56 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: production-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@d9184bf108216479bc5a137cc391f4d7b14c870b # v6.1.0
+        with:
+          package_json_file: app/package.json
+      - name: Install the repository Rust toolchain
+        working-directory: engine
+        run: rustup show active-toolchain
+      - uses: Swatinem/rust-cache@2201cc584a476d1b508be977bbe4b7d1c7a52e9c # v2.9.3
+        with:
+          workspaces: engine
+      - name: Install pinned wasm-pack
+        run: cargo install wasm-pack --version "$(node -p 'require("./engine/qualified-engine.json").wasmPackVersion')" --locked
+      - name: Build the engine package
+        working-directory: engine
+        run: wasm-pack build --target web --release -- --locked
+      - name: Install dependencies and deployment browser
+        run: |
+          pnpm --dir app install --frozen-lockfile
+          pnpm --dir gallery install --frozen-lockfile
+          pnpm --dir gallery exec playwright-core install --with-deps chrome
+      - name: Deploy the qualified engine and check production
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [[ -z "$CLOUDFLARE_API_TOKEN" ]]; then
+            echo '::error::Release requires CLOUDFLARE_API_TOKEN.'
+            exit 1
+          fi
+          pnpm --dir gallery run deploy "$GITHUB_REF_NAME" --ci --without-gpu
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes --target "$GITHUB_SHA"
