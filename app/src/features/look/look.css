@@ -646,20 +646,46 @@
   margin-bottom: 16px;
 }
 
+/*
+ * Your patch, the arrow, the lift: one grid of four rows (caption, picture, level line, button)
+ * that both cards share through a subgrid, so the pictures and the buttons line up whatever the
+ * length of each card's caption and level line.
+ */
 .look-lift {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 16px;
+  display: grid;
+  grid-template-columns: 224px auto 224px;
+  column-gap: 16px;
+  row-gap: 8px;
+  align-items: start;
 }
 
 .look-lift-patch {
   display: grid;
-  gap: 8px;
-  width: 224px;
+  grid-row: 1 / span 4;
+  grid-template-rows: subgrid;
   margin: 0;
   font-size: var(--s-1);
   color: var(--ink-2);
+}
+
+.look-lift-patch:first-child {
+  grid-column: 1;
+}
+
+.look-lift-patch[data-lift] {
+  grid-column: 3;
+}
+
+/* In the lift's place when there is none: no Level 4 patch in the sample, or your patch is already Level 4. */
+.look-lift > .look-hint {
+  grid-column: 3;
+  grid-row: 2;
+  align-self: center;
+  margin: 0;
+}
+
+.look-lift-patch + .look-hint {
+  grid-column: 2 / 4;
 }
 
 .look-lift-patch figcaption {
@@ -676,6 +702,9 @@
 }
 
 .look-lift-arrow {
+  grid-column: 2;
+  grid-row: 2;
+  align-self: center;
   font-size: var(--s1);
   color: var(--ink-2);
 }
@@ -927,8 +956,8 @@
     grid-template-columns: 96px minmax(0, 1fr);
   }
 
-  .look-lift-patch {
-    width: calc(50% - 24px);
+  .look-lift {
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   }
 
   .look-lift-patch .look-token-picture {
