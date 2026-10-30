@@ -56,6 +56,24 @@ async function checkGrowing(name: string, canvas: Locator): Promise<void> {
   }
 }
 
+/** A loaded record can still produce a blank canvas when the browser's drawing backend fails. */
+async function checkCloudPixels(page: Page): Promise<void> {
+  const canvas = page.locator(".atlas-cloud-card:has(.atlas-band-group) .atlas-cloud-area canvas").first();
+  await canvas.waitFor({ timeout: 60_000 });
+  await canvas.scrollIntoViewIfNeeded();
+  const drawn = await canvas.evaluate((element) => {
+    const canvas = element as HTMLCanvasElement;
+    const context = canvas.getContext("2d");
+    if (!context || canvas.width === 0 || canvas.height === 0) return false;
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    for (let alpha = 3; alpha < pixels.length; alpha += 4) {
+      if (pixels[alpha]! > 0) return true;
+    }
+    return false;
+  });
+  check("a nonempty Index response plot contains drawn pixels", drawn);
+}
+
 async function checkGrow(page: Page): Promise<void> {
   await page.goto(`${BASE}/train?block=12002`);
   const panel = page.locator(".grow-panel");
@@ -95,6 +113,7 @@ try {
       const failed = await page.getByText("This response plot could not be loaded.").count();
       const cards = await page.locator(".atlas-cloud-card").count();
       check("the Index draws its response plots", failed === 0 && cards > 0, `${cards} cards, ${failed} response plots not loaded`);
+      await checkCloudPixels(page).catch((error) => check("the Index draws response plot pixels", false, String(error).split("\n")[0]));
     }
     if (route === "/") {
       const adapter = await page.evaluate(async () => {
