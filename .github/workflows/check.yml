@@ -27,18 +27,41 @@ jobs:
       - uses: pnpm/action-setup@d9184bf108216479bc5a137cc391f4d7b14c870b # v6.1.0
         with:
           package_json_file: app/package.json
+      - name: Read the engine build version
+        id: engine-version
+        run: |
+          echo "wasm-pack=$(node -p 'require("./engine/qualified-engine.json").wasmPackVersion')" >> "$GITHUB_OUTPUT"
+      - name: Restore the tested engine package
+        id: engine-package
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: engine/pkg/
+          # Hash the clean checkout, including tests, fixtures, Cargo config and vendor code.
+          # Qualification metadata does not change the build; wasm-pack's version does.
+          key: >-
+            engine-package-ubuntu-24.04-${{ runner.arch }}-v1-${{ steps.engine-version.outputs.wasm-pack }}-${{
+              hashFiles('engine/**', '!engine/qualified-engine.json', '.github/workflows/check.yml')
+            }}
       - name: Install the repository Rust toolchain
+        if: steps.engine-package.outputs.cache-hit != 'true'
         working-directory: engine
         run: rustup show active-toolchain
-      - uses: Swatinem/rust-cache@2201cc584a476d1b508be977bbe4b7d1c7a52e9c # v2.9.3
+      - if: steps.engine-package.outputs.cache-hit != 'true'
+        uses: Swatinem/rust-cache@2201cc584a476d1b508be977bbe4b7d1c7a52e9c # v2.9.3
         with:
           workspaces: engine
       - name: Install pinned wasm-pack
-        run: cargo install wasm-pack --version "$(node -p 'require("./engine/qualified-engine.json").wasmPackVersion')" --locked
+        if: steps.engine-package.outputs.cache-hit != 'true'
+        env:
+          WASM_PACK_VERSION: ${{ steps.engine-version.outputs.wasm-pack }}
+        run: cargo install wasm-pack --version "$WASM_PACK_VERSION" --locked
       - name: Build the engine package
+        if: steps.engine-package.outputs.cache-hit != 'true'
+        working-directory: engine
+        run: wasm-pack build --target web --release -- --locked
+      - name: Record the engine package checksum
         working-directory: engine
         run: |
-          wasm-pack build --target web --release -- --locked
           sha256sum pkg/dinodreamer_engine_bg.wasm | tee pkg/runtime.sha256
           cat pkg/runtime.sha256 >> "$GITHUB_STEP_SUMMARY"
       - name: Save the engine for GPU qualification
@@ -63,6 +86,7 @@ jobs:
           pnpm check
           pnpm test --maxWorkers=2
       - name: Check the engine
+        if: steps.engine-package.outputs.cache-hit != 'true'
         working-directory: engine
         run: |
           cargo test --locked --no-default-features --features cpu
