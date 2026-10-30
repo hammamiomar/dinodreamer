@@ -24,7 +24,7 @@ import { pageHasPicture, pageToken, prepareCloud } from "./cloud-geometry";
 import { cloudTokenKey, hasPicture, type CloudToken } from "./cloud-token";
 import { CloudView, type CloudViewHandle, type LookTool } from "./cloud-view";
 import { LOOK_TEXT } from "./look-text";
-import { pictureAnchor } from "./grow-from-picture";
+import { pictureAnchor, pictureGrowRequest } from "./grow-from-picture";
 import { evenSubsample, makeMaterialRequest } from "./material-request";
 import { defaultOccurrence, leadingPictures, occurrenceRequest, type OccurrenceSource } from "./occurrence-request";
 import { PictureSourceChip } from "./picture-entry";
@@ -211,20 +211,12 @@ function LookBlock({ data, origin, scroller }: { data: LookData; origin: CloudTo
     if (growsToward === null) navigate(growPath(block, location.search));
     else growFrom(growsToward);
   }
-  // Grow from this, for the visitor's picture: the band rule picks the patch (grow-from-picture.ts), the points are the picture's patches here.
-  const pictureGrow = ownMain === null ? null : pictureAnchor(prepared.bands[ownMain]!, ownMain, ownLift?.index ?? null);
+  // Train from this, for your picture: toward the reference patch you chose, else your own strongest patch (grow-from-picture.ts).
+  const pictureGrow = ownMain === null ? null : pictureAnchor(ownMain, chosenAnchor, ownLift?.index ?? null);
   function growFromPicture() {
-    if (pictureGrow === null) return;
-    const points = pictureGrow.index === ownMain ? prepared.ownByStrength : [...prepared.ownByStrength, pictureGrow.index];
-    const next = makeMaterialRequest({
-      block,
-      token,
-      points: evenSubsample(points, MATERIAL_REQUEST_MAX_POINTS, pictureGrow.index),
-      anchor: pictureGrow.index,
-      strength,
-      coverage: { source: cloud.source, loadedRows: prepared.libraryRows, blockRows: cloud.whole.rows, selectedPoints: points.length },
-    });
-    setRequest(next, upload.picture ? { name: upload.picture.name, preview: upload.picture.preview } : null);
+    const grow = pictureGrowRequest(cloud, own, strength, chosenAnchor, prepared);
+    if (grow === null) return;
+    setRequest(grow.request, upload.picture ? { name: upload.picture.name, preview: upload.picture.preview, lift: grow.reason === "lift" } : null);
     navigate(growPath(block, location.search));
   }
 
@@ -291,7 +283,7 @@ function LookBlock({ data, origin, scroller }: { data: LookData; origin: CloudTo
         <div className="look-own">
           <PictureSourceChip />
           <PicturePlace ownByStrength={prepared.ownByStrength} blockStrongest={prepared.members[STRONGEST]} token={token} strength={strength}
-            lift={ownLift} anchor={anchor} selected={selectedSet} uploadUrl={uploadUrl} onHover={setHovered} onSeed={chooseSeed} onSelectAnchor={ask}
+            lift={ownLift} growsToward={pictureGrow?.index ?? null} selected={selectedSet} uploadUrl={uploadUrl} onHover={setHovered} onSeed={chooseSeed} onSelectAnchor={ask}
             onSelectOwn={() => setSelection({ kind: "picture", indices: prepared.ownByStrength })}
             onGrowFrom={pictureGrow === null ? null : growFromPicture} />
         </div>

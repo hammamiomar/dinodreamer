@@ -1,5 +1,6 @@
 import type { StrengthCuts } from "../../recipe";
 import type { CloudToken } from "./cloud-token";
+import { WARNED_BELOW } from "./grow-from-picture";
 import { LOOK_TEXT } from "./look-text";
 import type { PageLift } from "./request-panel";
 import { BandChip, LobeGauge, StrengthCounts, type GaugeMark } from "./strength-display";
@@ -10,21 +11,22 @@ import { TokenPicture, TokenStrip } from "./token-pictures";
  * Where your picture sits in this block: its patches by band, its strongest patch,
  * and the nearest Strongest patch in the same direction, so the lift is visible.
  */
-export function PicturePlace({ ownByStrength, blockStrongest, token, strength, lift, anchor, selected, uploadUrl, onHover, onSeed, onSelectAnchor, onSelectOwn, onGrowFrom }: {
+export function PicturePlace({ ownByStrength, blockStrongest, token, strength, lift, growsToward, selected, uploadUrl, onHover, onSeed, onSelectAnchor, onSelectOwn, onGrowFrom }: {
   ownByStrength: readonly number[];
   blockStrongest: readonly number[];
   token: (index: number) => CloudToken;
   strength: StrengthCuts;
   /** The lift from your strongest patch here, or null when it is already Strongest. */
   lift: PageLift | null;
-  anchor: number | null;
+  /** The patch Train from this trains toward: your patch, its lift, or another you made the reference; null without a patch here. */
+  growsToward: number | null;
   selected: ReadonlySet<number>;
   uploadUrl?: string;
   onHover: (index: number | null) => void;
   onSeed: (index: number, additive: boolean) => void;
   onSelectAnchor: (index: number) => void;
   onSelectOwn: () => void;
-  /** Grow from this: the own patch from Strongly up, else the lift (grow-from-picture.ts); absent when neither exists. */
+  /** Train from this, toward growsToward (grow-from-picture.ts); absent when the picture has no patch here. */
   onGrowFrom: (() => void) | null;
 }) {
   const text = LOOK_TEXT.picture;
@@ -45,6 +47,10 @@ export function PicturePlace({ ownByStrength, blockStrongest, token, strength, l
   if (lift) marks.push({ key: "lift", norm: token(lift.index).norm, kind: "lift" });
   const span = { from: token(ownByStrength[ownByStrength.length - 1]).norm, to: mainPoint.norm };
   const liftPoint = lift ? token(lift.index) : null;
+  const trainsOwn = growsToward === main;
+  const trainsLift = lift !== null && growsToward === lift.index;
+  // The Advanced panel's warning, here too: Train from this would use a patch near the ring.
+  const warned = growsToward !== null && bandIndex(token(growsToward).norm, strength) < WARNED_BELOW;
   return (
     <section className="look-picture-here" aria-label={text.title}>
       <div className="look-section-head">
@@ -57,7 +63,7 @@ export function PicturePlace({ ownByStrength, blockStrongest, token, strength, l
           <figcaption>{text.strongestHere}</figcaption>
           <TokenPicture point={mainPoint} uploadUrl={uploadUrl} />
           <p><BandChip band={mainBand} /> {LOOK_TEXT.position(lobePosition(mainPoint.norm, strength))}</p>
-          <button className="button" aria-pressed={anchor === main} disabled={anchor === main} onClick={() => onSelectAnchor(main)}>{anchor === main ? LOOK_TEXT.asking : LOOK_TEXT.askForIt}</button>
+          <button className="button" aria-pressed={trainsOwn} disabled={trainsOwn} onClick={() => onSelectAnchor(main)}>{trainsOwn ? LOOK_TEXT.asking : LOOK_TEXT.askForIt}</button>
         </figure>
         {mainBand === STRONGEST ? <p className="look-hint">{text.alreadyStrongest}</p> : (
           <>
@@ -67,8 +73,8 @@ export function PicturePlace({ ownByStrength, blockStrongest, token, strength, l
                 <figcaption>{text.nearest(STRONGEST)}</figcaption>
                 <TokenPicture point={liftPoint} />
                 <p><BandChip band={STRONGEST} /> {LOOK_TEXT.position(lobePosition(liftPoint.norm, strength))} · {LOOK_TEXT.liftNote(lift.degrees)}</p>
-                <button className="button look-primary" aria-pressed={anchor === lift.index} disabled={anchor === lift.index} onClick={() => onSelectAnchor(lift.index)}>
-                  {anchor === lift.index ? LOOK_TEXT.asking : LOOK_TEXT.lift(STRONGEST)}
+                <button className="button look-primary" aria-pressed={trainsLift} disabled={trainsLift} onClick={() => onSelectAnchor(lift.index)}>
+                  {trainsLift ? LOOK_TEXT.asking : LOOK_TEXT.lift(STRONGEST)}
                 </button>
               </figure>
             ) : <p className="look-hint">{LOOK_TEXT.noLift(STRONGEST)}</p>}
@@ -78,6 +84,7 @@ export function PicturePlace({ ownByStrength, blockStrongest, token, strength, l
       <LobeGauge strength={strength} marks={marks} span={span} arrow={lift ? { from: 0, to: 1 } : undefined} />
       <p className="look-hint">{text.span}</p>
       <p className="look-hint">{text.move}</p>
+      {warned && <p className="look-warning">{LOOK_TEXT.weakAnchor}</p>}
       <div className="look-picture-actions">
         <button className="button" onClick={onSelectOwn}>{text.selectAll}</button>
         {onGrowFrom && <button className="button look-primary" onClick={onGrowFrom}>{text.growFrom}</button>}

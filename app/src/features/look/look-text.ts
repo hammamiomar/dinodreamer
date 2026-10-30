@@ -251,8 +251,6 @@ export const LOOK_TEXT = {
     patches: (count: number) => `${count} ${count === 1 ? "patch" : "patches"}`,
     growFrom: "Train from this",
     opening: "Opening Train…",
-    tooWeak: (block: number) =>
-      `Your patch in basis group ${block} has a low response magnitude, and its public sample has no Level 4 patch to train toward instead.`,
     listCount: (shown: number, total: number) => `${shown} of ${total} selected basis groups`,
     more: "Show more basis groups",
     readAgain: "Try reading again",
