@@ -25,6 +25,7 @@ import { useSourced } from "../use-sourced";
 import { loadHowStory, useHowSource } from "./figure-data";
 import { BasisSchematic } from "./basis-schematic";
 import { FigureCaption } from "./figure-caption";
+import { FigureReadout } from "./figure-readout";
 import "./figures.css";
 
 const WORDS = SITE_WORDS.how.figures;
@@ -101,11 +102,8 @@ function Selection({ read }: { read: Reading | null }) {
   const open = (block: number) => navigate(`${basisGroupPath(location.pathname, location.search, block)}${location.hash}`, { state: PANEL_OPENED, preventScrollReset: true });
   const largest = read ? Math.max(...read.gate.norms) : 1;
   const rank = read ? winnerIndex(read.gate.blocks, chosen) : -1;
-  const rankLines = blocks.map((block, index) => fill(WORDS.rankLine, {
-    group: block,
-    rank: index + 1,
-    magnitude: formatValue(read!.gate.norms[index]!),
-  }));
+  const ranks = blocks.map((_, index) => fill(WORDS.rankReadout.rankValue, { rank: index + 1 }));
+  const magnitudes = read ? [...read.gate.norms].map(formatValue) : [];
   return (
     <div className="how-pair how-selection">
       <figure className="how-pane">
@@ -115,9 +113,23 @@ function Selection({ read }: { read: Reading | null }) {
         <figcaption className="how-caption">{fill(WORDS.fieldCaption, { patch: tokenName(PREFIX + HOW_PICTURE.patch), group: HOW_PICTURE.block })}</figcaption>
       </figure>
       <div className="how-pane how-measurements">
-        <FigureCaption as="div" reserve={rankLines.map((line) => <p className="how-figure-line">{line}</p>)}>
-          <p className="how-figure-line">{rankLines[rank] ?? " "}</p>
-        </FigureCaption>
+        <FigureReadout rows={[
+          {
+            value: read ? chosen : "—",
+            label: WORDS.rankReadout.group,
+            reserve: blocks,
+          },
+          {
+            value: ranks[rank] ?? "—",
+            label: WORDS.rankReadout.rank,
+            reserve: ranks,
+          },
+          {
+            value: magnitudes[rank] ?? "—",
+            label: WORDS.rankReadout.magnitude,
+            reserve: magnitudes,
+          },
+        ]} />
         <ol className="how-response-bars" aria-label={WORDS.barsName}>
           {blocks.map((block, at) => (
             <li key={block} data-lit={block === chosen || undefined}>
@@ -149,7 +161,10 @@ function Cloud({ cloud, point }: {
             <AtlasCloudFigure
               cloud={cloud}
               lit={point.atlasPoint}
-              label={<>{WORDS.cloudThis} · <span className={`band ${point.band}`}>{BAND_NAMES[STRENGTH_BANDS.indexOf(point.band as (typeof STRENGTH_BANDS)[number])]}</span></>}
+              label={<FigureReadout rows={[{
+                value: <span className={`band ${point.band}`}>{BAND_NAMES[STRENGTH_BANDS.indexOf(point.band as (typeof STRENGTH_BANDS)[number])]}</span>,
+                label: WORDS.cloudThis,
+              }]} />}
             />
           )}
         </div>
@@ -187,10 +202,7 @@ function Rebuild({ curve }: { curve: number[] | null }) {
   const x = (at: number) => margin.left + (at / WINNERS) * (chartWidth - margin.left - margin.right);
   const y = (value: number) => margin.top + (1 - value) * (chartHeight - margin.top - margin.bottom);
   const path = curve ? curve.map((value, at) => `${at === 0 ? "M" : "L"}${x(at).toFixed(1)} ${y(explainedEnergy(value)).toFixed(1)}`).join(" ") : "";
-  const readoutLines = curve ? curve.map((energy, count) => fill(WORDS.rebuildLine, {
-    count,
-    explained: Math.round(100 * explainedEnergy(energy)),
-  })) : [];
+  const explained = curve?.map((energy) => `${Math.round(100 * explainedEnergy(energy))}%`) ?? [];
   return (
     <div className="how-rebuild">
       <svg className="how-chart" viewBox={`0 0 ${chartWidth} ${chartHeight}`} role="img" aria-label={WORDS.rebuildCaption}>
@@ -205,9 +217,18 @@ function Rebuild({ curve }: { curve: number[] | null }) {
         {curve && <circle className="how-chart-dot" cx={x(count)} cy={y(explainedEnergy(curve[count]!))} r={4} />}
       </svg>
       <Slider label={WORDS.groupsAdded} value={count} min={0} max={WINNERS} valueText={fill(WORDS.groupsValue, { count })} onChange={setCount} />
-      <FigureCaption as="div" reserve={readoutLines.map((line) => <p className="how-figure-line">{line}</p>)}>
-        <p className="how-figure-line">{readoutLines[count] ?? " "}</p>
-      </FigureCaption>
+      <FigureReadout rows={[
+        {
+          value: count,
+          label: WORDS.rebuildReadout.count,
+          reserve: [WINNERS],
+        },
+        {
+          value: explained[count] ?? "—",
+          label: WORDS.rebuildReadout.explained,
+          reserve: explained,
+        },
+      ]} />
       <p className="how-caption">{WORDS.rebuildCaption}</p>
     </div>
   );
@@ -227,7 +248,12 @@ function Training({ record }: { record: FeaturizerPassesRecord }) {
   const chosen = shown ?? passes.length;
   const current = passes[chosen - 1] ?? null;
   const final = passes[passes.length - 1] ?? null;
-  const kept = current && final ? current.groups.filter((group) => final.groups.includes(group)).length : 0;
+  const readings = passes.map((pass) => ({
+    explained: `${Math.round(100 * explainedEnergy(pass.curve[WINNERS]!))}%`,
+    kept: final ? pass.groups.filter((group) => final.groups.includes(group)).length : 0,
+    loss: pass.loss.total.toFixed(3),
+  }));
+  const reading = readings[chosen - 1];
   const captionReserve = [fill(WORDS.passFieldCaption, {
     patch: tokenName(PREFIX + HOW_PICTURE.patch),
     pass: passes.length,
@@ -262,9 +288,28 @@ function Training({ record }: { record: FeaturizerPassesRecord }) {
           {current && <circle className="how-chart-dot" cx={x(WINNERS)} cy={y(explainedEnergy(current.curve[WINNERS]!))} r={4} />}
         </svg>
         <Slider label={WORDS.passSlider} value={chosen} min={1} max={Math.max(1, passes.length)} valueText={fill(WORDS.passValue, { pass: chosen, total: passes.length })} onChange={setShown} />
-        <p className="how-figure-line">
-          {current ? fill(WORDS.passLine, { pass: chosen, explained: Math.round(100 * explainedEnergy(current.curve[WINNERS]!)), kept, loss: current.loss.total.toFixed(3) }) : " "}
-        </p>
+        <FigureReadout rows={[
+          {
+            value: chosen,
+            label: WORDS.passReadout.pass,
+            reserve: passes.map((pass) => pass.pass),
+          },
+          {
+            value: reading?.explained ?? "—",
+            label: WORDS.passReadout.explained,
+            reserve: readings.map((entry) => entry.explained),
+          },
+          {
+            value: reading?.kept ?? "—",
+            label: WORDS.passReadout.kept,
+            reserve: readings.map((entry) => entry.kept),
+          },
+          {
+            value: reading?.loss ?? "—",
+            label: WORDS.passReadout.loss,
+            reserve: readings.map((entry) => entry.loss),
+          },
+        ]} />
         <p className="how-caption">{WORDS.passesCaption}</p>
       </div>
     </div>

@@ -137,7 +137,7 @@
   pointer-events: none;
 }
 
-/* A figure's one line of numbers. */
+/* A figure title. Measurements use the value-first rows below. */
 .how-figure-line {
   margin: 0;
   color: var(--ink);
@@ -172,38 +172,70 @@
   background: var(--share-fill);
 }
 
-.how-shares-list {
+.how-readout {
   display: grid;
-  gap: 4px;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px 12px;
+  width: 100%;
   margin: 0;
   padding: 0;
   list-style: none;
+  font-size: var(--s-1);
+  line-height: var(--lh-1);
 }
 
-/* A row: its part's fill as a square, the percentage, then the words. */
-.how-shares-list li {
-  display: grid;
-  grid-template-columns: 8px 3ch minmax(0, 1fr);
+.how-readout[data-markers] {
+  grid-template-columns: 8px max-content minmax(0, 1fr);
   column-gap: 8px;
+}
+
+.how-readout li {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
   align-items: baseline;
 }
 
-.how-shares-list li::before {
-  content: "";
+.how-share-marker {
   width: 8px;
   height: 8px;
   background: var(--share-fill);
 }
 
-.how-shares-value {
+.how-readout-value {
+  display: grid;
   color: var(--ink);
   text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
-.how-shares-label {
+.how-readout-value > span {
+  grid-area: 1 / 1;
+}
+
+.how-readout-reserve {
+  visibility: hidden;
+}
+
+.how-readout-label {
+  min-width: 0;
   color: var(--ink-2);
-  font-size: var(--s-1);
-  line-height: var(--lh-1);
+}
+
+.cloud-figure-label .how-readout {
+  width: max-content;
+}
+
+.how-updates {
+  display: grid;
+  justify-items: center;
+  gap: 16px;
+  width: 100%;
+}
+
+.how-updates > .how-readout {
+  max-width: 576px;
 }
 
 @media (prefers-reduced-motion: no-preference) {
