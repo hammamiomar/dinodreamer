@@ -1,7 +1,7 @@
 // The footer at the end of every page that does not fit the window (frame.tsx): one 32 px line
-// with the author's site, the source code, the featurizer, and the one promise about the visitor's
-// work, which takes its own line on a phone. How it works and the image editor are in the header.
-// The encoder is credited on How it works and in the README. Its words are site-words.ts.
+// with the author's site, the source code and the featurizer. How it works and the image editor
+// are in the header; the encoder is credited on How it works and in the README; the site says
+// where the visitor's work stays where it is kept and published. Its words are site-words.ts.
 
 import { SITE_WORDS } from "./site-words";
 
@@ -26,7 +26,6 @@ export function SiteFooter() {
       <a href={FEATURIZER_URL} target="_blank" rel="noreferrer" title={WORDS.featurizerTitle}>
         {WORDS.featurizer}
       </a>
-      <p>{WORDS.device}</p>
     </footer>
   );
 }

@@ -727,7 +727,7 @@ export const SITE_WORDS = {
   },
 
   footer: {
-    /** The footer's one line, left to right: three links, then one sentence. This link opens the author's site (computervision.vision). */
+    /** The footer's one line, left to right: three links. This link opens the author's site (computervision.vision). */
     site: "computervision.vision",
     /** The site link's tooltip. */
     siteTitle: "Omar Hammami's site, of which Dinodreamer is one part.",
@@ -739,8 +739,6 @@ export const SITE_WORDS = {
     featurizer: "Featurizer",
     /** The featurizer link's tooltip. */
     featurizerTitle: "The block sparse featurizer on Hugging Face, with its card and loader.",
-    /** The sentence at the end of the line; on a phone, a line of its own. */
-    device: "Nothing leaves your device unless you publish it.",
   },
 
   grow: {
