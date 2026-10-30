@@ -122,7 +122,8 @@ export function AtlasPage() {
   // Random keeps the order and the filters; the page is in the URL, so Back returns to this one.
   const openRandomPage = () => {
     const randomPage = randomCloudPage(pages, page, Math.random());
-    if (randomPage !== null) choose({ page: randomPage });
+    if (randomPage === null) return;
+    navigate(`/index${cloudSearch({ ...query, page: randomPage }, engine)}`, { preventScrollReset: true });
   };
   if (location.pathname === "/index" && initialSearch !== null) {
     return <Navigate replace to={`/index${initialSearch}${location.hash}`} />;
