@@ -438,7 +438,7 @@ export const SITE_WORDS = {
       /** Under the field. {patch} is the followed patch; {group} the boxed group. */
       fieldCaption: "All 16,384 groups in number order. The 32 selected by {patch} are lit; group {group} is boxed.",
       barsName: "The 32 selected groups",
-      /** Above the bars: the group under the pointer, or the page's group. {magnitude} is its response magnitude. */
+      /** Above the bars: the group under the pointer, or the page's group, with its rank and response magnitude. */
       rankReadout: {
         group: "Basis group",
         rank: "rank",
