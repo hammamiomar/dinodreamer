@@ -176,6 +176,23 @@ describe("retry on the outcome", () => {
     expect(fired({ winnerFraction: null })).toBe(false);
   });
 
+  it("keeps all three equal-update checkpoints under distinct ids", () => {
+    const files = Array.from({ length: RUNS }, (_, index) => {
+      const run = index + 1;
+      const input = figureInput(request(), summary, "dictionary", DEFAULT_KIND, 4, run);
+      return figureMaterial(input, {
+        run, stage: "final", values: new Float32Array(7776), updates: 1000, trainingMs: 1, engine: "bundled",
+        preview: "data:image/png;base64,iVBORw0KGgo=",
+        reading: { status: "measured", strength: 0.52, winnerFraction: 0, side: 128, seed: 9317, tick: 600, note: "test" },
+      });
+    });
+    expect(new Set(files.map((file) => file.id)).size).toBe(RUNS);
+    files.forEach((file, index) => {
+      expect(file.id).toContain(`-seed-${runSeed(12002, index + 1)}-`);
+      expect(file.recipe.settings.run).toBe(index + 1);
+    });
+  });
+
   it("gives each run its own seed and names a run that did not fire", () => {
     expect([1, 2, 3].map((run) => runSeed(12002, run))).toEqual([FIGURE_SEED + 12002, FIGURE_SEED + 12003, FIGURE_SEED + 12004]);
     const input = figureInput(request(), summary, "dictionary", DEFAULT_KIND, 4, 2);

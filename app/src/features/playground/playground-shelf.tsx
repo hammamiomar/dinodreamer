@@ -7,10 +7,11 @@ import { deleteMaterial, keepMaterial } from "../../storage/materials";
 import { readFigureMaterial } from "../../materials/material-file";
 import { Segmented } from "../../ui/segmented";
 import type { MaterialEntry } from "../gallery/material-index";
+import { MaterialLabel } from "../gallery/material-label";
 import { PublishMaterial } from "../gallery/publish-material";
 import type { MaterialSource } from "../../replay/material-stage";
 import { BlockHeading } from "./block-preview";
-import { choiceRows, chosenWord, tileName, tileReading, type PlaygroundChoices } from "./playground";
+import { choiceRows, chosenWord, tileReading, type PlaygroundChoices } from "./playground";
 import type { KeptFigure } from "./yours";
 
 const WORDS = SITE_WORDS.playground;
@@ -27,10 +28,8 @@ export interface KeptState {
 export type Choose = (entry: MaterialEntry, picture: HTMLElement) => void;
 
 /**
- * A short word at the right of a tile's label: what the owner did with the material, in the owner
- * mode (features/owner/), which supplies the word. The label has room for two marks, one on each of
- * its two lines, of up to 8 characters each (owner-mode.ts gives a state and Featured at most). The
- * public Playground shows none.
+ * Owner actions mark the tile below its title and recipe. The owner mode supplies a state and
+ * Featured at most; the public Playground shows no marks.
  */
 export interface TileMark {
   kind: "hidden" | "featured" | "pending" | "purged" | "approved" | "rejected";
@@ -41,7 +40,7 @@ const WITHDRAWN_MARKS: ReadonlySet<TileMark["kind"]> = new Set(["hidden", "purge
 const NO_MARKS: readonly TileMark[] = [];
 const noMarks = () => NO_MARKS;
 
-/** The marks in a column at the label's right, one per line, in a quieter ink; nothing is drawn on the picture. */
+/** Owner marks stay with the label, in quieter ink. */
 function TileMarks({ marks }: { marks: readonly TileMark[] }) {
   if (marks.length === 0) return null;
   return (
@@ -51,15 +50,15 @@ function TileMarks({ marks }: { marks: readonly TileMark[] }) {
   );
 }
 
-/** One material of the shelf: two lines of name on a line, its picture, and what it reached. */
-function Tile({ entry, poster, pressed, marks, onChoose }: {
+/** One material of the shelf: its title, recipe, picture and measured strength. */
+function Tile({ entry, poster, source, pressed, marks, onChoose }: {
   entry: MaterialEntry;
   poster: string;
+  source: MaterialSource;
   pressed: boolean;
   marks: readonly TileMark[];
   onChoose: Choose;
 }) {
-  const name = tileName(entry);
   const withdrawn = marks.some((mark) => WITHDRAWN_MARKS.has(mark.kind));
   return (
     <li>
@@ -67,8 +66,7 @@ function Tile({ entry, poster, pressed, marks, onChoose }: {
         data-withdrawn={withdrawn || undefined} data-material={entry.id}
         onClick={(event) => onChoose(entry, event.currentTarget.querySelector("img") ?? event.currentTarget)}>
         <span className="playground-tile-name">
-          <span>{name.rule}</span>
-          <span>{name.start}</span>
+          <MaterialLabel entry={entry} load={source.load} />
           <TileMarks marks={marks} />
         </span>
         <img src={poster} width={entry.side} height={entry.side} alt="" loading="lazy" />
@@ -96,7 +94,7 @@ function TileGroup({ title, entries, playing, source, marksOf, onChoose }: {
       </div>
       <ul className="playground-tiles">
         {entries.map((entry) => (
-          <Tile key={entry.id} entry={entry} poster={source.poster(entry)} pressed={entry.id === playing?.id} marks={marksOf(entry)} onChoose={onChoose} />
+          <Tile key={entry.id} entry={entry} poster={source.poster(entry)} source={source} pressed={entry.id === playing?.id} marks={marksOf(entry)} onChoose={onChoose} />
         ))}
       </ul>
     </section>
@@ -146,13 +144,12 @@ function YoursGroup({ yours, playing, source, marksOf, onChoose, onRemoved }: {
       {count > 0 && (
         <ul className="playground-tiles">
           {yours.figures.map(({ entry }) => (
-            <Tile key={entry.id} entry={entry} poster={source.poster(entry)} pressed={entry.id === playing?.id} marks={marksOf(entry)} onChoose={onChoose} />
+            <Tile key={entry.id} entry={entry} poster={source.poster(entry)} source={source} pressed={entry.id === playing?.id} marks={marksOf(entry)} onChoose={onChoose} />
           ))}
         </ul>
       )}
       {playingKept && (
         <div key={playingKept.entry.id} className="playground-kept-actions" role="group" aria-label={playingKept.entry.title}>
-          <span>{playingKept.entry.title}</span>
           <PublishMaterial file={playingKept.material.file} />
           <RemoveKept id={playingKept.entry.id} onRemoved={onRemoved} />
         </div>
@@ -253,7 +250,7 @@ export function PlaygroundShelf({
           <BlockHeading block={block} count={materials.length} family={familyOf(block)} />
           <ul className="playground-tiles">
             {materials.map((entry) => (
-              <Tile key={entry.id} entry={entry} poster={source.poster(entry)} pressed={entry.id === playing?.id} marks={marksOf(entry)} onChoose={onChoose} />
+              <Tile key={entry.id} entry={entry} poster={source.poster(entry)} source={source} pressed={entry.id === playing?.id} marks={marksOf(entry)} onChoose={onChoose} />
             ))}
           </ul>
         </section>

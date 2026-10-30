@@ -14,6 +14,7 @@ export type MaterialFileName = (typeof MATERIAL_FILES)[number];
 /** One published material, with the readouts a tile shows without opening the file. */
 export interface MaterialEntry {
   id: string;
+  /** A creative title, or empty to display the recipe. Existing research titles remain valid. */
   title: string;
   credit: string;
   publishedAt: string;

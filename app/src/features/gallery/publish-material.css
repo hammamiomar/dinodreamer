@@ -3,5 +3,8 @@
 .publish-material-form { display: grid; gap: var(--space-2); width: 100%; max-width: 420px; font-size: var(--s-1); }
 .publish-material-form label { display: grid; gap: 4px; }
 .publish-material-form input { font: inherit; color: inherit; background: transparent; border: 1px solid var(--line); border-radius: 0; padding: 6px 8px; }
-.publish-material-form p { margin: 0; }
+.publish-material-form p { margin: 0; overflow-wrap: anywhere; }
+.publish-material-form input { min-width: 0; width: 100%; box-sizing: border-box; }
+.publish-material-form p:empty { display: none; }
+.publish-material-recipe { display: grid; gap: 4px; }
 .publish-material-actions { display: flex; align-items: center; gap: var(--space-3); }

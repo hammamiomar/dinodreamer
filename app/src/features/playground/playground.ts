@@ -34,12 +34,6 @@ function kindParts(entry: MaterialEntry): { rule: string; start: string; twoPixe
   };
 }
 
-/** A tile's two lines, which fit its 128 px: "coarse + fine" over "seeded", "fine · 2 px" over "noise". */
-export function tileName(entry: MaterialEntry): { rule: string; start: string } {
-  const { rule, start, twoPixels } = kindParts(entry);
-  return { rule: twoPixels ? `${rule} · ${WORDS.twoPixelsShort}` : rule, start };
-}
-
 /** The kind beside the block number: "coarse + fine · noise", "fine · 2 px per cell · seeded". */
 export function kindLine(entry: MaterialEntry): string {
   const { rule, start, twoPixels } = kindParts(entry);
