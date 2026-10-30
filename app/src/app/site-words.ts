@@ -734,22 +734,18 @@ export const SITE_WORDS = {
   },
 
   footer: {
-    /** The footer's one line, left to right: four links, then one sentence. This link opens How it works (/how). */
-    how: "How it works",
-    /** The link to the encoder's repository and license (github.com/facebookresearch/dinov3). */
-    dino: "DINOv3 by Meta",
-    /** The link to the block sparse featurizer on Hugging Face. */
-    featurizer: "The featurizer",
-    /** The featurizer link's tooltip. */
-    featurizerTitle: "The block sparse featurizer on Hugging Face, with its card and loader.",
+    /** The footer's one line, left to right: three links. This link opens the author's site (computervision.vision). */
+    site: "computervision.vision",
+    /** The site link's tooltip. */
+    siteTitle: "Omar Hammami's site, of which Dinodreamer is one part.",
     /** The link to this site's source code on GitHub. */
     code: "Code",
     /** The code link's tooltip. */
     codeTitle: "The source code of this site, its engine and its Worker, on GitHub.",
-    /** The link to the author's personal site. */
-    author: "Omar Hammami",
-    /** The sentence at the end of the line. */
-    device: "Nothing leaves your device unless you publish it.",
+    /** The link to the block sparse featurizer on Hugging Face. */
+    featurizer: "Featurizer",
+    /** The featurizer link's tooltip. */
+    featurizerTitle: "The block sparse featurizer on Hugging Face, with its card and loader.",
   },
 
   grow: {

@@ -532,9 +532,8 @@ select {
 }
 
 /*
- * The footer (app/site-footer.tsx): one 32 px line of links and one sentence at the end of every
- * page that does not fit the window. On a phone it wraps into more 32 px lines. The rule above
- * it is drawn inside the first line, so every line stays 32 px.
+ * The footer (app/site-footer.tsx): one 32 px line of three links at the end of every page that
+ * does not fit the window, on a phone too. The rule above it is drawn inside the line.
  */
 .site-footer {
   position: relative;
@@ -566,10 +565,6 @@ select {
   white-space: nowrap;
   color: var(--ink-2);
   text-decoration: none;
-}
-
-.site-footer p {
-  margin: 0;
 }
 
 .page-message {
