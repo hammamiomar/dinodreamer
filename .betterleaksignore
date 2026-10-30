@@ -1,0 +1,6 @@
+# ACCESS_AUD in gallery/wrangler.jsonc is the Cloudflare Access application's audience tag: an
+# identifier the Worker checks in every login token, not a credential. Cloudflare prints it in
+# its documentation and in each token. The two lines are the history's and the working tree's
+# fingerprints of the same value.
+e97e75a93fda33b796cfa305f425ee4f56485eb2:gallery/wrangler.jsonc:generic-api-key:45
+gallery/wrangler.jsonc:generic-api-key:45
