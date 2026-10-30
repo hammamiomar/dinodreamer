@@ -398,6 +398,15 @@
   outline-offset: -2px;
 }
 
+/* A tapped dot shows its patch in place; the picture does not intercept another gesture. */
+.look-point-picture {
+  position: absolute;
+  z-index: 1;
+  outline: 1px solid var(--line-2);
+  background: var(--black);
+  pointer-events: none;
+}
+
 /* The picked patch, beside the view. */
 .look-preview {
   display: grid;
