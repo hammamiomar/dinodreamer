@@ -71,6 +71,27 @@
   font-size: 12px;
 }
 
+/* Match the SVG's centered drawing plane; the text keeps its screen size. */
+.cloud-figure-distance-plane {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 100%;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.cloud-figure-distance-label {
+  position: absolute;
+  transform: translate(-50%, calc(-100% - 12px));
+  padding: 0 2px;
+  background: var(--black);
+  color: var(--ink);
+  font-size: var(--s-1);
+  line-height: var(--lh-1);
+  white-space: nowrap;
+}
+
 .cloud-figure-lit-ring {
   fill: none;
   stroke: var(--ink);
