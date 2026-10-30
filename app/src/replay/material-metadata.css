@@ -1,0 +1,5 @@
+/* The metadata table (material-metadata.tsx): a label column and a value column, in the Options panel and on the publish form. */
+.material-metadata { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 16px; width: 100%; margin: 0; font-size: var(--s-1); line-height: 16px; }
+.material-metadata > div { display: contents; }
+.material-metadata dt { color: var(--ink-3); }
+.material-metadata dd { margin: 0; color: var(--ink-2); overflow-wrap: anywhere; }

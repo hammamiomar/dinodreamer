@@ -567,6 +567,21 @@ export const SITE_WORDS = {
     readingCentreWins: "central selection fraction {percent}%",
     fired: "selection target met",
     didNotFire: "selection target not met",
+    /** The metadata table in the Options panel and on the publish form (material-metadata.tsx): its labels, the stored value's names (strengthStatistic) and the target's two states. Grids and Start reuse the Automata choices' labels. */
+    metadata: {
+      title: "Title",
+      reference: "Reference patch",
+      projection: "Projection on the target",
+      projectionMain: "Projection on the main direction",
+      median: "Median response magnitude",
+      recorded: "Recorded measurement",
+      selection: "Selection fraction",
+      centreSelection: "Central selection fraction",
+      target: "Selection target",
+      met: "met",
+      notMet: "not met",
+      updates: "Updates",
+    },
     /** After the measurement line: the person who trained it. {credit} is the name. */
     by: "by {credit}",
     /** The trainer when none is named. */
@@ -691,14 +706,6 @@ export const SITE_WORDS = {
     rejected: "Rejected. It stays here, greyed, until the page is reloaded.",
     /** Beside the bar when an action failed. {action} is its word, {message} the Worker's reason. */
     actionFailed: "{action} failed: {message}",
-  },
-
-  material: {
-    /** Draft: recipe labels shared by Automata, home and owner review. */
-    basisGroup: "Basis group {block}",
-    updates: "{updates} updates",
-    updatesLoading: "Reading update count…",
-    updatesUnavailable: "Update count unavailable",
   },
 
   publish: {

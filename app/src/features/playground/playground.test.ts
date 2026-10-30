@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { FIGURE_LAYOUT, FIGURE_PYRAMID_LAYOUT } from "../../materials/material-file";
 import { materialsByBlock, type MaterialEntry } from "../gallery/material-index";
-import { choiceRows, chosenWord, EVERY_MATERIAL, familiesPresent, familyName, featuredMaterials, firstToPlay, keptByChoices, kindLine, materialToPlay, playgroundPath, tileReading } from "./playground";
+import { choiceRows, chosenWord, EVERY_MATERIAL, familiesPresent, familyName, featuredMaterials, firstToPlay, keptByChoices, kindLine, materialToPlay, playgroundPath, tileName, tileReading } from "./playground";
 
 function entry(changes: Partial<MaterialEntry>): MaterialEntry {
   return {
@@ -12,6 +12,12 @@ function entry(changes: Partial<MaterialEntry>): MaterialEntry {
 }
 
 describe("a material's words", () => {
+  test("a tile names the grids over the start, each short enough for 128 px", () => {
+    expect(tileName(entry({}))).toEqual({ rule: "fine", start: "noise" });
+    expect(tileName(entry({ layout: FIGURE_PYRAMID_LAYOUT, start: "centre-disc" }))).toEqual({ rule: "coarse + fine", start: "central noise" });
+    expect(tileName(entry({ pixelsPerCell: 2 }))).toEqual({ rule: "fine · 2 px", start: "noise" });
+  });
+
   test("the head says the kind on one line", () => {
     expect(kindLine(entry({ layout: FIGURE_PYRAMID_LAYOUT }))).toBe("coarse + fine · noise");
     expect(kindLine(entry({ pixelsPerCell: 2, start: "centre-disc" }))).toBe("fine · 2 px per cell · central noise");

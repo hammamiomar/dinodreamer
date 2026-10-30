@@ -3,7 +3,7 @@ import { TURNSTILE_SITE_KEY } from "../../app/config";
 import { fill, SITE_WORDS } from "../../app/site-words";
 import type { FigureMaterialFile } from "../../materials/material-file";
 import { MATERIAL_SUBMISSION_LIMITS, refreshMaterialIndex, submitMaterial, useMaterialIndex } from "./material-gallery";
-import { fileRecipeCaption } from "./material-caption";
+import { fileMetadataRows, MaterialMetadata } from "../../replay/material-metadata";
 import { submissionLabelProblem } from "./submission-label";
 import { TurnstileCheck } from "./turnstile";
 import "./publish-material.css";
@@ -82,7 +82,7 @@ export function PublishMaterial({ file }: { file: FigureMaterialFile }) {
     }
   };
   return <form className="publish-material-form" onSubmit={(event) => { event.preventDefault(); void send(); }}>
-    <div className="publish-material-recipe"><span className="label">{WORDS.recipe}</span><p>{fileRecipeCaption(file)}</p></div>
+    <div className="publish-material-recipe"><span className="label">{WORDS.recipe}</span><MaterialMetadata rows={fileMetadataRows(file)} /></div>
     <label>{WORDS.title}<input value={form.title} placeholder={WORDS.titleHint} aria-describedby={`${titleHelp} ${titleError}`} aria-invalid={titleProblem !== null}
       onChange={(event) => setForm({ ...form, title: event.target.value })} /></label>
     <p id={titleHelp} className="muted">{fill(WORDS.titleHelp, { limit: MATERIAL_SUBMISSION_LIMITS.titleCharacters })}</p>

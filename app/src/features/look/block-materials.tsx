@@ -2,10 +2,10 @@
 // Each tile opens its automaton in the Playground; this view has no player.
 
 import { Link } from "react-router";
-import { MaterialLabel } from "../gallery/material-label";
+import { RULE_CHOICES, START_CHOICES } from "../../grow/material-kind";
 import { materialFileUrl, type MaterialIndexState } from "../gallery/material-gallery";
 import { materialsOfBlock, type MaterialEntry } from "../gallery/material-index";
-import { playgroundPath } from "../playground/playground";
+import { entryKind, playgroundPath } from "../playground/playground";
 import { LOOK_TEXT } from "./look-text";
 
 /** One row of the module grid: eight tiles at 1440 (fewer show on a phone, by CSS). */
@@ -42,14 +42,18 @@ export function materialReading(entry: MaterialEntry): string {
   return entry.strength === null ? "" : entry.strength.toFixed(2);
 }
 
-/** The title and recipe under the poster, followed by the measured strength. */
+/** Three lines under the poster: the rule, the start, the reading. */
 function MaterialTile({ entry }: { entry: MaterialEntry }) {
+  const kind = entryKind(entry);
+  const rule = RULE_CHOICES.find((choice) => choice.value === kind.rule)!.label;
+  const start = START_CHOICES.find((choice) => choice.value === kind.start)!.label;
   return (
     <li>
       <Link className="look-material" to={playgroundPath(entry)} data-fired={entry.fired || undefined}>
         <img src={materialFileUrl(entry.id, "poster.png")} width={entry.side} height={entry.side} alt="" loading="lazy" />
         <span className="look-material-name">
-          <MaterialLabel entry={entry} />
+          <span>{entry.pixelsPerCell === 2 ? LOOK_TEXT.materials.twoPixels(rule) : rule}</span>
+          <span>{start}</span>
           <span className="look-material-reading">{materialReading(entry)}</span>
         </span>
       </Link>
