@@ -1232,10 +1232,11 @@ html {
     white-space: normal;
   }
 
-  /* The sentence takes the second line. */
+  /* The sentence takes the second line; narrower than it, the sentence breaks into two even lines. */
   .site-footer p {
     flex-basis: 100%;
     margin-left: 0;
+    text-wrap: balance;
   }
 
   .frame-header {
