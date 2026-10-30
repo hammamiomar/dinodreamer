@@ -382,11 +382,6 @@ function Updates({ record }: { record: AutomatonRecord }) {
       </div>
       <FigureReadout rows={[
         {
-          value: frame?.update ?? "—",
-          label: WORDS.updateReadout.update,
-          reserve: frames.map((entry) => entry.update),
-        },
-        {
           value: reading?.selection ?? "—",
           label: WORDS.updateReadout.selection,
           reserve: readings.map((entry) => entry.selection),

@@ -456,7 +456,6 @@ export const SITE_WORDS = {
       groupsAdded: "Groups added",
       groupsValue: "{count} of 32",
       rebuildReadout: {
-        count: "groups added",
         explained: "of the token's energy explained",
       },
       rebuildCaption: "How much of the token's energy the groups explain as they are added, largest response first.",
@@ -465,7 +464,6 @@ export const SITE_WORDS = {
       passSlider: "Pass",
       passValue: "{pass} of {total}",
       passReadout: {
-        pass: "After pass",
         explained: "of the token's energy explained with all\u00a032",
         kept: "of its 32 groups are the final ones",
         loss: "mean loss over the pass",
@@ -511,7 +509,6 @@ export const SITE_WORDS = {
       updateSlider: "Update",
       stripCaption: "The image at step 600 in 16 selected readouts, to the first accepted checkpoint.",
       updateReadout: {
-        update: "Update",
         selection: "the group selected on",
         selectionValue: "{wins}% of the patches",
         strength: "strength",

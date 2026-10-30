@@ -219,11 +219,6 @@ function Rebuild({ curve }: { curve: number[] | null }) {
       <Slider label={WORDS.groupsAdded} value={count} min={0} max={WINNERS} valueText={fill(WORDS.groupsValue, { count })} onChange={setCount} />
       <FigureReadout rows={[
         {
-          value: count,
-          label: WORDS.rebuildReadout.count,
-          reserve: [WINNERS],
-        },
-        {
           value: explained[count] ?? "—",
           label: WORDS.rebuildReadout.explained,
           reserve: explained,
@@ -289,11 +284,6 @@ function Training({ record }: { record: FeaturizerPassesRecord }) {
         </svg>
         <Slider label={WORDS.passSlider} value={chosen} min={1} max={Math.max(1, passes.length)} valueText={fill(WORDS.passValue, { pass: chosen, total: passes.length })} onChange={setShown} />
         <FigureReadout rows={[
-          {
-            value: chosen,
-            label: WORDS.passReadout.pass,
-            reserve: passes.map((pass) => pass.pass),
-          },
           {
             value: reading?.explained ?? "—",
             label: WORDS.passReadout.explained,
