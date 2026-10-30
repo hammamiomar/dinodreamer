@@ -788,6 +788,13 @@ export const SITE_WORDS = {
     start: "Start",
     /** The check above the primary. The first accepted checkpoint: the first checkpoint whose cellular model meets the selection target at simulation step 600, and for a noise start again at step 2,000. */
     stopAtFirstFire: "Stop at the first accepted checkpoint",
+    /** The dialog before the first run of a session on a phone (grow/phone-notice.tsx). */
+    phoneNotice: {
+      title: "Training works best on a computer",
+      body: "Training runs the vision model in this browser. On a phone, the page can reload during a run.",
+      train: "Train anyway",
+      cancel: "Cancel",
+    },
     /** The time line before a run. {updates} is a number of optimizer updates, {duration} the time ("6.6 min"). */
     timeBefore: "about {updates} updates · {duration}",
     /** The time line while a run trains. */

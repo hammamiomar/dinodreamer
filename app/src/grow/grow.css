@@ -506,7 +506,9 @@
   }
 }
 
-.train-loading {
+/* The two Train dialogs: preparing a run (train-loading.tsx), and the phone notice before one (phone-notice.tsx). */
+.train-loading,
+.train-notice {
   width: min(448px, calc(100vw - 32px));
   max-height: calc(100dvh - 32px);
   margin: auto;
@@ -516,10 +518,15 @@
   color: var(--ink);
 }
 
-.train-loading::backdrop { background: rgb(0 0 0 / 75%); }
-.train-loading h2 { margin: 0 0 24px; font-size: var(--s1); }
-.train-loading p { margin: 24px 0; color: var(--ink-2); line-height: 24px; }
-.train-loading .button { min-height: 44px; }
+.train-loading::backdrop,
+.train-notice::backdrop { background: rgb(0 0 0 / 75%); }
+.train-loading h2,
+.train-notice h2 { margin: 0 0 24px; font-size: var(--s1); }
+.train-loading p,
+.train-notice p { margin: 24px 0; color: var(--ink-2); line-height: 24px; }
+.train-loading .button,
+.train-notice .button { min-height: 44px; }
+.train-notice-actions { display: flex; flex-wrap: wrap; gap: var(--patch); }
 
 .grow-levels { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .grow-levels .grow-pick { padding: 0; border: 0; background: none; color: var(--ink-2); font: inherit; cursor: pointer; }
