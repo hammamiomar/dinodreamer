@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { batchFallback, clearBatchFallback, clearRunOnPageHide, fallbackAfter, noteInterruptedRun, presetBatch, runMemory } from "./batch-size";
+import { batchFallback, clearBatchFallback, clearRunOnPageHide, fallbackAfter, noteInterruptedRun, presetBatch, runMemory, runWentDownInThisTab } from "./batch-size";
 
 /** A tab's session storage, kept across the page loads a test plays. */
 function fakeStorage(): Storage {
@@ -62,6 +62,8 @@ describe("the fallback after a run at 4 stops the page", () => {
     clearBatchFallback();
     expect(batchFallback()).toBeNull();
     expect(presetBatch("")).toBe(4);
+    // The tab still knows a run went down, for the start dialog's advice to reload.
+    expect(runWentDownInThisTab()).toBe(true);
   });
 
   test("a page the person leaves or reloads is not a run that stopped it", () => {
@@ -73,6 +75,7 @@ describe("the fallback after a run at 4 stops the page", () => {
     noteInterruptedRun();
     expect(batchFallback()).toBeNull();
     expect(presetBatch("")).toBe(4);
+    expect(runWentDownInThisTab()).toBe(false);
   });
 
   test("a run that ended, and a run at 1, leave no fallback", () => {

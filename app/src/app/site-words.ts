@@ -800,6 +800,9 @@ export const SITE_WORDS = {
     continuedBatch: "A continued automaton keeps its batch size.",
     /** In place of the hint when Train fell back to batch size 1 because a run at 4 took the page down. */
     fallbackReload: "A run at batch size 4 stopped this page, likely for lack of memory. Train now uses 1.",
+    /** In the start dialog when the browser gives Train no GPU (protocol.ts adapterUnavailable), with a Reload button. */
+    noAdapter: "The browser gave Train no GPU. This can happen just after a run stopped the page. Reload the page, then press Train again.",
+    reload: "Reload",
     /** The same when a run at 4 lost the graphics device. */
     fallbackDevice: "A run at batch size 4 lost the graphics device, likely for lack of memory. Train now uses 1.",
     /** The time line before a run. {updates} is a number of optimizer updates, {duration} the time ("6.6 min"). */

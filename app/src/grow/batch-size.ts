@@ -17,6 +17,8 @@ export interface BatchFallback {
 const RUN_KEY = "dinodreamer.train.run";
 /** The tab's fallback, as JSON. */
 const FALLBACK_KEY = "dinodreamer.train.batch-fallback";
+/** Present once a run went down with the page in this tab; kept when the person chooses a batch size. */
+const WENT_DOWN_KEY = "dinodreamer.train.went-down";
 /** A phone's shorter side, in CSS pixels; a tablet's is 744 or more. */
 const PHONE_SIDE = 600;
 
@@ -92,7 +94,16 @@ export function noteInterruptedRun(): void {
   const stored = storage()?.getItem(RUN_KEY);
   if (stored === null || stored === undefined) return;
   runMemory.ended();
+  storage()?.setItem(WENT_DOWN_KEY, "1");
   recordFallback(fallbackAfter("reload", stored === "1" ? LIGHT_BATCH : RECIPE_BATCH));
+}
+
+/**
+ * Whether a run went down with the page earlier in this tab. Right after that, the browser can have
+ * no GPU adapter for the page until it is reloaded (protocol.ts adapterUnavailable).
+ */
+export function runWentDownInThisTab(): boolean {
+  return storage()?.getItem(WENT_DOWN_KEY) != null;
 }
 
 /** Installed once by the site's run: the record never outlives a page the person leaves. */
