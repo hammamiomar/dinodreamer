@@ -106,4 +106,5 @@ export type GrowEvent =
   | { type: "live"; frame: LiveFrame }
   | { type: "reading"; reading: LiveReading }
   | { type: "material"; file: FigureMaterialFile; run: number; stage: KeptStage; fired: boolean }
-  | { type: "error"; message: string };
+  /** `deviceLost`: WebGPU lost the device, which on a device without room for the run means out of memory. */
+  | { type: "error"; message: string; deviceLost?: boolean };

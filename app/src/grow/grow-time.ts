@@ -1,6 +1,7 @@
 import { SITE_WORDS, fill } from "../app/site-words";
 import { FIGURE_UPDATES, RESUME_UPDATES } from "./figure-recipe";
 import type { MaterialKind } from "./material-kind";
+import { RECIPE_BATCH, type BatchSize } from "./batch-size";
 
 // Reference estimates use block 12002 at batch 4 on an Apple M1 Max in Chrome 155. Update costs
 // are paired medians for the four kinds. First-fire updates come from one run per kind, so they
@@ -19,6 +20,17 @@ const REFERENCE: Record<MaterialKind["rule"], Record<MaterialKind["start"], Refe
   pyramid: { noise: { msPerUpdate: 603, firstFire: 250 }, "centre-disc": { msPerUpdate: 641, firstFire: 450 } },
 };
 
+/**
+ * The time of an update at batch size 1, as a share of one at 4: medians of 1,000 updates per kind on
+ * an RTX 2080 Super in Chromium 155 (2026-10-30), 0.29 to 0.31. The reference first fires stay those
+ * of batch size 4; batch size 1 has no measured first fires.
+ */
+const BATCH_ONE_TIME_SHARE = 0.3;
+
+function referenceMs(reference: Reference, batch: BatchSize): number {
+  return batch === RECIPE_BATCH ? reference.msPerUpdate : reference.msPerUpdate * BATCH_ONE_TIME_SHARE;
+}
+
 /** Updates before the device's own rate replaces the reference: the first checkpoint. */
 export const MEASURED_AFTER = 25;
 
@@ -30,12 +42,12 @@ export interface GrowTime {
 }
 
 /** Before a run: the whole run (1,000 updates), or the typical first fire when the run stops there. */
-export function timeBefore(kind: MaterialKind, stopAtFirstFire: boolean, fromUpdate = 0): GrowTime {
+export function timeBefore(kind: MaterialKind, stopAtFirstFire: boolean, fromUpdate = 0, batch: BatchSize = RECIPE_BATCH): GrowTime {
   const reference = REFERENCE[kind.rule][kind.start];
   // A continuation trains on from its definition's update: to 1,000, or RESUME_UPDATES past it.
   const left = fromUpdate < FIGURE_UPDATES ? FIGURE_UPDATES - fromUpdate : RESUME_UPDATES;
   const updates = stopAtFirstFire ? Math.min(reference.firstFire, left) : left;
-  return { updates, seconds: updates * reference.msPerUpdate / 1000, measured: false };
+  return { updates, seconds: updates * referenceMs(reference, batch) / 1000, measured: false };
 }
 
 /**
@@ -43,14 +55,16 @@ export function timeBefore(kind: MaterialKind, stopAtFirstFire: boolean, fromUpd
  * aims at the typical first fire; once it has passed that update without a fire, at most the run's
  * last update (`total`: 1,000, or more after a Resume past it) remains.
  */
-export function timeLeft(kind: MaterialKind, stopAtFirstFire: boolean, progress: { completed: number; total: number; trainingMs: number }, fromUpdate = 0): GrowTime {
+export function timeLeft(
+  kind: MaterialKind, stopAtFirstFire: boolean, progress: { completed: number; total: number; trainingMs: number }, fromUpdate = 0, batch: BatchSize = RECIPE_BATCH,
+): GrowTime {
   const reference = REFERENCE[kind.rule][kind.start];
   const trained = progress.completed - fromUpdate;
   const firstFire = Math.min(fromUpdate + reference.firstFire, progress.total);
   const end = stopAtFirstFire && progress.completed < firstFire ? firstFire : progress.total;
   const updates = Math.max(end - progress.completed, 0);
   const measured = trained >= MEASURED_AFTER;
-  const msPerUpdate = measured ? progress.trainingMs / trained : reference.msPerUpdate;
+  const msPerUpdate = measured ? progress.trainingMs / trained : referenceMs(reference, batch);
   return { updates, seconds: updates * msPerUpdate / 1000, measured };
 }
 

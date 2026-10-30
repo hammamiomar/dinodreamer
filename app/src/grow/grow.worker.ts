@@ -67,7 +67,7 @@ async function loadModel(release: ModelRelease, assets: AssetLoader, block: numb
   phase("loading", "Preparing graphics on this device…");
   await initializeEngine();
   engine = await BrowserEngine.create();
-  engine.on_device_lost((message: string) => send({ type: "error", message }));
+  engine.on_device_lost((message: string) => send({ type: "error", message, deviceLost: true }));
   const files = [...release.encoder, release.calibration];
   for (const [index, file] of files.entries()) {
     phase("loading", `Loading the training models · ${index + 1}/${files.length}`);
