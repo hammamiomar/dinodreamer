@@ -5,7 +5,7 @@ import { NO_RECORD } from "./grow-view";
 import type { GrowEvent } from "./protocol";
 import { readFigureMaterial } from "../materials/material-file";
 import { continuationSource } from "./continuation";
-import { createTrainRun, sameTarget, SIDE, trayShown, type GrowSettings, type TrainRunClient } from "./train-run";
+import { changedFromRun, createTrainRun, sameTarget, SIDE, trayShown, type GrowSettings, type TrainRunClient } from "./train-run";
 import { SAMPLE_EVERY_TICKS } from "../ui/sampled-accent";
 
 const anchor: MaterialAnchor = {
@@ -76,6 +76,14 @@ describe("the site's Train run (train-run.ts)", () => {
     run.start(request, { ...choices, batch: chosenBatch, continuation: source });
     expect(start.mock.lastCall?.[3]).toBe(savedBatch);
     expect(run.state().settings?.batch).toBe(savedBatch);
+  });
+
+  it("treats another batch size after Stop as another run, as it does another kind", () => {
+    const held: GrowSettings = { ...choices, request, batch: 1 };
+    expect(changedFromRun(held, { ...choices, batch: 1 })).toBe(false);
+    expect(changedFromRun(held, { ...choices, batch: 4 })).toBe(true);
+    expect(changedFromRun(held, { ...choices, batch: 1, kind: { rule: "pyramid", start: "noise" } })).toBe(true);
+    expect(changedFromRun(held, { ...choices, batch: 1, stopAtFirstFire: true })).toBe(true);
   });
 
   it("tells the tab while a run trains, and a lost device apart from other errors", () => {

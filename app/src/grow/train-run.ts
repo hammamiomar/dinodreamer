@@ -226,6 +226,18 @@ export function createTrainRun(dependencies: TrainRunDependencies): TrainRun {
 }
 
 /**
+ * Whether the page's choices describe another run than the held one: another kind, stop rule,
+ * continuation or batch size. Then Train starts that run; otherwise Resume trains the held one on.
+ */
+export function changedFromRun(run: GrowSettings, chosen: Pick<GrowSettings, "kind" | "stopAtFirstFire" | "continuation" | "batch">): boolean {
+  return run.kind.rule !== chosen.kind.rule
+    || run.kind.start !== chosen.kind.start
+    || run.stopAtFirstFire !== chosen.stopAtFirstFire
+    || run.continuation?.id !== chosen.continuation?.id
+    || run.batch !== chosen.batch;
+}
+
+/**
  * Whether a page's request is the target a run trains toward: the same basis group and mode, the
  * same reference patch (its picture, its place, its code, its level), and the same continued
  * definition. A page shows the run only for its own target; any other target is a new run.

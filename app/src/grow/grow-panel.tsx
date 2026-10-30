@@ -8,7 +8,7 @@ import { downloadBlob } from "../ui/files";
 import { MaterialFrame } from "../ui/material-frame";
 import { Segmented } from "../ui/segmented";
 import {
-  drawCells, sameTarget, SIDE, trainRun, useLiveCells, useTrainRun, useTrainTick,
+  changedFromRun, drawCells, sameTarget, SIDE, trainRun, useLiveCells, useTrainRun, useTrainTick,
   type GrowSettings, type KeepFailure, type TrainRunState,
 } from "./train-run";
 import { CoSelectedPictures } from "./co-selected-pictures";
@@ -161,10 +161,12 @@ export function GrowPanel({ block, request, continuation, heading }: {
     return () => trainRun.showOnPage(false);
   }, [ours]);
   const runKind = continuation ? continuedKind(continuation, kind) : kind;
-  // A continuation keeps its definition's batch size; otherwise the person's choice, or the preset.
-  const runBatch = continuation ? continuation.batch : chosenBatch ?? presetBatch();
+  // A held run (stopped, or ended with its live grid) trains on at its own batch size. A continuation
+  // keeps its definition's. Otherwise the person's choice, or the preset.
+  const held = settings !== null && record.active;
+  const runBatch = continuation ? continuation.batch : chosenBatch ?? (held ? settings.batch : presetBatch());
   // After a run at 4 took the page or the device down, the preset is 1, and the hint says why.
-  const fallback = !continuation && chosenBatch === null && runBatch === LIGHT_BATCH ? batchFallback() : null;
+  const fallback = !continuation && !held && chosenBatch === null && runBatch === LIGHT_BATCH ? batchFallback() : null;
   const fallbackNote = fallback ? (fallback.reason === "reload" ? WORDS.fallbackReload : WORDS.fallbackDevice) : null;
   const [advancedOpen, setAdvancedOpen] = useState(fallbackNote !== null);
   useEffect(() => {
@@ -175,9 +177,7 @@ export function GrowPanel({ block, request, continuation, heading }: {
     setChosenBatch(batch);
   };
   const chosen = { kind: runKind, stopAtFirstFire, continuation, batch: runBatch };
-  const changed = settings !== null
-    && (settings.kind.rule !== runKind.rule || settings.kind.start !== runKind.start || settings.stopAtFirstFire !== stopAtFirstFire
-      || settings.continuation?.id !== continuation?.id);
+  const changed = settings !== null && changedFromRun(settings, chosen);
   const primary = primaryAction(state, changed);
   const open = choicesOpen(state);
   const coSelection = shownCoSelection(state, record);
