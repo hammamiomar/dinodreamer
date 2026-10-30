@@ -6,6 +6,7 @@ import { parseRecipe } from "../../app/src/recipe-parse.ts";
 import { isPng, pendingKey, type Bucket, type SubmissionMetadata } from "./storage.ts";
 
 export { isPng };
+import { submissionLabelProblem } from "../../app/src/features/gallery/submission-label.ts";
 import { TOKEN_FIELD } from "./turnstile.ts";
 import { MATERIAL_LIMITS, checkedMaterial, materialPoster, type MaterialSubmission } from "./material-review.ts";
 
@@ -18,8 +19,6 @@ export const SUBMISSION_LIMITS = {
   /** The whole multipart body: both files at their limits plus the form's own framing. */
   requestBytes: 2 * 1024 * 1024 + 64 * 1024 + 16 * 1024,
 } as const;
-
-const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]/;
 
 export interface Submission {
   image: Uint8Array;
@@ -87,8 +86,9 @@ function textField(form: FormData, name: string, limit: number): { value: string
   const raw = form.get(name) ?? "";
   if (typeof raw !== "string") return { error: `${name} must be text` };
   const value = raw.trim();
-  if ([...value].length > limit) return { error: `${name} has more than ${limit} characters` };
-  if (CONTROL_CHARACTERS.test(value)) return { error: `${name} contains control characters` };
+  const problem = submissionLabelProblem(value, limit);
+  if (problem === "too-long") return { error: `${name} has more than ${limit} characters` };
+  if (problem === "control-characters") return { error: `${name} contains control characters` };
   return { value };
 }
 
@@ -128,7 +128,6 @@ export async function readMaterialForm(form: FormData):
   if ("error" in checked) return { ok: false, status: checked.error.includes("larger") ? 413 : 400, error: checked.error };
   const title = textField(form, "title", MATERIAL_LIMITS.titleCharacters);
   if ("error" in title) return { ok: false, status: 400, error: title.error };
-  if (title.value === "") return { ok: false, status: 400, error: "title is missing" };
   const credit = textField(form, "credit", MATERIAL_LIMITS.creditCharacters);
   if ("error" in credit) return { ok: false, status: 400, error: credit.error };
   const token = form.get(TOKEN_FIELD);

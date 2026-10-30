@@ -12,7 +12,7 @@ import { refusal } from "./gallery-api";
 import { EMPTY_MATERIAL_INDEX, readMaterialIndex, type MaterialFileName, type MaterialIndex } from "./material-index";
 
 type Fetch = typeof fetch;
-export const MATERIAL_SUBMISSION_LIMITS = { titleCharacters: 80, creditCharacters: 40 } as const;
+export { MATERIAL_SUBMISSION_LIMITS } from "./submission-label";
 
 export function materialFileUrl(id: string, file: MaterialFileName): string {
   return `/api/materials/${encodeURIComponent(id)}/${file}`;
@@ -25,10 +25,22 @@ export async function fetchMaterialIndex(fetcher: Fetch = fetch): Promise<Materi
   return readMaterialIndex(await response.json());
 }
 
-export async function fetchPublishedMaterial(id: string, fetcher: Fetch = fetch): Promise<FigureMaterial> {
-  const response = await fetcher(materialFileUrl(id, "material.json"));
-  if (!response.ok) throw new Error(`Automaton ${id} answered ${response.status}.`);
-  return readFigureMaterial(await response.json());
+const publishedFiles = new Map<string, Promise<FigureMaterial>>();
+
+/** Published definitions are immutable. Share a load between playback and older index labels. */
+export function fetchPublishedMaterial(id: string, fetcher: Fetch = fetch): Promise<FigureMaterial> {
+  const cached = fetcher === fetch ? publishedFiles.get(id) : undefined;
+  if (cached) return cached;
+  const loading = (async () => {
+    const response = await fetcher(materialFileUrl(id, "material.json"));
+    if (!response.ok) throw new Error(`Automaton ${id} answered ${response.status}.`);
+    return readFigureMaterial(await response.json());
+  })();
+  if (fetcher === fetch) {
+    publishedFiles.set(id, loading);
+    void loading.catch(() => publishedFiles.delete(id));
+  }
+  return loading;
 }
 
 /** A published material's file, loaded once per id; null asks for none (a still shows the poster alone). */

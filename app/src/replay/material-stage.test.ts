@@ -11,8 +11,8 @@ const entry: MaterialEntry = {
 };
 
 describe("material stage wording", () => {
-  it("names a variation without repeating its block", () => {
-    expect(variationName(entry)).toBe("strongest · seed 1");
+  it("preserves a submitted title", () => {
+    expect(variationName(entry)).toBe(entry.title);
     expect(variationName({ ...entry, title: "Scales" })).toBe("Scales");
   });
 

@@ -52,7 +52,7 @@ describe("material submissions", () => {
     expect((await pendingSubmissions(submissions)).map((metadata) => metadata.id)).toEqual([canvas.body.id]);
   });
 
-  it("refuse shader source, another dictionary, a broken file and a missing title", async () => {
+  it("refuse shader source, another dictionary, a broken file and an overlong title", async () => {
     const { env, submissions } = testEnv();
     const file = JSON.parse(text(firedName));
     const shader = await submitMaterial(env, { material: "@compute @workgroup_size(64) fn main() {}" });
@@ -60,9 +60,33 @@ describe("material submissions", () => {
     expect(shader.body.error).toMatch(/not a valid format-4 file/);
     expect((await submitMaterial(env, { material: JSON.stringify({ ...file, dictionaryId: "other" }) })).body.error).toMatch(/another basis collection/);
     expect((await submitMaterial(env, { material: JSON.stringify({ ...file, rule: { ...file.rule, fireRate: 2 } }) })).status).toBe(400);
-    expect((await submitMaterial(env, { title: "" })).body.error).toMatch(/title/);
+    expect((await submitMaterial(env, { title: "a".repeat(81) })).body.error).toMatch(/title/);
     expect(submissions.objects.size).toBe(0);
   });
+  it.each(["", "   ", "a".repeat(80), "🌿".repeat(80)])("accepts an optional title within 80 Unicode characters (%j)", async (title) => {
+    const { env, submissions, library } = testEnv();
+    const file = JSON.parse(text(firedName));
+    file.name = "Block 12002 · strongest anchor · Fine · noise · run 1 of 3 · final · 1,000 updates · continued from update 450";
+    const response = await submitMaterial(env, { title, material: JSON.stringify(file) });
+    expect(response.status).toBe(201);
+    const metadata = (await pendingMaterials(submissions))[0];
+    expect(metadata.title).toBe(title.trim());
+    const entry = await approveMaterial(submissions, library, response.body.id!, new Date());
+    expect(entry.title).toBe(title.trim());
+    const stored = await library.get(materialKey(entry.id, "material.json"));
+    expect(JSON.parse(await stored!.text()).training).toEqual(file.training);
+  });
+
+  it("rejects 81 Unicode characters and embedded control characters without storing a submission", async () => {
+    for (const title of ["🌿".repeat(81), "Autumn\u0000garden"]) {
+      const { env, submissions } = testEnv();
+      const response = await submitMaterial(env, { title });
+      expect(response.status).toBe(400);
+      expect(response.body.error).toMatch(/title/);
+      expect(submissions.objects.size).toBe(0);
+    }
+  });
+
 });
 
 describe("material review", () => {

@@ -16,7 +16,8 @@ import { useLoaded } from "../../ui/use-loaded";
 import { explorePath } from "../atlas/atlas-position";
 import { useMaterialIndex, usePublishedMaterial } from "../gallery/material-gallery";
 import type { MaterialEntry } from "../gallery/material-index";
-import { featuredMaterials } from "../playground/playground";
+import { MaterialLabel } from "../gallery/material-label";
+import { playgroundPath, featuredMaterials } from "../playground/playground";
 import { HOW_AUTOMATON, loadHowStory } from "../how/figures/figure-data";
 import { loadAutomatonState } from "../how/automaton-record";
 import { HOW_PICTURE } from "../how/how-source";
@@ -167,6 +168,7 @@ export function HomePage() {
           <Link to="/" className="home-title">{SITE_WORDS.frame.wordmark}</Link>
           {links}
           <div className="home-foot">
+            {shownEntry && <Link className="home-automaton-label" to={playgroundPath(shownEntry)}><MaterialLabel entry={shownEntry} /></Link>}
             {pool.length > 1 && (
               <div className="home-turn" role="group" aria-label={WORDS.turnName}>
                 <button type="button" aria-label={WORDS.previousAutomaton} onClick={() => setTurned((count) => count - 1)}><Chevron direction="left" /></button>

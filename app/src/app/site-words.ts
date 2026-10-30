@@ -693,6 +693,14 @@ export const SITE_WORDS = {
     actionFailed: "{action} failed: {message}",
   },
 
+  material: {
+    /** Draft: recipe labels shared by Automata, home and owner review. */
+    basisGroup: "Basis group {block}",
+    updates: "{updates} updates",
+    updatesLoading: "Reading update count…",
+    updatesUnavailable: "Update count unavailable",
+  },
+
   publish: {
     /** The button under a saved automaton (Saved automata in Automata, the Train page): opens the form. */
     open: "Publish to the gallery",
@@ -702,6 +710,12 @@ export const SITE_WORDS = {
     awaiting: "Sent to the gallery · waiting for the owner's approval",
     /** The form's two fields, and the hint inside the second. */
     title: "Title",
+    /** Draft: a creative title is optional; the saved recipe remains visible. */
+    titleHint: "Your title, optional",
+    titleHelp: "Up to {limit} characters. Leave blank to use the recipe as the name.",
+    recipe: "Recipe",
+    labelTooLong: "Use at most {limit} characters.",
+    labelControlCharacters: "Remove control characters from this field.",
     credit: "Credit",
     creditHint: "Your name, optional",
     /** Under the fields: what the gallery receives and when it shows. */

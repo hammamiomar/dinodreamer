@@ -10,10 +10,11 @@ import { fill, SITE_WORDS } from "../../app/site-words";
 import { keptOrigin, MATERIALS_KEPT_EVENT } from "../../replay/keep-material";
 import { MaterialStage, PUBLISHED_SOURCE, type MaterialSource } from "../../replay/material-stage";
 import { keptMaterials } from "../../storage/materials";
+import { MaterialLabel } from "../gallery/material-label";
 import { useMaterialIndex } from "../gallery/material-gallery";
 import { materialsByBlock, type MaterialEntry } from "../gallery/material-index";
 import { inWindow, travelOutline } from "./outline-travel";
-import { EVERY_MATERIAL, familiesPresent, featuredMaterials, keptByChoices, kindLine, materialToPlay, type PlaygroundChoices } from "./playground";
+import { EVERY_MATERIAL, familiesPresent, featuredMaterials, keptByChoices, materialToPlay, type PlaygroundChoices } from "./playground";
 import { PlaygroundShelf, type Choose, type KeptState, type TileMark } from "./playground-shelf";
 import { StageBlockNumber } from "./block-preview";
 import { keptEntry, withKept } from "./yours";
@@ -102,7 +103,7 @@ export function PlaygroundLayout({ entries, status, message, baseSource, feature
           <>
             <header className="playground-head">
               <StageBlockNumber block={playing.block} family={families.get(playing.block)} />
-              <p>{kindLine(playing)}</p>
+              <MaterialLabel entry={playing} load={source.load} />
             </header>
             <MaterialStage entries={[playing]} source={stageSource} layout="instrument"
               ownerActions={stageActions?.(playing)} notice={stageNotice?.(playing)} />

@@ -13,12 +13,13 @@ import {
   EMPTY_MATERIAL_INDEX, MATERIAL_INDEX_KEY, isMaterialEntryId, materialEntry, materialKey, readMaterialIndex,
   withMaterialEntry, withoutMaterialEntry, type MaterialEntry, type MaterialIndex,
 } from "../../app/src/features/gallery/material-index.ts";
+import { MATERIAL_SUBMISSION_LIMITS } from "../../app/src/features/gallery/submission-label.ts";
 import { CACHE_IMMUTABLE, CACHE_INDEX, isPng, listKeys, requiredObject, type Bucket } from "./storage.ts";
 import { previewKeys } from "./link-preview.ts";
 
 /** The dictionary of the current release; a material of another dictionary reads other codes. */
 export const MATERIAL_DICTIONARIES: readonly string[] = ["monet-dtd-seed9-20261004-pass-003"];
-export const MATERIAL_LIMITS = { materialBytes: 256 * 1024, titleCharacters: 80, creditCharacters: 40 } as const;
+export const MATERIAL_LIMITS = { materialBytes: 256 * 1024, ...MATERIAL_SUBMISSION_LIMITS } as const;
 const PENDING_FILES = ["material.json", "poster.png", "meta.json"] as const;
 type PendingFile = (typeof PENDING_FILES)[number];
 

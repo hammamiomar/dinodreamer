@@ -44,7 +44,7 @@
   align-content: end;
   align-items: baseline;
   gap: var(--space-2) var(--space-6);
-  height: 128px;
+  min-height: 128px;
   padding-bottom: var(--patch);
 }
 
@@ -53,9 +53,7 @@
   margin: 0;
 }
 
-.playground-head p {
-  color: var(--ink-2);
-}
+.playground-head > .material-label { flex: 1; min-width: 180px; padding-bottom: 4px; }
 
 .playground-status {
   margin: var(--m) 0;
@@ -280,9 +278,8 @@
 }
 
 /*
- * Tiles: 128 px, so a 128-cell material shows at one pixel a cell. A tile is 208 px high and the
- * rows 48 apart, with 48 after the last: four modules a row, so a block (a module above it, its
- * heading and the 16 under it, its rows) is a whole number of modules and the next starts on one.
+ * Tiles are 128 px wide, so the poster shows one pixel per cell. Rows accommodate the complete
+ * title and recipe, with 48 px between rows and after the last row.
  */
 .playground-tiles {
   display: grid;
@@ -309,34 +306,19 @@
   cursor: pointer;
 }
 
-/*
- * Two lines on a line, 40 px with it, so the picture starts on the 16 px grid. The owner mode's
- * marks take a column at the right, one per line, from the bottom; the words at the left give way.
- */
+/* The complete title and recipe wrap above the poster; owner marks follow them. */
 .playground-tile-name {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-content: end;
-  height: 40px;
+  gap: 4px;
+  min-height: 40px;
   padding-bottom: var(--space-1);
   border-bottom: 1px solid var(--line);
 }
 
-.playground-tile-name > span {
-  grid-column: 1;
-  min-height: 16px;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.playground-tile-name > .playground-tile-marks {
-  display: grid;
-  grid-column: 2;
-  grid-row: 1 / span 2;
-  align-content: end;
-  justify-items: end;
-  padding-left: var(--space-2);
+.playground-tile-marks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
   color: var(--ink-3);
 }
 
@@ -349,7 +331,7 @@
   image-rendering: pixelated;
 }
 
-/* 24 px with the gap above it: a tile is 208 px, so every picture starts on the 16 px grid. */
+/* Keep a separate line for the measured strength. */
 .playground-tile-reading {
   height: 24px;
   font-variant-numeric: tabular-nums;
