@@ -16,6 +16,7 @@ import { useSourced } from "../use-sourced";
 import { useHowSource } from "./figure-data";
 import { principalColours } from "./token-colours";
 import { FigureCaption } from "./figure-caption";
+import { FigureReadout } from "./figure-readout";
 import "./figures.css";
 
 const WORDS = SITE_WORDS.how.figures;
@@ -119,14 +120,12 @@ function AttentionShares({ percents }: { percents: ReturnType<typeof sharePercen
       <div className="how-shares-bar" aria-hidden="true">
         {SHARE_PARTS.map((part) => <span key={part} data-part={part} style={{ flexGrow: percents?.[part] ?? 0 }} />)}
       </div>
-      <ul className="how-shares-list">
-        {SHARE_PARTS.map((part) => (
-          <li key={part} data-part={part}>
-            <span className="how-shares-value">{percents ? fill(WORDS.shares.value, { share: percents[part] }) : "—"}</span>
-            <span className="how-shares-label">{WORDS.shares[part]}</span>
-          </li>
-        ))}
-      </ul>
+      <FigureReadout rows={SHARE_PARTS.map((part) => ({
+        value: percents ? fill(WORDS.shares.value, { share: percents[part] }) : "—",
+        label: WORDS.shares[part],
+        reserve: [fill(WORDS.shares.value, { share: 100 })],
+        marker: <span className="how-share-marker" data-part={part} aria-hidden="true" />,
+      }))} />
     </div>
   );
 }

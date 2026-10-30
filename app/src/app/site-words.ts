@@ -438,8 +438,13 @@ export const SITE_WORDS = {
       /** Under the field. {patch} is the followed patch; {group} the boxed group. */
       fieldCaption: "All 16,384 groups in number order. The 32 selected by {patch} are lit; group {group} is boxed.",
       barsName: "The 32 selected groups",
-      /** Above the bars: the group under the pointer, or the page's group. {magnitude} is its response magnitude. */
-      rankLine: "Basis group {group} · rank {rank} of 32 · response magnitude {magnitude}",
+      /** Above the bars: the group under the pointer, or the page's group, with its rank and response magnitude. */
+      rankReadout: {
+        group: "Basis group",
+        rank: "rank",
+        rankValue: "{rank} of 32",
+        magnitude: "response magnitude",
+      },
       openGroup: "Open basis group {group}",
       barsCaption: "The 32 selected groups by response magnitude. Hover one to find it in the field; click to open it.",
       /** At the lit point of the cloud. */
@@ -450,13 +455,19 @@ export const SITE_WORDS = {
       /** The rebuilding. */
       groupsAdded: "Groups added",
       groupsValue: "{count} of 32",
-      rebuildLine: "{count} groups added · {explained}% of the token's energy explained",
+      rebuildReadout: {
+        explained: "of the token's energy explained",
+      },
       rebuildCaption: "How much of the token's energy the groups explain as they are added, largest response first.",
       /** The training: the followed patch read through the featurizer as it was at the end of each pass. */
       passFieldCaption: "The 32 groups {patch} selected after pass {pass}; group {group} is boxed.",
       passSlider: "Pass",
       passValue: "{pass} of {total}",
-      passLine: "After pass {pass} · {explained}% of the token's energy explained with all 32 · {kept} of its 32 groups are the final ones · mean loss over the pass {loss}",
+      passReadout: {
+        explained: "of the token's energy explained with all\u00a032",
+        kept: "of its 32 groups are the final ones",
+        loss: "mean loss over the pass",
+      },
       passesCaption: "The token's energy explained as the 32 groups are added back, after each training pass. The chosen pass is drawn strong.",
 
       /** Act 3. The player and the cell opened. */
@@ -497,7 +508,12 @@ export const SITE_WORDS = {
       /** The training. */
       updateSlider: "Update",
       stripCaption: "The image at step 600 in 16 selected readouts, to the first accepted checkpoint.",
-      readoutLine: "Update {update} · the group selected on {wins}% of the patches · strength {strength} m",
+      updateReadout: {
+        selection: "the group selected on",
+        selectionValue: "{wins}% of the patches",
+        strength: "strength",
+        strengthValue: "{strength} m",
+      },
       lossCaption: "The loss at every update, and the readouts' selection fractions as dots; a filled dot met the target.",
       /** Local and global. */
       heatCaption: "Where {patch} of the grown image reads from at layer 12: {outside}% from outside its 3 × 3. Hover a patch.",

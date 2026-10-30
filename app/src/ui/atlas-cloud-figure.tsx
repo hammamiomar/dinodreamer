@@ -50,12 +50,17 @@ export function AtlasCloudFigure({ cloud, lit, label, landed = null, meanLabel, 
   landed?: LandedPoints | null;
   /** Over the landed mean. */
   meanLabel?: string;
-  /** At the midpoint of the mean-to-target line, with its full description for assistive technology. */
+  /** Labels the mean-to-target line, with its full description for assistive technology. */
   distanceLabel?: { text: string; description: string };
 }) {
   const { width, height, margin } = CLOUD_VIEW;
   const fit = fitCloud(cloud, lit, width, height, margin, landed ? landed.points : []);
   const [litX, litY] = [fit.x(lit[0]), fit.y(lit[1])];
+  const distanceMidpoint = landed ? {
+    x: (fit.x(landed.mean[0]) + litX) / 2,
+    y: (fit.y(landed.mean[1]) + litY) / 2,
+  } : null;
+  const distanceLabelY = margin / 2;
   return (
     <div className="cloud-figure">
       <svg
@@ -79,6 +84,15 @@ export function AtlasCloudFigure({ cloud, lit, label, landed = null, meanLabel, 
               <circle key={at} cx={fit.x(point[0]).toFixed(1)} cy={fit.y(point[1]).toFixed(1)} r={at === landed.marked ? 4 : 1.6} data-marked={at === landed.marked || undefined} />
             ))}
             <line className="cloud-figure-distance" x1={fit.x(landed.mean[0])} y1={fit.y(landed.mean[1])} x2={litX} y2={litY} />
+            {distanceLabel && distanceMidpoint && (
+              <line
+                className="cloud-figure-distance-lead"
+                x1={distanceMidpoint.x}
+                y1={distanceMidpoint.y}
+                x2={distanceMidpoint.x}
+                y2={distanceLabelY}
+              />
+            )}
             <circle className="cloud-figure-mean" cx={fit.x(landed.mean[0])} cy={fit.y(landed.mean[1])} r={4.5} />
             {meanLabel && <text className="cloud-figure-mean-label" x={fit.x(landed.mean[0])} y={fit.y(landed.mean[1]) - 10} textAnchor="middle">{meanLabel}</text>}
           </g>
@@ -90,22 +104,22 @@ export function AtlasCloudFigure({ cloud, lit, label, landed = null, meanLabel, 
           <line className="cloud-figure-lead" x1={litX} x2={litX} y1={litY + 12} y2={height} />
         </g>
       </svg>
-      {landed && distanceLabel && (
+      {distanceMidpoint && distanceLabel && (
         <div className="cloud-figure-distance-plane" aria-hidden="true" style={{ aspectRatio: `${width} / ${height}` }}>
           <span
             className="cloud-figure-distance-label"
             style={{
-              left: `${((fit.x(landed.mean[0]) + litX) / 2 / width) * 100}%`,
-              top: `${((fit.y(landed.mean[1]) + litY) / 2 / height) * 100}%`,
+              left: `${(distanceMidpoint.x / width) * 100}%`,
+              top: `${(distanceLabelY / height) * 100}%`,
             }}
           >
             {distanceLabel.text}
           </span>
         </div>
       )}
-      <span className="cloud-figure-label" data-side={litX > width / 2 ? "left" : "right"} style={{ left: `${(litX / width) * 100}%` }}>
+      <div className="cloud-figure-label" data-side={litX > width / 2 ? "left" : "right"} style={{ left: `${(litX / width) * 100}%` }}>
         {label}
-      </span>
+      </div>
     </div>
   );
 }

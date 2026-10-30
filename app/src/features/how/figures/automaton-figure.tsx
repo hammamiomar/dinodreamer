@@ -30,6 +30,7 @@ import { CHANNELS, neighbourhood, PERCEPTION_FILTERS } from "../nca-math";
 import { useSourced } from "../use-sourced";
 import { HOW_AUTOMATON, loadHowStory } from "./figure-data";
 import { FigureCaption } from "./figure-caption";
+import { FigureReadout } from "./figure-readout";
 import "../../look/look.css";
 import "./figures.css";
 
@@ -327,12 +328,11 @@ function Updates({ record }: { record: AutomatonRecord }) {
   const [at, setAt] = useState<number | null>(null);
   const shown = at ?? Math.max(0, frames.length - 1);
   const frame = frames[shown] ?? null;
-  const readoutCaption = (entry: (typeof frames)[number]) => fill(WORDS.readoutLine, {
-    update: entry.update,
-    wins: Math.round(100 * entry.winnerFraction),
-    strength: entry.strength.toFixed(2),
-  });
-  const captionReserve = [WORDS.stripCaption, ...frames.map(readoutCaption)];
+  const readings = frames.map((entry) => ({
+    selection: fill(WORDS.updateReadout.selectionValue, { wins: Math.round(100 * entry.winnerFraction) }),
+    strength: fill(WORDS.updateReadout.strengthValue, { strength: entry.strength.toFixed(2) }),
+  }));
+  const reading = readings[shown];
   useEffect(() => {
     const last = frames[frames.length - 1];
     if (last) report({ update: last.update, wins: Math.round(100 * last.winnerFraction) });
@@ -349,35 +349,49 @@ function Updates({ record }: { record: AutomatonRecord }) {
   const path = updates.map((row, index) => `${index === 0 ? "M" : "L"}${x(row[0]).toFixed(1)} ${yLoss(row[1]).toFixed(1)}`).join(" ");
   if (story.status === "failed") return <p className="how-caption" role="alert">{fill(SITE_WORDS.how.failed, { message: story.message })}</p>;
   return (
-    <div className="how-pair">
-      <figure className="how-pane how-update-frames">
-        <div className="how-visual">
-          <div className="how-strip">
-            {story.status === "ready" && (
-              <img src={`${STORY_FOLDER}${story.value.training.strip}`} alt="" style={{ width: `${frames.length * 100}%`, height: "100%", left: `${-shown * 100}%` }} />
-            )}
+    <div className="how-updates">
+      <div className="how-pair">
+        <figure className="how-pane how-update-frames">
+          <div className="how-visual">
+            <div className="how-strip">
+              {story.status === "ready" && (
+                <img src={`${STORY_FOLDER}${story.value.training.strip}`} alt="" style={{ width: `${frames.length * 100}%`, height: "100%", left: `${-shown * 100}%` }} />
+              )}
+            </div>
           </div>
+          {frames.length > 1 && (
+            <Slider label={WORDS.updateSlider} value={shown} min={0} max={frames.length - 1} ticks={frames.map((_, index) => index)} valueText={String(frame?.update ?? "")} onChange={setAt} />
+          )}
+          <figcaption className="how-caption">{WORDS.stripCaption}</figcaption>
+        </figure>
+        <div className="how-pane">
+          <svg className="how-chart" viewBox={`0 0 ${chartWidth} ${chartHeight}`} role="img" aria-label={WORDS.lossCaption}>
+            <line className="how-chart-axis" x1={margin.left} x2={chartWidth - margin.right} y1={yLoss(0)} y2={yLoss(0)} />
+            <text className="how-chart-label" x={margin.left - 6} y={yLoss(topLoss) + 4} textAnchor="end">{topLoss.toFixed(1)}</text>
+            <text className="how-chart-label" x={margin.left - 6} y={yLoss(0) + 4} textAnchor="end">0</text>
+            <text className="how-chart-label" x={chartWidth - margin.right + 6} y={ySelection(1) + 4}>100%</text>
+            <text className="how-chart-label" x={chartWidth - margin.right + 6} y={ySelection(0) + 4}>0%</text>
+            <text className="how-chart-label" x={x(1)} y={chartHeight - 6} textAnchor="middle">1</text>
+            <text className="how-chart-label" x={x(lastUpdate)} y={chartHeight - 6} textAnchor="middle">{lastUpdate}</text>
+            <path className="how-chart-line" d={path} />
+            {record.history.readouts.map((row) => <circle key={row[0]} className="how-chart-dot" cx={x(row[0])} cy={ySelection(row[1])} r={2.5} data-fire={row[1] >= 0.9 || undefined} />)}
+            {frame && <line className="how-chart-mark" x1={x(frame.update)} x2={x(frame.update)} y1={margin.top} y2={yLoss(0)} />}
+          </svg>
+          <p className="how-caption">{WORDS.lossCaption}</p>
         </div>
-        {frames.length > 1 && (
-          <Slider label={WORDS.updateSlider} value={shown} min={0} max={frames.length - 1} ticks={frames.map((_, index) => index)} valueText={String(frame?.update ?? "")} onChange={setAt} />
-        )}
-        <FigureCaption reserve={captionReserve}>{frame ? readoutCaption(frame) : WORDS.stripCaption}</FigureCaption>
-      </figure>
-      <div className="how-pane">
-        <svg className="how-chart" viewBox={`0 0 ${chartWidth} ${chartHeight}`} role="img" aria-label={WORDS.lossCaption}>
-          <line className="how-chart-axis" x1={margin.left} x2={chartWidth - margin.right} y1={yLoss(0)} y2={yLoss(0)} />
-          <text className="how-chart-label" x={margin.left - 6} y={yLoss(topLoss) + 4} textAnchor="end">{topLoss.toFixed(1)}</text>
-          <text className="how-chart-label" x={margin.left - 6} y={yLoss(0) + 4} textAnchor="end">0</text>
-          <text className="how-chart-label" x={chartWidth - margin.right + 6} y={ySelection(1) + 4}>100%</text>
-          <text className="how-chart-label" x={chartWidth - margin.right + 6} y={ySelection(0) + 4}>0%</text>
-          <text className="how-chart-label" x={x(1)} y={chartHeight - 6} textAnchor="middle">1</text>
-          <text className="how-chart-label" x={x(lastUpdate)} y={chartHeight - 6} textAnchor="middle">{lastUpdate}</text>
-          <path className="how-chart-line" d={path} />
-          {record.history.readouts.map((row) => <circle key={row[0]} className="how-chart-dot" cx={x(row[0])} cy={ySelection(row[1])} r={2.5} data-fire={row[1] >= 0.9 || undefined} />)}
-          {frame && <line className="how-chart-mark" x1={x(frame.update)} x2={x(frame.update)} y1={margin.top} y2={yLoss(0)} />}
-        </svg>
-        <p className="how-caption">{WORDS.lossCaption}</p>
       </div>
+      <FigureReadout rows={[
+        {
+          value: reading?.selection ?? "—",
+          label: WORDS.updateReadout.selection,
+          reserve: readings.map((entry) => entry.selection),
+        },
+        {
+          value: reading?.strength ?? "—",
+          label: WORDS.updateReadout.strength,
+          reserve: readings.map((entry) => entry.strength),
+        },
+      ]} />
     </div>
   );
 }
@@ -412,9 +426,13 @@ function LocalGlobal({ record }: { record: AutomatonRecord }) {
           <GridCanvas grid={record.fine} marked={cell} label={WORDS.fineCaption} />
           <div className="how-cell-side">
             <Neighbourhood grid={record.fine} cell={cell} size={96} />
-            <p className="how-caption">{cellName(cell, record.fine.side)} · {fires(record.fine.seed, record.fine.tick, cell, record.replay.fireRate, FIRE_KEY) ? WORDS.cellFires : WORDS.cellHolds}</p>
           </div>
         </div>
+        <FigureReadout rows={[{
+          value: cellName(cell, record.fine.side),
+          label: fires(record.fine.seed, record.fine.tick, cell, record.replay.fireRate, FIRE_KEY) ? WORDS.cellFires : WORDS.cellHolds,
+          reserve: [cellName(record.fine.side ** 2 - 1, record.fine.side)],
+        }]} />
         <FigureCaption reserve={captionReserve}>{WORDS.cellsCaption}</FigureCaption>
       </figure>
     </div>
