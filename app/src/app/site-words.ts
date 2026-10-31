@@ -708,6 +708,101 @@ export const SITE_WORDS = {
     actionFailed: "{action} failed: {message}",
   },
 
+  research: {
+    // The owner's research page (/admin/research, features/research/): every research run the
+    // research repository published, by basis group and condition. Owner only; never public.
+    heading: "Research",
+    /** Under the heading. {runs}, {studies} and {groups} are counts; {made} the export's time and {commit} its research commit. */
+    counts: "{runs} runs · {studies} studies · {groups} basis groups",
+    madeFrom: "Exported {made} from research commit {commit}",
+    loading: "Loading the research runs…",
+    failed: "The research runs could not be read: {message}. Open the owner page first to sign in.",
+    /** When the private bucket has no run index yet. */
+    nothingYet: "No research runs are published yet. Publish an export with: pnpm run research publish <folder>",
+    /** The filters over every view; an empty filter keeps everything. */
+    studiesLabel: "Studies",
+    tagsLabel: "Tags",
+    outcomesLabel: "Outcome",
+    clearFilter: "Clear",
+    /** {shown} runs of {runs} pass the filter. */
+    filtered: "{shown} of {runs} runs shown",
+    /** A study's line in the list: {date}, {title} and {count} runs; its question under it. */
+    studyLine: "{date} · {title} · {count} runs",
+    /** The conditions: start, loss and rule. */
+    starts: { noise: "Noise", "centre-disc": "Centre disc", "seeded-field": "Seeded field" },
+    losses: { plain: "Plain", guided: "Guided", "plain-margin": "Plain + margin", other: "Other" },
+    /** The patches the loss scores, and the run's other dials. */
+    regions: { centre: "Centre 16 tokens", field: "Whole field" },
+    lossRegion: "Loss scores",
+    request: "Request",
+    machine: "Machine",
+    rules: { cell: "Fine", pyramid: "Coarse + fine" },
+    /** The outcome classes, with their marks. */
+    outcomes: { holds: "Holds at 4,000", fired: "Fired", "never-fired": "Never fired" },
+    /** The overview's first column, and a cell's line: {fired} of {runs} fired. */
+    groupColumn: "Basis group",
+    cellCount: "{fired}/{runs}",
+    /** A cell's name for a screen reader: {group}, {condition}, {runs}, {fired}. */
+    cellName: "Basis group {group}, {condition}: {runs} runs, {fired} fired",
+    /** The group view. */
+    allGroups: "All basis groups",
+    groupHeading: "Basis group {group}",
+    /** The row and the view of the runs without a basis group. */
+    noGroup: "No basis group",
+    noRunsHere: "No runs",
+    /** A card's lines: the seed and the update the run first fired at. */
+    cardSeed: "seed {seed}",
+    cardFired: "fired at {update}",
+    cardNeverFired: "never fired",
+    /** The run view's sections. */
+    backToGroup: "Basis group {group}",
+    dials: "Settings",
+    outcome: "Outcome",
+    reading: "Reading",
+    stills: "Stills",
+    stillAt: "Tick {tick}",
+    provenance: "Provenance",
+    /** The settings table's rows. */
+    study: "Study",
+    start: "Start",
+    loss: "Loss",
+    rule: "Rule",
+    seed: "Seed",
+    schedule: "Schedule",
+    scheduleValue: "{updates} updates, pool {pool}",
+    discValue: "radius {radius} cells",
+    fieldValue: "radius {radius} cells on {amplitude} × noise",
+    guideValue: "ratio {ratio}, release at {release}, z floor {floor} ({units})",
+    /** The outcome table's rows. */
+    releasedAt: "Released at update",
+    requestLoss: "Request loss",
+    centreSelected: "Centre tokens selected",
+    centreValue: "{count} of {of}",
+    naturalRoute: "Natural route kept",
+    guideLossAtRelease: "Guide loss at release",
+    guideLossEnd: "Guide loss at the end",
+    firesAt: "First fired at update",
+    holds: "Holds at tick 4,000",
+    yes: "yes",
+    no: "no",
+    notMeasured: "—",
+    materialSha256: "Definition SHA-256",
+    /** Promote: the run as a pending automaton, published only by Approve on the materials page. */
+    promote: "Promote",
+    promoteTitle: "Public title",
+    promoteHint: "Promote makes this run a pending automaton. It is public only after Approve on the materials page.",
+    promoting: "Promoting…",
+    promoted: "Pending as {id}. Approve it on the materials page.",
+    promoteFailed: "Promote failed: {message}",
+    materialsPage: "Materials page",
+    /** The run's place on the site, from the owner's materials list. */
+    onSitePending: "Pending review",
+    onSiteShown: "Published",
+    onSiteHidden: "Hidden",
+    unknownRun: "No research run {id} is published.",
+    unknownGroup: "No research runs train basis group {group}.",
+  },
+
   publish: {
     /** The button under a saved automaton (Saved automata in Automata, the Train page): opens the form. */
     open: "Publish to the gallery",

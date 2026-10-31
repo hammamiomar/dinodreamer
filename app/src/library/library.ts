@@ -234,6 +234,20 @@ export class Library {
     return index < 0 ? null : { imageId: read.rows.imageIds[index]!, slot: read.rows.slots[index]! };
   }
 
+  /**
+   * The public pictures of a basis group's strongest patches, each once, strongest first, at most
+   * `count`: the research page's strip for a group. Empty when the rows cannot be read.
+   */
+  async strongestPictures(block: number, count: number): Promise<number[]> {
+    const read = await this.strongestRead(block);
+    if (!read || "problem" in read) return [];
+    const pictures = new Set<number>();
+    for (let index = 0; index < read.rows.imageIds.length && pictures.size < count; index++) {
+      if (read.rows.publicPreview[index] === 1) pictures.add(read.rows.imageIds[index]!);
+    }
+    return [...pictures];
+  }
+
   /** The next prefix after the loaded rows. A failure keeps the loaded rows and stops loading. */
   async loadMoreRows(cloud: BlockCloud): Promise<BlockCloud> {
     if (!cloud.canLoadMore || cloud.file === null) return cloud;
