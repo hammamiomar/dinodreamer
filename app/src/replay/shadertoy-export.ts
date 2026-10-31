@@ -55,10 +55,12 @@ void mainImage(out vec4 color, in vec2 fragment) {
   uint cellIndex = uint(cell.y * GRID_SIDE + cell.x);
   if (iFrame == 0) {
     vec2 offset = vec2(cell) - float(GRID_SIDE) / 2.0 + 0.5;
-    if (START_DISC > 0.0 && dot(offset, offset) > START_DISC * START_DISC) return;
+    bool outside = START_DISC > 0.0 && dot(offset, offset) > START_DISC * START_DISC;
+    if (outside && START_BACKGROUND == 0.0) return;
     uint key = pcg(SEED ^ 0x6e6f6973u);
     for (int component = 0; component < 4; component++) {
-      color[component] = unit(pcg(key + cellIndex * 16u + uint(OUTPUT_GROUP * 4 + component))) - 0.5;
+      float value = unit(pcg(key + cellIndex * 16u + uint(OUTPUT_GROUP * 4 + component))) - 0.5;
+      color[component] = outside ? START_BACKGROUND * value : value;
     }
     return;
   }
@@ -152,7 +154,7 @@ void mainImage(out vec4 color, in vec2 fragment) {
 export function shadertoySections(file: FigureMaterialFile, values: Float32Array): ShadertoySections {
   if (!supportsShadertoy(file)) throw new Error("The Shadertoy export does not yet support coarse + fine automata.");
   if (values.length !== 7776 || !values.every(Number.isFinite)) throw new Error("A single-grid rule needs 7,776 finite weights.");
-  const { startDisc, pixelsPerCell, hiddenNoise } = figurePlayback(file);
+  const { startDisc, startBackground, pixelsPerCell, hiddenNoise } = figurePlayback(file);
   const common = `precision highp float;
 precision highp int;
 precision highp sampler2D;
@@ -160,6 +162,7 @@ const int GRID_SIDE = ${file.reading.side};
 const uint SEED = ${file.reading.seed}u;
 const float FIRE_RATE = ${floatLiteral(file.rule.fireRate)};
 const float START_DISC = ${floatLiteral(startDisc)};
+const float START_BACKGROUND = ${floatLiteral(startBackground)};
 const float HIDDEN_NOISE = ${floatLiteral(hiddenNoise)};
 const int PICTURE_PIXELS = ${pixelsPerCell};
 ${HASH}

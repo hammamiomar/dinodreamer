@@ -81,7 +81,19 @@ describe("material playback settings", () => {
     expect(figurePlayback(readFigureMaterial({ ...file, start: { kind: "noise" } }).file).startDisc).toBe(0);
     expect(() => readFigureMaterial({ ...file, start: { kind: "centre-disc", radius: 0 } })).toThrow(/positive radius/);
     expect(() => readFigureMaterial({ ...file, start: { kind: "corner" } as never })).toThrow(/start/);
+    expect(figurePlayback(readFigureMaterial({ ...file, start: { kind: "centre-disc", radius: 16 } }).file).startBackground).toBe(0);
     expect(() => readFigureMaterial({ ...file, reading: { ...file.reading, region: "edge" as never } })).toThrow(/region/);
+  });
+
+  it("reads a seeded field's background amplitude, from 0 to 1, and keeps it in the canonical file", () => {
+    const file = read("block-12002-figure-strongest-mean-seed-1.material.json");
+    const field = readFigureMaterial({ ...file, start: { kind: "centre-disc", radius: 16, backgroundAmplitude: 0.25 } }).file;
+    expect(figurePlayback(field)).toMatchObject({ startDisc: 16, startBackground: 0.25 });
+    expect(canonicalFigureFile(field).start).toEqual({ kind: "centre-disc", radius: 16, backgroundAmplitude: 0.25 });
+    const none = readFigureMaterial({ ...file, start: { kind: "centre-disc", radius: 16, backgroundAmplitude: 0 } }).file;
+    expect(canonicalFigureFile(none).start).toEqual({ kind: "centre-disc", radius: 16 });
+    expect(() => readFigureMaterial({ ...file, start: { kind: "centre-disc", radius: 16, backgroundAmplitude: 1.5 } })).toThrow(/background amplitude/);
+    expect(() => readFigureMaterial({ ...file, start: { kind: "centre-disc", radius: 16, backgroundAmplitude: "0.25" } as never })).toThrow(/background amplitude/);
   });
 
   it("keeps hidden-channel noise optional, zero by default and never negative", () => {

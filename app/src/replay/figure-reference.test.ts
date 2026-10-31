@@ -58,6 +58,17 @@ describe("figure replay contract", () => {
     expect(inside).toBe(812);
   });
 
+  it("scales the same draw outside the disc for a seeded field, and leaves the disc's cells as they were", () => {
+    const noise = startState(128, 1);
+    const disc = startState(128, 1, 16);
+    const field = startState(128, 1, 16, undefined, 0.25);
+    for (let index = 0; index < field.length; index++) {
+      const outside = disc[index] === 0 && noise[index] !== 0;
+      expect(field[index]).toBe(outside ? Math.fround(0.25 * noise[index]!) : noise[index]);
+    }
+    expect(Object.is(startState(128, 1, 16, undefined, 0)[0], 0)).toBe(true);
+  });
+
   it("upsamples a coarse grid bilinearly with clamped edges at 2 pixels per cell, as torch's interpolate", () => {
     // Two cells in a row whose red values show as 0 and 1; green and blue at 0.5.
     const state = new Float32Array(2 * 2 * 16);

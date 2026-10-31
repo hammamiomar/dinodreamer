@@ -28,8 +28,8 @@ describe("standalone replay page", () => {
     const seeded = JSON.parse(readFileSync(
       new URL("../../../gallery/seed/materials/block-2632-figure-seeded-strongest-seed-0.material.json", import.meta.url), "utf8"));
     const html = replayPageHtml(seeded);
-    expect(html).toContain('const playback = {"hiddenNoise":0,"startDisc":16,"pixelsPerCell":1};');
-    expect(replayPageHtml(kept())).toContain('const playback = {"hiddenNoise":0,"startDisc":0,"pixelsPerCell":1};');
+    expect(html).toContain('const playback = {"hiddenNoise":0,"startDisc":16,"startBackground":0,"pixelsPerCell":1};');
+    expect(replayPageHtml(kept())).toContain('const playback = {"hiddenNoise":0,"startDisc":0,"startBackground":0,"pixelsPerCell":1};');
     expect(materialLine(seeded)).toMatch(/^Basis group 2632 · one grid · central noise start · [\d,]+ optimizer updates$/);
     expect(materialLine(kept())).toMatch(/^Basis group 12002 · one grid · [\d,]+ optimizer updates$/);
     // The saved note is in the embedded definition, not on the page.
@@ -111,7 +111,7 @@ describe("standalone replay lifecycle", () => {
     const pending: { options: FigureReplayOptions; resolve: (replay: FigureReplay) => void; reject: (error: Error) => void }[] = [];
     const create = (options: FigureReplayOptions) => new Promise<FigureReplay>((resolve, reject) => pending.push({ options, resolve, reject }));
     const start = vi.fn((_replay: FigureReplay, _options: ReplayLoopOptions) => ({ stop: vi.fn(), pause: vi.fn(), play: vi.fn() }) as unknown as ReplayLoop);
-    const opening = runReplayPage(create, start, {} as FigureShaderSources, kept(), { hiddenNoise: 0, startDisc: 0, pixelsPerCell: 1 });
+    const opening = runReplayPage(create, start, {} as FigureShaderSources, kept(), { hiddenNoise: 0, startDisc: 0, startBackground: 0, pixelsPerCell: 1 });
     return { elements, pending, start, opening, close: () => close() };
   }
   const settle = async () => { for (let count = 0; count < 5; count++) await Promise.resolve(); };

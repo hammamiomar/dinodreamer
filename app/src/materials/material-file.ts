@@ -97,9 +97,11 @@ export interface FigureReading {
 
 /**
  * The state a replay starts from. Absent or "noise": the start distribution in every cell. "centre-disc":
- * zero except inside a disc of `radius` cells at the grid centre.
+ * the start distribution inside a disc of `radius` cells at the grid centre, and outside it that draw
+ * times `backgroundAmplitude` (0 to 1; absent or 0: zero outside). The coarse grid of a pyramid has
+ * half the radius and the same amplitude.
  */
-export type FigureStart = { kind: "noise" } | { kind: "centre-disc"; radius: number };
+export type FigureStart = { kind: "noise" } | { kind: "centre-disc"; radius: number; backgroundAmplitude?: number };
 
 /** Picture pixels per cell along each axis. 2 shows a 64-cell grid as a 128-pixel picture. */
 export type PixelsPerCell = 1 | 2;
@@ -185,12 +187,15 @@ export interface FigurePlayback {
   hiddenNoise: number;
   /** Radius in cells of the seeded start's noise disc; 0 starts from noise in every cell. */
   startDisc: number;
+  /** Outside the disc, the start draw times this amplitude; 0 is zero outside. */
+  startBackground: number;
   pixelsPerCell: PixelsPerCell;
 }
 export function figurePlayback(file: FigureMaterialFile): FigurePlayback {
   return {
     hiddenNoise: hiddenNoise(file),
     startDisc: file.start?.kind === "centre-disc" ? file.start.radius : 0,
+    startBackground: file.start?.kind === "centre-disc" ? file.start.backgroundAmplitude ?? 0 : 0,
     pixelsPerCell: file.picture?.pixelsPerCell ?? 1,
   };
 }
@@ -263,6 +268,16 @@ function readStart(value: unknown) {
   if (start.kind !== "centre-disc") throw new Error("Invalid start in the automaton definition");
   const radius = number(start.radius, "start radius");
   if (radius <= 0 || radius > 256) throw new Error("The start disc needs a positive radius of at most 256 cells");
+  if (start.backgroundAmplitude === undefined) return;
+  const amplitude = number(start.backgroundAmplitude, "start background amplitude");
+  if (amplitude < 0 || amplitude > 1) throw new Error("The start's background amplitude must be from 0 to 1");
+}
+
+/** The start with only the fields format 4 defines; an amplitude of 0 is the same start as none. */
+function canonicalStart(start: FigureStart): FigureStart {
+  if (start.kind === "noise") return { kind: "noise" };
+  const amplitude = start.backgroundAmplitude ?? 0;
+  return amplitude > 0 ? { kind: "centre-disc", radius: start.radius, backgroundAmplitude: amplitude } : { kind: "centre-disc", radius: start.radius };
 }
 
 /** Validate a format-4 file and decode its single-scale or pyramid weights. */
@@ -374,7 +389,7 @@ export function canonicalFigureFile(file: FigureMaterialFile): FigureMaterialFil
     } as MaterialAnchor,
     training: { seed: training.seed, updates: training.updates },
     rule: { layout: rule.layout, dtype: "float32-le", fireRate: rule.fireRate, values: rule.values },
-    ...(start ? { start: start.kind === "centre-disc" ? { kind: "centre-disc" as const, radius: start.radius } : { kind: "noise" as const } } : {}),
+    ...(start ? { start: canonicalStart(start) } : {}),
     ...(picture ? { picture: { pixelsPerCell: picture.pixelsPerCell } } : {}),
     reading: {
       status: reading.status, strength: reading.strength, winnerFraction: reading.winnerFraction,

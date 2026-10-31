@@ -60,5 +60,8 @@ describe("embedded-rule shader export", () => {
     const both = embeddedRuleShaderSource(seededPyramid.file, seededPyramid.values);
     expect(both).toContain("const START_DISC: f32 = 16.0000000;");
     expect(both).toContain(FIGURE_WGSL.start);
+    expect(both).toContain("const START_BACKGROUND: f32 = 0.00000000;");
+    const field = { ...seededPyramid.file, start: { kind: "centre-disc" as const, radius: 16, backgroundAmplitude: 0.25 } };
+    expect(embeddedRuleShaderSource(field, seededPyramid.values)).toContain("const START_BACKGROUND: f32 = 0.250000000;");
   });
 });

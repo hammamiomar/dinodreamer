@@ -31,6 +31,8 @@ export interface FigureReplayOptions {
   hiddenNoise?: number;
   /** Radius in cells of a seeded start's noise disc at the grid centre; 0, the default, starts from noise everywhere. */
   startDisc?: number;
+  /** Outside a seeded start's disc, the start draw times this amplitude, 0 to 1; 0, the default, is zero outside. */
+  startBackground?: number;
   /** Picture pixels per cell: 1, the default, or 2 for the archive's bilinear picture of a coarse grid. */
   pixelsPerCell?: 1 | 2;
   onDeviceLost?: (message: string) => void;
@@ -94,6 +96,8 @@ export async function createFigureReplay(options: FigureReplayOptions, rule: Fig
   if (!(hiddenNoise >= 0 && Number.isFinite(hiddenNoise))) throw new Error("Hidden-channel noise must be zero or positive.");
   const startDisc = options.startDisc ?? 0;
   if (!(startDisc >= 0 && Number.isFinite(startDisc))) throw new Error("The start disc radius must be zero or positive.");
+  const startBackground = options.startBackground ?? 0;
+  if (!(startBackground >= 0 && startBackground <= 1)) throw new Error("The start's background amplitude must be from 0 to 1.");
   const pixelsPerCell = options.pixelsPerCell ?? 1;
   if (pixelsPerCell !== 1 && pixelsPerCell !== 2) throw new Error("A picture has 1 or 2 pixels per cell.");
   const pictureSide = side * pixelsPerCell;
@@ -277,13 +281,15 @@ export async function createFigureReplay(options: FigureReplayOptions, rule: Fig
       pass.dispatchWorkgroups(Math.ceil(count / 64));
       pass.end();
     };
-    // Tick { side, seed, tick, fire_rate, hidden_noise, start_disc, coarse }; the coarse grid's disc has half the radius.
+    // Tick { side, seed, tick, fire_rate, hidden_noise, start_disc, coarse, start_background }; the coarse grid's
+    // disc has half the radius and the same background amplitude.
     const tickRecords = (first: number, count: number) => {
       const data = new ArrayBuffer(count * grids * TICK_STRIDE);
       const write = (offset: number, gridSide: number, disc: number, coarse: number, tickIndex: number) => {
         new Uint32Array(data, offset, 3).set([gridSide, seed, tickIndex >>> 0]);
         new Float32Array(data, offset + 12, 3).set([rule.fireRate, hiddenNoise, disc]);
         new Uint32Array(data, offset + 24, 1).set([coarse]);
+        new Float32Array(data, offset + 28, 1).set([startBackground]);
       };
       for (let index = 0; index < count; index++) {
         if (pyramid) write(coarseRecord(index), coarseSide, startDisc / 2, 1, first + index);

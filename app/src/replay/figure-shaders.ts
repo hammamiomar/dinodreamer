@@ -19,27 +19,29 @@ const COARSE_DAMAGE_KEY = 0x63646d67u;
 
 /**
  * One record per tick and grid of a submission, at a 256-byte dynamic offset. hidden_noise is σ,
- * reserved; start_disc is the seeded start's radius in this grid's cells, 0 for noise everywhere (the
- * start record only); coarse is 1 for the pyramid's coarse grid, which draws from the COARSE keys.
+ * reserved; start_disc is the seeded start's radius in this grid's cells, 0 for noise everywhere, and
+ * start_background its amplitude outside the disc (the start record only); coarse is 1 for the pyramid's coarse grid, which draws from the COARSE keys.
  */
 const TICK = /* wgsl */ `
-struct Tick { side: u32, seed: u32, tick: u32, fire_rate: f32, hidden_noise: f32, start_disc: f32, coarse: u32, padding: u32 }
+struct Tick { side: u32, seed: u32, tick: u32, fire_rate: f32, hidden_noise: f32, start_disc: f32, coarse: u32, start_background: f32 }
 `;
 
 /**
  * The start value of state index `index` on a grid of `side` cells, from the stream key
  * pcg(seed ^ NOISE_KEY) (COARSE_NOISE_KEY for the pyramid's coarse grid): the start distribution, or
- * for a seeded start (radius > 0) zero outside the disc of cells whose centres lie within `radius` of
- * the grid centre. Offsets are half-integers, so the disc test is exact in f32.
+ * for a seeded start (radius > 0) that draw times `background` outside the disc of cells whose centres
+ * lie within `radius` of the grid centre, and exactly zero there when `background` is 0. Offsets are
+ * half-integers, so the disc test is exact in f32.
  */
 const START = /* wgsl */ `
-fn start_value(index: u32, side: u32, key: u32, radius: f32) -> f32 {
+fn start_value(index: u32, side: u32, key: u32, radius: f32, background: f32) -> f32 {
+  let value = unit(pcg(key + index)) - 0.5;
   if (radius > 0.0) {
     let cell = index / 16u;
     let offset = vec2<f32>(f32(cell % side), f32(cell / side)) - f32(side) / 2.0 + 0.5;
-    if (dot(offset, offset) > radius * radius) { return 0.0; }
+    if (dot(offset, offset) > radius * radius) { return select(0.0, background * value, background > 0.0); }
   }
-  return unit(pcg(key + index)) - 0.5;
+  return value;
 }`;
 
 /** Two source cells along one axis, lower index first, and their weights. */
@@ -272,7 +274,7 @@ fn start_state(@builtin(global_invocation_id) id: vec3<u32>) {
   let index = id.x;
   if (index >= grid.side * grid.side * 16u) { return; }
   let key = pcg(grid.seed ^ select(NOISE_KEY, COARSE_NOISE_KEY, grid.coarse == 1u));
-  state[index] = start_value(index, grid.side, key, grid.start_disc);
+  state[index] = start_value(index, grid.side, key, grid.start_disc, grid.start_background);
 }`,
 
   // The cell rule, and the pyramid's coarse rule (its first 7,776 values; grid.coarse = 1).

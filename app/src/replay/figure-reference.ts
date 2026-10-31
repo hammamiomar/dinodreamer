@@ -42,8 +42,11 @@ export function unit(hash: number): number {
   return (hash >>> 8) / 16777216;
 }
 
-/** A seeded start (startDisc > 0) is zero outside the cells whose centres lie within startDisc of the grid centre. */
-export function startState(side: number, seed: number, startDisc = 0, noiseKey = NOISE_KEY): Float32Array {
+/**
+ * A seeded start (startDisc > 0) is the draw times startBackground outside the cells whose centres lie
+ * within startDisc of the grid centre, and zero there when startBackground is 0.
+ */
+export function startState(side: number, seed: number, startDisc = 0, noiseKey = NOISE_KEY, startBackground = 0): Float32Array {
   const key = pcg((seed ^ noiseKey) >>> 0);
   const state = new Float32Array(side * side * CHANNELS);
   for (let index = 0; index < state.length; index++) {
@@ -51,7 +54,8 @@ export function startState(side: number, seed: number, startDisc = 0, noiseKey =
     const dx = cell % side - side / 2 + 0.5;
     const dy = Math.floor(cell / side) - side / 2 + 0.5;
     const outside = startDisc > 0 && dx * dx + dy * dy > startDisc * startDisc;
-    state[index] = outside ? 0 : unit(pcg((key + index) >>> 0)) - 0.5;
+    const value = unit(pcg((key + index) >>> 0)) - 0.5;
+    state[index] = !outside ? value : startBackground > 0 ? Math.fround(startBackground * value) : 0;
   }
   return state;
 }

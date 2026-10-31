@@ -54,7 +54,7 @@ function materialLines(file: FigureMaterialFile): string {
 export function embeddedRuleShaderSource(file: FigureMaterialFile, values: Float32Array): string {
   if (file.rule.layout === FIGURE_PYRAMID_LAYOUT) return embeddedPyramidShaderSource(file, values);
   if (values.length !== 7776) throw new Error("A single-scale cellular model has 7,776 values.");
-  const { hiddenNoise: sigma, startDisc, pixelsPerCell } = figurePlayback(file);
+  const { hiddenNoise: sigma, startDisc, startBackground, pixelsPerCell } = figurePlayback(file);
   const sides = replayGridSides(file).join(" or ");
   const display = pixelsPerCell === 2
     ? `//   Display: this automaton's picture has 2 pixels per cell (2 * side wide): the bilinear upsampling (torch
@@ -62,8 +62,9 @@ export function embeddedRuleShaderSource(file: FigureMaterialFile, values: Float
 //            green, blue), then byte = round-half-even(255 * value).`
     : "//   Display: byte = round-half-even(255 * clamp(x[c] + 0.5, 0, 1)) for c = 0, 1, 2 (red, green, blue).";
   const start = startDisc > 0
-    ? `//   Start: x[i] = unit(pcg(pcg(seed ^ 0x6e6f6973) + i)) - 0.5 inside the seeded disc, 0 outside it: cell (x, y) is
-//          inside when (x - side/2 + 0.5)^2 + (y - side/2 + 0.5)^2 <= START_DISC^2 (START_DISC = ${startDisc} cells).`
+    ? `//   Start: x[i] = unit(pcg(pcg(seed ^ 0x6e6f6973) + i)) - 0.5 inside the seeded disc, START_BACKGROUND times it
+//          outside (0 when START_BACKGROUND is 0): cell (x, y) is inside when
+//          (x - side/2 + 0.5)^2 + (y - side/2 + 0.5)^2 <= START_DISC^2 (START_DISC = ${startDisc} cells).`
     : "//   Start: x[i] = unit(pcg(pcg(seed ^ 0x6e6f6973) + i)) - 0.5, uniform on [-0.5, 0.5).";
   const header = `${materialLines(file)}
 //
@@ -94,6 +95,7 @@ ${display}
 const FIRE_RATE: f32 = ${wgslFloat(file.rule.fireRate)};
 const HIDDEN_NOISE: f32 = ${wgslFloat(sigma)}; // reserved playback noise; 0 is E18's playback
 const START_DISC: f32 = ${wgslFloat(startDisc)}; // seeded start radius in cells; 0 starts from noise everywhere
+const START_BACKGROUND: f32 = ${wgslFloat(startBackground)}; // the start draw's amplitude outside the disc; 0 is zero there
 ${FIGURE_WGSL.hash}${FIGURE_WGSL.start}
 struct Grid { side: u32, seed: u32, tick: u32, unused: u32 }
 @group(0) @binding(0) var<storage, read> state: array<f32>;
@@ -110,7 +112,7 @@ fn playback_hidden_noise() -> f32 { return HIDDEN_NOISE; }
 fn start_state(@builtin(global_invocation_id) id: vec3<u32>) {
   let index = id.x;
   if (index >= grid.side * grid.side * 16u) { return; }
-  next[index] = start_value(index, grid.side, pcg(grid.seed ^ NOISE_KEY), START_DISC);
+  next[index] = start_value(index, grid.side, pcg(grid.seed ^ NOISE_KEY), START_DISC, START_BACKGROUND);
 }
 ${FIGURE_WGSL.step}
 ${FIGURE_WGSL.hidden}
@@ -122,10 +124,10 @@ ${weightConstants(values, CELL_ARRAYS)}
 /** The pyramid's embedded-rule file: both grids, both rules and the torus upsampling, with host notes for two grids. */
 function embeddedPyramidShaderSource(file: FigureMaterialFile, values: Float32Array): string {
   if (values.length !== 17088) throw new Error("A two-scale cellular model has 17,088 values.");
-  const { startDisc } = figurePlayback(file);
+  const { startDisc, startBackground } = figurePlayback(file);
   const start = startDisc > 0
-    ? `//   Start: central noise initialization, as for a single-scale cellular model, inside the seeded disc only:
-//          START_DISC = ${startDisc} fine cells, half that in coarse cells.`
+    ? `//   Start: central noise initialization, as for a single-scale cellular model, inside the seeded disc, and
+//          START_BACKGROUND times it outside: START_DISC = ${startDisc} fine cells, half that in coarse cells.`
     : "//   Start: x[i] = unit(pcg(pcg(seed ^ KEY) + i)) - 0.5, KEY = 0x6e6f6973 for the fine grid and 0x636e6f69 for the coarse grid.";
   const header = `${materialLines(file)}
 //
@@ -164,6 +166,7 @@ ${start}
 const FIRE_RATE: f32 = ${wgslFloat(file.rule.fireRate)};
 const HIDDEN_NOISE: f32 = 0.00000000; // the pyramid has no playback noise
 const START_DISC: f32 = ${wgslFloat(startDisc)}; // seeded start radius in fine cells; 0 starts from noise everywhere
+const START_BACKGROUND: f32 = ${wgslFloat(startBackground)}; // the start draw's amplitude outside the disc; 0 is zero there
 ${FIGURE_WGSL.hash}${FIGURE_WGSL.start}${FIGURE_WGSL.torus}
 struct Grid { side: u32, seed: u32, tick: u32, coarse: u32 }
 @group(0) @binding(0) var<storage, read> state: array<f32>;
@@ -186,7 +189,7 @@ fn start_state(@builtin(global_invocation_id) id: vec3<u32>) {
   let index = id.x;
   if (index >= grid.side * grid.side * 16u) { return; }
   let key = pcg(grid.seed ^ select(NOISE_KEY, COARSE_NOISE_KEY, grid.coarse == 1u));
-  next[index] = start_value(index, grid.side, key, START_DISC / f32(1u + grid.coarse));
+  next[index] = start_value(index, grid.side, key, START_DISC / f32(1u + grid.coarse), START_BACKGROUND);
 }
 ${FIGURE_WGSL.step}
 ${FIGURE_WGSL.fineStep}
