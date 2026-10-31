@@ -21,6 +21,10 @@
 //   POST /admin/api/materials/approve|reject|hide|restore|purge  { id }   the same operations for one material
 //   POST /admin/api/materials/feature|unfeature  { id }   mark a shown material featured, or clear the mark;
 //                                                 both answer { entry }, the entry as the index now lists it
+//   GET  /admin/research, /admin/research/group/<n or none>, /admin/research/run/<id>   the research page (the app's)
+//   GET  /admin/api/research/manifest.json         the research run index (research.ts), from the private bucket
+//   GET  /admin/api/research/runs/<id>/material.json | still-<tick>.png   a run's file and stills
+//   POST /admin/api/research/promote  { id, title }   store a run as a pending material; Approve publishes it
 //
 // A POST must send JSON from this host's own page (its Origin header), so another site cannot
 // post with the owner's Access cookie. The page sends one action at a time, the same rule as the
@@ -31,6 +35,8 @@ import { PURGE_BY_PREFIX_PLACE, purgePrefix } from "./cdn-check.ts";
 import { approveAll, galleryEntries, hide, pendingBlocks, purge, reject, restore } from "./review.ts";
 import { approveMaterial, hideMaterial, materialEntries, pendingMaterialKey, purgeMaterial, restoreMaterial, setMaterialFeatured } from "./material-review.ts";
 import { isMaterialEntryId, materialKey } from "../../app/src/features/gallery/material-index.ts";
+import { isResearchRunId, RESEARCH_MANIFEST_KEY, researchRunKey } from "../../app/src/features/research/research-runs.ts";
+import { promoteResearchRun } from "./research.ts";
 import { isSubmissionId, pendingKey, publishedKey, type Bucket, type SubmissionMetadata } from "./storage.ts";
 import { imagesThumbnail, type ImagesBinding } from "./thumbnail.ts";
 
@@ -69,8 +75,11 @@ export async function ownerRequest(request: Request, env: OwnerEnv, page: string
   return json({ error: "use GET or POST" }, 405, { allow: "GET, POST" });
 }
 
-/** The owner views the app draws: the materials view, alone or with a basis group's panel over it. */
-const OWNER_APP_PAGE = /^\/admin\/materials(?:\/basis\/\d{1,5})?$/;
+/**
+ * The owner views the app draws: the materials view, alone or with a basis group's panel over it,
+ * and the research page with its group and run views.
+ */
+const OWNER_APP_PAGE = /^\/admin\/(?:materials(?:\/basis\/\d{1,5})?|research(?:\/group\/(?:\d{1,5}|none)|\/run\/[a-z0-9][a-z0-9-]{0,95})?)$/;
 
 /**
  * The app's index.html, for an owner view that the app draws: one player implementation, the
@@ -97,6 +106,11 @@ function ownerPage(page: string): Response {
 
 async function ownerGet(pathname: string, env: OwnerEnv, owner: string): Promise<Response> {
   if (pathname === "/admin/api/materials") return json(await materialEntries(env.SUBMISSIONS, env.LIBRARY));
+  if (pathname === "/admin/api/research/manifest.json") return privateObject(env.SUBMISSIONS, RESEARCH_MANIFEST_KEY, "application/json");
+  const researchFile = pathname.match(/^\/admin\/api\/research\/runs\/([^/]+)\/(material\.json|still-\d{4,5}\.png)$/);
+  if (researchFile !== null && isResearchRunId(researchFile[1]!)) {
+    return privateObject(env.SUBMISSIONS, researchRunKey(researchFile[1]!, researchFile[2]!), researchFile[2]!.endsWith(".png") ? "image/png" : "application/json");
+  }
   const pendingPoster = pathname.match(/^\/admin\/api\/materials\/pending\/([^/]+)\/poster\.png$/);
   if (pendingPoster !== null && isSubmissionId(pendingPoster[1]!)) return privateObject(env.SUBMISSIONS, pendingMaterialKey(pendingPoster[1]!, "poster.png"), "image/png");
   const pendingFile = pathname.match(/^\/admin\/api\/materials\/pending\/([^/]+)\/material\.json$/);
@@ -150,7 +164,12 @@ async function ownerPost(request: Request, pathname: string, env: OwnerEnv, now:
     return json({ error: "the body is not JSON" }, 400);
   }
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return json({ error: "the body must be a JSON object" }, 400);
-  const body = parsed as { id?: unknown; ids?: unknown };
+  const body = parsed as { id?: unknown; ids?: unknown; title?: unknown };
+  if (pathname === "/admin/api/research/promote") {
+    const { id, title } = body;
+    if (typeof id !== "string" || !isResearchRunId(id) || typeof title !== "string") return json({ error: "send a research run id and a title" }, 400);
+    return run(async () => ({ pending: await promoteResearchRun(env.SUBMISSIONS, id, title, now, crypto.getRandomValues(new Uint8Array(4))) }));
+  }
   const materialAction = pathname.match(/^\/admin\/api\/materials\/(approve|reject|hide|restore|purge|feature|unfeature)$/)?.[1];
   if (materialAction !== undefined) return materialPost(materialAction, body.id, env, now);
   const action = pathname.match(/^\/admin\/api\/(approve|reject|hide|restore|purge)$/)?.[1];

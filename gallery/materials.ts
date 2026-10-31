@@ -29,14 +29,12 @@ import { confirmed, openBuckets, openLocalBuckets } from "./review-cli.ts";
 import { FIGURE_PYRAMID_LAYOUT, readFigureMaterial, type FigureMaterialFile } from "../app/src/materials/material-file.ts";
 import { isMaterialEntryId, materialKey } from "../app/src/features/gallery/material-index.ts";
 import {
-  addFeaturedMarks, approveMaterial, findMaterial, hideMaterial, materialEntries, publishMaterial, publishMaterials, purgeMaterial, readMaterials,
-  restoreMaterial, setMaterialFeatured, type MaterialToPublish,
+  addFeaturedMarks, approveMaterial, findMaterial, hideMaterial, materialEntries, PROJECT_CREDIT, publishMaterial, publishMaterials, purgeMaterial,
+  readMaterials, restoreMaterial, setMaterialFeatured, type MaterialToPublish,
 } from "./src/material-review.ts";
 import { reject } from "./src/review.ts";
 import type { Bucket } from "./src/storage.ts";
 
-/** The project's own entries are attributed to it, not to a visitor. */
-const PROJECT_CREDIT = "DinoDreamer project";
 
 /** A material's kind in the site's words: the rule (fine, or coarse + fine), the start and the picture. */
 function kindName(file: FigureMaterialFile): string {

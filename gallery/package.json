@@ -18,6 +18,7 @@
     "check": "tsc --noEmit",
     "test": "vitest run",
     "materials": "node materials.ts",
+    "research": "node research.ts",
     "publish-library-folder": "node publish-library-folder.ts"
   },
   "devDependencies": {

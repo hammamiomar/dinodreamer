@@ -20,6 +20,8 @@ import { previewKeys } from "./link-preview.ts";
 /** The dictionary of the current release; a material of another dictionary reads other codes. */
 export const MATERIAL_DICTIONARIES: readonly string[] = ["monet-dtd-seed9-20261004-pass-003"];
 export const MATERIAL_LIMITS = { materialBytes: 256 * 1024, ...MATERIAL_SUBMISSION_LIMITS } as const;
+/** The project's own entries (seeds and promoted research runs) are attributed to it, not to a visitor. */
+export const PROJECT_CREDIT = "DinoDreamer project";
 const PENDING_FILES = ["material.json", "poster.png", "meta.json"] as const;
 type PendingFile = (typeof PENDING_FILES)[number];
 
