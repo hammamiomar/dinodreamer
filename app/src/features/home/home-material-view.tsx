@@ -19,7 +19,7 @@ import { SAMPLE_EVERY_TICKS, sampledAccent } from "../../ui/sampled-accent";
 import { canvasPixelRatio, pageScale } from "../../ui/page-scale";
 import { materialFileUrl } from "../gallery/material-gallery";
 import type { MaterialEntry } from "../gallery/material-index";
-import { nextSeed, REGROW_AT_TICK, strokeOnTorus, tiledCanvas } from "./home-material";
+import { nextSeed, REGROW_AT_TICK, REGROWTH_SHOWN_FROM_TICK, strokeOnTorus, tiledCanvas } from "./home-material";
 import "./home-material.css";
 
 const WORDS = SITE_WORDS.home;
@@ -164,9 +164,16 @@ export function HomeMaterial({
             sampledAt = due;
             loop.hold(() => replay.readPixels()).then((pixels_N4) => setAccent(sampledAccent(pixels_N4, replay.pictureSide)), () => {});
           }
-          if (tick >= regrowAtTick) {
+          // The regrowth steps past its random starting state before it is drawn (home-material.ts).
+          if (tick >= regrowAtTick && replay && loop) {
             seed = nextSeed(seed);
-            session.loop?.reseed(seed);
+            void loop.hold(async () => {
+              if (session.replay !== replay) return;
+              replay.reseed(seed);
+              await replay.advance(REGROWTH_SHOWN_FROM_TICK);
+            }).catch((error: unknown) => {
+              if (session.replay === replay) setMessage(String(error));
+            });
           }
         },
         // A replay that never drew a frame is a browser without a usable WebGPU adapter: the poster stays, and the page says so.

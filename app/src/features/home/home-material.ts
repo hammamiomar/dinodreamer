@@ -14,6 +14,13 @@ import type { MaterialEntry } from "../gallery/material-index";
  */
 export const REGROW_AT_TICK = 2000;
 
+/**
+ * A regrowth is first drawn at this tick of its new seed. The ticks before it are the random starting
+ * state, bright full-frame noise that would flash at every regrowth; the share video leaves out the
+ * same ticks (gallery/render-site-preview.mjs, six frames at four ticks a frame).
+ */
+export const REGROWTH_SHOWN_FROM_TICK = 24;
+
 /** The replay draws at most this many canvas pixels per cell (figure-replay.ts, checkScale). */
 const MOST_PIXELS_PER_CELL = 8;
 
