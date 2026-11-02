@@ -12,7 +12,7 @@ import type { MaterialEntry } from "../gallery/material-index";
 import { fetchResearchMaterial, lastStillUrl, promoteRun, stillUrl } from "./research-api";
 import { conditionName, measured, RunMark } from "./research-parts";
 import { useResearchView } from "./research-page";
-import { conditionOf, groupSegment, type ResearchLoss, type ResearchRun, type ResearchStart } from "./research-runs";
+import { conditionOf, groupSegment, type GuideSettings, type ResearchLoss, type ResearchRun, type ResearchStart } from "./research-runs";
 
 const WORDS = SITE_WORDS.research;
 const PLACE_WORDS = { pending: WORDS.onSitePending, shown: WORDS.onSiteShown, hidden: WORDS.onSiteHidden } as const;
@@ -25,7 +25,7 @@ function startWords(start: ResearchStart): string {
     : `${WORDS.starts["centre-disc"]}, ${fill(WORDS.discValue, { radius: start.radius })}`;
 }
 
-/** "Guided, ratio 3, release fraction 0.4, z floor 1 (median norm)": the settings the run uses, in order. */
+/** "Guided, ratio 3, release fraction 0.4, z floor 1, on 73 DINO units": the settings the run uses, in order. */
 function lossWords(loss: ResearchLoss): string {
   if (loss.kind !== "guided") return WORDS.losses[loss.kind];
   const guide = WORDS.guide;
@@ -36,11 +36,18 @@ function lossWords(loss: ResearchLoss): string {
     ...numbered(guide.releaseFraction, loss.releaseFraction),
     ...numbered(guide.releaseAtUpdate, loss.releaseAtUpdate),
     ...numbered(guide.releaseFloor, loss.releaseFloor),
-    ...(loss.reEngage === null ? [] : [loss.reEngage ? guide.reEngages : guide.staysReleased]),
+    ...reEngagement(loss),
     ...numbered(guide.zFloor, loss.zFloor),
+    ...(loss.units === "" ? [] : [fill(guide.units, { units: loss.units })]),
   ];
-  const units = loss.units === "" ? "" : ` ${fill(guide.units, { units: loss.units })}`;
-  return [WORDS.losses.guided, ...parts].join(", ") + units;
+  return [WORDS.losses.guided, ...parts].join(", ");
+}
+
+/** Whether a released guide comes back, and at what loss when the run gives the threshold. */
+function reEngagement(guide: GuideSettings): string[] {
+  if (guide.reEngage === null) return [];
+  if (!guide.reEngage) return [WORDS.guide.staysReleased];
+  return [guide.reEngageAt === null ? WORDS.guide.reEngages : fill(WORDS.guide.reEngagesAt, { value: guide.reEngageAt })];
 }
 
 function yesNo(value: boolean | null): string {

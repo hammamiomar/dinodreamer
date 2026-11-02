@@ -772,7 +772,7 @@ export const SITE_WORDS = {
     scheduleValue: "{updates} updates, pool {pool}",
     discValue: "radius {radius} cells",
     fieldValue: "radius {radius} cells on {amplitude} × noise",
-    /** A guided loss's settings, each shown only when the run uses it; {units} follows them in brackets. */
+    /** A guided loss's settings, each shown only when the run uses it; {units} is the DINO units the guide acts on, last. */
     guide: {
       ratio: "ratio {value}",
       weightCap: "weight cap {value}",
@@ -780,9 +780,10 @@ export const SITE_WORDS = {
       releaseAtUpdate: "held to update {value}",
       releaseFloor: "release floor {value}",
       reEngages: "re-engages",
+      reEngagesAt: "re-engages above {value} of its first loss",
       staysReleased: "stays released",
       zFloor: "z floor {value}",
-      units: "({units})",
+      units: "on {units}",
     },
     /** The outcome table's rows. */
     releasedAt: "Released at update",

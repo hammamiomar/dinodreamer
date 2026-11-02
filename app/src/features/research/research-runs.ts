@@ -50,8 +50,13 @@ export interface GuideSettings {
   releaseFloor: number | null;
   /** Whether the guide comes back after its release. */
   reEngage: boolean | null;
+  /**
+   * When it comes back: its 25-update mean loss rises above this share of its first value (it
+   * switches off again below the release fraction).
+   */
+  reEngageAt: number | null;
   zFloor: number | null;
-  /** The unit of the numbers above, such as "median norm"; empty when unstated. */
+  /** The DINO MLP units the guide acts on, the natural circuit after the z floor, such as "73 DINO units"; empty when unstated. */
   units: string;
 }
 
@@ -195,6 +200,7 @@ function readLoss(value: unknown, where: string): ResearchLoss {
     releaseAtUpdate: nullable(loss.releaseAtUpdate ?? null, (present) => count(present, `${where}.releaseAtUpdate`)),
     releaseFloor: optionalNumber("releaseFloor"),
     reEngage: nullable(loss.reEngage ?? null, (present) => flag(present, `${where}.reEngage`)),
+    reEngageAt: optionalNumber("reEngageAt"),
     zFloor: optionalNumber("zFloor"),
     units: text(loss.units ?? "", `${where}.units`),
   };
