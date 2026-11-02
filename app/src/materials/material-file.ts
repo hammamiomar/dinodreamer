@@ -160,13 +160,14 @@ export const MEASUREMENT_DIRECTION = "training target";
  * `measurementDirection` (an index entry copies both). Browser definitions with
  * `measurementDirection` store the mean projection on the training target's direction, u·c_t / m
  * over the read patches. Browser definitions from before it (no experiment) and the E18 and E19
- * conversions store the same mean on the main direction. The E20 and E21 conversions and the
- * selection-margin study store the median over the read patches of |c_t| / m; their notes say so.
+ * conversions store the same mean on the main direction. The E20 and E21 conversions, the
+ * selection-margin study and the 7178 investigation store the median over the read patches of
+ * |c_t| / m; their notes say so.
  * For another experiment the statistic is not known here, and only its note names it.
  */
 export type StrengthStatistic = "projection-on-target" | "projection-on-main-direction" | "median-magnitude" | "unknown";
 const MAIN_DIRECTION_EXPERIMENTS: readonly string[] = ["E18", "E19"];
-const MEDIAN_MAGNITUDE_EXPERIMENTS: readonly string[] = ["E20", "E21", "2026-10-26-selection-margin"];
+const MEDIAN_MAGNITUDE_EXPERIMENTS: readonly string[] = ["E20", "E21", "2026-10-26-selection-margin", "2026-10-30-7178-investigation"];
 
 export function strengthStatistic(experiment: unknown, measurementDirection: unknown): StrengthStatistic {
   if (measurementDirection === MEASUREMENT_DIRECTION) return "projection-on-target";

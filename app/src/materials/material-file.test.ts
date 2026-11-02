@@ -114,6 +114,7 @@ describe("canonical recipe settings", () => {
     expect(strengthStatistic(undefined, "training target")).toBe("projection-on-target");
     expect(strengthStatistic(undefined, undefined)).toBe("projection-on-main-direction");
     expect(strengthStatistic("2026-10-26-selection-margin", undefined)).toBe("median-magnitude");
+    expect(strengthStatistic("2026-10-30-7178-investigation", undefined)).toBe("median-magnitude");
     expect(strengthStatistic("E99", undefined)).toBe("unknown");
   });
 
