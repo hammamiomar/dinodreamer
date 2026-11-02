@@ -25,9 +25,22 @@ function startWords(start: ResearchStart): string {
     : `${WORDS.starts["centre-disc"]}, ${fill(WORDS.discValue, { radius: start.radius })}`;
 }
 
+/** "Guided, ratio 3, release fraction 0.4, z floor 1 (median norm)": the settings the run uses, in order. */
 function lossWords(loss: ResearchLoss): string {
   if (loss.kind !== "guided") return WORDS.losses[loss.kind];
-  return `${WORDS.losses.guided}, ${fill(WORDS.guideValue, { ratio: loss.ratio, release: loss.releaseFraction, floor: loss.zFloor, units: loss.units })}`;
+  const guide = WORDS.guide;
+  const numbered = (words: string, value: number | null) => (value === null ? [] : [fill(words, { value })]);
+  const parts = [
+    ...numbered(guide.ratio, loss.ratio),
+    ...numbered(guide.weightCap, loss.weightCap),
+    ...numbered(guide.releaseFraction, loss.releaseFraction),
+    ...numbered(guide.releaseAtUpdate, loss.releaseAtUpdate),
+    ...numbered(guide.releaseFloor, loss.releaseFloor),
+    ...(loss.reEngage === null ? [] : [loss.reEngage ? guide.reEngages : guide.staysReleased]),
+    ...numbered(guide.zFloor, loss.zFloor),
+  ];
+  const units = loss.units === "" ? "" : ` ${fill(guide.units, { units: loss.units })}`;
+  return [WORDS.losses.guided, ...parts].join(", ") + units;
 }
 
 function yesNo(value: boolean | null): string {

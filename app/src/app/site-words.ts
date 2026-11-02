@@ -772,7 +772,18 @@ export const SITE_WORDS = {
     scheduleValue: "{updates} updates, pool {pool}",
     discValue: "radius {radius} cells",
     fieldValue: "radius {radius} cells on {amplitude} × noise",
-    guideValue: "ratio {ratio}, release at {release}, z floor {floor} ({units})",
+    /** A guided loss's settings, each shown only when the run uses it; {units} follows them in brackets. */
+    guide: {
+      ratio: "ratio {value}",
+      weightCap: "weight cap {value}",
+      releaseFraction: "release fraction {value}",
+      releaseAtUpdate: "held to update {value}",
+      releaseFloor: "release floor {value}",
+      reEngages: "re-engages",
+      staysReleased: "stays released",
+      zFloor: "z floor {value}",
+      units: "({units})",
+    },
     /** The outcome table's rows. */
     releasedAt: "Released at update",
     requestLoss: "Request loss",

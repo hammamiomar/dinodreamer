@@ -33,9 +33,27 @@ export type ResearchStart = { kind: "noise" } | { kind: "centre-disc"; radius: n
  */
 export type ResearchLoss =
   | { kind: "plain" }
-  | { kind: "guided"; ratio: number; releaseFraction: number; zFloor: number; units: string }
+  | ({ kind: "guided" } & GuideSettings)
   | { kind: "plain-margin" }
   | { kind: "other" };
+
+/**
+ * A guided run's guide, in the trainer's names. Each is null when the run does not use it: the
+ * early runs hold the guide for a fixed number of updates (releaseAtUpdate) instead of releasing it
+ * by releaseFraction, and the first of them cap the guide's weight (weightCap) instead of a ratio.
+ */
+export interface GuideSettings {
+  ratio: number | null;
+  weightCap: number | null;
+  releaseFraction: number | null;
+  releaseAtUpdate: number | null;
+  releaseFloor: number | null;
+  /** Whether the guide comes back after its release. */
+  reEngage: boolean | null;
+  zFloor: number | null;
+  /** The unit of the numbers above, such as "median norm"; empty when unstated. */
+  units: string;
+}
 
 export type ResearchRule = "cell" | "pyramid";
 
@@ -168,12 +186,17 @@ function readLoss(value: unknown, where: string): ResearchLoss {
   const loss = record(value, where);
   if (loss.kind === "plain" || loss.kind === "plain-margin" || loss.kind === "other") return { kind: loss.kind };
   if (loss.kind !== "guided") fail(where, 'kind must be "plain", "guided", "plain-margin" or "other"');
+  const optionalNumber = (name: string) => nullable(loss[name] ?? null, (present) => finite(present, `${where}.${name}`));
   return {
     kind: "guided",
-    ratio: finite(loss.ratio, `${where}.ratio`),
-    releaseFraction: finite(loss.releaseFraction, `${where}.releaseFraction`),
-    zFloor: finite(loss.zFloor, `${where}.zFloor`),
-    units: text(loss.units, `${where}.units`),
+    ratio: optionalNumber("ratio"),
+    weightCap: optionalNumber("weightCap"),
+    releaseFraction: optionalNumber("releaseFraction"),
+    releaseAtUpdate: nullable(loss.releaseAtUpdate ?? null, (present) => count(present, `${where}.releaseAtUpdate`)),
+    releaseFloor: optionalNumber("releaseFloor"),
+    reEngage: nullable(loss.reEngage ?? null, (present) => flag(present, `${where}.reEngage`)),
+    zFloor: optionalNumber("zFloor"),
+    units: text(loss.units ?? "", `${where}.units`),
   };
 }
 

@@ -40,9 +40,24 @@ describe("readResearchManifest", () => {
     expect(read.runs[0]).toMatchObject({
       groupName: "fireworks",
       start: { kind: "centre-disc", radius: 16, backgroundAmplitude: 0.25 },
-      loss: { kind: "guided", ratio: 0.5, releaseFraction: 0.4, zFloor: 1.2, units: "median norm" },
+      loss: {
+        kind: "guided", ratio: 0.5, weightCap: null, releaseFraction: 0.4, releaseAtUpdate: null,
+        releaseFloor: null, reEngage: null, zFloor: 1.2, units: "median norm",
+      },
       outcome: { centreSelected: { count: 11, of: 16 }, firesAtUpdate: 412, holds4000: true },
     });
+  });
+
+  it("reads an early guide held to a fixed update with a capped weight, and a floor that re-engages", () => {
+    const read = readResearchManifest(manifest([
+      run("pilot", { loss: { kind: "guided", weightCap: 0.1, releaseAtUpdate: 750 } }),
+      run("floor", { loss: { kind: "guided", ratio: 3, releaseFraction: 0.4, releaseFloor: 1, reEngage: true, units: "median norm" } }),
+    ]));
+    expect(read.runs[0]!.loss).toEqual({
+      kind: "guided", ratio: null, weightCap: 0.1, releaseFraction: null, releaseAtUpdate: 750, releaseFloor: null, reEngage: null, zFloor: null, units: "",
+    });
+    expect(read.runs[1]!.loss).toMatchObject({ releaseFloor: 1, reEngage: true });
+    expect(() => readResearchManifest(manifest([run("bad", { loss: { kind: "guided", releaseAtUpdate: 7.5 } })]))).toThrow("run bad.loss.releaseAtUpdate");
   });
 
   it("names the run and the field it refuses", () => {
