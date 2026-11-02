@@ -15,9 +15,19 @@ interface Reference {
   firstFire: number;
 }
 
+// The seeded field has no measurement of its own yet; it costs what the central start costs (the same
+// grids and the same scored patches), so it takes the central start's reference until one is measured.
 const REFERENCE: Record<MaterialKind["rule"], Record<MaterialKind["start"], Reference>> = {
-  cell: { noise: { msPerUpdate: 395, firstFire: 250 }, "centre-disc": { msPerUpdate: 386, firstFire: 625 } },
-  pyramid: { noise: { msPerUpdate: 603, firstFire: 250 }, "centre-disc": { msPerUpdate: 641, firstFire: 450 } },
+  cell: {
+    noise: { msPerUpdate: 395, firstFire: 250 },
+    "centre-disc": { msPerUpdate: 386, firstFire: 625 },
+    "seeded-field": { msPerUpdate: 386, firstFire: 625 },
+  },
+  pyramid: {
+    noise: { msPerUpdate: 603, firstFire: 250 },
+    "centre-disc": { msPerUpdate: 641, firstFire: 450 },
+    "seeded-field": { msPerUpdate: 641, firstFire: 450 },
+  },
 };
 
 /**

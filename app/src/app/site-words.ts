@@ -1009,6 +1009,7 @@ export const SITE_WORDS = {
     ruleCoarseFine: "coarse + fine",
     startNoise: "noise",
     startSeeded: "central noise",
+    startSeededField: "seeded field",
     /** After the grids on a tile, for an automaton at 2 px per cell: "fine · 2 px". */
     twoPixelsShort: "2 px",
     /** After the grids in the head, for the same automaton: "fine · 2 px per cell · noise". */

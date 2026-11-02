@@ -101,6 +101,11 @@ export interface ResearchRun {
   outcome: ResearchOutcome;
   /** The researcher's one-line reading, and short tags such as "texture" or "colour-only". */
   reading: { line: string; tags: string[] };
+  /**
+   * The owner's review of the run, as the export records it: whether it goes on the site, and whether
+   * it is featured within its basis group (which needs `site`). Absent in an older export: neither.
+   */
+  review: { site: boolean; featured: boolean };
   /** SHA-256 of research/runs/<id>/material.json, the run's format-4 file. */
   materialSha256: string;
   /** The ticks with a still under research/runs/<id>/ (stillName), ascending. */
@@ -262,9 +267,18 @@ function readRun(value: unknown, at: number, studies: ReadonlySet<string>): Rese
     schedule: { updates: count(schedule.updates, `${where}.schedule.updates`), pool: count(schedule.pool, `${where}.schedule.pool`) },
     outcome: readOutcome(run.outcome, `${where}.outcome`),
     reading: { line: text(reading.line, `${where}.reading.line`), tags },
+    review: run.review === undefined ? { site: false, featured: false } : readReview(run.review, `${where}.review`),
     materialSha256,
     stills,
   };
+}
+
+function readReview(value: unknown, where: string): ResearchRun["review"] {
+  const review = record(value, where);
+  const site = flag(review.site, `${where}.site`);
+  const featured = flag(review.featured, `${where}.featured`);
+  if (featured && !site) fail(`${where}.featured`, "a featured run must be on the site list");
+  return { site, featured };
 }
 
 /** The run index, checked field by field; an error names the run and the field. */

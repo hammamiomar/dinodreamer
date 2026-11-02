@@ -29,7 +29,7 @@ function kindParts(entry: MaterialEntry): { rule: string; start: string; twoPixe
   const kind = entryKind(entry);
   return {
     rule: kind.rule === "pyramid" ? WORDS.ruleCoarseFine : WORDS.ruleFine,
-    start: kind.start === "centre-disc" ? WORDS.startSeeded : WORDS.startNoise,
+    start: kind.start === "noise" ? WORDS.startNoise : kind.start === "centre-disc" ? WORDS.startSeeded : WORDS.startSeededField,
     twoPixels: entry.pixelsPerCell === 2,
   };
 }

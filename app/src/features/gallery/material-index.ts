@@ -5,7 +5,10 @@
 // This module has no browser or React imports: the gallery Worker and scripts use it too.
 
 import type { StrengthBand } from "../../recipe";
-import { FIGURE_LAYOUT, FIGURE_PYRAMID_LAYOUT, fired, type FigureLayout, type FigureMaterialFile, type PixelsPerCell } from "../../materials/material-file.ts";
+import {
+  FIGURE_LAYOUT, FIGURE_PYRAMID_LAYOUT, fired, lossKindOf, startKindOf, type FigureLayout, type FigureMaterialFile, type FigureStartKind,
+  type PixelsPerCell,
+} from "../../materials/material-file.ts";
 
 export const MATERIAL_INDEX_KEY = "published/materials.json";
 export const MATERIAL_FILES = ["material.json", "poster.png"] as const;
@@ -40,18 +43,31 @@ export interface MaterialEntry {
   layout: FigureLayout;
   start: MaterialStartKind;
   pixelsPerCell: PixelsPerCell;
+  /**
+   * The loss the rule trained with, from its file (lossKindOf): the request alone, or with the guide.
+   * Absent in an older index, which means plain; read it with entryLoss.
+   */
+  loss?: MaterialLossKind;
   /** The research experiment that trained the rule (E18 to E21); absent for a rule grown in the browser. */
   experiment?: string;
   /** The direction the measurement projects on, from the file's settings: "training target", or absent for the main direction. */
   measurementDirection?: string;
   /**
-   * The owner's mark: featured materials are the home's pool and the Playground's
-   * first group. Not the visitor's starred blocks of Explore. The gallery writes it on every entry;
-   * absent in an older index, which means false.
+   * The owner's site mark, the second of two levels: featured materials are the home's pool and the
+   * Automata page's first group. Not the visitor's starred blocks of Explore. The gallery writes it on
+   * every entry; absent in an older index, which means false. A site-featured material is featured in
+   * its basis group too (featuredInBlock).
    */
   featured?: boolean;
+  /**
+   * The owner's first mark: featured within its basis group, which the Automata page shows on the
+   * group's card and first in the group's view. Absent means false, unless `featured` is true. Read it
+   * with featuredInBlock.
+   */
+  featuredInBlock?: boolean;
 }
-export type MaterialStartKind = "noise" | "centre-disc";
+export type MaterialStartKind = FigureStartKind;
+export type MaterialLossKind = "plain" | "guided";
 export interface MaterialIndex { entries: MaterialEntry[] }
 export const EMPTY_MATERIAL_INDEX: MaterialIndex = { entries: [] };
 
@@ -75,11 +91,23 @@ export function materialEntry(id: string, file: FigureMaterialFile, label: { tit
     ...(file.reading.region ? { region: file.reading.region } : {}),
     side: file.reading.side, seed: file.reading.seed, tick: file.reading.tick,
     engine: file.engine, trainerCommit: file.trainerCommit,
-    layout: file.rule.layout, start: file.start?.kind ?? "noise", pixelsPerCell: file.picture?.pixelsPerCell ?? 1,
+    layout: file.rule.layout, start: startKindOf(file.start), pixelsPerCell: file.picture?.pixelsPerCell ?? 1,
+    loss: lossKindOf(file) === "guided" ? "guided" : "plain",
     ...(typeof experiment === "string" ? { experiment } : {}),
     ...(typeof measurementDirection === "string" ? { measurementDirection } : {}),
     featured: false,
+    featuredInBlock: false,
   };
+}
+
+/** The loss the entry's rule trained with; an older entry without the field trained with the request alone. */
+export function entryLoss(entry: Pick<MaterialEntry, "loss">): MaterialLossKind {
+  return entry.loss ?? "plain";
+}
+
+/** Whether the owner featured the material within its basis group: its own mark, or the site mark, which implies it. */
+export function featuredInBlock(entry: Pick<MaterialEntry, "featured" | "featuredInBlock">): boolean {
+  return entry.featuredInBlock === true || entry.featured === true;
 }
 
 /** The index with this entry added, or replacing an entry with the same id; newest first. */
@@ -120,11 +148,13 @@ export function readMaterialIndex(value: unknown): MaterialIndex {
     check(entry.region === undefined || entry.region === "centre-4x4", "measurement region");
     check([entry.side, entry.seed, entry.tick].every((number) => Number.isInteger(number) && number >= 0), "measurement state");
     check(entry.layout === FIGURE_LAYOUT || entry.layout === FIGURE_PYRAMID_LAYOUT, "layout");
-    check(entry.start === "noise" || entry.start === "centre-disc", "start");
+    check(entry.start === "noise" || entry.start === "centre-disc" || entry.start === "seeded-field", "start");
     check(entry.pixelsPerCell === 1 || entry.pixelsPerCell === 2, "pixels per cell");
+    check(entry.loss === undefined || entry.loss === "plain" || entry.loss === "guided", "loss");
     check(entry.experiment === undefined || typeof entry.experiment === "string", "experiment");
     check(entry.measurementDirection === undefined || typeof entry.measurementDirection === "string", "measurement direction");
     check(entry.featured === undefined || typeof entry.featured === "boolean", "featured mark");
+    check(entry.featuredInBlock === undefined || typeof entry.featuredInBlock === "boolean", "featured-in-group mark");
   }
   return value as MaterialIndex;
 }

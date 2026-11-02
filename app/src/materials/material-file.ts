@@ -103,6 +103,28 @@ export interface FigureReading {
  */
 export type FigureStart = { kind: "noise" } | { kind: "centre-disc"; radius: number; backgroundAmplitude?: number };
 
+/** A start's kind as the automata index and Train name it: a centre disc on faint noise is a seeded field. */
+export type FigureStartKind = "noise" | "centre-disc" | "seeded-field";
+
+export function startKindOf(start: FigureStart | undefined): FigureStartKind {
+  if (start === undefined || start.kind === "noise") return "noise";
+  return (start.backgroundAmplitude ?? 0) > 0 ? "seeded-field" : "centre-disc";
+}
+
+/**
+ * The loss the rule trained with, as its settings record it (`lossKind`): the request alone; the request
+ * with a guide on DINO units that is released during training; or the request with a selection margin.
+ * Absent means plain. A guided rule also records `guideRatio`, `guideReleaseFraction`, `guideReleaseFloor`
+ * and `guideUnits` (the number of guided units).
+ */
+export type FigureLossKind = "plain" | "guided" | "plain-margin";
+const FIGURE_LOSS_KINDS: readonly unknown[] = ["plain", "guided", "plain-margin"];
+
+export function lossKindOf(file: Pick<FigureMaterialFile, "recipe">): FigureLossKind {
+  const kind = file.recipe.settings.lossKind;
+  return kind === "guided" || kind === "plain-margin" ? kind : "plain";
+}
+
 /** Picture pixels per cell along each axis. 2 shows a 64-cell grid as a 128-pixel picture. */
 export type PixelsPerCell = 1 | 2;
 
@@ -123,7 +145,7 @@ export interface FigureMaterialFile {
     source: string;
     sourceSha256: string;
     /** m and u of the loss and the readout travel with the rule. */
-    settings: Record<string, unknown> & { medianNorm: number; lobeDirection: Control };
+    settings: Record<string, unknown> & { medianNorm: number; lobeDirection: Control; lossKind?: FigureLossKind };
   };
   /** The request's patch, as Look wrote it. */
   anchor: MaterialAnchor;
@@ -295,6 +317,7 @@ export function readFigureMaterial(value: unknown, dictionaryId?: string): Figur
   const settings = recipe.settings as Record<string, unknown>;
   if (number(settings.medianNorm, "median selected response magnitude") <= 0) throw new Error("Invalid median selected response magnitude in the automaton definition");
   if (Math.abs(Math.hypot(...vector(settings.lobeDirection, "directional extension direction")) - 1) > 1e-3) throw new Error("The directional extension direction must be a unit vector");
+  if (settings.lossKind !== undefined && !FIGURE_LOSS_KINDS.includes(settings.lossKind)) throw new Error('The automaton definition\'s loss kind must be "plain", "guided" or "plain-margin"');
   readAnchor(file.anchor);
   const training = record(file.training, "training");
   unsigned(training.seed, "training seed");
@@ -361,6 +384,8 @@ export const FIGURE_SETTING_KEYS: ReadonlySet<string> = new Set([
   "stage",
   // m and u of the loss and the readout, for every source; which direction u is (absent: the main direction)
   "medianNorm", "lobeDirection", "measurementDirection",
+  // the loss the rule trained with, for every source (lossKindOf), and a guided rule's guide
+  "lossKind", "guideRatio", "guideReleaseFraction", "guideReleaseFloor", "guideUnits",
   // a Train run continued from a saved definition (ancestorId): its start update, its fresh optimizer, what it changed
   "continuedFromUpdate", "continuedOptimizer", "continuedChange",
 ]);

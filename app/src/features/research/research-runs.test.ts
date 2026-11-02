@@ -61,6 +61,17 @@ describe("readResearchManifest", () => {
     expect(() => readResearchManifest(manifest([run("bad", { loss: { kind: "guided", releaseAtUpdate: 7.5 } })]))).toThrow("run bad.loss.releaseAtUpdate");
   });
 
+  it("reads the owner's review, none when the export has none, and refuses a featured run off the site list", () => {
+    const read = readResearchManifest(manifest([
+      run("r-1", { review: { site: true, featured: true } }),
+      run("r-2", { review: { site: true, featured: false } }),
+      run("r-3"),
+    ]));
+    expect(read.runs.map((candidate) => candidate.review)).toEqual([{ site: true, featured: true }, { site: true, featured: false }, { site: false, featured: false }]);
+    expect(() => readResearchManifest(manifest([run("bad", { review: { site: false, featured: true } })]))).toThrow("run bad.review.featured");
+    expect(() => readResearchManifest(manifest([run("bad", { review: { site: "yes", featured: false } })]))).toThrow("run bad.review.site");
+  });
+
   it("names the run and the field it refuses", () => {
     expect(() => readResearchManifest(manifest([run("r-1", { study: "day-9" })]))).toThrow("run r-1.study: names no study in the manifest: day-9");
     expect(() => readResearchManifest(manifest([run("R 1")]))).toThrow("runs[0].id");

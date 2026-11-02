@@ -34,6 +34,9 @@ export interface MaterialSubmissionMetadata {
   submittedAt: string;
   block: number;
   materialId: string;
+  /** A research run promoted from the owner page: its run id, and whether the owner's review featured it in its basis group. */
+  researchRunId?: string;
+  featuredInBlock?: boolean;
 }
 /** A checked submission: the canonical file and its text, which is what the bucket stores. */
 export interface MaterialSubmission { file: FigureMaterialFile; text: string; poster: Uint8Array; title: string; credit: string }

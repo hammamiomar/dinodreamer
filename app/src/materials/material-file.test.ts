@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
 import {
-  bandOfNorm, canonicalFigureFile, FIGURE_RULE_VALUES, figurePlayback,
-  readFigureMaterial, hiddenNoise, replayGridSides, strengthStatistic, type FigureMaterialFile,
+  bandOfNorm, canonicalFigureFile, FIGURE_RULE_VALUES, figurePlayback, lossKindOf,
+  readFigureMaterial, hiddenNoise, replayGridSides, startKindOf, strengthStatistic, type FigureMaterialFile,
 } from "./material-file";
 
 describe("figure material file (format 4)", () => {
@@ -15,6 +15,22 @@ describe("figure material file (format 4)", () => {
     expect(material.file.recipe.name).toBe("figure-2026-10-22");
     expect(material.file.anchor.band).toBe("strongest");
     expect(material.file.reading.strength).toBeCloseTo(2.2456, 4);
+  });
+
+  it("keeps the loss kind and a guide's settings, reads plain without them, and refuses another kind", () => {
+    const file = kept();
+    expect(lossKindOf(file)).toBe("plain");
+    file.recipe.settings = { ...file.recipe.settings, lossKind: "guided", guideRatio: 3, guideReleaseFraction: 0.33, guideReleaseFloor: 0.5, guideUnits: 58 };
+    const canonical = canonicalFigureFile(readFigureMaterial(file).file);
+    expect(lossKindOf(canonical)).toBe("guided");
+    expect(canonical.recipe.settings).toMatchObject({ guideRatio: 3, guideReleaseFraction: 0.33, guideReleaseFloor: 0.5, guideUnits: 58 });
+    expect(() => readFigureMaterial({ ...file, recipe: { ...file.recipe, settings: { ...file.recipe.settings, lossKind: "other" } } })).toThrow("loss kind");
+  });
+
+  it("names a start's kind by its background", () => {
+    expect(startKindOf(undefined)).toBe("noise");
+    expect(startKindOf({ kind: "centre-disc", radius: 16 })).toBe("centre-disc");
+    expect(startKindOf({ kind: "centre-disc", radius: 16, backgroundAmplitude: 0.25 })).toBe("seeded-field");
   });
 
   it.each([1, 2])("rejects unsupported E1 format %i at import", (format) => {
