@@ -2,11 +2,12 @@
 // has (features/automata/), over every research run. A run a visitor does not see is present and dim.
 // On a group's screen the owner names the group, and under the stage chooses what the public sees:
 // show or hide an automaton, make it the picture of its cell or of its group, feature it for the site.
-// One switch shows the page exactly as a visitor sees it. The rules are owner-automata.ts; the Worker
-// serves this page only after its owner check and owns every operation (gallery/src/admin.ts).
+// One switch shows the page exactly as a visitor sees it. Submitted automata wait on a screen of their
+// own (owner-pending.tsx). The rules are owner-automata.ts; the Worker serves this page only after its
+// owner check and owns every operation (gallery/src/admin.ts).
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Outlet } from "react-router";
+import { Link, Outlet, useSearchParams } from "react-router";
 import { fill, SITE_WORDS } from "../../app/site-words";
 import type { BasisGroupPanelOutlet } from "../look/basis-group-panel";
 import { MaterialStage, type MaterialSource } from "../../replay/material-stage";
@@ -27,7 +28,8 @@ import {
   actionsFor, afterChange, ownerAutomata, ownerCounts, requiresConfirmation,
   type OwnerAutomaton, type OwnerAutomatonAction, type OwnerChange, type OwnerRead,
 } from "./owner-automata";
-import { fetchOwnerMaterials, sendGroupName, sendOwnerAction, sendPictureMark, showResearchRuns } from "./owner-materials";
+import { fetchOwnerMaterials, sendGroupName, sendOwnerAction, sendPictureMark, showResearchRuns, type PendingSubmission } from "./owner-materials";
+import { PENDING_GROUP, PendingScreen } from "./owner-pending";
 import "../automata/automata.css";
 import "./owner-automata.css";
 
@@ -40,7 +42,7 @@ const PICTURES = {
 type PageRead =
   | { status: "loading" }
   | { status: "failed"; message: string }
-  | { status: "ready"; read: OwnerRead; pending: number };
+  | { status: "ready"; read: OwnerRead; pending: PendingSubmission[] };
 
 /** What the page shows: every run, or exactly what a visitor sees. */
 type OwnerView = "every" | "visitor";
@@ -72,16 +74,29 @@ async function send(action: OwnerAutomatonAction, automaton: OwnerAutomaton): Pr
 
 export function OwnerAutomataPage() {
   const [page, setPage] = useState<PageRead>({ status: "loading" });
+  // The research run index is large and no action changes it: it is read once. The automata's lists are read
+  // again after a review, which moves a submission into the published index.
+  const [manifest, setManifest] = useState<ResearchManifest | null | undefined>(undefined);
+  const [revision, setRevision] = useState(0);
   useEffect(() => {
     let current = true;
-    Promise.all([fetchOwnerMaterials(), fetchResearchManifest()]).then(
-      ([materials, manifest]: [Awaited<ReturnType<typeof fetchOwnerMaterials>>, ResearchManifest | null]) => {
-        if (current) setPage({ status: "ready", read: { shown: materials.shown, hidden: materials.hidden, manifest }, pending: materials.pending.length });
-      },
+    fetchResearchManifest().then(
+      (read) => { if (current) setManifest(read); },
       (error: unknown) => { if (current) setPage({ status: "failed", message: error instanceof Error ? error.message : String(error) }); },
     );
     return () => { current = false; };
   }, []);
+  useEffect(() => {
+    if (manifest === undefined) return;
+    let current = true;
+    fetchOwnerMaterials().then(
+      (materials) => {
+        if (current) setPage({ status: "ready", read: { shown: materials.shown, hidden: materials.hidden, manifest }, pending: materials.pending });
+      },
+      (error: unknown) => { if (current) setPage({ status: "failed", message: error instanceof Error ? error.message : String(error) }); },
+    );
+    return () => { current = false; };
+  }, [manifest, revision]);
   if (page.status !== "ready") {
     return (
       <main className="page owner-automata-status">
@@ -90,11 +105,17 @@ export function OwnerAutomataPage() {
     );
   }
   const change = (next: OwnerChange) => setPage((before) => (before.status === "ready" ? { ...before, read: afterChange(before.read, next) } : before));
-  return <OwnerGallery read={page.read} pending={page.pending} onChange={change} />;
+  return <OwnerGallery read={page.read} pending={page.pending} onChange={change} onReviewed={() => setRevision((value) => value + 1)} />;
 }
 
-function OwnerGallery({ read, pending, onChange }: { read: OwnerRead; pending: number; onChange: (change: OwnerChange) => void }) {
+function OwnerGallery({ read, pending, onChange, onReviewed }: {
+  read: OwnerRead;
+  pending: PendingSubmission[];
+  onChange: (change: OwnerChange) => void;
+  onReviewed: () => void;
+}) {
   const names = useBasisGroupNames();
+  const [search] = useSearchParams();
   const [view, setView] = useState<OwnerView>("every");
   const { automata, unfiled } = useMemo(() => ownerAutomata(read, PICTURES), [read]);
   const visible = useMemo(() => (view === "visitor" ? automata.filter((automaton) => automaton.shown) : automata), [automata, view]);
@@ -127,13 +148,19 @@ function OwnerGallery({ read, pending, onChange }: { read: OwnerRead; pending: n
         <span className="label">{WORDS.heading}</span>
         <span>{fill(WORDS.counts, { shown: counts.shown.toLocaleString(), all: counts.all.toLocaleString() })}</span>
         {unfiled > 0 && <span>{fill(WORDS.unfiled, { count: unfiled })}</span>}
-        {pending > 0 && <a className="link-control" href="/admin/materials">{fill(WORDS.pending, { count: pending })}</a>}
+        {pending.length > 0 && (
+          <Link className="link-control owner-automata-pending" to={{ search: `?group=${PENDING_GROUP}` }}>
+            {pending.length === 1 ? WORDS.pendingOne : fill(WORDS.pending, { count: pending.length })}
+          </Link>
+        )}
       </p>
       <Segmented<OwnerView> label={WORDS.viewsName} segments={VIEWS} value={view} onChange={setView} />
     </div>
   );
   const panelOutlet = useMemo<BasisGroupPanelOutlet>(() => ({ referencePatch: async () => null }), []);
   const panel: ReactNode = <Outlet context={panelOutlet} />;
+
+  if (search.get("group") === PENDING_GROUP) return <PendingScreen submissions={pending} onReviewed={onReviewed} />;
 
   if (group === null || playing === null) {
     return (

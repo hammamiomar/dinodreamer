@@ -1216,8 +1216,29 @@ export const SITE_WORDS = {
     counts: "{shown} shown of {all}",
     /** After the counts, when some runs have no place in the grid. {count} is their number. */
     unfiled: "{count} runs have no place in the grid",
-    /** After the counts, when visitors' automata wait for review: the old owner page still reviews them. {count} is their number. */
+    /** After the counts, when submitted automata wait for review: the way to their screen. {count} is their number. */
     pending: "{count} wait for review",
+    pendingOne: "1 waits for review",
+    /** The review's screen (/admin/automata?group=pending): its heading in the place of a group's number, and its line over the pictures. */
+    pendingTitle: "Review",
+    pendingLine: "Submitted automata, waiting for review",
+    pendingNone: "Nothing waits for review.",
+    /** Under a submission's picture: its basis group, then where it starts. {group} is the number. */
+    pendingTile: "{group} · {start}",
+    /** The line for the submission on the stage: its title and who sent it. {title} and {credit} are the sender's own words. */
+    pendingBy: "{title}, by {credit}",
+    pendingUntitled: "Untitled",
+    pendingAnonymous: "no name given",
+    /** The two actions on the submission on the stage. Reject asks once more in place. */
+    approve: "Approve",
+    reject: "Reject…",
+    rejectForGood: "Reject for good",
+    rejectWarning: "Reject deletes the submission. You cannot undo this.",
+    /** After an action: where the automaton went. {group} is its basis group's number. */
+    approved: "Approved. It is published in basis group {group}.",
+    rejected: "Rejected.",
+    /** When some submitted files could not be read; they are left out. {count} is their number, {message} the first reason. */
+    pendingUnread: "{count} submissions could not be read: {message}",
     /** The choice at the end of that line: every run, or exactly what a visitor sees. */
     viewsName: "What the page shows",
     viewEvery: "Every run",

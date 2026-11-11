@@ -3,9 +3,9 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { ownerRequest } from "../src/admin.ts";
 import {
-  checkedResearchManifest, researchRunProblems, runsToWrite, showResearchRuns, writeResearch, type ResearchRunFiles,
+  checkedResearchManifest, promoteResearchRun, researchRunProblems, runsToWrite, showResearchRuns, writeResearch, type ResearchRunFiles,
 } from "../src/research.ts";
-import { hideMaterial, readMaterials } from "../src/material-review.ts";
+import { approveMaterial, hideMaterial, readMaterials } from "../src/material-review.ts";
 import { entryIdOfRun, placeOfRun, RESEARCH_MANIFEST_KEY, type ResearchManifest } from "../../app/src/features/research/research-runs.ts";
 import type { Env } from "../src/worker.ts";
 import type { MemoryBucket } from "./memory-bucket.ts";
@@ -121,6 +121,16 @@ describe("showing research runs on the Automata page", () => {
     expect(result).toEqual({ published: [], placed: [RUN_ID], keptHidden: [], withoutPlace: [] });
     expect((await readMaterials(env.LIBRARY)).entries[0]!.gallery).toEqual({ start: "circle", method: "token-distribution" });
     expect(library.objects.get(`gallery/materials/${RUN_ID}/material.json`)).toBe(fileBefore);
+  });
+
+  it("a run that an earlier promotion published under a submission's id takes its place there and is not published twice", async () => {
+    const env = await storeWithRun();
+    const pending = await promoteResearchRun(env.SUBMISSIONS, RUN_ID, "Scales", new Date("2026-11-02T15:30:12Z"), new Uint8Array([1, 2, 3, 4]));
+    await approveMaterial(env.SUBMISSIONS, env.LIBRARY, pending.id, new Date("2026-11-02T15:31:00Z"));
+    const [run] = manifestOf([{ id: RUN_ID, gallery: PLACE }]).runs;
+    const result = await showResearchRuns(env.SUBMISSIONS, env.LIBRARY, [run!], new Date(), true);
+    expect(result).toEqual({ published: [], placed: [pending.id], keptHidden: [], withoutPlace: [] });
+    expect((await readMaterials(env.LIBRARY)).entries.map((entry) => [entry.id, entry.gallery])).toEqual([[pending.id, { start: "circle", method: "token-distribution" }]]);
   });
 
   it("leaves a hidden automaton hidden, and does not publish a run the grid has no place for", async () => {

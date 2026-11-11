@@ -41,7 +41,8 @@ function automatonOfRun(run: ResearchRun, entry: MaterialEntry | null, state: Ow
   const place = placeOfRun(run);
   if (place === null || run.group === null) return null;
   return {
-    id: entryIdOfRun(run),
+    // The entry's own id when the run has one, so the address is the one a visitor's page uses.
+    id: entry?.id ?? entryIdOfRun(run),
     group: run.group,
     place,
     grids: run.rule === "pyramid" ? "coarse-fine" : "fine",
@@ -78,28 +79,37 @@ function automatonOfEntry(entry: MaterialEntry, state: OwnerState, pictures: Own
 }
 
 /**
+ * The entry that holds a run's rule, among these: the one the run is on the page as (entryIdOfRun), or
+ * one whose file is the run's own, which a promotion from the earlier research page published under a
+ * submission's id. Null when none does.
+ */
+export function entryOfRun(run: ResearchRun, entries: readonly MaterialEntry[]): MaterialEntry | null {
+  const id = entryIdOfRun(run);
+  return entries.find((entry) => entry.id === id) ?? entries.find((entry) => entry.materialId === run.id) ?? null;
+}
+
+/**
  * Every automaton of the owner's view, each once: a research run with the entry it is on the page
  * as (shown, hidden or none), then the published and hidden automata that no run holds, which
  * visitors made. `unfiled` counts the runs the grid has no place for: an older export's, a start
  * outside the grid, or a run without a basis group.
  */
 export function ownerAutomata(read: OwnerRead, pictures: OwnerPictures): { automata: OwnerAutomaton[]; unfiled: number } {
-  const shown = new Map(read.shown.map((entry) => [entry.id, entry]));
-  const hidden = new Map(read.hidden.map((entry) => [entry.id, entry]));
   const studyDates = new Map((read.manifest?.studies ?? []).map((study) => [study.id, study.date]));
   const automata: OwnerAutomaton[] = [];
   const taken = new Set<string>();
   let unfiled = 0;
   for (const run of read.manifest?.runs ?? []) {
-    const id = entryIdOfRun(run);
-    const state: OwnerState = shown.has(id) ? "shown" : hidden.has(id) ? "hidden" : "not-shown";
-    const automaton = automatonOfRun(run, shown.get(id) ?? hidden.get(id) ?? null, state, studyDates.get(run.study) ?? "", pictures);
+    const shown = entryOfRun(run, read.shown);
+    const hidden = shown === null ? entryOfRun(run, read.hidden) : null;
+    const state: OwnerState = shown !== null ? "shown" : hidden !== null ? "hidden" : "not-shown";
+    const automaton = automatonOfRun(run, shown ?? hidden, state, studyDates.get(run.study) ?? "", pictures);
     // Two runs can hold one rule (a rule trained once and exported by two studies): the first is the automaton.
-    if (automaton === null || taken.has(id)) {
+    if (automaton === null || taken.has(automaton.id)) {
       if (automaton === null) unfiled++;
       continue;
     }
-    taken.add(id);
+    taken.add(automaton.id);
     automata.push(automaton);
   }
   for (const [entries, state] of [[read.shown, "shown"], [read.hidden, "hidden"]] as const) {

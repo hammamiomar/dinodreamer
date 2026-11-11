@@ -190,3 +190,24 @@
     padding-block: var(--space-2);
   }
 }
+
+/* The way to the review, in the owner's line: underlined, since it leads to another screen. */
+.owner-automata-pending {
+  color: var(--warn);
+  text-decoration: underline;
+  text-decoration-color: currentColor;
+  text-underline-offset: 5px;
+}
+
+/* The review's line after an action, and when a submitted file could not be read. */
+.owner-pending-result {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--s-1);
+}
+
+.owner-pending-result .link-control {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 5px;
+}

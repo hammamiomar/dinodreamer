@@ -64,6 +64,14 @@ describe("the owner's automata", () => {
     expect(onSite.pictureUrl).toBe("/poster/block-7178-on-the-site");
   });
 
+  it("a run that an earlier promotion published under a submission's id is that automaton, once", () => {
+    const promoted = entry("20261102-153012-a1b2c3d4", { materialId: "7178-private-run" });
+    const once = ownerAutomata({ ...read, shown: [...read.shown, promoted] }, PICTURES).automata;
+    const found = once.filter((automaton) => automaton.run?.id === "7178-private-run");
+    expect(found.map((automaton) => [automaton.id, automaton.state])).toEqual([["20261102-153012-a1b2c3d4", "shown"]]);
+    expect(once.filter((automaton) => automaton.id === "20261102-153012-a1b2c3d4")).toHaveLength(1);
+  });
+
   it("a run that was never shown shows its last still and no entry; a visitor's automaton has no run", () => {
     expect([of("7178-private-run").pictureUrl, of("7178-private-run").entry]).toEqual(["/still/7178-private-run", null]);
     expect([of("20261110-visitor").run, of("20261110-visitor").group]).toEqual([null, 12002]);

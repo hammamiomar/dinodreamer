@@ -156,13 +156,17 @@ export interface ShownRuns {
 export async function showResearchRuns(
   submissions: Bucket, library: Bucket, runs: readonly ResearchRun[], now: Date, write: boolean,
 ): Promise<ShownRuns> {
-  const shown = new Set((await readMaterials(library)).entries.map((entry) => entry.id));
+  const entries = (await readMaterials(library)).entries;
+  const shown = new Set(entries.map((entry) => entry.id));
+  // A run that an earlier promotion published under a submission's id: its file's own id is the run's.
+  const promoted = new Map(entries.map((entry) => [entry.materialId, entry.id]));
   const hidden = new Set(await listKeys(submissions, "hidden/materials/"));
   const result: ShownRuns = { published: [], placed: [], keptHidden: [], withoutPlace: [] };
   const toPublish: MaterialToPublish[] = [];
   const places = new Map<string, GalleryPlace>();
   for (const run of runs) {
-    const id = entryIdOfRun(run);
+    const ownId = entryIdOfRun(run);
+    const id = shown.has(ownId) ? ownId : promoted.get(run.id) ?? ownId;
     const place = placeOfRun(run);
     if (place === null) {
       result.withoutPlace.push(run.id);

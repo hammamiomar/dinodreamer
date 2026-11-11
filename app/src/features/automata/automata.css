@@ -835,6 +835,13 @@
   list-style: none;
 }
 
+/* A saved or submitted automaton's line under its picture names its basis group and its start: two lines of room. */
+.automata-saved .automata-cell-count {
+  height: auto;
+  min-height: 36px;
+  white-space: normal;
+}
+
 .automata-saved-actions {
   display: flex;
   flex-wrap: wrap;
