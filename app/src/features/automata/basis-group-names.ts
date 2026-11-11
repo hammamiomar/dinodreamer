@@ -8,15 +8,16 @@ import { NO_NAMES, readBasisGroupNames, type BasisGroupNames } from "../gallery/
 let shared: Promise<BasisGroupNames> | undefined;
 const listeners = new Set<() => void>();
 
-async function fetchNames(): Promise<BasisGroupNames> {
-  const response = await fetch("/api/basis-groups");
+/** `fresh` passes the browser's cached copy by: the Worker lets it stand for a minute, and the owner has just changed a name. */
+async function fetchNames(fresh: boolean): Promise<BasisGroupNames> {
+  const response = await fetch("/api/basis-groups", fresh ? { cache: "reload" } : undefined);
   if (!response.ok || !response.headers.get("content-type")?.includes("json")) return NO_NAMES;
   return readBasisGroupNames(await response.json());
 }
 
 /** Read the names again, after the owner changed one. */
 export function refreshBasisGroupNames(): void {
-  shared = undefined;
+  shared = fetchNames(true).catch(() => NO_NAMES);
   listeners.forEach((listener) => listener());
 }
 
@@ -30,7 +31,7 @@ export function useBasisGroupNames(): BasisGroupNames {
   }, []);
   useEffect(() => {
     let current = true;
-    shared ??= fetchNames().catch(() => NO_NAMES);
+    shared ??= fetchNames(false).catch(() => NO_NAMES);
     void shared.then((read) => { if (current) setNames(read); });
     return () => { current = false; };
   }, [revision]);

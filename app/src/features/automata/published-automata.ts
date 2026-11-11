@@ -3,7 +3,7 @@
 // the research runs a visitor does not see (features/owner/).
 
 import { FIGURE_PYRAMID_LAYOUT } from "../../materials/material-file";
-import { featuredInBlock, placeOf, type MaterialEntry } from "../gallery/material-index";
+import { placeOf, type MaterialEntry } from "../gallery/material-index";
 import type { GalleryAutomaton } from "./gallery";
 
 /** A published automaton in the gallery, with the index entry its stage plays. */
@@ -20,7 +20,7 @@ export function automatonOfEntry(entry: MaterialEntry, pictureUrl: string): Publ
     pictureUrl,
     shown: true,
     cellPicture: entry.cellPicture === true,
-    groupPicture: featuredInBlock(entry),
+    groupPicture: entry.featuredInBlock === true,
     siteFeatured: entry.featured === true,
     metTarget: entry.fired,
     madeAt: entry.publishedAt,

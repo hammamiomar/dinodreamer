@@ -17,7 +17,7 @@ import { nameOf, type BasisGroupNames } from "../gallery/basis-groups";
 import { BAND_COLOURS } from "../look/strength-bands";
 import { LibraryImage } from "../../ui/library-image";
 import { useMediaMatch } from "../../ui/media-match";
-import { cardsPlaying, groupPath, pictureOfGroup, shownCount, siteFeatured, wallOrder, type GalleryAutomaton, type GalleryGroup } from "./gallery";
+import { addressSearch, cardsPlaying, pictureOfGroup, shownCount, siteFeatured, wallOrder, type GalleryAutomaton, type GalleryGroup } from "./gallery";
 import { useGroupPictures } from "./group-levels";
 import { FROM_WALL } from "./group-screen";
 
@@ -55,7 +55,7 @@ function StrongestPatches({ block, wanted }: { block: number; wanted: boolean })
 function GroupCard<T extends GalleryAutomaton>({ group, name, mark, live, renderLive, onInView, onPointer }: {
   group: GalleryGroup<T>;
   name: string | null;
-  /** The owner's view: a line under the count, such as how many a visitor sees. */
+  /** The owner's view: in the count's place, how many of the group's automata a visitor sees. */
   mark?: ReactNode;
   /** Whether the card's automaton grows now, in the still's place. */
   live: boolean;
@@ -79,7 +79,8 @@ function GroupCard<T extends GalleryAutomaton>({ group, name, mark, live, render
     return () => { observer.disconnect(); report.current?.(false); };
   }, [reportsView]);
   return (
-    <Link ref={self} className="automata-card" to={groupPath(group.group)} state={FROM_WALL} data-featured={siteFeatured(group) || undefined}
+    <Link ref={self} className="automata-card" to={{ search: addressSearch({ group: group.group, automaton: null }) }} state={FROM_WALL}
+      data-featured={siteFeatured(group) || undefined}
       aria-label={fill(WORDS.cardName, { group: group.group, name: name ?? "" }).trim()}
       onPointerEnter={(event) => { if (event.pointerType === "mouse") onPointer(true); }} onPointerLeave={() => onPointer(false)}>
       <span className="automata-card-pair">
@@ -92,15 +93,14 @@ function GroupCard<T extends GalleryAutomaton>({ group, name, mark, live, render
         <span className="automata-card-title">{name ?? group.group}</span>
         <span className="automata-card-facts">
           {name !== null && <span>{group.group}</span>}
-          <span>{count === 1 ? WORDS.cardCountOne : fill(WORDS.cardCount, { count })}</span>
-          {mark}
+          {mark ?? <span>{count === 1 ? WORDS.cardCountOne : fill(WORDS.cardCount, { count })}</span>}
         </span>
       </span>
     </Link>
   );
 }
 
-export function GroupWall<T extends GalleryAutomaton>({ groups, names, status, aside, markOf, renderLive, children }: {
+export function GroupWall<T extends GalleryAutomaton>({ groups, names, status, aside, markOf, renderLive, lead, children }: {
   groups: readonly GalleryGroup<T>[];
   names: BasisGroupNames;
   /** What the wall says in the cards' place while the automata load, or when there is none: null once it has cards. */
@@ -110,6 +110,8 @@ export function GroupWall<T extends GalleryAutomaton>({ groups, names, status, a
   markOf?: (group: GalleryGroup<T>) => ReactNode;
   /** A card's automaton growing live in its square; the page supplies it, since a page knows where its files are. */
   renderLive?: (automaton: T) => ReactNode;
+  /** The owner's view: its line under the heading, in the sentence's place. */
+  lead?: ReactNode;
   children?: ReactNode;
 }) {
   const ordered = wallOrder(groups);
@@ -130,7 +132,7 @@ export function GroupWall<T extends GalleryAutomaton>({ groups, names, status, a
       <header className="automata-wall-head">
         <h1 className="heading">{WORDS.wallTitle}</h1>
         {aside}
-        <p className="muted">{fill(WORDS.wallLead, { groups: groups.length, automata: automata.toLocaleString() })}</p>
+        {lead ?? <p className="muted">{fill(WORDS.wallLead, { groups: groups.length, automata: automata.toLocaleString() })}</p>}
       </header>
       {status !== null && <p className="automata-status" role="status">{status}</p>}
       <div className="automata-cards">

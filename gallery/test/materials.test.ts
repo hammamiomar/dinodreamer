@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import worker from "../src/worker.ts";
 import {
   addFeaturedMarks, approveMaterial, hideMaterial, materialEntries, pendingMaterials, publishMaterial, publishMaterials, purgeMaterial, readMaterials,
-  restoreMaterial, setMaterialFeatured, type HiddenMaterial,
+  restoreMaterial, setCellPicture, setGroupPicture, setMaterialFeatured, type HiddenMaterial,
 } from "../src/material-review.ts";
 import { galleryEntries, pendingSubmissions } from "../src/review.ts";
 import { canonicalFigureFile, readFigureMaterial } from "../../app/src/materials/material-file.ts";
@@ -272,6 +272,53 @@ describe("featured materials", () => {
       layout: "figure-16-96-torus-v1", start: "noise", pixelsPerCell: 1 };
     expect(readMaterialIndex({ entries: [entry] }).entries[0]!.featured).toBeUndefined();
     expect(() => readMaterialIndex({ entries: [{ ...entry, featured: "yes" }] })).toThrow(/featured mark/);
+  });
+});
+
+describe("the pictures of a cell and of a basis group", () => {
+  const now = new Date("2026-11-10T21:00:00Z");
+  /** Three shown automata of one basis group: two that share a cell of its grid, and one in another cell. */
+  async function group() {
+    const fixture = testEnv();
+    const { file } = readFigureMaterial(JSON.parse(text(firedName)));
+    const label = { title: "", credit: "DinoDreamer project" };
+    await publishMaterials(fixture.submissions, fixture.library, [
+      { id: "noise-a", file, label, hidden: false, featured: false, gallery: { start: "noise", method: "basis-group-mean" } },
+      { id: "noise-b", file, label, hidden: false, featured: true, gallery: { start: "noise", method: "basis-group-mean" } },
+      { id: "circle-a", file, label, hidden: false, featured: false, gallery: { start: "circle", method: "token-distribution" } },
+    ], now);
+    const marks = async (field: "cellPicture" | "featuredInBlock" | "featured") =>
+      Object.fromEntries((await readMaterials(fixture.library)).entries.map((entry) => [entry.id, entry[field] === true]));
+    return { ...fixture, marks };
+  }
+
+  it("one automaton is the picture of its cell: the mark leaves the others of the cell, and another cell keeps its own", async () => {
+    const { submissions, library, marks } = await group();
+    expect((await setCellPicture(submissions, library, "noise-a")).map((entry) => entry.id)).toEqual(["noise-a"]);
+    await setCellPicture(submissions, library, "circle-a");
+    expect((await setCellPicture(submissions, library, "noise-b")).map((entry) => entry.id)).toEqual(["noise-b", "noise-a"]);
+    expect(await marks("cellPicture")).toEqual({ "noise-a": false, "noise-b": true, "circle-a": true });
+  });
+
+  it("one automaton is the picture of its group, and the site's featured mark is left as it is", async () => {
+    const { submissions, library, marks } = await group();
+    await setGroupPicture(submissions, library, "circle-a");
+    expect((await setGroupPicture(submissions, library, "noise-a")).map((entry) => entry.id)).toEqual(["noise-a", "circle-a"]);
+    expect(await marks("featuredInBlock")).toEqual({ "noise-a": true, "noise-b": false, "circle-a": false });
+    expect(await marks("featured")).toEqual({ "noise-a": false, "noise-b": true, "circle-a": false });
+  });
+
+  it("writes the index once, nothing when the mark is already there, and refuses a hidden or unknown automaton", async () => {
+    const { submissions, library } = await group();
+    const indexWrites: string[] = [];
+    const put = library.put.bind(library);
+    library.put = async (key, body, options) => { if (key === "published/materials.json") indexWrites.push(key); return put(key, body, options); };
+    await setCellPicture(submissions, library, "noise-a");
+    expect(await setCellPicture(submissions, library, "noise-a")).toEqual([]);
+    expect(indexWrites).toHaveLength(1);
+    await hideMaterial(submissions, library, "noise-a", now);
+    await expect(setGroupPicture(submissions, library, "noise-a")).rejects.toThrow(/is hidden: show it first/);
+    await expect(setCellPicture(submissions, library, "never-published")).rejects.toThrow(/no published automaton/);
   });
 });
 

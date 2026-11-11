@@ -21,10 +21,17 @@
 //   POST /admin/api/materials/approve|reject|hide|restore|purge  { id }   the same operations for one material
 //   POST /admin/api/materials/feature|unfeature  { id }   mark a shown material featured, or clear the mark;
 //                                                 both answer { entry }, the entry as the index now lists it
+//   POST /admin/api/materials/cell-picture|group-picture  { id }   make a shown automaton the picture of its cell
+//                                                 of the Automata page's grid, or of its basis group; both answer
+//                                                 { entries }, every entry whose mark changed, the chosen one first
+//   GET  /admin/automata, /admin/automata/basis/<n>   the owner's view of the Automata page (the app's)
 //   GET  /admin/research, /admin/research/group/<n or none>, /admin/research/run/<id>   the research page (the app's)
 //   GET  /admin/api/research/manifest.json         the research run index (research.ts), from the private bucket
 //   GET  /admin/api/research/runs/<id>/material.json | still-<tick>.png   a run's file and stills
 //   POST /admin/api/research/promote  { id, title }   store a run as a pending material; Approve publishes it
+//   POST /admin/api/research/show  { ids }        show these runs on the Automata page: each becomes a published
+//                                                 automaton with its place in the grid (research.ts, showStoredRuns);
+//                                                 answers { result, entries }
 //   POST /admin/api/basis-groups/name  { block, name }   name a basis group, or clear its name with an empty one
 //                                                 (basis-group-names.ts); answers { names }, every name as stored
 //
@@ -35,10 +42,12 @@
 import { checkOwner, type OwnerAccessEnv } from "./access.ts";
 import { PURGE_BY_PREFIX_PLACE, purgePrefix } from "./cdn-check.ts";
 import { approveAll, galleryEntries, hide, pendingBlocks, purge, reject, restore } from "./review.ts";
-import { approveMaterial, hideMaterial, materialEntries, pendingMaterialKey, purgeMaterial, restoreMaterial, setMaterialFeatured } from "./material-review.ts";
+import {
+  approveMaterial, hideMaterial, materialEntries, pendingMaterialKey, purgeMaterial, restoreMaterial, setCellPicture, setGroupPicture, setMaterialFeatured,
+} from "./material-review.ts";
 import { isMaterialEntryId, materialKey } from "../../app/src/features/gallery/material-index.ts";
 import { isResearchRunId, RESEARCH_MANIFEST_KEY, researchRunKey } from "../../app/src/features/research/research-runs.ts";
-import { promoteResearchRun } from "./research.ts";
+import { promoteResearchRun, showStoredRuns } from "./research.ts";
 import { setName } from "./basis-group-names.ts";
 import { isSubmissionId, pendingKey, publishedKey, type Bucket, type SubmissionMetadata } from "./storage.ts";
 import { imagesThumbnail, type ImagesBinding } from "./thumbnail.ts";
@@ -55,6 +64,8 @@ export interface OwnerEnv extends OwnerAccessEnv {
 
 /** The most submissions one approve request publishes: a page shows every pending one, and this is far above the volume. */
 const MAX_APPROVE = 200;
+/** The most research runs one request shows: a whole cell of a basis group's grid, with room. */
+const MAX_SHOW = 100;
 
 export function isOwnerPath(pathname: string): boolean {
   return pathname === "/admin" || pathname.startsWith("/admin/");
@@ -82,7 +93,7 @@ export async function ownerRequest(request: Request, env: OwnerEnv, page: string
  * The owner views the app draws: the materials view, alone or with a basis group's panel over it,
  * and the research page with its group and run views.
  */
-const OWNER_APP_PAGE = /^\/admin\/(?:materials(?:\/basis\/\d{1,5})?|research(?:\/group\/(?:\d{1,5}|none)|\/run\/[a-z0-9][a-z0-9-]{0,95})?)$/;
+const OWNER_APP_PAGE = /^\/admin\/(?:(?:automata|materials)(?:\/basis\/\d{1,5})?|research(?:\/group\/(?:\d{1,5}|none)|\/run\/[a-z0-9][a-z0-9-]{0,95})?)$/;
 
 /**
  * The app's index.html, for an owner view that the app draws: one player implementation, the
@@ -178,7 +189,14 @@ async function ownerPost(request: Request, pathname: string, env: OwnerEnv, now:
     if (typeof id !== "string" || !isResearchRunId(id) || typeof title !== "string") return json({ error: "send a research run id and a title" }, 400);
     return run(async () => ({ pending: await promoteResearchRun(env.SUBMISSIONS, id, title, now, crypto.getRandomValues(new Uint8Array(4))) }));
   }
-  const materialAction = pathname.match(/^\/admin\/api\/materials\/(approve|reject|hide|restore|purge|feature|unfeature)$/)?.[1];
+  if (pathname === "/admin/api/research/show") {
+    const { ids } = body;
+    if (!Array.isArray(ids) || ids.length === 0 || ids.length > MAX_SHOW || !ids.every((id) => typeof id === "string" && isResearchRunId(id))) {
+      return json({ error: `ids must list 1 to ${MAX_SHOW} research run ids` }, 400);
+    }
+    return run(() => showStoredRuns(env.SUBMISSIONS, env.LIBRARY, ids as string[], now));
+  }
+  const materialAction = pathname.match(/^\/admin\/api\/materials\/(approve|reject|hide|restore|purge|feature|unfeature|cell-picture|group-picture)$/)?.[1];
   if (materialAction !== undefined) return materialPost(materialAction, body.id, env, now);
   const action = pathname.match(/^\/admin\/api\/(approve|reject|hide|restore|purge)$/)?.[1];
   if (action === undefined) return json({ error: "not found" }, 404);
@@ -217,6 +235,8 @@ function materialPost(action: string, id: unknown, env: OwnerEnv, now: Date): Pr
   if (action === "feature" || action === "unfeature") {
     return run(async () => ({ entry: await setMaterialFeatured(env.SUBMISSIONS, env.LIBRARY, id, action === "feature") }));
   }
+  if (action === "cell-picture") return run(async () => ({ entries: await setCellPicture(env.SUBMISSIONS, env.LIBRARY, id) }));
+  if (action === "group-picture") return run(async () => ({ entries: await setGroupPicture(env.SUBMISSIONS, env.LIBRARY, id) }));
   return run(async () => { await purgeMaterial(env.SUBMISSIONS, env.LIBRARY, id); return { purged: id }; });
 }
 

@@ -1,0 +1,172 @@
+/*
+ * The owner's view of the Automata page (owner-automata-page.tsx), on the gallery's own layout
+ * (features/automata/automata.css): the owner's line over the wall and over a group's pane, the field
+ * that names the group, and the owner's block under the stage's line.
+ */
+
+/* The owner's line: the view's name and its counts, then the choice of what the page shows. */
+.owner-automata-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-6);
+  grid-column: 1 / -1;
+  min-height: 40px;
+  border-bottom: 1px solid var(--line);
+}
+
+.owner-automata-line p {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--patch);
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--s-1);
+  font-variant-numeric: tabular-nums;
+}
+
+.owner-automata-line .segmented {
+  padding: 0;
+  border-bottom: 0;
+}
+
+.owner-automata-line .segmented > button {
+  font-size: var(--s-1);
+}
+
+.owner-automata-status p {
+  color: var(--ink-2);
+}
+
+/* The name's field, in the name's place in the head: the heading's type on a line, and its note under it. */
+.owner-name-field {
+  position: relative;
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 14px;
+}
+
+.owner-name-field textarea {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  height: calc(2 * var(--lh1) + 1px);
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--line-2);
+  border-radius: 0;
+  background: none;
+  color: var(--ink);
+  font-family: inherit;
+  resize: none;
+  overflow: hidden;
+}
+
+.owner-name-field textarea::placeholder {
+  color: var(--ink-3);
+}
+
+.owner-name-field textarea:focus-visible {
+  outline: none;
+  border-bottom-color: var(--ink);
+}
+
+.owner-name-note {
+  position: absolute;
+  top: calc(100% - 12px);
+  left: 0;
+  color: var(--ink-3);
+  font-size: var(--s-1);
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+/* The owner's block: 12 px lines; the facts never wrap past two lines each, so the block keeps its height from run to run. */
+.owner-automata-block {
+  display: grid;
+  gap: var(--space-2);
+  font-size: var(--s-1);
+  line-height: 16px;
+}
+
+.owner-automata-block p {
+  margin: 0;
+}
+
+.owner-automata-state {
+  color: var(--ink);
+}
+
+.owner-automata-state[data-state="hidden"],
+.owner-automata-state[data-state="not-shown"] {
+  color: var(--warn);
+}
+
+.owner-automata-action {
+  display: inline-flex;
+  gap: var(--space-2);
+}
+
+.owner-automata-danger {
+  color: var(--danger);
+}
+
+.owner-automata-facts {
+  display: grid;
+  gap: 2px;
+  color: var(--ink-3);
+  overflow-wrap: anywhere;
+}
+
+.owner-automata-facts span:first-child {
+  color: var(--ink-2);
+  user-select: all;
+}
+
+/* A run that was never shown, while its file is read: its still in the frame, at the canvas's size. */
+.owner-stage-waiting .stage-fit {
+  width: calc(var(--cells, 512px) + 2 * var(--patch));
+  max-width: 100%;
+}
+
+.owner-stage-still {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+
+/* Every run of a cell can be many: the strip wraps into rows, stays in the pane's flow, and the pane scrolls. */
+@media (min-width: 1200px) {
+  .automata-pane[data-owner] .automata-tries {
+    position: static;
+    margin-bottom: 0;
+  }
+}
+
+/*
+ * The owner's grid can have more columns than the pane is wide: it scrolls sideways in its own box.
+ * A box that scrolls has no least height of its own, and the pane's fixed height would squeeze its
+ * row to nothing: it keeps its content's height.
+ */
+.automata-pane[data-owner] .automata-grid {
+  min-height: max-content;
+  overflow-x: auto;
+  padding: 4px;
+  margin: -4px;
+}
+
+.automata-pane[data-owner] .automata-tries-strip {
+  flex-wrap: wrap;
+  height: auto;
+  overflow: visible;
+  padding-bottom: 4px;
+}
+
+/* The owner's line over the wall takes the sentence's place under the heading. */
+.automata-wall-head .owner-automata-line {
+  margin-top: 0;
+}

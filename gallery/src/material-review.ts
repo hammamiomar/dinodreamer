@@ -10,10 +10,10 @@
 
 import { canonicalFigureFile, readFigureMaterial, readingPictureSide, type FigureMaterialFile } from "../../app/src/materials/material-file.ts";
 import {
-  EMPTY_MATERIAL_INDEX, MATERIAL_INDEX_KEY, isMaterialEntryId, materialEntry, materialKey, readMaterialIndex,
+  EMPTY_MATERIAL_INDEX, MATERIAL_INDEX_KEY, isMaterialEntryId, materialEntry, materialKey, placeOf, readMaterialIndex,
   withMaterialEntry, withoutMaterialEntry, type MaterialEntry, type MaterialIndex,
 } from "../../app/src/features/gallery/material-index.ts";
-import type { GalleryPlace } from "../../app/src/features/gallery/gallery-place.ts";
+import { samePlace, type GalleryPlace } from "../../app/src/features/gallery/gallery-place.ts";
 import { MATERIAL_SUBMISSION_LIMITS } from "../../app/src/features/gallery/submission-label.ts";
 import { CACHE_IMMUTABLE, CACHE_INDEX, isPng, listKeys, requiredObject, type Bucket } from "./storage.ts";
 import { previewKeys } from "./link-preview.ts";
@@ -197,6 +197,63 @@ export async function setGalleryPlaces(library: Bucket, places: ReadonlyMap<stri
   });
   if (changed > 0) await writeMaterials(library, { entries });
   return changed;
+}
+
+/**
+ * One exclusive mark among the shown automata of a basis group: `marked` says whether an entry
+ * carries it, `among` which entries of the group it is exclusive among, and `mark` writes it. The
+ * entry of `id` takes the mark and every other entry among them loses it, in one index write; none
+ * when the marks are already so. The answer is the entries that changed, the newly marked one first.
+ * A hidden automaton cannot take a mark: it is shown first.
+ */
+async function markOne(
+  submissions: Bucket, library: Bucket, id: string,
+  rule: { marked: (entry: MaterialEntry) => boolean; among: (chosen: MaterialEntry, other: MaterialEntry) => boolean; mark: (entry: MaterialEntry, on: boolean) => MaterialEntry },
+): Promise<MaterialEntry[]> {
+  checkedEntryId(id);
+  const index = await readMaterials(library);
+  const chosen = index.entries.find((entry) => entry.id === id);
+  if (chosen === undefined) {
+    const hidden = await submissions.get(hiddenMaterialKey(id));
+    throw new Error(hidden === null ? `no published automaton ${id}` : `${id} is hidden: show it first`);
+  }
+  const changed: MaterialEntry[] = [];
+  const entries = index.entries.map((entry) => {
+    const on = entry.id === id;
+    if (!on && !(entry.block === chosen.block && rule.among(chosen, entry))) return entry;
+    if (rule.marked(entry) === on) return entry;
+    const next = rule.mark(entry, on);
+    if (on) changed.unshift(next);
+    else changed.push(next);
+    return next;
+  });
+  if (changed.length > 0) await writeMaterials(library, { entries });
+  return changed;
+}
+
+/**
+ * Make a shown automaton the picture of its cell on the Automata page: of the group's automata that
+ * share its start and method, it alone carries the mark.
+ */
+export function setCellPicture(submissions: Bucket, library: Bucket, id: string): Promise<MaterialEntry[]> {
+  return markOne(submissions, library, id, {
+    marked: (entry) => entry.cellPicture === true,
+    among: (chosen, other) => samePlace(placeOf(chosen), placeOf(other)),
+    mark: (entry, on) => ({ ...entry, cellPicture: on }),
+  });
+}
+
+/**
+ * Make a shown automaton the picture of its basis group, on the wall and on the stage before a
+ * visitor chooses: of the group's automata, it alone is featured within the group. The site's
+ * featured mark is another matter and is left as it is.
+ */
+export function setGroupPicture(submissions: Bucket, library: Bucket, id: string): Promise<MaterialEntry[]> {
+  return markOne(submissions, library, id, {
+    marked: (entry) => entry.featuredInBlock === true,
+    among: () => true,
+    mark: (entry, on) => ({ ...entry, featuredInBlock: on }),
+  });
 }
 
 /** Pending material submissions, oldest first. Canvas submissions are review.ts's. */

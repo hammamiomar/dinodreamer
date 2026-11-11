@@ -9,10 +9,12 @@
 
 import { readFigureMaterial } from "../../app/src/materials/material-file.ts";
 import {
-  readResearchManifest, RESEARCH_MANIFEST_BYTES, RESEARCH_MANIFEST_KEY, researchRunKey, stillName, type ResearchManifest, type ResearchRun,
+  entryIdOfRun, placeOfRun, readResearchManifest, RESEARCH_MANIFEST_BYTES, RESEARCH_MANIFEST_KEY, researchRunKey, stillName,
+  type ResearchManifest, type ResearchRun,
 } from "../../app/src/features/research/research-runs.ts";
 import { submissionLabelProblem } from "../../app/src/features/gallery/submission-label.ts";
 import type { GalleryPlace } from "../../app/src/features/gallery/gallery-place.ts";
+import type { MaterialEntry } from "../../app/src/features/gallery/material-index.ts";
 import {
   checkedMaterial, hiddenMaterialKey, MATERIAL_DICTIONARIES, MATERIAL_LIMITS, materialPoster, PROJECT_CREDIT, publishMaterials, readMaterials,
   setGalleryPlaces, storeMaterialSubmission, type MaterialSubmissionMetadata, type MaterialToPublish,
@@ -115,18 +117,20 @@ export async function promoteResearchRun(submissions: Bucket, runId: string, tit
 }
 
 /**
- * The entry a run is on the Automata page as: the published automaton that already holds its rule
- * (the run index names it, `siteMaterials`), else an entry under the run's own id. So a rule that is
- * both a published automaton and a research run appears once, at the address it always had.
+ * Show the runs of these ids, for the owner's view: their rows come from the stored run index, and
+ * the answer adds the entries as the published index now lists them, so the page can show each in
+ * its place at once. An id the index does not list is refused before anything is written.
  */
-export function entryIdOfRun(run: Pick<ResearchRun, "id" | "siteMaterials">): string {
-  return run.siteMaterials[0] ?? run.id;
-}
-
-/** A run's place in its basis group's grid, or null for a run the grid has no place for (an older export, or a start outside the grid). */
-export function placeOfRun(run: Pick<ResearchRun, "gallery">): GalleryPlace | null {
-  if (run.gallery === null || run.gallery.start === null) return null;
-  return { start: run.gallery.start, method: run.gallery.method };
+export async function showStoredRuns(submissions: Bucket, library: Bucket, ids: readonly string[], now: Date): Promise<{ result: ShownRuns; entries: MaterialEntry[] }> {
+  const manifest = await storedResearchManifest(submissions);
+  const rows = new Map((manifest?.runs ?? []).map((run) => [run.id, run]));
+  const unknown = ids.filter((id) => !rows.has(id));
+  if (unknown.length > 0) throw new Error(`no research run ${unknown.join(", ")}`);
+  const runs = ids.map((id) => rows.get(id)!);
+  const result = await showResearchRuns(submissions, library, runs, now, true);
+  const touched = new Set([...result.published, ...result.placed]);
+  const entries = (await readMaterials(library)).entries.filter((entry) => touched.has(entry.id));
+  return { result, entries };
 }
 
 /** What showResearchRuns did, or in a dry run would do, by entry id. */

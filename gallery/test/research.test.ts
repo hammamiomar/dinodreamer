@@ -3,10 +3,10 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { ownerRequest } from "../src/admin.ts";
 import {
-  checkedResearchManifest, entryIdOfRun, placeOfRun, researchRunProblems, runsToWrite, showResearchRuns, writeResearch, type ResearchRunFiles,
+  checkedResearchManifest, researchRunProblems, runsToWrite, showResearchRuns, writeResearch, type ResearchRunFiles,
 } from "../src/research.ts";
 import { hideMaterial, readMaterials } from "../src/material-review.ts";
-import { RESEARCH_MANIFEST_KEY, type ResearchManifest } from "../../app/src/features/research/research-runs.ts";
+import { entryIdOfRun, placeOfRun, RESEARCH_MANIFEST_KEY, type ResearchManifest } from "../../app/src/features/research/research-runs.ts";
 import type { Env } from "../src/worker.ts";
 import type { MemoryBucket } from "./memory-bucket.ts";
 import { PNG, testEnv } from "./fixtures.ts";
@@ -189,6 +189,25 @@ describe("owner API: the research page", () => {
     expect(listed.published).toEqual([]);
     const approved = await post("/admin/api/materials/approve", { id: pending.id });
     expect((approved.body.entry as { title: string; materialId: string })).toMatchObject({ title: "Collar of light", materialId: RUN_ID });
+  });
+
+  it("shows a run from the owner's view: it becomes a published automaton with its place, and the page gets its entry", async () => {
+    const env = { ...testEnv().env, ADMIN_LOCAL_OWNER: "yes" } as Env;
+    const text = manifestText([{ id: RUN_ID, gallery: { start: "circle-on-noise", method: "token-distribution", target: "group", shown: false } }]);
+    await writeResearch(env.SUBMISSIONS, text, checkedResearchManifest(text).runs, () => FILES);
+    const show = (ids: unknown) => ownerRequest(new Request(`${ORIGIN}/admin/api/research/show`, {
+      method: "POST", headers: { "content-type": "application/json", origin: ORIGIN }, body: JSON.stringify({ ids }),
+    }), env, "<!doctype html>", neverFetch);
+    const answered = await show([RUN_ID]);
+    const body = (await answered.json()) as { result: { published: string[] }; entries: { id: string; gallery: unknown }[] };
+    expect(answered.status).toBe(200);
+    expect(body.result.published).toEqual([RUN_ID]);
+    expect(body.entries).toEqual([expect.objectContaining({ id: RUN_ID, gallery: { start: "circle-on-noise", method: "token-distribution" } })]);
+    expect((await readMaterials(env.LIBRARY)).entries.map((entry) => entry.id)).toEqual([RUN_ID]);
+    const unknown = await show(["no-such-run"]);
+    expect([unknown.status, ((await unknown.json()) as { error: string }).error]).toEqual([409, "no research run no-such-run"]);
+    expect((await show([])).status).toBe(400);
+    expect((await show(["Not An Id"])).status).toBe(400);
   });
 
   it("refuses a promotion without a title, of an unknown run or with a malformed id", async () => {

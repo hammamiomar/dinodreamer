@@ -78,8 +78,8 @@ function useSlowLoading(loading: boolean): boolean {
  */
 export function fitsTheWindow(pathname: string, search = ""): boolean {
   const under = (screen: string) => pathname === screen || pathname.startsWith(`${screen}/`);
-  // Automata fits the window while a basis group's screen is open; its wall of groups is a page that scrolls.
-  if (under("/automata")) return opensGroup(new URLSearchParams(search));
+  // Automata fits the window while a basis group's screen is open; its wall of groups is a page that scrolls. So does the owner's view of it.
+  if (under("/automata") || under("/admin/automata")) return opensGroup(new URLSearchParams(search));
   return ["/create", "/admin/materials", "/train", "/how"].some(under);
 }
 

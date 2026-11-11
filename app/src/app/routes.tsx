@@ -114,6 +114,13 @@ export const router = createBrowserRouter([
           },
           // Keep a legacy gallery link's entry when redirecting to the Painter.
           { path: "/gallery", loader: ({ request }: LoaderFunctionArgs) => redirect(`/canvas${new URL(request.url).search}`) },
+          // The owner's view of the Automata page: the same wall and screen over every research run (features/owner/).
+          // The Worker serves this page only after its owner check (gallery/src/admin.ts).
+          {
+            path: "/admin/automata",
+            lazy: async () => ({ Component: (await import("../features/owner/owner-automata-page")).OwnerAutomataPage }),
+            children: [{ index: true, element: <></> }, { path: "basis/:id", element: <BasisGroupPanel home="/admin/automata" /> }],
+          },
           // The owner mode of the Playground: the same stage and shelf, under the frame, which reads the library.
           // The Worker serves this page only after its owner check (gallery/src/admin.ts).
           {

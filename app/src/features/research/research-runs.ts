@@ -5,7 +5,7 @@
 // (gallery/research.ts) check the same file with readResearchManifest. This module has no browser
 // or React imports.
 
-import { isGalleryMethod, isGalleryStart, type GalleryMethod, type GalleryStart } from "../gallery/gallery-place.ts";
+import { isGalleryMethod, isGalleryStart, type GalleryMethod, type GalleryPlace, type GalleryStart } from "../gallery/gallery-place.ts";
 
 /** The run index in the private bucket. Each run's files are under research/runs/<id>/. */
 export const RESEARCH_MANIFEST_KEY = "research/manifest.json";
@@ -142,6 +142,21 @@ export interface ResearchManifest {
   dictionaryId: string;
   studies: ResearchStudy[];
   runs: ResearchRun[];
+}
+
+/**
+ * The entry a run is on the Automata page as: the published automaton that already holds its rule
+ * (`siteMaterials`), else an entry under the run's own id. So a rule that is both a published automaton
+ * and a research run appears once, at the address it always had.
+ */
+export function entryIdOfRun(run: Pick<ResearchRun, "id" | "siteMaterials">): string {
+  return run.siteMaterials[0] ?? run.id;
+}
+
+/** A run's place in its basis group's grid, or null for a run the grid has no place for (an older export, or a start outside the grid). */
+export function placeOfRun(run: Pick<ResearchRun, "gallery">): GalleryPlace | null {
+  if (run.gallery === null || run.gallery.start === null) return null;
+  return { start: run.gallery.start, method: run.gallery.method };
 }
 
 /** Lower-case letters, digits and hyphens, as published entry ids are (gallery/material-index.ts). */

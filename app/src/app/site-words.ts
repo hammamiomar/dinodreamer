@@ -1201,6 +1201,84 @@ export const SITE_WORDS = {
     savedLineCount: "Saved automata, on this device ({count})",
   },
   /**
+   * The owner's view of the Automata page (/admin/automata, features/owner/owner-automata-page.tsx): the
+   * same wall and screen over every research run. Only the owner reads these words, so they may use
+   * the research's own names.
+   */
+  automataOwner: {
+    /** In place of the page while the automata and the runs load, and when the owner API fails. {message} is the error. */
+    loading: "Loading the automata and the research runs…",
+    failed: "The owner API refused or failed: {message}. Open the owner page first to sign in.",
+    /** The line over the wall and over a group's pane: the view's name, then how many automata a visitor sees. */
+    heading: "Owner's view",
+    counts: "{shown} shown of {all}",
+    /** After the counts, when some runs have no place in the grid. {count} is their number. */
+    unfiled: "{count} runs have no place in the grid",
+    /** After the counts, when visitors' automata wait for review: the old owner page still reviews them. {count} is their number. */
+    pending: "{count} wait for review",
+    /** The choice at the end of that line: every run, or exactly what a visitor sees. */
+    viewsName: "What the page shows",
+    viewEvery: "Every run",
+    viewVisitor: "As a visitor sees it",
+    /** Under a card on the owner's wall, and under a cell of the grid: how many a visitor sees, of how many. */
+    shownOf: "{shown} of {all} shown",
+    noneShown: "{all}, none shown",
+    /** The first line of the owner's block under the stage: where the automaton stands. */
+    states: {
+      shown: "A visitor sees it.",
+      hidden: "Hidden. A visitor does not see it.",
+      "not-shown": "A research run. A visitor does not see it.",
+    },
+    /** After the state, for each mark the automaton carries. */
+    markCell: "The picture of its cell.",
+    markGroup: "The picture of the group.",
+    markSite: "Featured for the site.",
+    /** The owner's actions, as the stage's quiet words; their group's name for a screen reader. */
+    actionsName: "Owner actions",
+    actions: {
+      show: "Show",
+      hide: "Hide",
+      "cell-picture": "Picture of its cell",
+      "group-picture": "Picture of the group",
+      feature: "Feature for the site",
+      unfeature: "Unfeature",
+      purge: "Purge…",
+    },
+    /** Purge asks once more in place: the action again, Keep it, and the warning on the line under the bar. */
+    purgeForGood: "Purge for good",
+    keepIt: "Keep it",
+    purgeWarning: "Purge deletes the automaton's public file, its poster and its index entry. A research run stays in the private store.",
+    /** On the line under the stage's bar after an action. */
+    results: {
+      show: "Shown. A visitor sees it now.",
+      hide: "Hidden.",
+      "cell-picture": "It is the picture of its cell.",
+      "group-picture": "It is the picture of the group.",
+      feature: "Featured for the site.",
+      unfeature: "No longer featured for the site.",
+      purge: "Purged.",
+    },
+    /** The same line when an action failed. {action} is its word, {message} the Worker's reason. */
+    actionFailed: "{action} failed: {message}",
+    /** The field in the head that names the basis group, for a screen reader, and its words while empty. */
+    nameLabel: "The basis group's name",
+    namePlaceholder: "Name this basis group",
+    /** Beside the field after the name is stored, and when it could not be. {message} is the Worker's reason. */
+    nameSaved: "Saved",
+    nameFailed: "Not saved: {message}",
+    /** The run's facts under the actions. {id} is the run's id; {date} and {title} its study's. */
+    runId: "{id}",
+    study: "{date} · {title}",
+    /** A run made to tune or test the trainer, and a run that asks for something other than the group as a whole. */
+    roles: { "settings-sweep": "A run of a settings sweep.", "smoke-test": "A smoke test." },
+    otherTarget: "It asks for something other than the basis group as a whole.",
+    /** What the run measured. {update} is the update of its first reading that met the selection target. */
+    firedAt: "Selection target met at update {update}.",
+    neverFired: "Selection target never met.",
+    holds: "It still met it at step 4,000.",
+    dissolves: "It no longer met it at step 4,000.",
+  },
+  /**
    * Link previews: the Open Graph and Twitter tags that the Worker writes into the page, for Messages
    * and other link unfurlers, which run no JavaScript (gallery/src/link-preview.ts).
    */

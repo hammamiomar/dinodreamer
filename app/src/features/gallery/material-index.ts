@@ -61,9 +61,11 @@ export interface MaterialEntry {
    */
   featured?: boolean;
   /**
-   * The owner's first mark: featured within its basis group, which the Automata page shows on the
-   * group's card and first in the group's view. Absent means false, unless `featured` is true. Read it
-   * with featuredInBlock.
+   * The owner's first mark: featured within its basis group. The Automata page takes the group's
+   * picture from it, on the wall and on the stage before a visitor chooses: the owner's "picture of
+   * the group" sets it on one automaton and clears it on the group's others (gallery/src/material-review.ts,
+   * setGroupPicture). Absent means false. A site-featured automaton counts as featured within its
+   * group too: read that with featuredInBlock.
    */
   featuredInBlock?: boolean;
   /**

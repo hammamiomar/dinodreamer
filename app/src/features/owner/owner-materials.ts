@@ -96,3 +96,37 @@ async function ownerError(response: Response): Promise<string> {
     return fill(WORDS.apiAnswered, { status: response.status });
   }
 }
+
+/**
+ * Show research runs on the Automata page (POST /admin/api/research/show): each becomes a published
+ * automaton with its place in its basis group's grid. The answer is their entries as the index now lists them.
+ */
+export async function showResearchRuns(runIds: readonly string[], fetcher: typeof fetch = fetch): Promise<MaterialEntry[]> {
+  const response = await fetcher("/admin/api/research/show", {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ids: runIds }),
+  });
+  if (!response.ok) throw new Error(await ownerError(response));
+  const answer = (await response.json()) as { entries?: unknown };
+  return readMaterialIndex({ entries: answer.entries }).entries;
+}
+
+/**
+ * Make a shown automaton the picture of its cell or of its basis group (POST /admin/api/materials/cell-picture
+ * or group-picture). The answer is every entry whose mark changed, the chosen one first.
+ */
+export async function sendPictureMark(mark: "cell-picture" | "group-picture", id: string, fetcher: typeof fetch = fetch): Promise<MaterialEntry[]> {
+  const response = await fetcher(`/admin/api/materials/${mark}`, {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id }),
+  });
+  if (!response.ok) throw new Error(await ownerError(response));
+  const answer = (await response.json()) as { entries?: unknown };
+  return readMaterialIndex({ entries: answer.entries }).entries;
+}
+
+/** Name a basis group, or clear its name with an empty one (POST /admin/api/basis-groups/name). */
+export async function sendGroupName(block: number, name: string, fetcher: typeof fetch = fetch): Promise<void> {
+  const response = await fetcher("/admin/api/basis-groups/name", {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ block, name }),
+  });
+  if (!response.ok) throw new Error(await ownerError(response));
+}

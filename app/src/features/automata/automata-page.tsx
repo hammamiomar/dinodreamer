@@ -90,7 +90,7 @@ function PublishedGallery({ groups, names, status }: { groups: GalleryGroup<Publ
   if (group === null || playing === null) {
     const missing = typeof address.group === "number" && status === null ? fill(WORDS.unknownGroup, { group: address.group }) : status;
     const savedWay = (
-      <Link className="link-control automata-saved-way" to={`/automata${addressSearch({ group: SAVED_GROUP, automaton: null })}`}>
+      <Link className="link-control automata-saved-way" to={{ search: addressSearch({ group: SAVED_GROUP, automaton: null }) }}>
         {saved.automata.length === 0 ? WORDS.savedLine : fill(WORDS.savedLineCount, { count: saved.automata.length })}
       </Link>
     );

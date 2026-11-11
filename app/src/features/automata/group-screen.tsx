@@ -10,7 +10,7 @@ import { fill, SITE_WORDS } from "../../app/site-words";
 import { useMediaMatch } from "../../ui/media-match";
 import { Segmented } from "../../ui/segmented";
 import { BasisGroupLink } from "../look/basis-group-panel";
-import { groupPath, type GalleryAutomaton, type GalleryCell, type GalleryGroup } from "./gallery";
+import { addressSearch, type GalleryAutomaton, type GalleryCell, type GalleryGroup } from "./gallery";
 import { GroupGrid } from "./group-grid";
 import { GroupLevels } from "./group-levels";
 import { TriesStrip } from "./tries-strip";
@@ -44,20 +44,20 @@ function GroupWays({ neighbours }: { neighbours: { previous: number | null; next
   return (
     <p className="automata-ways">
       {/* From the wall, the way back is Back: the wall returns at the place it was left. */}
-      <Link className="link-control" to="/automata" onClick={(event) => {
+      <Link className="link-control" to={{ search: "" }} onClick={(event) => {
         if (!cameFromWall) return;
         event.preventDefault();
         navigate(-1);
       }}>{WORDS.allGroups}</Link>
       <span>
-        {neighbours.previous !== null && <Link className="link-control" to={groupPath(neighbours.previous)} state={location.state} replace>{WORDS.previousGroup}</Link>}
-        {neighbours.next !== null && <Link className="link-control" to={groupPath(neighbours.next)} state={location.state} replace>{WORDS.nextGroup}</Link>}
+        {neighbours.previous !== null && <Link className="link-control" to={{ search: addressSearch({ group: neighbours.previous, automaton: null }) }} state={location.state} replace>{WORDS.previousGroup}</Link>}
+        {neighbours.next !== null && <Link className="link-control" to={{ search: addressSearch({ group: neighbours.next, automaton: null }) }} state={location.state} replace>{WORDS.nextGroup}</Link>}
       </span>
     </p>
   );
 }
 
-export function GroupScreen<T extends GalleryAutomaton>({ group, name, neighbours, playing, stage, onChoose, nameField, children }: {
+export function GroupScreen<T extends GalleryAutomaton>({ group, name, neighbours, playing, stage, onChoose, nameField, paneHead, cellCaption, children }: {
   group: GalleryGroup<T>;
   /** The owner's name for the group, or null when it has none. */
   name: string | null;
@@ -67,6 +67,9 @@ export function GroupScreen<T extends GalleryAutomaton>({ group, name, neighbour
   onChoose: (automaton: T) => void;
   /** The owner's view: the field that names the group, in the name's place. */
   nameField?: ReactNode;
+  /** The owner's view: its line at the top of the pane, and what a cell says under its picture. */
+  paneHead?: ReactNode;
+  cellCaption?: (cell: GalleryCell<T>) => string;
   /** The basis group panel's outlet. */
   children?: ReactNode;
 }) {
@@ -89,9 +92,10 @@ export function GroupScreen<T extends GalleryAutomaton>({ group, name, neighbour
           <Segmented<PhoneView> label={WORDS.phoneViewsName} segments={PHONE_VIEWS} value={phoneView} onChange={setPhoneView} />
         </div>
       )}
-      <div className="automata-pane">
+      <div className="automata-pane" data-owner={paneHead !== undefined || undefined}>
+        {paneHead}
         <GroupLevels block={group.group} />
-        <GroupGrid group={group} playing={playing.automaton} turned={phone} onChoose={onChoose} />
+        <GroupGrid group={group} playing={playing.automaton} turned={phone} onChoose={onChoose} cellCaption={cellCaption} />
         <TriesStrip cell={playing.cell} playing={playing.automaton} onChoose={onChoose} />
       </div>
       {children}

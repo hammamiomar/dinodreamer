@@ -26,7 +26,7 @@ export interface GalleryAutomaton {
   shown: boolean;
   /** The owner's mark: the picture of its cell. */
   cellPicture: boolean;
-  /** The owner's first featured level: featured within its basis group, so the picture of the group. */
+  /** The owner's first featured level, set on the automaton itself: the picture of its group. */
   groupPicture: boolean;
   /** The owner's second featured level: featured for the site, so its group comes first on the wall. */
   siteFeatured: boolean;
@@ -147,14 +147,14 @@ export function pictureOfCell<T extends GalleryAutomaton>(cell: GalleryCell<T>):
 
 /**
  * The picture of a group, on the wall and on the stage when the address names no automaton: the
- * shown automaton the owner featured for the site, else the one featured within the group, else the
+ * shown automaton the owner made the group's picture, else one he featured for the site, else the
  * picture of its first cell. Null for a group without an automaton.
  */
 export function pictureOfGroup<T extends GalleryAutomaton>(group: GalleryGroup<T>): T | null {
   const candidates = group.cells.flatMap((cell) => cell.tries).filter((automaton) => automaton.shown);
   const pool = candidates.length > 0 ? candidates : group.cells.flatMap((cell) => cell.tries);
-  return pool.find((automaton) => automaton.siteFeatured)
-    ?? pool.find((automaton) => automaton.groupPicture)
+  return pool.find((automaton) => automaton.groupPicture)
+    ?? pool.find((automaton) => automaton.siteFeatured)
     ?? pool[0]
     ?? null;
 }

@@ -15,11 +15,13 @@ const WORDS = SITE_WORDS.automata;
 const ARROWS = { ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down" } as const;
 
 /** What one cell of the table shows: its place, its automata when it holds any, and whether the stage plays one of them. */
-function Cell<T extends GalleryAutomaton>({ place, cell, playing, onChoose }: {
+function Cell<T extends GalleryAutomaton>({ place, cell, playing, onChoose, caption }: {
   place: GalleryPlace;
   cell: GalleryCell<T> | null;
   playing: T;
   onChoose: (automaton: T) => void;
+  /** What the cell says under its picture: by default its number of tries, when it holds more than one. */
+  caption?: (cell: GalleryCell<T>) => string;
 }) {
   const names = { start: WORDS.starts[place.start], method: WORDS.methods[place.method] };
   if (cell === null) {
@@ -34,18 +36,19 @@ function Cell<T extends GalleryAutomaton>({ place, cell, playing, onChoose }: {
       aria-label={fill(WORDS.cellName, { ...names, count: count === 1 ? WORDS.cardCountOne : fill(WORDS.cellTries, { count }) })}
       onClick={() => onChoose(shown)}>
       <img src={shown.pictureUrl} alt="" width={128} height={128} loading="lazy" />
-      <span className="automata-cell-count">{count > 1 ? fill(WORDS.cellTries, { count }) : ""}</span>
+      <span className="automata-cell-count">{caption ? caption(cell) : count > 1 ? fill(WORDS.cellTries, { count }) : ""}</span>
     </button>
   );
 }
 
-export function GroupGrid<T extends GalleryAutomaton>({ group, playing, turned, onChoose }: {
+export function GroupGrid<T extends GalleryAutomaton>({ group, playing, turned, onChoose, cellCaption }: {
   group: GalleryGroup<T>;
   /** The automaton on the stage; its cell is marked. */
   playing: T;
   /** A phone's grid: the methods down the page, the starts across it. */
   turned: boolean;
   onChoose: (automaton: T) => void;
+  cellCaption?: (cell: GalleryCell<T>) => string;
 }) {
   const table = useRef<HTMLTableElement>(null);
   const explanation = useExplanation();
@@ -67,7 +70,7 @@ export function GroupGrid<T extends GalleryAutomaton>({ group, playing, turned, 
 
   const cell = (start: GalleryStart, method: GalleryMethod) => (
     <td key={`${start}/${method}`}>
-      <Cell place={{ start, method }} cell={cellAt(group, { start, method })} playing={playing} onChoose={onChoose} />
+      <Cell place={{ start, method }} cell={cellAt(group, { start, method })} playing={playing} onChoose={onChoose} caption={cellCaption} />
     </td>
   );
   // The columns' title stands over the columns; the rows' title is the table's corner, over the rows' names.

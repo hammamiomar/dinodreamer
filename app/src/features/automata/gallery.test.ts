@@ -97,13 +97,13 @@ describe("the tries of a cell", () => {
 });
 
 describe("a group's picture and its place on the wall", () => {
-  test("the site's featured automaton is the group's picture, then the one featured in the group, then the first cell's picture", () => {
+  test("the owner's picture of the group comes first, then an automaton featured for the site, then the first cell's picture", () => {
     const first = automaton("first", "noise", "basis-group-mean");
-    const inGroup = automaton("in-group", "circle", "basis-group-mean", { groupPicture: true });
-    const forSite = automaton("for-site", "circle", "token-distribution", { groupPicture: true, siteFeatured: true });
+    const forSite = automaton("for-site", "circle", "basis-group-mean", { siteFeatured: true });
+    const chosen = automaton("chosen", "circle", "token-distribution", { groupPicture: true });
     expect(pictureOfGroup(arrangeGroup(7178, [first]))?.id).toBe("first");
-    expect(pictureOfGroup(arrangeGroup(7178, [first, inGroup]))?.id).toBe("in-group");
-    expect(pictureOfGroup(arrangeGroup(7178, [first, inGroup, forSite]))?.id).toBe("for-site");
+    expect(pictureOfGroup(arrangeGroup(7178, [first, forSite]))?.id).toBe("for-site");
+    expect(pictureOfGroup(arrangeGroup(7178, [first, forSite, chosen]))?.id).toBe("chosen");
   });
 
   test("a hidden automaton is never the group's picture while the group shows another", () => {
