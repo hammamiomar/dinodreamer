@@ -18,7 +18,9 @@ does not change. What you make stays on your device unless you publish it.
 - **Index**: the 16,384 basis groups, each shown on pictures where it is selected.
 - **Inspect**: one basis group: its responses in 3D, its levels, its pictures and its automata.
 - **Train**: train an automaton on your device toward a reference patch of a basis group.
-- **Automata**: the published automata, and the ones saved on your device.
+- **Automata**: every basis group that has automata. A group's screen shows the group's own patches by response
+  level beside its automata, which are arranged by where they start and what their training asked for. The automata
+  saved on your device have their own screen.
 - **How it works**: the model, the featurizer and one automaton, on one picture.
 - **Painter**: the project's first tool, an image editor, kept as an experiment.
 
