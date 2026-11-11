@@ -1,11 +1,12 @@
 // Up to eight published automata for the block, with successful runs first.
-// Each tile opens its automaton in the Playground; this view has no player.
+// Each tile opens its automaton on the group's screen of the Automata page; this view has no player.
 
 import { Link } from "react-router";
-import { RULE_CHOICES, START_CHOICES } from "../../grow/material-kind";
+import { RULE_CHOICES, START_WORDS } from "../../grow/material-kind";
 import { materialFileUrl, type MaterialIndexState } from "../gallery/material-gallery";
 import { materialsOfBlock, type MaterialEntry } from "../gallery/material-index";
-import { entryKind, playgroundPath } from "../playground/playground";
+import { groupPath } from "../automata/gallery";
+import { entryKind } from "../playground/playground";
 import { LOOK_TEXT } from "./look-text";
 
 /** One row of the module grid: eight tiles at 1440 (fewer show on a phone, by CSS). */
@@ -19,7 +20,7 @@ export function BlockMaterials({ block, index }: { block: number; index: Materia
       <div className="look-group-head">
         <h2 id="look-materials-title" className="label">{LOOK_TEXT.materials.title}</h2>
         {index.status === "ready" && <span className="look-count">{entries.length}</span>}
-        {entries.length > 0 && <Link className="link-control look-all" to={playgroundPath(entries[0])}>{LOOK_TEXT.materials.all(entries.length)}</Link>}
+        {entries.length > 0 && <Link className="link-control look-all" to={groupPath(block)}>{LOOK_TEXT.materials.all(entries.length)}</Link>}
       </div>
       {index.status === "failed" && <p className="muted">{LOOK_TEXT.materials.failed(index.message)}</p>}
       {index.status === "ready" && entries.length === 0 && <p className="muted">{LOOK_TEXT.materials.none}</p>}
@@ -46,10 +47,10 @@ export function materialReading(entry: MaterialEntry): string {
 function MaterialTile({ entry }: { entry: MaterialEntry }) {
   const kind = entryKind(entry);
   const rule = RULE_CHOICES.find((choice) => choice.value === kind.rule)!.label;
-  const start = START_CHOICES.find((choice) => choice.value === kind.start)!.label;
+  const start = START_WORDS[kind.start];
   return (
     <li>
-      <Link className="look-material" to={playgroundPath(entry)} data-fired={entry.fired || undefined}>
+      <Link className="look-material" to={groupPath(entry.block, entry.id)} data-fired={entry.fired || undefined}>
         <img src={materialFileUrl(entry.id, "poster.png")} width={entry.side} height={entry.side} alt="" loading="lazy" />
         <span className="look-material-name">
           <span>{entry.pixelsPerCell === 2 ? LOOK_TEXT.materials.twoPixels(rule) : rule}</span>

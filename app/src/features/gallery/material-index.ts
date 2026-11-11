@@ -9,6 +9,7 @@ import {
   FIGURE_LAYOUT, FIGURE_PYRAMID_LAYOUT, fired, lossKindOf, startKindOf, type FigureLayout, type FigureMaterialFile, type FigureStartKind,
   type PixelsPerCell,
 } from "../../materials/material-file.ts";
+import { isGalleryMethod, isGalleryStart, placeFromFile, type GalleryPlace } from "./gallery-place.ts";
 
 export const MATERIAL_INDEX_KEY = "published/materials.json";
 export const MATERIAL_FILES = ["material.json", "poster.png"] as const;
@@ -65,6 +66,17 @@ export interface MaterialEntry {
    * with featuredInBlock.
    */
   featuredInBlock?: boolean;
+  /**
+   * The automaton's place in its basis group's grid on the Automata page (gallery-place.ts): the start
+   * and the method. The owner's publish of a research run writes it from the research export. Absent
+   * for a rule grown in the browser and in an older index: read it with placeOf.
+   */
+  gallery?: GalleryPlace;
+  /**
+   * The owner's mark: of the automata that share its place in the grid, this one is the picture the
+   * cell shows. Absent means false; the Automata page then takes the cell's first automaton.
+   */
+  cellPicture?: boolean;
 }
 export type MaterialStartKind = FigureStartKind;
 export type MaterialLossKind = "plain" | "guided";
@@ -103,6 +115,11 @@ export function materialEntry(id: string, file: FigureMaterialFile, label: { tit
 /** The loss the entry's rule trained with; an older entry without the field trained with the request alone. */
 export function entryLoss(entry: Pick<MaterialEntry, "loss">): MaterialLossKind {
   return entry.loss ?? "plain";
+}
+
+/** The entry's place in its basis group's grid: the one it carries, else the one its file's start and loss give. */
+export function placeOf(entry: Pick<MaterialEntry, "gallery" | "start" | "loss">): GalleryPlace {
+  return entry.gallery ?? placeFromFile(entry.start, entryLoss(entry));
 }
 
 /** Whether the owner featured the material within its basis group: its own mark, or the site mark, which implies it. */
@@ -155,6 +172,9 @@ export function readMaterialIndex(value: unknown): MaterialIndex {
     check(entry.measurementDirection === undefined || typeof entry.measurementDirection === "string", "measurement direction");
     check(entry.featured === undefined || typeof entry.featured === "boolean", "featured mark");
     check(entry.featuredInBlock === undefined || typeof entry.featuredInBlock === "boolean", "featured-in-group mark");
+    check(entry.gallery === undefined || (typeof entry.gallery === "object" && entry.gallery !== null
+      && isGalleryStart(entry.gallery.start) && isGalleryMethod(entry.gallery.method)), "place in its basis group's grid");
+    check(entry.cellPicture === undefined || typeof entry.cellPicture === "boolean", "cell picture mark");
   }
   return value as MaterialIndex;
 }

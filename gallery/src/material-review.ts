@@ -13,6 +13,7 @@ import {
   EMPTY_MATERIAL_INDEX, MATERIAL_INDEX_KEY, isMaterialEntryId, materialEntry, materialKey, readMaterialIndex,
   withMaterialEntry, withoutMaterialEntry, type MaterialEntry, type MaterialIndex,
 } from "../../app/src/features/gallery/material-index.ts";
+import type { GalleryPlace } from "../../app/src/features/gallery/gallery-place.ts";
 import { MATERIAL_SUBMISSION_LIMITS } from "../../app/src/features/gallery/submission-label.ts";
 import { CACHE_IMMUTABLE, CACHE_INDEX, isPng, listKeys, requiredObject, type Bucket } from "./storage.ts";
 import { previewKeys } from "./link-preview.ts";
@@ -135,9 +136,18 @@ async function putMaterialObjects(library: Bucket, id: string, given: FigureMate
 
 /**
  * One material for publishMaterials; `hidden` publishes its objects and keeps it out of the index, and
- * `featured` is the owner's mark, kept in the hidden record too.
+ * `featured` is the owner's mark, kept in the hidden record too. A research run also brings its place
+ * in its basis group's grid and the review's mark within the group (research.ts, showResearchRuns).
  */
-export interface MaterialToPublish { id: string; file: FigureMaterialFile; label: { title: string; credit: string }; hidden: boolean; featured: boolean }
+export interface MaterialToPublish {
+  id: string;
+  file: FigureMaterialFile;
+  label: { title: string; credit: string };
+  hidden: boolean;
+  featured: boolean;
+  gallery?: GalleryPlace;
+  featuredInBlock?: boolean;
+}
 
 /**
  * Publish many materials in one pass: every file and poster, then the index written once, with a hidden
@@ -148,7 +158,12 @@ export async function publishMaterials(submissions: Bucket, library: Bucket, mat
   let index = await readMaterials(library);
   const hiddenBefore = new Set(await listKeys(submissions, "hidden/materials/"));
   for (const material of materials) {
-    const entry = { ...(await putMaterialObjects(library, material.id, material.file, material.label, now)), featured: material.featured };
+    const entry: MaterialEntry = {
+      ...(await putMaterialObjects(library, material.id, material.file, material.label, now)),
+      featured: material.featured,
+      ...(material.featuredInBlock === undefined ? {} : { featuredInBlock: material.featuredInBlock || material.featured }),
+      ...(material.gallery === undefined ? {} : { gallery: material.gallery }),
+    };
     if (material.hidden) {
       const record: HiddenMaterial = { ...entry, hiddenAt: now.toISOString() };
       await submissions.put(hiddenMaterialKey(material.id), JSON.stringify(record, null, 2), { httpMetadata: { contentType: "application/json" } });
@@ -164,6 +179,24 @@ export async function publishMaterials(submissions: Bucket, library: Bucket, mat
   }
   const hidden = materials.filter((material) => material.hidden).length;
   return { shown: materials.length - hidden, hidden };
+}
+
+/**
+ * Give shown entries their place in their basis group's grid, in one index write; none when every
+ * place is already as asked. An id the index does not list is left alone: a hidden automaton keeps
+ * the record it was hidden with. The answer is the number of entries that changed.
+ */
+export async function setGalleryPlaces(library: Bucket, places: ReadonlyMap<string, GalleryPlace>): Promise<number> {
+  const index = await readMaterials(library);
+  let changed = 0;
+  const entries = index.entries.map((entry) => {
+    const place = places.get(entry.id);
+    if (place === undefined || (entry.gallery?.start === place.start && entry.gallery.method === place.method)) return entry;
+    changed++;
+    return { ...entry, gallery: place };
+  });
+  if (changed > 0) await writeMaterials(library, { entries });
+  return changed;
 }
 
 /** Pending material submissions, oldest first. Canvas submissions are review.ts's. */

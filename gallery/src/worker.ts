@@ -9,6 +9,7 @@
 //   GET  /api/gallery       the published index from the public bucket, cached for a minute
 //   GET  /api/materials     the published materials index (material-review.ts), cached for a minute
 //   GET  /api/materials/<id>/material.json | poster.png   a published material's file, immutable
+//   GET  /api/basis-groups  the owner's names for the basis groups (basis-group-names.ts), cached for a minute
 //   GET  /assets/*          the build's file, or 404 when the current build does not have it
 //   /admin, /admin/*        the owner page and its API, behind Cloudflare Access (admin.ts)
 //   GET  public pages      the app's index.html with shared preview media (link-preview.ts)
@@ -19,6 +20,7 @@ import { EMPTY_INDEX } from "./gallery-index.ts";
 import { CACHE_IMMUTABLE, CACHE_INDEX, INDEX_KEY, submissionId, type Bucket } from "./storage.ts";
 import { readCreationForm, readForm, readMaterialForm, storeSubmission, type ReleaseBlocks } from "./submission.ts";
 import { readMaterials, storeMaterialSubmission } from "./material-review.ts";
+import { storedNames } from "./basis-group-names.ts";
 import { isMaterialEntryId, materialKey, MATERIAL_FILES, type MaterialFileName } from "../../app/src/features/gallery/material-index.ts";
 import { verifyTurnstile } from "./turnstile.ts";
 import { routePreview, withPreviewTags } from "./link-preview.ts";
@@ -119,6 +121,10 @@ async function materials(env: Env): Promise<Response> {
   return new Response(JSON.stringify(await readMaterials(env.LIBRARY)), { headers: { "content-type": "application/json", "cache-control": CACHE_INDEX } });
 }
 
+async function basisGroupNames(env: Env): Promise<Response> {
+  return new Response(JSON.stringify(await storedNames(env.LIBRARY)), { headers: { "content-type": "application/json", "cache-control": CACHE_INDEX } });
+}
+
 /** A published material's file or poster from the public bucket; immutable once approved. */
 async function materialFile(env: Env, id: string, file: string): Promise<Response> {
   if (!isMaterialEntryId(id) || !MATERIAL_FILES.includes(file as MaterialFileName)) return json({ error: "not found" }, 404);
@@ -146,6 +152,9 @@ export default {
     }
     if (pathname === "/api/materials") {
       return request.method === "GET" ? materials(env) : json({ error: "use GET" }, 405, { allow: "GET" });
+    }
+    if (pathname === "/api/basis-groups") {
+      return request.method === "GET" ? basisGroupNames(env) : json({ error: "use GET" }, 405, { allow: "GET" });
     }
     const published = pathname.match(/^\/api\/materials\/([^/]+)\/([^/]+)$/);
     if (published !== null && request.method === "GET") return materialFile(env, published[1]!, published[2]!);

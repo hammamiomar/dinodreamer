@@ -90,11 +90,6 @@ export function firstToPlay(entries: readonly MaterialEntry[]): MaterialEntry | 
   return entries.find((entry) => entry.fired) ?? entries[0] ?? null;
 }
 
-/** The Playground with this material playing, the link the home and a tile share. */
-export function playgroundPath(entry: MaterialEntry): string {
-  return `/automata?material=${encodeURIComponent(entry.id)}`;
-}
-
 /** One row of the choices: its word on the line, and its options, "Any" first. */
 export interface ChoiceRow<K extends keyof PlaygroundChoices = keyof PlaygroundChoices> {
   key: K;

@@ -5,6 +5,8 @@
 // (gallery/research.ts) check the same file with readResearchManifest. This module has no browser
 // or React imports.
 
+import { isGalleryMethod, isGalleryStart, type GalleryMethod, type GalleryStart } from "../gallery/gallery-place.ts";
+
 /** The run index in the private bucket. Each run's files are under research/runs/<id>/. */
 export const RESEARCH_MANIFEST_KEY = "research/manifest.json";
 /** The largest manifest the publish command and the page accept: about 300 bytes a run leaves room for thousands. */
@@ -106,11 +108,32 @@ export interface ResearchRun {
    * it is featured within its basis group (which needs `site`). Absent in an older export: neither.
    */
   review: { site: boolean; featured: boolean };
+  /**
+   * The run's place on the Automata page, and whether the public gallery shows it before the owner has
+   * chosen (the export's rule; its README, "Gallery fields"). Null in an export from before the fields.
+   */
+  gallery: RunGallery | null;
+  /** Why the run was made when not for a study's question: to tune the trainer's settings, or to test it. Null otherwise. */
+  role: RunRole | null;
+  /** The published automata whose rule is this run's, by entry id; the run is on the site as each of them. */
+  siteMaterials: string[];
   /** SHA-256 of research/runs/<id>/material.json, the run's format-4 file. */
   materialSha256: string;
   /** The ticks with a still under research/runs/<id>/ (stillName), ascending. */
   stills: number[];
 }
+
+/** A run's gallery fields, as the export writes them. */
+export interface RunGallery {
+  /** Null for a start the grid has no row for: the all-zero start of the first runs, and a start from a picture. */
+  start: GalleryStart | null;
+  method: GalleryMethod;
+  /** "group" when the request is the basis group as a whole; "other" for a level, a region, a unit, two sets and the like. */
+  target: "group" | "other";
+  shown: boolean;
+}
+
+export type RunRole = "settings-sweep" | "smoke-test";
 
 export interface ResearchManifest {
   format: 1;
@@ -268,6 +291,9 @@ function readRun(value: unknown, at: number, studies: ReadonlySet<string>): Rese
     outcome: readOutcome(run.outcome, `${where}.outcome`),
     reading: { line: text(reading.line, `${where}.reading.line`), tags },
     review: run.review === undefined ? { site: false, featured: false } : readReview(run.review, `${where}.review`),
+    gallery: run.gallery === undefined ? null : readGallery(run.gallery, `${where}.gallery`),
+    role: readRole(run.role, `${where}.role`),
+    siteMaterials: readSiteMaterials(run.siteMaterials, `${where}.siteMaterials`),
     materialSha256,
     stills,
   };
@@ -279,6 +305,26 @@ function readReview(value: unknown, where: string): ResearchRun["review"] {
   const featured = flag(review.featured, `${where}.featured`);
   if (featured && !site) fail(`${where}.featured`, "a featured run must be on the site list");
   return { site, featured };
+}
+
+function readGallery(value: unknown, where: string): RunGallery {
+  const gallery = record(value, where);
+  if (gallery.start !== null && !isGalleryStart(gallery.start)) fail(`${where}.start`, "must be a start the gallery names, or null");
+  if (!isGalleryMethod(gallery.method)) fail(`${where}.method`, "must be a method the gallery names");
+  if (gallery.target !== "group" && gallery.target !== "other") fail(`${where}.target`, 'must be "group" or "other"');
+  return { start: gallery.start, method: gallery.method, target: gallery.target, shown: flag(gallery.shown, `${where}.shown`) };
+}
+
+function readRole(value: unknown, where: string): RunRole | null {
+  if (value === undefined || value === null) return null;
+  if (value !== "settings-sweep" && value !== "smoke-test") fail(where, 'must be "settings-sweep" or "smoke-test"');
+  return value;
+}
+
+function readSiteMaterials(value: unknown, where: string): string[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) fail(where, "must be a list of entry ids");
+  return value.map((id, index) => text(id, `${where}[${index}]`, 96));
 }
 
 /** The run index, checked field by field; an error names the run and the field. */

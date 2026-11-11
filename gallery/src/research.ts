@@ -12,10 +12,12 @@ import {
   readResearchManifest, RESEARCH_MANIFEST_BYTES, RESEARCH_MANIFEST_KEY, researchRunKey, stillName, type ResearchManifest, type ResearchRun,
 } from "../../app/src/features/research/research-runs.ts";
 import { submissionLabelProblem } from "../../app/src/features/gallery/submission-label.ts";
+import type { GalleryPlace } from "../../app/src/features/gallery/gallery-place.ts";
 import {
-  checkedMaterial, MATERIAL_DICTIONARIES, MATERIAL_LIMITS, materialPoster, PROJECT_CREDIT, storeMaterialSubmission, type MaterialSubmissionMetadata,
+  checkedMaterial, hiddenMaterialKey, MATERIAL_DICTIONARIES, MATERIAL_LIMITS, materialPoster, PROJECT_CREDIT, publishMaterials, readMaterials,
+  setGalleryPlaces, storeMaterialSubmission, type MaterialSubmissionMetadata, type MaterialToPublish,
 } from "./material-review.ts";
-import { isPng, requiredObject, submissionId, type Bucket } from "./storage.ts";
+import { isPng, listKeys, requiredObject, submissionId, type Bucket } from "./storage.ts";
 
 /** Uploads in flight at once: the REST bucket answers each put in about a quarter of a second. */
 const CONCURRENT_UPLOADS = 8;
@@ -110,4 +112,74 @@ export async function promoteResearchRun(submissions: Bucket, runId: string, tit
   if ("error" in checked) throw new Error(`${runId}: ${checked.error}`);
   const submission = { file: checked.file, text: JSON.stringify(checked.file), poster: materialPoster(checked.file), title: trimmed, credit: PROJECT_CREDIT };
   return storeMaterialSubmission(submissions, submissionId(now, random), submission, now);
+}
+
+/**
+ * The entry a run is on the Automata page as: the published automaton that already holds its rule
+ * (the run index names it, `siteMaterials`), else an entry under the run's own id. So a rule that is
+ * both a published automaton and a research run appears once, at the address it always had.
+ */
+export function entryIdOfRun(run: Pick<ResearchRun, "id" | "siteMaterials">): string {
+  return run.siteMaterials[0] ?? run.id;
+}
+
+/** A run's place in its basis group's grid, or null for a run the grid has no place for (an older export, or a start outside the grid). */
+export function placeOfRun(run: Pick<ResearchRun, "gallery">): GalleryPlace | null {
+  if (run.gallery === null || run.gallery.start === null) return null;
+  return { start: run.gallery.start, method: run.gallery.method };
+}
+
+/** What showResearchRuns did, or in a dry run would do, by entry id. */
+export interface ShownRuns {
+  /** Runs published as new automata: their file and poster, and an index entry. */
+  published: string[];
+  /** Runs whose rule was a shown automaton already: its entry took the run's place in the grid, and nothing else changed. */
+  placed: string[];
+  /** Runs left as the owner hid them: a hidden automaton stays hidden. */
+  keptHidden: string[];
+  /** Runs the grid has no place for; they are not published. */
+  withoutPlace: string[];
+}
+
+/**
+ * Show research runs on the Automata page. A run whose rule is not on the site becomes a published
+ * automaton under the project's credit and without a title, with its place in its basis group's
+ * grid and the review's mark within the group; its file is checked with the app's loader as any
+ * submission's is. A run whose rule is a shown automaton already only gives that entry its place: a
+ * published file never changes. One index write for all of them. With `write` false nothing is
+ * written, and the answer is what would be.
+ */
+export async function showResearchRuns(
+  submissions: Bucket, library: Bucket, runs: readonly ResearchRun[], now: Date, write: boolean,
+): Promise<ShownRuns> {
+  const shown = new Set((await readMaterials(library)).entries.map((entry) => entry.id));
+  const hidden = new Set(await listKeys(submissions, "hidden/materials/"));
+  const result: ShownRuns = { published: [], placed: [], keptHidden: [], withoutPlace: [] };
+  const toPublish: MaterialToPublish[] = [];
+  const places = new Map<string, GalleryPlace>();
+  for (const run of runs) {
+    const id = entryIdOfRun(run);
+    const place = placeOfRun(run);
+    if (place === null) {
+      result.withoutPlace.push(run.id);
+    } else if (hidden.has(hiddenMaterialKey(id))) {
+      result.keptHidden.push(id);
+    } else if (shown.has(id)) {
+      places.set(id, place);
+      result.placed.push(id);
+    } else {
+      const checked = checkedMaterial(await (await requiredObject(submissions, researchRunKey(run.id, "material.json"))).text());
+      if ("error" in checked) throw new Error(`${run.id}: ${checked.error}`);
+      toPublish.push({
+        id, file: checked.file, label: { title: "", credit: PROJECT_CREDIT }, hidden: false, featured: false,
+        gallery: place, featuredInBlock: run.review.featured,
+      });
+      result.published.push(id);
+    }
+  }
+  if (write) {
+    if (toPublish.length > 0) await publishMaterials(submissions, library, toPublish, now);
+    await setGalleryPlaces(library, places);
+  }
+  return result;
 }

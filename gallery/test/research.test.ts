@@ -2,7 +2,10 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { ownerRequest } from "../src/admin.ts";
-import { checkedResearchManifest, researchRunProblems, runsToWrite, writeResearch, type ResearchRunFiles } from "../src/research.ts";
+import {
+  checkedResearchManifest, entryIdOfRun, placeOfRun, researchRunProblems, runsToWrite, showResearchRuns, writeResearch, type ResearchRunFiles,
+} from "../src/research.ts";
+import { hideMaterial, readMaterials } from "../src/material-review.ts";
 import { RESEARCH_MANIFEST_KEY, type ResearchManifest } from "../../app/src/features/research/research-runs.ts";
 import type { Env } from "../src/worker.ts";
 import type { MemoryBucket } from "./memory-bucket.ts";
@@ -13,11 +16,14 @@ const MATERIAL = new Uint8Array(readFileSync(new URL(`../seed/materials/${RUN_ID
 const MATERIAL_SHA256 = createHash("sha256").update(MATERIAL).digest("hex");
 const FILES: ResearchRunFiles = { material: MATERIAL, stills: new Map([[200, PNG], [600, PNG]]) };
 
-function manifestText(runs: { id: string; materialSha256?: string; group?: number }[]): string {
+type RunFields = { id: string; materialSha256?: string; group?: number; gallery?: unknown; siteMaterials?: string[]; review?: { site: boolean; featured: boolean } };
+
+function manifestText(runs: RunFields[]): string {
   return JSON.stringify({
     format: 1, generatedAt: "2026-10-31T20:00:00Z", researchCommit: "0123abcd", dictionaryId: "monet-dtd-seed9-20261004-pass-003",
     studies: [{ id: "day-1", date: "2026-10-31", title: "First", question: "Does it fire?" }],
-    runs: runs.map(({ id, materialSha256 = MATERIAL_SHA256, group = 12002 }) => ({
+    runs: runs.map(({ id, materialSha256 = MATERIAL_SHA256, group = 12002, ...added }) => ({
+      ...added,
       id, study: "day-1", group, groupName: "", start: { kind: "noise" }, loss: { kind: "plain" }, rule: "cell", seed: 1,
       schedule: { updates: 1000, pool: 64 },
       outcome: {
@@ -29,7 +35,7 @@ function manifestText(runs: { id: string; materialSha256?: string; group?: numbe
   });
 }
 
-const manifestOf = (runs: { id: string; materialSha256?: string; group?: number }[]): ResearchManifest => checkedResearchManifest(manifestText(runs));
+const manifestOf = (runs: RunFields[]): ResearchManifest => checkedResearchManifest(manifestText(runs));
 
 describe("publishing research runs", () => {
   it("checks a run's files against its row in the index", async () => {
@@ -64,6 +70,68 @@ describe("publishing research runs", () => {
       `research/runs/${RUN_ID}/material.json`, `research/runs/${RUN_ID}/still-0200.png`, `research/runs/${RUN_ID}/still-0600.png`, RESEARCH_MANIFEST_KEY,
     ]);
     expect((await env.LIBRARY.list({ prefix: "research/" })).objects).toEqual([]);
+  });
+});
+
+describe("showing research runs on the Automata page", () => {
+  const SITE_ID = "block-12002-figure-strongest-mean-seed-0";
+  const PLACE = { start: "circle", method: "token-distribution", target: "group", shown: true };
+  /** A store that holds the run's file in the private bucket, as the publish command leaves it. */
+  async function storeWithRun(): Promise<Env> {
+    const { env } = testEnv();
+    const text = manifestText([{ id: RUN_ID }]);
+    await writeResearch(env.SUBMISSIONS, text, checkedResearchManifest(text).runs, () => FILES);
+    return env;
+  }
+
+  it("a run is on the page as the automaton that holds its rule, else under its own id", () => {
+    const [onSite, fresh] = manifestOf([{ id: RUN_ID, siteMaterials: [SITE_ID] }, { id: "next-run" }]).runs;
+    expect([entryIdOfRun(onSite!), entryIdOfRun(fresh!)]).toEqual([SITE_ID, "next-run"]);
+  });
+
+  it("publishes a run with its place in the grid and the review's mark, under the project's credit and without a title", async () => {
+    const env = await storeWithRun();
+    const [run] = manifestOf([{ id: RUN_ID, gallery: PLACE, review: { site: true, featured: true } }]).runs;
+    const result = await showResearchRuns(env.SUBMISSIONS, env.LIBRARY, [run!], new Date("2026-11-10T20:00:00Z"), true);
+    expect(result).toEqual({ published: [RUN_ID], placed: [], keptHidden: [], withoutPlace: [] });
+    const [entry] = (await readMaterials(env.LIBRARY)).entries;
+    expect(entry).toMatchObject({
+      id: RUN_ID, materialId: RUN_ID, title: "", credit: "DinoDreamer project", block: 12002,
+      gallery: { start: "circle", method: "token-distribution" }, featuredInBlock: true, featured: false,
+    });
+    expect((env.LIBRARY as MemoryBucket).objects.has(`gallery/materials/${RUN_ID}/poster.png`)).toBe(true);
+  });
+
+  it("a dry run writes nothing and answers what it would do", async () => {
+    const env = await storeWithRun();
+    const [run] = manifestOf([{ id: RUN_ID, gallery: PLACE }]).runs;
+    const before = [...(env.LIBRARY as MemoryBucket).objects.keys()];
+    expect((await showResearchRuns(env.SUBMISSIONS, env.LIBRARY, [run!], new Date(), false)).published).toEqual([RUN_ID]);
+    expect([...(env.LIBRARY as MemoryBucket).objects.keys()]).toEqual(before);
+  });
+
+  it("gives a shown automaton its place without touching its file, and a second time changes nothing", async () => {
+    const env = await storeWithRun();
+    const [first] = manifestOf([{ id: RUN_ID, gallery: { ...PLACE, start: "noise" } }]).runs;
+    await showResearchRuns(env.SUBMISSIONS, env.LIBRARY, [first!], new Date(), true);
+    const library = env.LIBRARY as MemoryBucket;
+    const fileBefore = library.objects.get(`gallery/materials/${RUN_ID}/material.json`);
+    const [moved] = manifestOf([{ id: RUN_ID, gallery: PLACE }]).runs;
+    const result = await showResearchRuns(env.SUBMISSIONS, env.LIBRARY, [moved!], new Date(), true);
+    expect(result).toEqual({ published: [], placed: [RUN_ID], keptHidden: [], withoutPlace: [] });
+    expect((await readMaterials(env.LIBRARY)).entries[0]!.gallery).toEqual({ start: "circle", method: "token-distribution" });
+    expect(library.objects.get(`gallery/materials/${RUN_ID}/material.json`)).toBe(fileBefore);
+  });
+
+  it("leaves a hidden automaton hidden, and does not publish a run the grid has no place for", async () => {
+    const env = await storeWithRun();
+    const runs = manifestOf([{ id: RUN_ID, gallery: PLACE }, { id: "no-row", gallery: { ...PLACE, start: null } }, { id: "old-export" }]).runs;
+    await showResearchRuns(env.SUBMISSIONS, env.LIBRARY, [runs[0]!], new Date(), true);
+    await hideMaterial(env.SUBMISSIONS, env.LIBRARY, RUN_ID, new Date());
+    const result = await showResearchRuns(env.SUBMISSIONS, env.LIBRARY, runs, new Date(), true);
+    expect(result).toEqual({ published: [], placed: [], keptHidden: [RUN_ID], withoutPlace: ["no-row", "old-export"] });
+    expect((await readMaterials(env.LIBRARY)).entries).toEqual([]);
+    expect([placeOfRun(runs[1]!), placeOfRun(runs[2]!)]).toEqual([null, null]);
   });
 });
 

@@ -1,4 +1,7 @@
-// The research runs' publish command, for the terminal: pnpm run research publish <folder> [--local <dir>]
+// The research runs' commands, for the terminal:
+//
+//   pnpm run research publish <folder> [--local <dir>]
+//   pnpm run research show-default [--local <dir>] [--production]
 //
 // <folder> is the research repository's export: manifest.json, and runs/<id>/material.json with a
 // still-NNNN.png for every tick the index lists (app/src/features/research/research-runs.ts). The
@@ -6,26 +9,59 @@
 // stored index does not list yet, and the new index last (src/research.ts), to the private bucket:
 // the owner's research page shows them; nothing is public. --local <dir> writes the local Worker's
 // bucket instead (`wrangler dev --local --persist-to <dir>`).
+//
+// show-default shows on the Automata page every run of the stored index that the export shows by
+// default (`gallery.shown`, research-runs.ts) and that is not there yet (src/research.ts,
+// showResearchRuns): the public gallery's starting state, before the owner has chosen. On Cloudflare
+// it writes only with --production; without it, a dry run that counts what it would do.
 
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { openBuckets, openLocalBuckets } from "./review-cli.ts";
 import { stillName, type ResearchRun } from "../app/src/features/research/research-runs.ts";
-import { checkedResearchManifest, researchRunProblems, runsToWrite, storedResearchManifest, writeResearch, type ResearchRunFiles } from "./src/research.ts";
+import {
+  checkedResearchManifest, researchRunProblems, runsToWrite, showResearchRuns, storedResearchManifest, writeResearch, type ResearchRunFiles,
+} from "./src/research.ts";
 
 const args = process.argv.slice(2);
 const localAt = args.indexOf("--local");
 const persistTo = localAt >= 0 ? args.splice(localAt, 2)[1] : undefined;
+const productionAt = args.indexOf("--production");
+const production = productionAt >= 0;
+if (production) args.splice(productionAt, 1);
 const [command, folder] = args;
-if (command !== "publish" || folder === undefined || (localAt >= 0 && !persistTo)) {
-  console.error("usage: pnpm run research publish <folder> [--local <wrangler persist directory>]");
+const usage = "usage: pnpm run research publish <folder> [--local <wrangler persist directory>]\n"
+  + "       pnpm run research show-default [--local <wrangler persist directory>] [--production]";
+if ((command !== "publish" && command !== "show-default") || (command === "publish" && folder === undefined) || (localAt >= 0 && !persistTo)) {
+  console.error(usage);
   process.exit(2);
 }
 
-const manifestText = readFileSync(join(folder, "manifest.json"), "utf8");
+if (command === "show-default") {
+  const opened = persistTo ? await openLocalBuckets(persistTo) : { ...openBuckets(), close: async () => {} };
+  try {
+    const stored = await storedResearchManifest(opened.submissions);
+    if (stored === null) throw new Error("no research run index is stored yet; run: pnpm run research publish <folder>");
+    const runs = stored.runs.filter((run) => run.gallery?.shown === true);
+    const write = persistTo !== undefined || production;
+    const result = await showResearchRuns(opened.submissions, opened.library, runs, new Date(), write);
+    const place = persistTo ? `the local store ${persistTo}` : "Cloudflare";
+    console.log(`${runs.length} runs are shown by default, of ${stored.runs.length} in the stored index.`);
+    console.log(`  ${result.published.length} published as new automata`);
+    console.log(`  ${result.placed.length} were shown automata already and took their place in the grid`);
+    console.log(`  ${result.keptHidden.length} stay hidden, as the owner left them`);
+    console.log(`  ${result.withoutPlace.length} have no place in the grid and are not published`);
+    console.log(write ? `Written to ${place}.` : "Dry run: nothing was written. Add --production to write Cloudflare.");
+  } finally {
+    await opened.close();
+  }
+  process.exit(0);
+}
+
+const manifestText = readFileSync(join(folder!, "manifest.json"), "utf8");
 const manifest = checkedResearchManifest(manifestText);
 const readRunFiles = (run: ResearchRun): ResearchRunFiles => {
-  const runFolder = join(folder, "runs", run.id);
+  const runFolder = join(folder!, "runs", run.id);
   const material = join(runFolder, "material.json");
   const stills = new Map(run.stills.flatMap((tick) => {
     const still = join(runFolder, stillName(tick));

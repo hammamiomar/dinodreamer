@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { FIGURE_LAYOUT, FIGURE_PYRAMID_LAYOUT } from "../../materials/material-file";
 import { materialsByBlock, type MaterialEntry } from "../gallery/material-index";
-import { choiceRows, chosenWord, EVERY_MATERIAL, familiesPresent, familyName, featuredMaterials, firstToPlay, keptByChoices, kindLine, materialToPlay, playgroundPath, tileName, tileReading } from "./playground";
+import { choiceRows, chosenWord, EVERY_MATERIAL, familiesPresent, familyName, featuredMaterials, firstToPlay, keptByChoices, kindLine, materialToPlay, tileName, tileReading } from "./playground";
 
 function entry(changes: Partial<MaterialEntry>): MaterialEntry {
   return {
@@ -120,10 +120,6 @@ describe("what plays first", () => {
     expect(materialToPlay({ id: null, yoursFirst: true }, kept, published)?.id).toBe("mine");
     expect(materialToPlay({ id: null, yoursFirst: true }, [], published)?.id).toBe("b");
     expect(materialToPlay({ id: "gone", yoursFirst: false }, kept, published)?.id).toBe("b");
-  });
-
-  test("a link names the material by its id", () => {
-    expect(playgroundPath(entry({ id: "block-2-stage-6" }))).toBe("/automata?material=block-2-stage-6");
   });
 });
 

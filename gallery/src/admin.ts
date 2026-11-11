@@ -25,6 +25,8 @@
 //   GET  /admin/api/research/manifest.json         the research run index (research.ts), from the private bucket
 //   GET  /admin/api/research/runs/<id>/material.json | still-<tick>.png   a run's file and stills
 //   POST /admin/api/research/promote  { id, title }   store a run as a pending material; Approve publishes it
+//   POST /admin/api/basis-groups/name  { block, name }   name a basis group, or clear its name with an empty one
+//                                                 (basis-group-names.ts); answers { names }, every name as stored
 //
 // A POST must send JSON from this host's own page (its Origin header), so another site cannot
 // post with the owner's Access cookie. The page sends one action at a time, the same rule as the
@@ -37,6 +39,7 @@ import { approveMaterial, hideMaterial, materialEntries, pendingMaterialKey, pur
 import { isMaterialEntryId, materialKey } from "../../app/src/features/gallery/material-index.ts";
 import { isResearchRunId, RESEARCH_MANIFEST_KEY, researchRunKey } from "../../app/src/features/research/research-runs.ts";
 import { promoteResearchRun } from "./research.ts";
+import { setName } from "./basis-group-names.ts";
 import { isSubmissionId, pendingKey, publishedKey, type Bucket, type SubmissionMetadata } from "./storage.ts";
 import { imagesThumbnail, type ImagesBinding } from "./thumbnail.ts";
 
@@ -164,7 +167,12 @@ async function ownerPost(request: Request, pathname: string, env: OwnerEnv, now:
     return json({ error: "the body is not JSON" }, 400);
   }
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return json({ error: "the body must be a JSON object" }, 400);
-  const body = parsed as { id?: unknown; ids?: unknown; title?: unknown };
+  const body = parsed as { id?: unknown; ids?: unknown; title?: unknown; block?: unknown; name?: unknown };
+  if (pathname === "/admin/api/basis-groups/name") {
+    const { block, name } = body;
+    if (!Number.isInteger(block) || typeof name !== "string") return json({ error: "send a basis group's number and a name" }, 400);
+    return run(async () => ({ names: await setName(env.LIBRARY, block as number, name) }));
+  }
   if (pathname === "/admin/api/research/promote") {
     const { id, title } = body;
     if (typeof id !== "string" || !isResearchRunId(id) || typeof title !== "string") return json({ error: "send a research run id and a title" }, 400);

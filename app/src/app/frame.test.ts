@@ -9,10 +9,19 @@ describe("the Experimental link", () => {
 });
 
 describe("the frame's two page rules", () => {
-  test("the screens that fit the window have no footer, with a basis group's panel over them too: the Canvas, the Playground and its owner mode, Train, and How it works", () => {
-    for (const path of ["/create", "/create/basis/12002", "/automata", "/automata/basis/12002", "/admin/materials", "/train", "/train/basis/12002", "/how", "/how/basis/4009"]) {
+  test("the screens that fit the window have no footer, with a basis group's panel over them too: the Canvas, the owner's Automata view, Train, and How it works", () => {
+    for (const path of ["/create", "/create/basis/12002", "/admin/materials", "/train", "/train/basis/12002", "/how", "/how/basis/4009"]) {
       expect(fitsTheWindow(path)).toBe(true);
     }
     for (const path of ["/", "/index", "/basis/12002", "/growth", "/howl"]) expect(fitsTheWindow(path)).toBe(false);
+  });
+
+  test("Automata fits the window with a basis group open, and its wall of groups scrolls to the footer", () => {
+    expect(fitsTheWindow("/automata", "?group=7178")).toBe(true);
+    expect(fitsTheWindow("/automata/basis/7178", "?group=7178&material=a")).toBe(true);
+    expect(fitsTheWindow("/automata", "?material=block-12002-figure-strongest-seed-1")).toBe(true);
+    expect(fitsTheWindow("/automata", "?group=yours")).toBe(true);
+    expect(fitsTheWindow("/automata", "")).toBe(false);
+    expect(fitsTheWindow("/automata/basis/7178", "")).toBe(false);
   });
 });

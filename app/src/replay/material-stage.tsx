@@ -145,10 +145,15 @@ export type StageLayout = "page" | "instrument";
  * owner's view), the stage has no thumbnails. The Playground's Yours group plays the visitor's own
  * kept materials through its own `source`.
  */
-export function MaterialStage({ entries, source = PUBLISHED_SOURCE, layout = "page", ownerActions, notice }: {
+export function MaterialStage({ entries, source = PUBLISHED_SOURCE, layout = "page", ownerActions, notice, frameWords }: {
   entries: MaterialEntry[];
   source?: MaterialSource;
   layout?: StageLayout;
+  /**
+   * The frame's two corner lines, from a page that says them its own way (the Automata page: how the
+   * automaton was made, and its grids). `note` takes the cells along a side, which Options can change.
+   */
+  frameWords?: { label: ReactNode; note: (side: number) => ReactNode };
   /** The instrument's owner actions (the owner mode, features/owner/): a block in the readouts column, over Export and Options. */
   ownerActions?: ReactNode;
   /** The page's line under the bar (the owner mode's result of an action), on its own line beside the stage's message; null for none yet. */
@@ -404,7 +409,9 @@ export function MaterialStage({ entries, source = PUBLISHED_SOURCE, layout = "pa
   // The material in its frame, in a box as wide as the frame's column: the box is what the zoom fits.
   // The instrument's page names the block over the frame, so its corner does not.
   const framed = <div className="stage-fit" ref={fitBox}>
-    <MaterialFrame patches={side / CELLS_PER_PATCH} label={instrument ? undefined : fill(WORDS.frameLabel, { block: entry.block, kind: kindWords(entry) })} note={fill(WORDS.frameGrid, { side })}>
+    <MaterialFrame patches={side / CELLS_PER_PATCH}
+      label={frameWords?.label ?? (instrument ? undefined : fill(WORDS.frameLabel, { block: entry.block, kind: kindWords(entry) }))}
+      note={frameWords?.note(side) ?? fill(WORDS.frameGrid, { side })}>
       <div className="stage-canvas"
         onPointerEnter={() => { hovering.current = true; }} onPointerLeave={() => { hovering.current = false; setRing(null); }}
         ref={view}>

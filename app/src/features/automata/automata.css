@@ -1,0 +1,1036 @@
+/*
+ * The Automata page (automata-page.tsx) on the 64 px module: the wall of basis groups, and one
+ * group's screen.
+ *
+ * A group's screen, from 1200 px wide, is two panes that fit the window. At the left the stage: the
+ * group's number and name in a 128 px head, then the automaton in its frame at a whole number of
+ * pixels per cell, then the stage's bar and its line. At the right the pane: the group's own patches
+ * by level, the grid of its automata, and the tries of the cell on the stage. The pane is a size
+ * container: the grid's pictures take the largest size, in steps of a patch, that the pane's width
+ * and height hold, so a group with nine automata and one with two hundred read the same way. Only
+ * the pane scrolls, and only when the window is short.
+ *
+ * Narrower, one column in page flow: the stage, then the pane's three parts. On a phone the frame
+ * stays at the top of the window while the rest scrolls under it, and the grid is turned.
+ */
+
+/* One group's screen. An instrument keeps the window: the page takes the site grid's full width (styles.css). */
+.automata-group {
+  --cells: 256px;
+  display: grid;
+  grid-column: full;
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+  padding: 0 var(--patch) var(--m);
+}
+
+/* One column: the content is a whole number of patches wide, so its edges stay on the 16 px grid. */
+@supports (width: round(down, 100px, 128px)) {
+  .automata-group {
+    --cells: max(256px, round(down, 100vw / var(--page-scale) - 288px, 128px));
+    grid-template-columns: minmax(0, round(down, 100%, 16px));
+  }
+}
+
+.automata-stage {
+  min-width: 0;
+}
+
+/*
+ * The head, 128 px under the 64 px header, so the frame starts on a module line at any width. The
+ * ways' line stands in the room above the number's figures; the name ends on the number's baseline.
+ */
+.automata-head {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  height: 128px;
+}
+
+/* Over the number's line box, which reaches up to the head's top: the ways take the pointer there. */
+.automata-ways {
+  position: absolute;
+  top: var(--space-2);
+  right: 0;
+  left: 0;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  margin: 0;
+  font-size: var(--s-1);
+  line-height: 16px;
+}
+
+.automata-ways span {
+  display: flex;
+  gap: var(--patch);
+}
+
+.automata-title {
+  display: flex;
+  align-items: last baseline;
+  gap: var(--space-6);
+  min-width: 0;
+  margin: 0;
+}
+
+.automata-title a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* The number owns its box; the opening cue of the link sits outside that width, as on the old stage. */
+.automata-title .basis-group-link-label {
+  position: relative;
+  gap: 0;
+}
+
+.automata-title .basis-group-link-number {
+  text-decoration: none;
+}
+
+.automata-title .basis-group-link-chevron {
+  display: none;
+}
+
+/* At most two lines of the name; a longer one ends in an ellipsis and is whole in the owner's field. */
+.automata-name {
+  display: -webkit-box;
+  min-width: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  padding-bottom: 14px;
+  color: var(--ink);
+  text-wrap: balance;
+}
+
+@media (min-width: 1200px) {
+  .automata-group {
+    --cells: 512px;
+    /* At least a 512 frame's width, so the bar and the step's line stay one line each under a smaller frame. */
+    grid-template-columns: max(calc(var(--cells) + 2 * var(--patch)), 544px) minmax(0, 1fr);
+    column-gap: var(--m);
+    height: calc(100dvh / var(--page-scale) - var(--top));
+    padding: 0 0 0 var(--m);
+    /* clip, not hidden: a hidden box still takes the pane's chained scroll and moves the stage. */
+    overflow: clip;
+  }
+
+  @supports (width: round(down, 100px, 128px)) {
+    .automata-group {
+      /*
+       * The largest multiple of 128 px that leaves room for the head (128), the frame's room, the bar
+       * and the step's line (352 in all with the header), and for a pane of 624 px beside it: a row's
+       * name and four pictures of 112 px. At most 1024 px, the canvas's own limit.
+       */
+      --cells: min(1024px, max(256px, round(down, min(100dvh / var(--page-scale) - 352px, 100vw / var(--page-scale) - 848px), 128px)));
+    }
+
+    /* The owner's view: its block stands under the step's line, so the cells leave it room. */
+    .automata-group:has(.stage-owner) {
+      --cells: min(1024px, max(256px, round(down, min(100dvh / var(--page-scale) - 512px, 100vw / var(--page-scale) - 848px), 128px)));
+    }
+  }
+
+  .automata-pane {
+    container: automata-pane / size;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: var(--patch) var(--m) var(--patch) 0;
+  }
+}
+
+/* The pane: the levels, the grid, the tries; no boxes. */
+.automata-pane {
+  display: grid;
+  align-content: start;
+  min-width: 0;
+  row-gap: var(--space-6);
+}
+
+/*
+ * The group's own patches: four levels side by side, the strongest first, each two pictures by two
+ * with no gap, the level's colour along each picture's lower edge and the patch marked, as on the Index.
+ */
+.automata-levels {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 192px));
+  justify-content: space-between;
+  column-gap: var(--patch);
+}
+
+.automata-level {
+  min-width: 0;
+}
+
+.automata-level-pictures {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  aspect-ratio: 1;
+}
+
+.automata-level-picture {
+  position: relative;
+  display: block;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--black);
+}
+
+.automata-level-picture::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  background: var(--band);
+}
+
+/* A picture that could not be read: a quiet square in the level's colour, never a broken image. */
+.automata-level-tile {
+  background: color-mix(in srgb, var(--band) 22%, var(--black));
+}
+
+.automata-level-picture img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.automata-level-picture i {
+  position: absolute;
+  width: 6.25%;
+  height: 6.25%;
+  border: 1px solid #fff;
+  outline: 1px solid var(--black);
+}
+
+/* The level's word in its colour and its count: 40 px with the 8 above. */
+.automata-level-name {
+  display: grid;
+  margin: var(--space-2) 0 0;
+  font-size: var(--s-1);
+  line-height: 16px;
+}
+
+.automata-level-name b {
+  color: var(--band);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.automata-level-name span {
+  min-height: 16px;
+  overflow: hidden;
+  color: var(--ink-3);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.automata-levels-status {
+  margin: 0;
+  font-size: var(--s-1);
+}
+
+/*
+ * The grid. A row's name takes --label; a picture is --tile on a side, the columns a patch apart. A
+ * cell is the picture and a 20 px line for its count of tries, and the rows are 8 px apart, so a row
+ * is --tile + 28.
+ */
+.automata-grid {
+  --label: 128px;
+  --gap: var(--patch);
+  --tile: 96px;
+  min-width: 0;
+}
+
+/* The columns' title over the columns, a row's name's width in from the left; the "?" at the line's end. */
+.automata-grid-titles {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 24px;
+  margin: 0;
+  padding-left: var(--label);
+}
+
+/* The table's corner: the rows' title, standing on the first row's name. */
+.automata-grid-corner {
+  padding: 0 var(--patch) 8px 0;
+  vertical-align: bottom;
+}
+
+.automata-grid-corner .label {
+  display: block;
+}
+
+.automata-grid .explanation {
+  max-width: 640px;
+  margin-bottom: var(--space-2);
+  font-size: var(--s-1);
+  color: var(--ink-2);
+}
+
+.automata-grid .explanation p {
+  margin: var(--space-2) 0;
+}
+
+.automata-grid table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: calc(var(--label) + var(--columns) * (var(--tile) + var(--gap)));
+}
+
+/* The pane holds the picture's size: by its width and the columns, by its height and the rows. */
+@supports (width: round(down, 100px, 16px)) {
+  .automata-grid table {
+    --tile: clamp(96px, round(down, (100cqw - var(--label)) / var(--columns) - var(--gap), 16px), 128px);
+  }
+
+  @media (min-width: 1200px) {
+    .automata-grid table {
+      /*
+       * What the pane's height leaves for the rows: less the levels (their pictures, a quarter of
+       * the width less the three gaps, and 40 for their names), the grid's titles and headings (92),
+       * the tries (120) and the gap between the levels and the grid (24). A picture is never under
+       * 96 px: in a short window the last row goes under the tries, and the pane scrolls to it.
+       */
+      --rows-room: calc(100cqh - min(192px, (100cqw - 48px) / 4) - 40px - 92px - 120px - 24px);
+      --tile: clamp(96px, round(down, min((100cqw - var(--label)) / var(--columns) - var(--gap), var(--rows-room) / var(--rows) - 28px), 16px), 128px);
+    }
+  }
+}
+
+.automata-grid col.automata-grid-label {
+  width: var(--label);
+}
+
+.automata-grid col.automata-grid-column {
+  width: calc(var(--tile) + var(--gap));
+}
+
+.automata-grid th,
+.automata-grid td {
+  padding: 0;
+  font-size: var(--s-1);
+  font-weight: 400;
+  line-height: 16px;
+  text-align: left;
+}
+
+/* A band over its columns: its name on a rule as wide as the columns it spans. */
+.automata-grid-band {
+  padding: 0 var(--gap) 0 0;
+  vertical-align: bottom;
+}
+
+/* A band of one narrow column keeps its whole name: the name runs past the rule, into the room after the last column. */
+.automata-grid-band span {
+  display: block;
+  padding-bottom: 3px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+/* A column's word: two lines of room, standing on the pictures. */
+.automata-grid thead tr:last-child th {
+  height: 44px;
+  padding: 4px var(--gap) 8px 0;
+  color: var(--ink-3);
+  vertical-align: bottom;
+}
+
+.automata-grid tbody th {
+  padding: 2px var(--patch) 0 0;
+  color: var(--ink-2);
+  vertical-align: top;
+}
+
+.automata-grid td {
+  padding: 0 var(--gap) 8px 0;
+  vertical-align: top;
+}
+
+.automata-cell {
+  display: grid;
+  width: var(--tile);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-3);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.automata-cell img,
+.automata-try img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  background: var(--black);
+}
+
+/* On a dense screen a picture between sizes keeps hard cells; on a plain one the browser's own resampling reads better. */
+@media (min-resolution: 2dppx) {
+  .automata-cell img,
+  .automata-try img,
+  .automata-card-automaton > img {
+    image-rendering: pixelated;
+  }
+}
+
+/* 4 px under the picture, so the line around the cell on the stage stays clear of the words. */
+.automata-cell-count {
+  height: 20px;
+  padding-top: 4px;
+  overflow: hidden;
+  font-size: var(--s-1);
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+/* Nothing was grown this way for the group: the cell's outline alone. */
+.automata-cell-empty {
+  display: block;
+  width: var(--tile);
+  height: var(--tile);
+  border: 1px solid var(--line);
+  cursor: default;
+}
+
+/* The cell on the stage: an ink line around its picture, clear of it; its count in ink. */
+.automata-cell[aria-pressed="true"] img,
+.automata-try[aria-pressed="true"] img {
+  outline: 1px solid var(--ink);
+  outline-offset: 3px;
+}
+
+.automata-cell[aria-pressed="true"] {
+  color: var(--ink);
+}
+
+.automata-cell:focus-visible,
+.automata-try:focus-visible {
+  outline: none;
+}
+
+.automata-cell:focus-visible img,
+.automata-try:focus-visible img {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+
+/* The owner's view: an automaton a visitor does not see stays dim. */
+.automata-cell[data-hidden] img,
+.automata-try[data-hidden] img {
+  opacity: 0.4;
+}
+
+/*
+ * The tries: a line of words, then one strip, 64 px pictures 8 px apart. 120 px in all, with one
+ * try or seventy. Beside the stage they stand at the pane's foot, on black over the grid's last row
+ * when the window is short, so the tries of the cell on the stage are always in view.
+ */
+.automata-tries {
+  min-width: 0;
+}
+
+@media (min-width: 1200px) {
+  .automata-tries {
+    position: sticky;
+    bottom: calc(-1 * var(--patch));
+    z-index: 1;
+    margin-bottom: calc(-1 * var(--patch));
+    padding: 7px 0 var(--patch);
+    border-top: 1px solid var(--line);
+    background: var(--black);
+  }
+}
+
+.automata-tries-line {
+  display: flex;
+  align-items: baseline;
+  gap: var(--patch);
+  height: 24px;
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--s-1);
+  line-height: 24px;
+  white-space: nowrap;
+}
+
+.automata-tries-place {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.automata-tries-words {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink-3);
+  text-overflow: ellipsis;
+}
+
+/* The strip keeps 4 px of room on every side for the playing try's line. */
+.automata-tries-strip {
+  display: flex;
+  gap: var(--space-2);
+  height: 72px;
+  margin: 0 -4px;
+  padding: 4px 4px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-2) transparent;
+}
+
+.automata-try {
+  flex: none;
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+/* One column: a module between the stage and the pane, and the page scrolls. */
+@media (max-width: 1199px) {
+  .automata-group {
+    justify-content: center;
+  }
+
+  /* The stage is a column as wide as its bar, centred: the head starts where the frame's column does. */
+  .automata-stage {
+    justify-self: center;
+    width: min(100%, max(calc(var(--cells) + 2 * var(--patch)), 544px));
+  }
+
+  .automata-group .stage-instrument {
+    justify-content: center;
+  }
+
+  .automata-group .stage-fit {
+    justify-self: center;
+    width: 100%;
+  }
+
+  .automata-group .stage-fit > .frame {
+    margin-inline: auto;
+  }
+
+  .automata-pane {
+    container: automata-pane / inline-size;
+    padding-top: var(--m);
+  }
+}
+
+/*
+ * A phone. The automaton stays at the top of the window: its frame, then a 56 px bar with play,
+ * restart and the choice of what shows under it. Under the bar, the group's pictures by level in one
+ * strip, the grid turned, and the tries; or, by the bar's choice, the stage's own controls. The stage
+ * and the pane give their parts to the page's one grid (display: contents), so the frame and the
+ * bar can stay while everything else scrolls: a sticky box holds only inside its own parent.
+ *
+ * The frame is as wide as the page, but never more than about half the window's height, so the
+ * grid keeps room under it on a short phone.
+ */
+@media (max-width: 640px) {
+  .automata-group {
+    --phone-frame: min(100vw / var(--page-scale) - 16px, round(down, 52dvh / var(--page-scale), 8px));
+    grid-template-columns: auto auto minmax(0, 1fr);
+    justify-content: stretch;
+    padding: 0 8px var(--m);
+  }
+
+  .automata-stage,
+  .automata-pane,
+  .automata-group .material-stage,
+  .automata-group .stage-instrument,
+  .automata-group .stage-controls {
+    display: contents;
+  }
+
+  /* Every part takes the page's width, in this order; the bar's three parts share one row. */
+  .automata-head,
+  .automata-group .stage-fit,
+  .automata-group .stage-message,
+  .automata-group .stage-controls .slider,
+  .automata-group .stage-readouts,
+  .automata-levels,
+  .automata-grid,
+  .automata-tries {
+    grid-column: 1 / -1;
+  }
+
+  .automata-head {
+    grid-row: 1;
+    display: grid;
+    height: auto;
+    padding-bottom: var(--space-2);
+  }
+
+  .automata-ways {
+    position: static;
+    align-items: center;
+    min-height: var(--touch-target);
+  }
+
+  .automata-title {
+    align-items: baseline;
+    gap: var(--space-3);
+  }
+
+  .automata-title .display {
+    font-size: var(--s1);
+    font-weight: 400;
+    line-height: var(--lh1);
+    letter-spacing: -0.02em;
+  }
+
+  .automata-title .automata-name {
+    padding-bottom: 0;
+    color: var(--ink-2);
+    font-size: var(--s0);
+    line-height: var(--lh0);
+    letter-spacing: 0;
+  }
+
+  /*
+   * The frame, held at the window's top. Its box is the page's width on black; borders at its
+   * sides, not padding, narrow it to --phone-frame, since the stage measures the box's inner width.
+   */
+  .automata-group .stage-fit {
+    grid-row: 2;
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    justify-self: stretch;
+    width: auto;
+    margin: 0 -8px;
+    border: solid var(--black);
+    border-width: 12px max(8px, (100vw / var(--page-scale) - var(--phone-frame)) / 2) 0;
+    background: var(--black);
+  }
+
+  .automata-group .stage-fit > .frame {
+    --frame-room: 8px;
+    margin: 0;
+  }
+
+  /* The bar: black across the page under the frame, and on it play, restart and the choice. */
+  .automata-group::before {
+    content: "";
+    grid-row: 3;
+    grid-column: 1 / -1;
+    position: sticky;
+    top: calc(var(--phone-frame) + 12px);
+    z-index: 2;
+    height: 56px;
+    margin: 0 -8px;
+    border-bottom: 1px solid var(--line);
+    background: var(--black);
+  }
+
+  .automata-group .stage-controls > .stage-icon,
+  .automata-phone-views {
+    grid-row: 3;
+    position: sticky;
+    top: calc(var(--phone-frame) + 18px);
+    z-index: 3;
+    align-self: start;
+    margin-top: 6px;
+  }
+
+  .automata-group .stage-controls > .stage-icon:first-child {
+    grid-column: 1;
+    margin-right: var(--space-2);
+  }
+
+  .automata-group .stage-controls > .stage-reset {
+    grid-column: 2;
+  }
+
+  .automata-phone-views {
+    grid-column: 3;
+    justify-self: end;
+  }
+
+  .automata-phone-views .segmented {
+    flex-wrap: nowrap;
+    padding: 10px 0;
+    border-bottom: 0;
+  }
+
+  /* Under the bar: the gallery's parts, or the stage's controls. */
+  .automata-group[data-phone-view="gallery"] .stage-controls .slider,
+  .automata-group[data-phone-view="gallery"] .stage-readouts,
+  .automata-group[data-phone-view="controls"] .automata-levels,
+  .automata-group[data-phone-view="controls"] .automata-grid,
+  .automata-group[data-phone-view="controls"] .automata-tries {
+    display: none;
+  }
+
+  .automata-group .stage-message {
+    order: 1;
+    padding-top: var(--space-2);
+  }
+
+  .automata-levels,
+  .automata-grid,
+  .automata-tries {
+    order: 2;
+    margin-top: var(--space-6);
+  }
+
+  .automata-group .stage-controls .slider {
+    order: 3;
+    width: 100%;
+    margin-top: var(--patch);
+  }
+
+  .automata-group .stage-readouts {
+    order: 4;
+    margin-top: var(--space-6);
+  }
+
+  .automata-group .stage-readouts dl {
+    grid-template-columns: auto auto;
+    justify-content: start;
+  }
+
+  .automata-group .stage-actions {
+    height: auto;
+  }
+
+  /* The levels in one strip, the strongest first: each level four pictures in a row, the next level showing at the page's edge. */
+  .automata-levels {
+    display: flex;
+    gap: var(--space-3);
+    margin-inline: -8px;
+    padding-inline: 8px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+    scroll-padding-inline: 8px;
+    scrollbar-width: none;
+  }
+
+  .automata-level {
+    flex: none;
+    scroll-snap-align: start;
+  }
+
+  .automata-level-pictures {
+    grid-template-columns: repeat(4, 80px);
+    grid-template-rows: 80px;
+    aspect-ratio: auto;
+  }
+
+  .automata-level-name {
+    display: flex;
+    gap: var(--space-3);
+  }
+
+  /* The grid, turned: the starts across the page, each method a line of words over its row of pictures. */
+  .automata-grid[data-turned] {
+    --label: 0px;
+    --gap: 12px;
+  }
+
+  .automata-grid[data-turned] .automata-grid-titles {
+    padding-left: 0;
+  }
+
+  .automata-grid[data-turned] table {
+    --tile: calc((100cqw - (var(--columns) - 1) * var(--gap)) / var(--columns));
+    width: calc(100% + var(--gap));
+    margin-right: calc(-1 * var(--gap));
+  }
+
+  .automata-grid[data-turned] col.automata-grid-column {
+    width: auto;
+  }
+
+  .automata-grid[data-turned] thead th {
+    height: auto;
+    padding: 0 var(--gap) 4px 0;
+    color: var(--ink-2);
+    vertical-align: bottom;
+  }
+
+  .automata-grid-row-name th {
+    padding: 12px 0 10px;
+    color: var(--ink);
+  }
+
+  /* The rows' title, over the first row's name. */
+  .automata-grid-rows-title th {
+    padding: 12px 0 0;
+  }
+
+  .automata-grid-row-name .label {
+    margin-right: var(--space-2);
+  }
+
+  .automata-grid[data-turned] .automata-cell,
+  .automata-grid[data-turned] .automata-cell-empty {
+    width: 100%;
+  }
+
+  .automata-grid[data-turned] .automata-cell-empty {
+    height: auto;
+    aspect-ratio: 1;
+  }
+
+  .automata-tries-line {
+    flex-wrap: wrap;
+    height: auto;
+    white-space: normal;
+  }
+
+  .automata-tries-words {
+    flex-basis: 100%;
+    line-height: 16px;
+  }
+}
+
+/* The saved automata: a line with their number and Import, their pictures, and the actions on the one that plays. */
+.automata-saved {
+  --tile: 128px;
+}
+
+.automata-saved-line {
+  display: flex;
+  align-items: center;
+  gap: var(--patch);
+  min-height: var(--m);
+  margin: 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.automata-saved-count {
+  margin-right: auto;
+  color: var(--ink-3);
+  font-size: var(--s-1);
+}
+
+.automata-saved-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, var(--tile));
+  gap: var(--space-2) var(--patch);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.automata-saved-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--patch);
+  min-height: var(--m);
+  border-top: 1px solid var(--line);
+  color: var(--ink-2);
+  font-size: var(--s-1);
+}
+
+.automata-danger {
+  color: var(--danger);
+}
+
+/* The wall. */
+.automata-wall {
+  padding: var(--m) 0;
+}
+
+/* The heading and the way to the saved automata on one line, as the Index's; the sentence under them. */
+.automata-wall-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 0 32px;
+  margin-bottom: var(--m);
+}
+
+.automata-wall-head h1 {
+  margin: 0 0 var(--space-6);
+  line-height: 32px;
+}
+
+.automata-saved-way {
+  white-space: nowrap;
+  text-decoration: underline;
+  text-decoration-color: var(--line-2);
+  text-underline-offset: 5px;
+}
+
+.automata-wall-head p {
+  grid-column: 1 / -1;
+  max-width: 720px;
+  margin: 0;
+}
+
+.automata-status {
+  margin: 0 0 var(--m);
+  color: var(--ink-2);
+}
+
+/*
+ * The cards, four to a row of the 1312 px band: a pair of 128 px squares 24 px apart is 280 px, and
+ * the cards stand a module apart. A 128-cell automaton shows at one pixel a cell, and each patch is a
+ * 64 px picture, as on the Index. A group featured for the site takes two columns and two rows, its
+ * squares 256 px.
+ */
+.automata-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 280px);
+  grid-auto-flow: dense;
+  justify-content: space-between;
+  gap: 48px var(--m);
+}
+
+.automata-card {
+  --square: 128px;
+  display: grid;
+  align-content: start;
+  gap: var(--patch);
+  color: inherit;
+  text-decoration: none;
+}
+
+.automata-card-pair {
+  display: grid;
+  grid-template-columns: var(--square) var(--square);
+  gap: 24px;
+}
+
+/* The automaton's square: its still, or the automaton growing in the still's place (home-material-view.tsx), without the field's ticks. */
+.automata-card-automaton {
+  position: relative;
+  display: block;
+  width: var(--square);
+  height: var(--square);
+  background: var(--black);
+}
+
+.automata-card-automaton > img,
+.automata-card-automaton .home-material,
+.automata-card-automaton .home-field {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.automata-card-automaton .home-field-ticks,
+.automata-card-automaton .home-material-note {
+  display: none;
+}
+
+.automata-card-patches {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  width: var(--square);
+  height: var(--square);
+}
+
+.automata-card-words {
+  display: grid;
+  gap: 0;
+}
+
+.automata-card-title {
+  overflow: hidden;
+  color: var(--ink);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.automata-card-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--patch);
+  color: var(--ink-3);
+  font-size: var(--s-1);
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (min-width: 1200px) {
+  .automata-card[data-featured] {
+    --square: 256px;
+    grid-column: span 2;
+    grid-row: span 2;
+  }
+
+  .automata-card[data-featured] .automata-card-pair {
+    gap: 32px;
+  }
+
+  .automata-card[data-featured] .automata-card-title {
+    font-size: var(--s1);
+    line-height: var(--lh1);
+    letter-spacing: -0.02em;
+  }
+}
+
+/* A phone: one card to a row, its two squares the width of the page. */
+@media (max-width: 640px) {
+  .automata-wall {
+    padding: 32px 0 var(--m);
+  }
+
+  .automata-cards {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 32px;
+  }
+
+  .automata-card-pair {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
+  }
+
+  .automata-card-automaton,
+  .automata-card-patches {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1;
+  }
+}
+
+@media (pointer: coarse) {
+  .automata-ways .link-control {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--touch-target);
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .automata-cell:hover {
+    color: var(--ink-2);
+  }
+
+  .automata-cell:not([aria-pressed="true"]):hover img,
+  .automata-try:not([aria-pressed="true"]):hover img {
+    outline: 1px solid var(--line-2);
+    outline-offset: 3px;
+  }
+
+  .automata-card:hover .automata-card-automaton {
+    outline: 1px solid var(--ink);
+    outline-offset: 3px;
+  }
+}

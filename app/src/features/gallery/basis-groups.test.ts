@@ -1,24 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { checkedGuess, guessOf, NO_NOTES, readBasisGroupNotes, withGuess } from "./basis-groups";
+import { checkedName, nameOf, NO_NAMES, readBasisGroupNames, withName } from "./basis-groups";
 
-describe("the owner's guesses by basis group", () => {
-  it("sets, keeps and clears a guess, and leaves the notes alone when nothing changes", () => {
-    const notes = withGuess(NO_NOTES, 7178, "  forks ");
-    expect(notes).toEqual({ "7178": { guess: "forks" } });
-    expect(withGuess(notes, 7178, "forks")).toBe(notes);
-    expect(withGuess(notes, 12240, "")).toBe(notes);
-    expect(withGuess(notes, 7178, " ")).toEqual({});
-    expect(guessOf(notes, 7178)).toBe("forks");
-    expect(guessOf(notes, 12240)).toBeNull();
-    expect(() => withGuess(notes, 7178, "a\u0007bell")).toThrow("control characters");
-    expect(checkedGuess("x".repeat(81))).toBeNull();
+describe("the owner's names for the basis groups", () => {
+  it("sets, keeps and clears a name, and leaves the names alone when nothing changes", () => {
+    const names = withName(NO_NAMES, 729, "  light on glass ");
+    expect(names).toEqual({ "729": { name: "light on glass" } });
+    expect(withName(names, 729, "light on glass")).toBe(names);
+    expect(withName(names, 12240, "")).toBe(names);
+    expect(withName(names, 729, " ")).toEqual({});
+    expect(nameOf(names, 729)).toBe("light on glass");
+    expect(nameOf(names, 12240)).toBeNull();
+    expect(() => withName(names, 729, "a\u0007bell")).toThrow("control characters");
+    expect(checkedName("x".repeat(81))).toBeNull();
   });
 
-  it("reads the stored object once and refuses a bad block or guess", () => {
-    expect(readBasisGroupNotes({ "7178": { guess: "forks" } })).toEqual({ "7178": { guess: "forks" } });
-    expect(() => readBasisGroupNotes([])).toThrow("invalid object");
-    expect(() => readBasisGroupNotes({ "16384": { guess: "forks" } })).toThrow("invalid block number");
-    expect(() => readBasisGroupNotes({ "7178": { guess: " forks" } })).toThrow("invalid guess of 7178");
-    expect(() => readBasisGroupNotes({ "7178": { guess: "" } })).toThrow("invalid guess of 7178");
+  it("reads the stored object once and refuses a bad block or name", () => {
+    expect(readBasisGroupNames({ "729": { name: "light on glass" } })).toEqual({ "729": { name: "light on glass" } });
+    expect(() => readBasisGroupNames([])).toThrow("invalid object");
+    expect(() => readBasisGroupNames({ "16384": { name: "forks" } })).toThrow("invalid block number");
+    expect(() => readBasisGroupNames({ "729": { name: " forks" } })).toThrow("invalid name of 729");
+    expect(() => readBasisGroupNames({ "729": { name: "" } })).toThrow("invalid name of 729");
   });
 });

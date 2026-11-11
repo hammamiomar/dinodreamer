@@ -320,3 +320,33 @@ describe("owner API: the review operations", () => {
     expect((after.published as { id: string; publishedAt?: string }[]).map((entry) => [entry.id, entry.publishedAt])).toEqual([[id, "2026-10-15T09:00:00.000Z"]]);
   });
 });
+
+describe("the basis groups' names", () => {
+  const ORIGIN = "https://dinodreamer.computervision.vision";
+  const neverFetch = (async () => {
+    throw new Error("no network in this test");
+  }) as unknown as typeof fetch;
+  const localOwner = (): Env => ({ ...testEnv().env, ADMIN_LOCAL_OWNER: "yes" });
+  const name = (env: Env, body: unknown, origin = "http://127.0.0.1:8791") => ownerRequest(new Request("http://127.0.0.1:8791/admin/api/basis-groups/name", {
+    method: "POST", headers: { "content-type": "application/json", origin }, body: JSON.stringify(body),
+  }), env, PAGE, neverFetch);
+
+  it("the public Worker answers an empty object before the owner has named a group, then every name", async () => {
+    const env = localOwner();
+    const read = async () => (await worker.fetch(new Request(`${ORIGIN}/api/basis-groups`), env)).json();
+    expect(await read()).toEqual({});
+    expect(await (await name(env, { block: 729, name: " light on glass " })).json()).toEqual({ names: { "729": { name: "light on glass" } } });
+    await name(env, { block: 2568, name: "golden fur" });
+    expect(await read()).toEqual({ "729": { name: "light on glass" }, "2568": { name: "golden fur" } });
+  });
+
+  it("an empty name clears it, and a bad number or name is refused with the reason", async () => {
+    const env = localOwner();
+    await name(env, { block: 729, name: "light on glass" });
+    expect(await (await name(env, { block: 729, name: "" })).json()).toEqual({ names: {} });
+    expect((await name(env, { block: "729", name: "x" })).status).toBe(400);
+    const tooLong = await name(env, { block: 729, name: "x".repeat(81) });
+    expect([tooLong.status, ((await tooLong.json()) as { error: string }).error]).toEqual([409, "A name is 1 to 80 characters without control characters"]);
+    expect((await name(env, { block: 729, name: "x" }, "https://another.example")).status).toBe(403);
+  });
+});

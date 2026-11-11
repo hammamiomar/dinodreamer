@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { FigureMaterialFile } from "../../materials/material-file";
-import { entryLoss, featuredInBlock, materialEntry, readMaterialIndex, type MaterialEntry } from "./material-index";
+import { entryLoss, featuredInBlock, materialEntry, placeOf, readMaterialIndex, type MaterialEntry } from "./material-index";
 
 const FILE: FigureMaterialFile = JSON.parse(readFileSync(new URL("../../../fixtures/materials/block-12002-figure-strongest-mean-seed-1.material.json", import.meta.url), "utf8"));
 const LABEL = { title: "", credit: "DinoDreamer project" };
@@ -46,5 +46,27 @@ describe("the index's two featured levels and older entries", () => {
     expect(() => readMaterialIndex({ entries: [{ ...entry, start: "field" }] })).toThrow("invalid start");
     expect(() => readMaterialIndex({ entries: [{ ...entry, loss: "other" }] })).toThrow("invalid loss");
     expect(() => readMaterialIndex({ entries: [{ ...entry, featuredInBlock: "yes" }] })).toThrow("invalid featured-in-group mark");
+  });
+});
+
+describe("an entry's place in its basis group's grid", () => {
+  const entry = materialEntry("one", FILE, LABEL, AT);
+
+  it("comes from the file's start and loss when the entry names none: the browser trains by basis-group mean matching", () => {
+    expect(placeOf(entry)).toEqual({ start: "noise", method: "basis-group-mean" });
+    expect(placeOf({ ...entry, start: "centre-disc", loss: "guided" })).toEqual({ start: "circle", method: "basis-group-mean-guided" });
+    expect(placeOf({ ...entry, start: "seeded-field", loss: undefined })).toEqual({ start: "circle-on-noise", method: "basis-group-mean" });
+  });
+
+  it("is the one the entry carries, which the owner's publish of a research run wrote", () => {
+    const set = { ...entry, gallery: { start: "circle-anywhere", method: "basis-group-distribution" } as const };
+    expect(placeOf(set)).toEqual({ start: "circle-anywhere", method: "basis-group-distribution" });
+    expect(readMaterialIndex({ entries: [{ ...set, cellPicture: true }] }).entries[0]).toMatchObject({ gallery: set.gallery, cellPicture: true });
+  });
+
+  it("is refused at the boundary when the index names a start or a method the gallery does not have", () => {
+    expect(() => readMaterialIndex({ entries: [{ ...entry, gallery: { start: "from a picture", method: "basis-group-mean" } }] })).toThrow("place in its basis group's grid");
+    expect(() => readMaterialIndex({ entries: [{ ...entry, gallery: { start: "noise", method: "plain" } }] })).toThrow("place in its basis group's grid");
+    expect(() => readMaterialIndex({ entries: [{ ...entry, cellPicture: "yes" }] })).toThrow("cell picture mark");
   });
 });

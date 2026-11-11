@@ -1,6 +1,7 @@
-// Automata keeps the selected material in the URL. The stage stays fixed beside a scrolling
-// shelf on wide screens; on narrow screens the shelf follows it in page flow. The owner view
-// shares this layout and supplies its own entries, tile marks and stage actions.
+// The owner's Automata view (features/owner/) on the stage and shelf the public page had before it
+// became the gallery of the basis groups (features/automata/). It keeps the selected material in the
+// URL. The stage stays fixed beside a scrolling shelf on wide screens; on narrow screens the shelf
+// follows it in page flow. The owner's view of the gallery replaces this layout.
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Outlet, useSearchParams } from "react-router";
@@ -8,33 +9,17 @@ import type { BasisGroupPanelOutlet } from "../look/basis-group-panel";
 import { useLibrary } from "../../app/library-session";
 import { fill, SITE_WORDS } from "../../app/site-words";
 import { keptOrigin, MATERIALS_KEPT_EVENT } from "../../replay/keep-material";
-import { MaterialStage, PUBLISHED_SOURCE, type MaterialSource } from "../../replay/material-stage";
+import { MaterialStage, type MaterialSource } from "../../replay/material-stage";
 import { keptMaterials } from "../../storage/materials";
-import { useMaterialIndex } from "../gallery/material-gallery";
 import { materialsByBlock, type MaterialEntry } from "../gallery/material-index";
 import { inWindow, travelOutline } from "./outline-travel";
-import { EVERY_MATERIAL, familiesPresent, featuredMaterials, keptByChoices, kindLine, materialToPlay, type PlaygroundChoices } from "./playground";
+import { EVERY_MATERIAL, familiesPresent, keptByChoices, kindLine, materialToPlay, type PlaygroundChoices } from "./playground";
 import { PlaygroundShelf, type Choose, type KeptState, type TileMark } from "./playground-shelf";
 import { StageBlockNumber } from "./block-preview";
 import { keptEntry, withKept } from "./yours";
 import "./playground.css";
 
 const WORDS = SITE_WORDS.playground;
-
-export function PlaygroundPage() {
-  const index = useMaterialIndex();
-  const entries = index.index.entries;
-  const featured = useMemo(() => featuredMaterials(entries), [entries]);
-  return (
-    <PlaygroundLayout
-      entries={entries}
-      status={index.status}
-      message={index.status === "failed" ? index.message : undefined}
-      baseSource={PUBLISHED_SOURCE}
-      featured={featured}
-    />
-  );
-}
 
 /** A group above Featured on the shelf: the owner mode's Pending review. */
 export interface LeadingGroup {

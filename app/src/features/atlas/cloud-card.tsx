@@ -62,7 +62,7 @@ function inView(element: HTMLElement | null): boolean {
 }
 
 /** Whether the card is within `margin` of the view; once near it stays near. */
-function useNearScreen(ref: RefObject<HTMLElement | null>, margin = READ_AHEAD_MARGIN): boolean {
+export function useNearScreen(ref: RefObject<HTMLElement | null>, margin = READ_AHEAD_MARGIN): boolean {
   const [near, setNear] = useState(false);
   useEffect(() => {
     if (!ref.current || near) return;

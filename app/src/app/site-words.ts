@@ -1077,6 +1077,130 @@ export const SITE_WORDS = {
     close: "Close",
   },
   /**
+   * The Automata page as the gallery of every basis group (features/automata/): the wall of groups, one
+   * group's screen with its pictures by level and its grid, and the saved automata. The stage's own
+   * words (Step, Save, Export, Options, Train a variation) stay under `playground` above.
+   */
+  automata: {
+    /** The wall's heading, on /automata. */
+    wallTitle: "The automata of each basis group",
+    /** The sentence under the wall's heading. {groups} and {automata} are the two counts. */
+    wallLead: "Each square is a cellular automaton. It was trained until DINO responded to its image as it responds to the basis group's own patches, which are the four pictures beside it. {groups} basis groups, {automata} automata.",
+    /** Under a card on the wall: the number of automata the group holds. {count} is the number. */
+    cardCount: "{count} automata",
+    cardCountOne: "1 automaton",
+    /** A card's name for a screen reader. {group} is the number, {name} the owner's name or nothing. */
+    cardName: "Basis group {group} {name}",
+    /** The wall's line while the automata load, when they could not be read, and when none is published. {message} is the error. */
+    loading: "Reading the automata…",
+    failed: "The automata could not be read: {message}",
+    nothingPublished: "No automaton is published yet.",
+    /** In the place of a group's screen when the address names a group that holds no automaton. {group} is the number. */
+    unknownGroup: "Basis group {group} has no automaton yet.",
+
+    /** The line above a group's number: back to the wall, and the neighbouring groups in the wall's order. */
+    allGroups: "All basis groups",
+    previousGroup: "Previous",
+    nextGroup: "Next",
+
+    /** The frame's upper corner on a group's stage: where the automaton starts, then what it was asked for. */
+    making: "{start} · {method}",
+    /** The frame's lower corner: the automaton's grids, then the grid's size. {side} is the cells along a side. */
+    gridsFine: "fine · {side} × {side} cells",
+    gridsCoarseFine: "coarse + fine · {side} × {side} cells",
+
+    /** The heading of the group's pictures by level, for a screen reader. */
+    levelsName: "The basis group's own patches, by response level",
+    /** While a group's pictures load, and when they could not be read. */
+    levelsLoading: "Reading the basis group's pictures…",
+    levelsFailed: "The basis group's pictures could not be read.",
+
+    /** The grid's two titles: over its rows' names, and over its columns'. */
+    startsTitle: "Where it starts",
+    methodsTitle: "What it is asked for",
+    /** What a screen reader hears for the grid as a whole. {group} is the number. */
+    gridName: "The automata of basis group {group}, by where they start and what they were asked for",
+    /** The rows' names: the state an automaton starts from. */
+    starts: {
+      noise: "Noise everywhere",
+      circle: "A circle of noise",
+      "circle-on-noise": "A circle on faint noise",
+      "circle-anywhere": "A circle placed anywhere",
+      drawn: "A drawn start",
+    },
+    /** The same starts inside the frame's corner line, after nothing: lower case, short. */
+    startsInLine: {
+      noise: "noise everywhere",
+      circle: "a circle of noise",
+      "circle-on-noise": "a circle on faint noise",
+      "circle-anywhere": "a circle placed anywhere",
+      drawn: "a drawn start",
+    },
+    /** The two bands over the columns: the space the comparison is made in. */
+    methodSpaces: {
+      "basis-group": "Basis-group matching",
+      token: "Token matching",
+      other: "Research variants",
+    },
+    /** A column's own word under its band: the comparison. */
+    methodColumns: {
+      "basis-group-mean": "mean",
+      "basis-group-mean-guided": "mean, with a guide",
+      "basis-group-distribution": "distribution",
+      "token-mean": "mean",
+      "token-distribution": "distribution",
+      "mean-distribution-mix": "mean and distribution",
+      "unit-activation": "one DINO unit",
+    },
+    /** A method's full name, in the frame's corner line and for a screen reader. */
+    methods: {
+      "basis-group-mean": "basis-group mean matching",
+      "basis-group-mean-guided": "basis-group mean matching with a guide",
+      "basis-group-distribution": "basis-group distribution matching",
+      "token-mean": "token mean matching",
+      "token-distribution": "token distribution matching",
+      "mean-distribution-mix": "a mixture of mean and distribution matching",
+      "unit-activation": "the activation of one DINO unit",
+    },
+    /** A cell's name for a screen reader. {start} and {method} are the names above; {count} the number of tries. */
+    cellName: "{start}, {method}: {count}",
+    /** An empty cell's name for a screen reader: nothing was grown that way for this group. */
+    cellEmpty: "{start}, {method}: no automaton",
+    /** Under a cell's picture when the cell holds more than one automaton. {count} is the number. */
+    cellTries: "{count} tries",
+    /** The "?" beside the grid's titles opens this explanation, three short paragraphs. */
+    gridExplainSubject: "the grid",
+    gridExplanation: [
+      "A row is the state an automaton starts from: noise in every cell, or a circle of noise in the center, alone or on faint noise.",
+      "A column is what its training asked for. Basis-group matching compares the three numbers a basis group reads from each patch. Token matching compares DINO's whole token, 768 numbers. Mean matching asks the image's patches to give the target on average. Distribution matching asks them to be spread like the group's strongest patches. A guide also holds units inside DINO at the levels they have on the group's real images, for the first part of training.",
+      "Two trainings with the same row and column give different automata. Those are the tries of a cell.",
+    ],
+
+    /** The line over the strip of a cell's tries: its title, then which one plays. {at} and {count} are numbers. */
+    triesTitle: "Tries",
+    triesPlace: "{at} of {count}",
+    /** After the place, when the cell holds one automaton. */
+    triesOne: "This is the only one grown this way.",
+    /** After the place, when the cell holds several. */
+    triesMany: "The same start and the same request, trained again.",
+    /** A try's name for a screen reader. {at} and {count} are numbers. */
+    tryName: "Try {at} of {count}",
+
+    /**
+     * A phone's choice under the automaton, which stays at the top of the window: the group's pictures
+     * and its grid, or the stage's controls (speed, brush, Save, Export, Options, Train a variation).
+     */
+    phoneViewsName: "What shows under the automaton",
+    phoneGallery: "Automata",
+    phoneControls: "Controls",
+
+    /** The saved automata's screen (/automata?group=yours): its heading in the place of a group's number. */
+    savedTitle: "Saved",
+    /** At the right of the wall's heading: the way to the saved automata, without and with their number. {count} is the number. */
+    savedLine: "Saved automata, on this device",
+    savedLineCount: "Saved automata, on this device ({count})",
+  },
+  /**
    * Link previews: the Open Graph and Twitter tags that the Worker writes into the page, for Messages
    * and other link unfurlers, which run no JavaScript (gallery/src/link-preview.ts).
    */

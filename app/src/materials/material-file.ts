@@ -113,16 +113,19 @@ export function startKindOf(start: FigureStart | undefined): FigureStartKind {
 
 /**
  * The loss the rule trained with, as its settings record it (`lossKind`): the request alone; the request
- * with a guide on DINO units that is released during training; or the request with a selection margin.
- * Absent means plain. A guided rule also records `guideRatio`, `guideReleaseFraction`, `guideReleaseFloor`
- * and `guideUnits` (the number of guided units).
+ * with a guide on DINO units that is released during training; the request with a selection margin; or
+ * another objective, as the research export marks a rule that was not trained on the request (set
+ * matching, a prototype, a unit). Absent means plain. A guided rule also records `guideRatio`,
+ * `guideReleaseFraction`, `guideReleaseFloor` and `guideUnits` (the number of guided units). What a
+ * rule with another objective was asked for is its place in the gallery (features/gallery/gallery-place.ts),
+ * which the research export sets.
  */
-export type FigureLossKind = "plain" | "guided" | "plain-margin";
-const FIGURE_LOSS_KINDS: readonly unknown[] = ["plain", "guided", "plain-margin"];
+export type FigureLossKind = "plain" | "guided" | "plain-margin" | "other";
+const FIGURE_LOSS_KINDS: readonly unknown[] = ["plain", "guided", "plain-margin", "other"];
 
 export function lossKindOf(file: Pick<FigureMaterialFile, "recipe">): FigureLossKind {
   const kind = file.recipe.settings.lossKind;
-  return kind === "guided" || kind === "plain-margin" ? kind : "plain";
+  return kind === "guided" || kind === "plain-margin" || kind === "other" ? kind : "plain";
 }
 
 /** Picture pixels per cell along each axis. 2 shows a 64-cell grid as a 128-pixel picture. */
@@ -317,7 +320,7 @@ export function readFigureMaterial(value: unknown, dictionaryId?: string): Figur
   const settings = recipe.settings as Record<string, unknown>;
   if (number(settings.medianNorm, "median selected response magnitude") <= 0) throw new Error("Invalid median selected response magnitude in the automaton definition");
   if (Math.abs(Math.hypot(...vector(settings.lobeDirection, "directional extension direction")) - 1) > 1e-3) throw new Error("The directional extension direction must be a unit vector");
-  if (settings.lossKind !== undefined && !FIGURE_LOSS_KINDS.includes(settings.lossKind)) throw new Error('The automaton definition\'s loss kind must be "plain", "guided" or "plain-margin"');
+  if (settings.lossKind !== undefined && !FIGURE_LOSS_KINDS.includes(settings.lossKind)) throw new Error('The automaton definition\'s loss kind must be "plain", "guided", "plain-margin" or "other"');
   readAnchor(file.anchor);
   const training = record(file.training, "training");
   unsigned(training.seed, "training seed");

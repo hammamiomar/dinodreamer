@@ -28,6 +28,33 @@ function manifest(runs: unknown[]) {
   };
 }
 
+describe("a run's gallery fields", () => {
+  it("reads the run's place, its target, the default choice, its role and the automata that hold its rule", () => {
+    const [read] = readResearchManifest(manifest([run("r-1", {
+      gallery: { start: "circle-on-noise", method: "token-distribution", target: "group", shown: true },
+      role: "settings-sweep",
+      siteMaterials: ["block-7178-figure-strongest-mean-seed-0"],
+    })])).runs;
+    expect(read!.gallery).toEqual({ start: "circle-on-noise", method: "token-distribution", target: "group", shown: true });
+    expect(read!.role).toBe("settings-sweep");
+    expect(read!.siteMaterials).toEqual(["block-7178-figure-strongest-mean-seed-0"]);
+  });
+
+  it("an export from before the fields has no place, no role and no automaton on the site", () => {
+    const [read] = readResearchManifest(manifest([run("r-1")])).runs;
+    expect([read!.gallery, read!.role, read!.siteMaterials]).toEqual([null, null, []]);
+  });
+
+  it("a start outside the grid is null, and an unknown start, method or target is refused", () => {
+    const place = { start: null, method: "basis-group-mean", target: "other", shown: false };
+    expect(readResearchManifest(manifest([run("r-1", { gallery: place })])).runs[0]!.gallery).toEqual(place);
+    expect(() => readResearchManifest(manifest([run("r-1", { gallery: { ...place, start: "a picture" } })]))).toThrow("run r-1.gallery.start");
+    expect(() => readResearchManifest(manifest([run("r-1", { gallery: { ...place, method: "plain" } })]))).toThrow("run r-1.gallery.method");
+    expect(() => readResearchManifest(manifest([run("r-1", { gallery: { ...place, target: "level" } })]))).toThrow("run r-1.gallery.target");
+    expect(() => readResearchManifest(manifest([run("r-1", { role: "pilot" })]))).toThrow("run r-1.role");
+  });
+});
+
 describe("readResearchManifest", () => {
   it("reads every field of a run", () => {
     const read = readResearchManifest(manifest([run("r-1", {

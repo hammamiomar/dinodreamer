@@ -2,6 +2,7 @@ import { Link, NavLink, Outlet, ScrollRestoration, useLocation, useNavigation, u
 import type { Location } from "react-router";
 import { useEffect, useRef, useState } from "react";
 import { explorePath } from "../features/atlas/atlas-position";
+import { opensGroup } from "../features/automata/gallery";
 import { startLattice, type Lattice } from "../ground/lattice";
 import { keepFooterOnModule } from "../ui/module-snap";
 import { pageScale } from "../ui/page-scale";
@@ -26,7 +27,7 @@ export function Frame() {
       <Ground bends pathname={location.pathname} />
       <FrameLayout busy={slow}>
         <Outlet />
-        {!fitsTheWindow(location.pathname) && <SiteFooter />}
+        {!fitsTheWindow(location.pathname, location.search) && <SiteFooter />}
         {/* The site owns Train's scale, both here and in a panel's floating slot. */}
         <TrainTray />
       </FrameLayout>
@@ -75,8 +76,11 @@ function useSlowLoading(loading: boolean): boolean {
  * footer's job, Train, one screen around its material, and How it works, one screen of words and a
  * figure. Each keeps that with a basis group's panel open over it (<screen>/basis/N).
  */
-export function fitsTheWindow(pathname: string): boolean {
-  return ["/create", "/automata", "/admin/materials", "/train", "/how"].some((screen) => pathname === screen || pathname.startsWith(`${screen}/`));
+export function fitsTheWindow(pathname: string, search = ""): boolean {
+  const under = (screen: string) => pathname === screen || pathname.startsWith(`${screen}/`);
+  // Automata fits the window while a basis group's screen is open; its wall of groups is a page that scrolls.
+  if (under("/automata")) return opensGroup(new URLSearchParams(search));
+  return ["/create", "/admin/materials", "/train", "/how"].some(under);
 }
 
 /** The Experimental link marks its page: the Painter's page and the Painter with its panels. */

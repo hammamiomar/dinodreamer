@@ -9,7 +9,7 @@ import { AtlasPage } from "../features/atlas/atlas-page";
 import { hasAtlasQuery } from "../features/atlas/atlas-query";
 import type { CloudAtlas } from "../library/atlas-cloud";
 import { HomePage } from "../features/home/home-page";
-import { PlaygroundPage } from "../features/playground/playground-page";
+import { AutomataPage } from "../features/automata/automata-page";
 import { CreateScreen } from "./create-screen";
 import { Frame, FrameError, FrameLoading } from "./frame";
 import { SITE_WORDS } from "./site-words";
@@ -104,12 +104,13 @@ export const router = createBrowserRouter([
             },
             children: [{ index: true, element: <></> }, { path: "basis/:id", element: <BasisGroupPanel home="/create" /> }],
           },
-          // Every published material, one click from playing large; the Canvas's pictures keep /gallery.
+          // The gallery of every basis group and its automata (features/automata/); the address's query names
+          // the group and the automaton. The Canvas's pictures keep /gallery.
           {
             path: "/automata",
-            element: <PlaygroundPage />,
+            element: <AutomataPage />,
             // A basis group in the panel over Automata; the stage keeps playing under it.
-            children: [{ path: "basis/:id", element: <BasisGroupPanel home="/automata" /> }],
+            children: [{ index: true, element: <></> }, { path: "basis/:id", element: <BasisGroupPanel home="/automata" /> }],
           },
           // Keep a legacy gallery link's entry when redirecting to the Painter.
           { path: "/gallery", loader: ({ request }: LoaderFunctionArgs) => redirect(`/canvas${new URL(request.url).search}`) },
