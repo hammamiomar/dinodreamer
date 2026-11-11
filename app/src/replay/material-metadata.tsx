@@ -3,7 +3,7 @@
 // research runs' vocabulary.
 
 import { fill, SITE_WORDS } from "../app/site-words";
-import { materialEntry, type MaterialEntry } from "../features/gallery/material-index";
+import { materialEntry, placeOf, type MaterialEntry } from "../features/gallery/material-index";
 import { BAND_NAMES, STRENGTH_BANDS } from "../features/look/strength-bands";
 import { tileName } from "../features/playground/playground";
 import { strengthStatistic, type FigureMaterialFile } from "../materials/material-file";
@@ -25,15 +25,18 @@ export interface MetadataRow {
 }
 
 /**
- * The rows: a title of the person's own, the grids and the start, the reference patch's level, the
- * stored value in m, the selection fraction, whether the selection target was met, and the update count.
+ * The rows: a title of the person's own, the grids, where it starts and what its training asked for
+ * (its place on the Automata page, in that page's words), the reference patch's level, the stored
+ * value in m, the selection fraction, whether the selection target was met, and the update count.
  */
 export function metadataRows(entry: MaterialEntry, updates: number, title = ""): MetadataRow[] {
   const kind = tileName(entry);
+  const place = placeOf(entry);
   const rows: MetadataRow[] = [];
   if (title !== "") rows.push({ label: WORDS.title, value: title });
   rows.push({ label: SITE_WORDS.playground.rule, value: kind.rule });
-  rows.push({ label: SITE_WORDS.playground.start, value: kind.start });
+  rows.push({ label: SITE_WORDS.playground.start, value: SITE_WORDS.automata.startsInLine[place.start] });
+  rows.push({ label: WORDS.method, value: SITE_WORDS.automata.methods[place.method] });
   rows.push({ label: WORDS.reference, value: BAND_NAMES[STRENGTH_BANDS.indexOf(entry.band)]! });
   if (entry.strength !== null) {
     const label = STRENGTH_LABELS[strengthStatistic(entry.experiment, entry.measurementDirection)];

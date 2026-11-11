@@ -16,7 +16,8 @@ describe("the metadata table", () => {
     const rows = metadataRows(entry({ layout: FIGURE_PYRAMID_LAYOUT, start: "centre-disc", region: "centre-4x4", measurementDirection: "training target" }), 800);
     expect(rows.map((row) => [row.label, row.value])).toEqual([
       ["Grids", "coarse + fine"],
-      ["Start", "central noise"],
+      ["Start", "a circle of noise"],
+      ["Asked for", "basis-group mean matching"],
       ["Reference patch", "Level 4"],
       ["Projection on the target", "1.14 m"],
       ["Central selection fraction", "94%"],
@@ -29,8 +30,13 @@ describe("the metadata table", () => {
   test("leads with a title of the person's own, and leaves out what was not measured", () => {
     const rows = metadataRows(entry({ strength: null, winnerFraction: null, fired: false }), 1250, "Garden at dusk");
     expect(rows[0]).toEqual({ label: "Title", value: "Garden at dusk" });
-    expect(rows.map((row) => row.label)).toEqual(["Title", "Grids", "Start", "Reference patch", "Selection target", "Updates"]);
+    expect(rows.map((row) => row.label)).toEqual(["Title", "Grids", "Start", "Asked for", "Reference patch", "Selection target", "Updates"]);
     expect(rows.at(-2)).toEqual({ label: "Selection target", value: "not met" });
     expect(rows.at(-1)).toEqual({ label: "Updates", value: "1,250" });
+  });
+
+  test("says the place the entry carries: a start and a method the file's own fields cannot tell", () => {
+    const rows = metadataRows(entry({ start: "centre-disc", gallery: { start: "circle-anywhere", method: "token-distribution" } }), 1000);
+    expect(rows.slice(1, 3).map((row) => row.value)).toEqual(["a circle placed anywhere", "token distribution matching"]);
   });
 });

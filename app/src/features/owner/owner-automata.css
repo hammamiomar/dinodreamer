@@ -170,3 +170,23 @@
 .automata-wall-head .owner-automata-line {
   margin-top: 0;
 }
+
+/* A phone: the name's field is one line under the number's line, and the owner's line wraps. */
+@media (max-width: 640px) {
+  .owner-name-field {
+    padding-bottom: var(--patch);
+  }
+
+  .owner-name-field textarea {
+    height: calc(var(--lh1) + 1px);
+    font-size: var(--s0);
+    line-height: var(--lh1);
+    letter-spacing: 0;
+  }
+
+  .owner-automata-line {
+    order: 2;
+    margin-top: var(--space-2);
+    padding-block: var(--space-2);
+  }
+}

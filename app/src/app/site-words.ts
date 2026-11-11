@@ -570,6 +570,8 @@ export const SITE_WORDS = {
     /** The metadata table in the Options panel and on the publish form (material-metadata.tsx): its labels, the stored value's names (strengthStatistic) and the target's two states. Grids and Start reuse the Automata choices' labels. */
     metadata: {
       title: "Title",
+      /** What the automaton's training asked for: the method's name, as the Automata page's grid names it. */
+      method: "Asked for",
       reference: "Reference patch",
       projection: "Projection on the target",
       projectionMain: "Projection on the main direction",
