@@ -4,9 +4,10 @@ import type { MaterialAnchor, MaterialRequest } from "../recipe";
 import { canonicalFigureFile, lossKindOf, methodOfFile, readFigureMaterial, type FigureLayer } from "../materials/material-file";
 import {
   FIGURE_SEED, NO_ANCHOR_ERROR, RUNS, afterRun, continuedInput, engineRequest, figureInput, figureMaterial, fired, firstFire, firstFireCondition,
-  plannedRuns, READING_LADDER, READING_TICK, readingStep, runSeed, strengthBand,
+  figureMaterialId, plannedRuns, READING_LADDER, READING_TICK, readingStep, runSeed, strengthBand,
 } from "./figure-recipe";
 import { readoutText } from "./live-readout";
+import { targetSetKey } from "./target-set";
 import { continuationSource } from "./continuation";
 import { DEFAULT_KIND, kindFromSearch, recipeName, type MaterialKind } from "./material-kind";
 import type { LiveReading } from "./protocol";
@@ -235,7 +236,7 @@ describe("a set method's run and kept file", () => {
     const input = figureInput(request(), summary, "dictionary", DEFAULT_KIND, 4, 1, objective);
     const file = finalFile(input);
     expect(file.name).toBe("Block 12002 · strongest anchor · Fine · noise · token distribution matching · final · 1,000 updates · did not fire");
-    expect(file.id).toContain("grow-figure-token-distribution-12002-");
+    expect(file.id).toContain("grow-figure-token-distribution-four-layers-sample-12002-");
     expect(file.id).not.toBe(finalFile(figureInput(request(), summary, "dictionary", DEFAULT_KIND)).id);
     expect(file.recipe.settings).toMatchObject({ method: "token-distribution", layers: objective.layers, set, objective: "mmd", runs: 1 });
     const canonical = canonicalFigureFile(readFigureMaterial(JSON.parse(JSON.stringify(file))).file);
@@ -243,6 +244,31 @@ describe("a set method's run and kept file", () => {
     expect(lossKindOf(canonical)).toBe("other");
     expect(methodOfFile(canonical)).toBe("token-distribution");
     expect(continuationSource(readFigureMaterial(canonical)).objective).toEqual(objective);
+  });
+
+  it("names in the id what changes the automaton: the method, a token method's depth and the set", () => {
+    const id = (objective: Parameters<typeof figureInput>[6]) => figureMaterialId(figureInput(request(), summary, "dictionary", DEFAULT_KIND, 4, 1, objective), 1000, "final");
+    const selection = (pictures: { imageId: number; patch: number }[]) => ({ source: "selection" as const, neighbourhood: "3x3" as const, pictures });
+    const a = selection([{ imageId: 3536804379159069, patch: 69 }, { imageId: 12, patch: 255 }]);
+    const b = selection([{ imageId: 3536804379159069, patch: 69 }, { imageId: 13, patch: 0 }]);
+    // Basis-group mean keeps its ids as before.
+    expect(id(undefined)).toBe(`grow-figure-12002-3536804379159069-74-seed-${FIGURE_SEED + 12002}-batch-4-update-1000-final`);
+    const fourLayers = id({ method: "token-mean", layers: ["block-3", "block-6", "block-9", "final"], set: a });
+    const finalLayer = id({ method: "token-mean", layers: ["final"], set: a });
+    expect(fourLayers).toMatch(/^grow-figure-token-mean-four-layers-selection-[0-9a-f]{8}-12002-/);
+    expect(finalLayer).toMatch(/^grow-figure-token-mean-final-layer-selection-[0-9a-f]{8}-12002-/);
+    expect(id({ method: "token-mean", layers: ["final"], set: b })).not.toBe(finalLayer);
+    expect(id({ method: "token-mean", layers: ["final"], set: selection([...a.pictures]) })).toBe(finalLayer);
+    expect(id({ method: "token-mean", layers: ["final"], set: { ...a, source: "sample-strongest" } })).toMatch(/^grow-figure-token-mean-final-layer-sample-12002-/);
+    expect(id({ method: "basis-group-distribution", layers: [], set: a })).toMatch(/^grow-figure-basis-group-distribution-selection-[0-9a-f]{8}-12002-/);
+  });
+
+  it("fingerprints a selection by its pictures in set order", () => {
+    const pictures = [{ imageId: 3536804379159069, patch: 69 }, { imageId: 12, patch: 255 }];
+    const key = targetSetKey({ source: "selection", neighbourhood: "3x3", pictures });
+    expect(key).toMatch(/^selection-[0-9a-f]{8}$/);
+    expect(targetSetKey({ source: "selection", neighbourhood: "3x3", pictures: [...pictures].reverse() })).not.toBe(key);
+    expect(targetSetKey({ source: "sample-strongest", neighbourhood: "3x3", pictures })).toBe("sample");
   });
 
   it("refuses to keep a set method's file without its set", () => {

@@ -94,6 +94,21 @@ export function sampleCandidates(points: readonly LookPoint[]): SetCandidate[] {
   return points.map((point) => ({ imageId: point.imageId, slot: point.slot, norm: point.norm, publicPreview: point.publicPreview }));
 }
 
+/**
+ * The set's part of a kept file's id: "sample" for the group's sample strongest, the same set for every
+ * run of a group; "selection-" and a fingerprint of the pictures for a visitor's selection, so two
+ * selections name two files. The fingerprint is 32-bit FNV-1a of "imageId.patch" in set order, in hex:
+ * it tells sets apart in a name; the file's settings.set holds the pictures themselves.
+ */
+export function targetSetKey(set: FigureTargetSet): string {
+  if (set.source === "sample-strongest") return "sample";
+  let hash = 0x811c9dc5;
+  for (const character of set.pictures.map(({ imageId, patch }) => `${imageId}.${patch}`).join(",")) {
+    hash = Math.imul(hash ^ character.charCodeAt(0), 0x01000193) >>> 0;
+  }
+  return `selection-${hash.toString(16).padStart(8, "0")}`;
+}
+
 /** Whether two sets are the same: the same source and the same pictures in the same order; two absent sets are. */
 export function sameTargetSet(a: FigureTargetSet | null, b: FigureTargetSet | null): boolean {
   if (a === null || b === null) return a === b;

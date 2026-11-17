@@ -4,7 +4,8 @@ import { bandOfNorm, encodeRule, MEASUREMENT_DIRECTION, methodNeedsSet } from ".
 import type { LookSummary } from "../library/look-cloud";
 import type { ContinuationChange, ContinuationSource } from "./continuation";
 import { firstFireHolds, readingRegion, recipeName, ruleLayout, savedNameKind, startField, type MaterialKind } from "./material-kind";
-import { DEFAULT_METHOD, keepRule } from "./train-method";
+import { DEFAULT_METHOD, depthOfLayers, keepRule } from "./train-method";
+import { targetSetKey } from "./target-set";
 
 // Grow trains the figure recipe (engine/src/grow/figure.rs) at pool 64, in one of four kinds
 // (material-kind.ts), by one of four methods (train-method.ts): the E18 mean arm toward the request's
@@ -212,13 +213,26 @@ export interface Kept {
 }
 
 /**
- * The id names the kind by its recipe name without the date, and a set method by its name:
- * grow-figure-pyramid-seeded-12002-…, grow-figure-token-distribution-12002-…
+ * What a set method's id names beyond the kind: the method, a token method's depth (its layers when Train
+ * does not offer them as a depth), and the set (targetSetKey). Two runs that differ in any of these are
+ * two automata, so their files must not share an id. Nothing for basis-group mean matching, whose ids
+ * stay as they were.
+ */
+function objectiveIdPart({ method, layers, set }: FigureObjective): string {
+  if (!methodNeedsSet(method)) return "";
+  const depth = layers.length > 0 ? `-${depthOfLayers(layers) ?? layers.join("-")}` : "";
+  return `-${method}${depth}${set ? `-${targetSetKey(set)}` : ""}`;
+}
+
+/**
+ * The id names the kind by its recipe name without the date, and a set method by its method, depth and
+ * set: grow-figure-pyramid-seeded-12002-…, grow-figure-token-mean-final-layer-selection-3f2a9c1b-12002-…
+ * Ids are names, never parsed, so files with the older shorter ids stay readable.
  */
 export function figureMaterialId(input: FigureInput, updates: number, stage: KeptStage): string {
   const anchor = input.anchor.source === "library" ? `${input.anchor.imageId}-${input.anchor.slot}` : `upload-${input.anchor.slot}`;
   const kind = recipeName(input.kind).replace(/-\d{4}-\d{2}-\d{2}$/, "");
-  const recipe = methodNeedsSet(input.objective.method) ? `${kind}-${input.objective.method}` : kind;
+  const recipe = `${kind}${objectiveIdPart(input.objective)}`;
   // A continuation names the update it came from, or its final file could take the id of the source run's own.
   const from = input.continuation ? `-from-${input.continuation.fromUpdate}` : "";
   return `grow-${recipe}-${input.block}-${anchor}-seed-${input.seed}-batch-${input.batch}-update-${updates}-${stage.replace(" ", "-")}${from}`;
