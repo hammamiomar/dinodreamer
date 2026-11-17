@@ -212,14 +212,13 @@ export function GroupWall<T extends GalleryAutomaton>({ groups, names, status, a
   markOf?: (group: GalleryGroup<T>) => ReactNode;
   /** How a face grows; the page supplies it, since a page knows where its files are. Absent: every face is a still. */
   loadFace?: LoadFace<T>;
-  /** The owner's view: its line under the heading, in the sentence's place. */
+  /** The owner's view: its line under the heading. A visitor's wall has the heading alone. */
   lead?: ReactNode;
   /** A group's screen is open over the wall: the wall keeps its grown faces and is not displayed. */
   hidden?: boolean;
   children?: ReactNode;
 }) {
   const ordered = wallOrder(groups);
-  const automata = groups.reduce((sum, group) => sum + shownCount(group.automata), 0);
   const still = useMediaMatch("(prefers-reduced-motion: reduce)");
   const table = useRef<HTMLOListElement>(null);
   useWallEye(table, !still, !hidden);
@@ -252,7 +251,7 @@ export function GroupWall<T extends GalleryAutomaton>({ groups, names, status, a
       <header className="automata-wall-head">
         <h1 className="heading">{WORDS.wallTitle}</h1>
         {aside}
-        {lead ?? <p className="muted">{fill(WORDS.wallLead, { groups: groups.length, automata: automata.toLocaleString() })}</p>}
+        {lead}
       </header>
       {status !== null && <p className="automata-status" role="status">{status}</p>}
       <ol ref={table} className="automata-table" data-forward={forward !== null || undefined} data-still={still || undefined}>

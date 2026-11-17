@@ -1086,8 +1086,6 @@ export const SITE_WORDS = {
   automata: {
     /** The wall's heading, on /automata. */
     wallTitle: "The automata of each basis group",
-    /** The sentence under the wall's heading. {groups} and {automata} are the two counts. */
-    wallLead: "{groups} basis groups, {automata} automata.",
     /** Under a card on the wall: the number of automata the group holds. {count} is the number. */
     cardCount: "{count} automata",
     cardCountOne: "1 automaton",
