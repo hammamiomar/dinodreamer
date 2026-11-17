@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { GalleryMethod, GalleryStart } from "../gallery/gallery-place";
 import {
-  addressSearch, arrangeGroup, cardsPlaying, neighboursOf, arrangeGroups, automatonToPlay, axesOf, cellAt, cellBeside, COMMON_METHODS, COMMON_STARTS, groupOfAutomaton,
+  addressSearch, arrangeGroup, neighboursOf, arrangeGroups, automatonToPlay, axesOf, cellAt, cellBeside, COMMON_METHODS, COMMON_STARTS, groupOfAutomaton,
   groupPath, pictureOfCell, pictureOfGroup, readAddress, shownCount, tryAfter, wallOrder, type GalleryAutomaton,
 } from "./gallery";
 
@@ -148,13 +148,7 @@ describe("the stage and the arrow keys", () => {
   });
 });
 
-describe("the wall's live cards and a group's neighbours", () => {
-  test("of the featured cards in view, the first few in the wall's order grow at once", () => {
-    expect([...cardsPlaying([2632, 4009, 12002, 12240, 12299, 13345])]).toEqual([2632, 4009, 12002, 12240]);
-    expect([...cardsPlaying([4009], 4)]).toEqual([4009]);
-    expect(cardsPlaying([]).size).toBe(0);
-  });
-
+describe("a group's neighbours", () => {
   test("Previous and Next follow the wall's order, and stop at its ends", () => {
     const groups = arrangeGroups([
       automaton("a", "noise", "basis-group-mean", { group: 729 }),

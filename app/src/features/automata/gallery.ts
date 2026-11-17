@@ -176,14 +176,6 @@ export function neighboursOf(groups: readonly GalleryGroup<GalleryAutomaton>[], 
   return { previous: ordered[at - 1] ?? null, next: at < 0 ? null : ordered[at + 1] ?? null };
 }
 
-/** Featured cards that grow at once on the wall: each holds a replay on the GPU, and a window shows about this many. */
-export const MOST_CARDS_PLAYING = 4;
-
-/** The featured cards that grow live: of those in view, the first few in the wall's order. */
-export function cardsPlaying(inViewInWallOrder: readonly number[], limit = MOST_CARDS_PLAYING): ReadonlySet<number> {
-  return new Set(inViewInWallOrder.slice(0, limit));
-}
-
 /** How many of a group's automata a visitor sees. */
 export function shownCount(automata: readonly GalleryAutomaton[]): number {
   return automata.filter((automaton) => automaton.shown).length;
