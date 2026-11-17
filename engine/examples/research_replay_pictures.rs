@@ -5,10 +5,13 @@
 //! (research/experiment-browser/own_steps.py): it takes the tick with the lowest own loss.
 //!
 //!   cargo run --release --features harness --example research_replay_pictures -- --files <list.json> --out <folder>
+//!       [--ticks 600,2000] [--seed <u32>]
 //!
 //! `list.json` holds `[{id, file}]`, a material file (format 4) for each id; it writes
-//! `<out>/<id>/tick-0100.png` and so on, and one JSON line per file. A file outside the replay
-//! contract this grid grows is refused: another grid side, pixels per cell, hidden noise or start.
+//! `<out>/<id>/tick-0100.png` and so on, and one JSON line per file. `--ticks` replaces the ladder;
+//! `--seed` grows another draw than the reading's seed, to measure how far two draws differ. A file
+//! outside the replay contract this grid grows is refused: another grid side, pixels per cell,
+//! hidden noise or start.
 #![allow(non_snake_case)] // Tensor suffixes document axes.
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use burn::tensor::Device;
@@ -26,9 +29,12 @@ struct Listed {
     file: PathBuf,
 }
 
+fn optional_argument(arguments: &[String], name: &str) -> Option<String> {
+    arguments.iter().position(|value| value == name).map(|index| arguments[index + 1].clone())
+}
+
 fn argument(arguments: &[String], name: &str) -> String {
-    let index = arguments.iter().position(|value| value == name).unwrap_or_else(|| panic!("{name} is required"));
-    arguments[index + 1].clone()
+    optional_argument(arguments, name).unwrap_or_else(|| panic!("{name} is required"))
 }
 
 /// The rule kind, its values, the start and the reading's seed of a material file, or why the grid cannot replay it.
@@ -71,29 +77,35 @@ fn main() {
     let arguments: Vec<String> = env::args().skip(1).collect();
     let listed: Vec<Listed> = serde_json::from_slice(&fs::read(argument(&arguments, "--files")).unwrap()).unwrap();
     let out = PathBuf::from(argument(&arguments, "--out"));
+    let ticks: Vec<u32> = optional_argument(&arguments, "--ticks")
+        .map(|list| list.split(',').map(|tick| tick.parse().expect("--ticks takes whole ticks")).collect())
+        .unwrap_or(LADDER.to_vec());
+    assert!(ticks.windows(2).all(|pair| pair[0] < pair[1]), "--ticks must increase");
+    let seed_override: Option<u32> = optional_argument(&arguments, "--seed").map(|seed| seed.parse().expect("--seed takes a u32"));
     let device = Device::wgpu_options().init().unwrap().autodiff();
     for entry in &listed {
         let file: Value = serde_json::from_slice(&fs::read(&entry.file).unwrap()).unwrap();
-        let (kind, values, start, seed) = match replay_of(&file) {
+        let (kind, values, start, reading_seed) = match replay_of(&file) {
             Ok(replay) => replay,
             Err(reason) => {
                 println!("{}", json!({"id": entry.id, "refused": reason}));
                 continue;
             }
         };
+        let seed = seed_override.unwrap_or(reading_seed);
         let rule = FigureRule::fixed(kind, &values, &device).unwrap();
         let mut grid = FigureGrid::new(seed, kind, start, &device);
         let folder = out.join(&entry.id);
         fs::create_dir_all(&folder).unwrap();
-        let mut ticks = Vec::new();
-        for tick in LADDER {
+        let mut records = Vec::new();
+        for &tick in &ticks {
             grid.advance(&rule, tick - grid.tick);
             let finite = pollster::block_on(grid.finite()).unwrap();
             if finite {
                 write_png(&folder.join(format!("tick-{tick:04}.png")), &pollster::block_on(grid.rgba()).unwrap());
             }
-            ticks.push(json!({"tick": tick, "finite": finite}));
+            records.push(json!({"tick": tick, "finite": finite}));
         }
-        println!("{}", json!({"id": entry.id, "seed": seed, "start": start, "rule": kind, "ticks": ticks}));
+        println!("{}", json!({"id": entry.id, "seed": seed, "start": start, "rule": kind, "ticks": records}));
     }
 }
