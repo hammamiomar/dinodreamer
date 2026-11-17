@@ -217,3 +217,31 @@ Groups 7178 and 12240, seed 0, three sets each from the frozen sample by decisio
 The picture follows the set: a lobe with other content grows other content. One seed per set, so this is a difference
 by eye. The selection share falls as the set leaves the group's strongest direction, because it measures the group,
 not the set.
+
+## Research automata at their own step (17 November, late)
+
+The 183 shown research automata of token distribution (127), basis-group distribution (52) and token mean (4) were read
+at tick 600. They are now read at their own step by decision 12's rule. Research branch `research-own-step`, commit
+`eab8bfb9`: `own_steps.py`, `own-steps.json` and the change in `export_runs.py`.
+
+- Pictures: `examples/research_replay_pictures.rs` grows each file's rule on the replay contract with the seed and side
+  of its reading, at every tick of the ladder. `Start::SeededField` adds the seeded field (37 runs).
+- Own loss: each family's own PyTorch code, on those pictures, against the run's saved set. On the research's tick-600
+  pictures it reproduces every recorded reading: selected share exactly, strength to 1e-5, the 127 recorded losses to
+  1e-4 relative.
+- Replay: on 4 automata (noise, centre disc, seeded field, a cell rule), the engine's pictures match the CPU reference
+  (`app/src/replay/figure-reference.ts`) to a few bytes that differ by 1 up to tick 1,000. At ticks 1,500 and 2,000 at
+  most 538 bytes differ. The own losses agree to 0.2 %, and the steps are the same.
+
+| Own step | 100 | 150 | 200 | 300 | 400 | 600 | 1,000 | 2,000 |
+|---|---|---|---|---|---|---|---|---|
+| Runs | 30 | 67 | 56 | 17 | 9 | 2 | 1 | 1 |
+
+On the same replay grid, the median selected share rises from 0.44 at tick 600 to 0.95 at the own step, and the median
+strength from 0.96 to 1.71. The own loss at the step is a median 45 % below its value at tick 600. The step is the
+earliest tick for 30 runs, so their lowest loss can be earlier than tick 100. For 17 runs the best tick is within 1 % of
+the second best.
+
+The export changes 183 materials and the manifest; the other 4,250 files are byte for byte the live export, the 1,080
+basis-group mean files with and without a guide among them. Evidence: `dinodreamer-evidence-archive/2026-11-17-set-methods/own-steps/`
+(pictures, the export, the checks, the sample sheet, SHA256SUMS).
