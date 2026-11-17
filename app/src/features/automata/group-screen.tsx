@@ -4,7 +4,7 @@
 // The page supplies the stage, since a page knows where its automata's files are (the published
 // gallery, or the owner's research runs).
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import { fill, SITE_WORDS } from "../../app/site-words";
 import { useMediaMatch } from "../../ui/media-match";
@@ -14,6 +14,7 @@ import { addressSearch, type GalleryAutomaton, type GalleryCell, type GalleryGro
 import { GroupGrid } from "./group-grid";
 import { GroupLevels } from "./group-levels";
 import { TriesStrip } from "./tries-strip";
+import { rememberOpened } from "./wall-passage";
 
 const WORDS = SITE_WORDS.automata;
 /** A phone: the grid is turned and the stage stays at the top of the window (automata.css). */
@@ -75,6 +76,8 @@ export function GroupScreen<T extends GalleryAutomaton>({ group, name, neighbour
 }) {
   const phone = useMediaMatch(PHONE);
   const [phoneView, setPhoneView] = useState<PhoneView>("gallery");
+  // The wall folds this group into its deck when the reader goes back (wall-passage.ts).
+  useEffect(() => rememberOpened(group.group), [group.group]);
   return (
     <main className="automata-group" data-group={group.group} data-phone-view={phone ? phoneView : undefined}>
       <section className="automata-stage" aria-label={String(group.group)}>

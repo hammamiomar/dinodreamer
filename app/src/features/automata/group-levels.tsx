@@ -16,6 +16,7 @@ import { pictureSlots, type PictureSlot } from "../atlas/card-loading";
 import { cardLoader } from "../atlas/cloud-card";
 import { BasisGroupLink } from "../look/basis-group-panel";
 import { BAND_COLOURS } from "../look/strength-bands";
+import { levelPassage } from "./wall-passage";
 
 const WORDS = SITE_WORDS.automata;
 /** The levels in reading order: the strongest first, so it stands nearest the stage. */
@@ -55,7 +56,7 @@ export function GroupLevels({ block }: { block: number }) {
     <section className="automata-levels" aria-label={WORDS.levelsName} aria-busy={cloud === null}>
       {LEVELS_STRONGEST_FIRST.map((band) => (
         <div key={band} className="automata-level" role="group" aria-label={ATLAS_TEXT.bands[band]} style={{ "--band": BAND_COLOURS[band] } as CSSProperties}>
-          <div className="automata-level-pictures">
+          <div className="automata-level-pictures" style={{ viewTransitionName: levelPassage(band) }}>
             {(slots?.[band] ?? []).map((slot, position) => (
               <LevelPicture key={position} slot={slot} block={block} band={band} />
             ))}

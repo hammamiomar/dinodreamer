@@ -3,20 +3,19 @@
 // the owner's names for the groups come with them. The owner's view draws the same wall and the same
 // screen over every research run (features/owner/).
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import { Link, Outlet, useLocation, useNavigate, useSearchParams } from "react-router";
 import type { BasisGroupPanelOutlet } from "../look/basis-group-panel";
 import { fill, SITE_WORDS } from "../../app/site-words";
 import { MaterialStage, PUBLISHED_SOURCE } from "../../replay/material-stage";
-import { fetchPublishedMaterial, materialFileUrl, useMaterialIndex, usePublishedMaterial } from "../gallery/material-gallery";
-import { HomeMaterial } from "../home/home-material-view";
+import { fetchPublishedMaterial, materialFileUrl, useMaterialIndex } from "../gallery/material-gallery";
 import { nameOf, type BasisGroupNames } from "../gallery/basis-groups";
 import { useBasisGroupNames } from "./basis-group-names";
 import {
   addressSearch, arrangeGroups, automatonToPlay, groupOfAutomaton, neighboursOf, readAddress, SAVED_GROUP, type GalleryAutomaton, type GalleryGroup,
 } from "./gallery";
 import { frameWordsOf, GroupScreen } from "./group-screen";
-import { GroupWall } from "./group-wall";
+import { GroupWall, type LoadFace } from "./group-wall";
 import { automatonOfEntry, type PublishedAutomaton } from "./published-automata";
 import { SavedScreen, useSavedAutomata } from "./saved-automata";
 import "./automata.css";
@@ -46,18 +45,12 @@ export function useChoose(): (automaton: GalleryAutomaton) => void {
   };
 }
 
-/**
- * A published automaton growing in a card's square: its poster until its file is read and the replay
- * shows, and the poster alone where the browser cannot grow it. Nothing is brushed here; the card opens the group.
- */
-function LiveCardPicture({ automaton }: { automaton: PublishedAutomaton }) {
-  const file = usePublishedMaterial(automaton.entry.id);
-  const [noReplay, setNoReplay] = useState(false);
-  return (
-    <HomeMaterial entry={automaton.entry} material={file.status === "ready" && !noReplay ? file.value : null} posterUrl={automaton.pictureUrl}
-      brush={false} onNoReplay={() => setNoReplay(true)} />
-  );
-}
+/** A published automaton's definition for the wall's face: its file, with the grid and the seed of its published reading. */
+const loadPublishedFace: LoadFace<PublishedAutomaton> = async (automaton) => ({
+  material: await fetchPublishedMaterial(automaton.entry.id),
+  side: automaton.entry.side,
+  seed: automaton.entry.seed,
+});
 
 export function AutomataPage() {
   const index = useMaterialIndex();
@@ -87,24 +80,25 @@ function PublishedGallery({ groups, names, status }: { groups: GalleryGroup<Publ
   const namesSaved = address.automaton !== null && saved.automata.some((each) => each.entry.id === address.automaton);
   if (address.group === SAVED_GROUP || (group === null && namesSaved)) return <SavedScreen saved={saved} />;
 
-  if (group === null || playing === null) {
-    const missing = typeof address.group === "number" && status === null ? fill(WORDS.unknownGroup, { group: address.group }) : status;
-    const savedWay = (
-      <Link className="link-control automata-saved-way" to={{ search: addressSearch({ group: SAVED_GROUP, automaton: null }) }}>
-        {saved.automata.length === 0 ? WORDS.savedLine : fill(WORDS.savedLineCount, { count: saved.automata.length })}
-      </Link>
-    );
-    return (
-      <GroupWall groups={groups} names={names} status={missing} aside={savedWay} renderLive={(automaton) => <LiveCardPicture automaton={automaton} />}>
-        {panel}
-      </GroupWall>
-    );
-  }
-  const { automaton } = playing;
+  // The wall stays under an open group, not displayed: its faces keep what they have grown, and Back finds them so.
+  const open = group !== null && playing !== null;
+  const missing = typeof address.group === "number" && status === null ? fill(WORDS.unknownGroup, { group: address.group }) : status;
+  const savedWay = (
+    <Link className="link-control automata-saved-way" to={{ search: addressSearch({ group: SAVED_GROUP, automaton: null }) }}>
+      {saved.automata.length === 0 ? WORDS.savedLine : fill(WORDS.savedLineCount, { count: saved.automata.length })}
+    </Link>
+  );
   return (
-    <GroupScreen group={group} name={nameOf(names, group.group)} neighbours={neighboursOf(groups, group.group)} playing={playing} onChoose={choose}
-      stage={<MaterialStage entries={[automaton.entry]} source={PUBLISHED_SOURCE} layout="instrument" frameWords={frameWordsOf(automaton)} />}>
-      {panel}
-    </GroupScreen>
+    <>
+      <GroupWall groups={groups} names={names} status={open ? null : missing} aside={savedWay} loadFace={loadPublishedFace} hidden={open}>
+        {!open && panel}
+      </GroupWall>
+      {open && (
+        <GroupScreen group={group} name={nameOf(names, group.group)} neighbours={neighboursOf(groups, group.group)} playing={playing} onChoose={choose}
+          stage={<MaterialStage entries={[playing.automaton.entry]} source={PUBLISHED_SOURCE} layout="instrument" frameWords={frameWordsOf(playing.automaton)} />}>
+          {panel}
+        </GroupScreen>
+      )}
+    </>
   );
 }

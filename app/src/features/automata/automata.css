@@ -894,190 +894,228 @@
 }
 
 /*
- * The stage and the index. On a wide screen the stage stands at the left and stays in view while the
- * index scrolls: the group's number and name, its automaton as large as the window allows, its four
- * strongest patches in a row under it. The index holds every group at one size, squares of at least
- * 160 px, its name under each.
+ * The table of decks. Each deck is a square face, the group's automaton, over four plates, the group's
+ * own patches by level. The table has one eye (wall-eye.ts): every deck is drawn in perspective from
+ * it, so a deck under the eye is seen straight on, and a deck away from it shows the edges of its
+ * plates, each in its level's colour. Five decks of 192 px to a row of the 1312 px band; at two
+ * device pixels a page pixel a 128-cell automaton is drawn at three whole pixels a cell.
  */
-.automata-wall-body {
+.automata-table {
+  --face: 192px;
+  /* The depth between two plates of a deck, and how far the deck the reader is on comes forward. At this
+     depth the deepest plate of a deck 800 px from the eye shows 25 px of itself, which the room over the
+     deck's words holds. */
+  --plate-depth: 12px;
+  --forward: 210px;
+  /* A spring: past its end by a seventh, then back. Where linear() is unknown the curve after it is used. */
+  --deck-spring: cubic-bezier(0.2, 1.25, 0.35, 1);
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--m);
-}
-
-.automata-wall-stage {
-  display: grid;
-  align-content: start;
-  gap: var(--patch);
-  min-width: 0;
-}
-
-.automata-wall-stage-title {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0 24px;
-  min-width: 0;
-}
-
-.automata-wall-stage-number {
-  color: var(--ink);
-  font-size: var(--s2);
-  line-height: var(--lh2);
-  letter-spacing: -0.04em;
-  font-variant-numeric: tabular-nums;
-}
-
-.automata-wall-stage-name {
-  min-width: 0;
-  color: var(--ink);
-  font-size: var(--s1);
-  line-height: var(--lh1);
-  letter-spacing: -0.02em;
-}
-
-/* The automaton: its still, or the automaton growing in the still's place (home-material-view.tsx), without the field's ticks. */
-.automata-wall-stage-picture {
-  position: relative;
-  display: block;
-  width: var(--stage-side, 100%);
-  aspect-ratio: 1;
-  background: var(--black);
-}
-
-.automata-wall-stage-picture > img,
-.automata-wall-stage-live,
-.automata-wall-stage-picture .home-material,
-.automata-wall-stage-picture .home-field {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
-.automata-wall-stage-picture > img {
-  image-rendering: pixelated;
-}
-
-.automata-wall-stage-picture .home-field-ticks,
-.automata-wall-stage-picture .home-material-note {
-  display: none;
-}
-
-/* The four strongest patches, side by side under the automaton and as wide as it. */
-.automata-wall-patches {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--space-2);
-  width: var(--stage-side, 100%);
-}
-
-.automata-wall-patches .automata-level-picture {
-  aspect-ratio: 1;
-}
-
-.automata-wall-stage-line {
-  display: flex;
-  flex-wrap: wrap;
+  grid-template-columns: repeat(auto-fill, var(--face));
   justify-content: space-between;
-  gap: 0 var(--patch);
-  width: var(--stage-side, 100%);
-  margin: 0;
-  color: var(--ink-2);
-  font-variant-numeric: tabular-nums;
-}
-
-.automata-index {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 32px var(--patch);
+  gap: 64px 48px;
   margin: 0;
   padding: 0;
   list-style: none;
+  perspective: 1500px;
+  perspective-origin: var(--eye-x, 50%) var(--eye-y, 320px);
+  /* One space for every deck, so a deck that has come forward stands in front of its neighbours. */
+  transform-style: preserve-3d;
 }
 
-.automata-index-square {
+@supports (transition-timing-function: linear(0, 1)) {
+  .automata-table {
+    --deck-spring: linear(0, 0.006, 0.025 2.8%, 0.101 6.1%, 0.539 18.9%, 0.721 25.3%, 0.849 31.5%, 0.937 38.1%, 0.968 41.8%, 0.991 45.7%, 1.006 50.1%, 1.015 55%, 1.017 63.9%, 1.001 85.9%, 1);
+  }
+}
+
+/* Reduced motion: no eye and no perspective; a deck's plates stay under its face until it comes forward. */
+.automata-table[data-still] {
+  perspective: none;
+}
+
+/* Every box between the table and a plate keeps the plates in the table's space. */
+.automata-deck,
+.automata-deck-link,
+.automata-deck-body {
+  transform-style: preserve-3d;
+}
+
+.automata-deck {
+  min-width: 0;
+}
+
+.automata-deck-link {
   display: grid;
-  gap: var(--space-2);
-  color: var(--ink-2);
+  gap: 26px;
+  color: inherit;
   text-decoration: none;
+  transition: transform 520ms var(--deck-spring);
 }
 
-.automata-index-picture {
+.automata-deck-link:focus-visible {
+  outline: none;
+}
+
+.automata-deck-body {
   position: relative;
   display: block;
   aspect-ratio: 1;
-  background: var(--black);
-  outline: 1px solid transparent;
-  outline-offset: 4px;
-  transition: outline-color 120ms;
 }
 
-.automata-index-picture img {
+.automata-deck-face,
+.automata-deck-plate {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+
+/* A plate: the level's four pictures, two by two, with the level's colour around it, which is what its edge shows. */
+.automata-deck-plate {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  background: color-mix(in srgb, var(--band) 26%, var(--black));
+  box-shadow: inset 0 0 0 2px var(--band);
+  transform: translateZ(calc(var(--depth) * var(--plate-depth) * -1));
+  transition: transform 520ms var(--deck-spring);
+  pointer-events: none;
+}
+
+/* The face: a line around the black while the automaton waits for its turn to grow. */
+.automata-deck-face {
+  background: var(--black);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.automata-deck-face[data-state="live"],
+.automata-deck-face[data-state="still"] {
+  box-shadow: none;
+}
+
+.automata-deck-face > canvas,
+.automata-deck-face > img {
   display: block;
   width: 100%;
   height: 100%;
   image-rendering: pixelated;
 }
 
-.automata-index-name {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+.automata-deck-face[data-state="waiting"] > canvas {
+  visibility: hidden;
 }
 
-.automata-index-mark {
+.automata-deck-words {
+  display: grid;
+  gap: 0;
+  min-width: 0;
+}
+
+.automata-deck-name {
+  overflow: hidden;
+  color: var(--ink-2);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  transition: color 160ms;
+}
+
+.automata-deck-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--patch);
   color: var(--ink-3);
   font-size: var(--s-1);
   line-height: 16px;
+  font-variant-numeric: tabular-nums;
 }
 
-/* The group on the stage: its square outlined, its name in ink. */
-.automata-index-square[data-chosen] .automata-index-picture {
-  outline-color: var(--ink);
+/* While the reader is on a deck, the others stand back and dim: a veil over each face and plate, since an
+   opacity on the deck itself would press its plates flat. */
+.automata-deck-face::after,
+.automata-deck-plate::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: var(--black);
+  opacity: 0;
+  transition: opacity 240ms;
+  pointer-events: none;
 }
 
-.automata-index-square[data-chosen] .automata-index-name,
-.automata-index-square:hover .automata-index-name {
-  color: var(--ink);
+.automata-table[data-forward] .automata-deck:not([data-forward]) .automata-deck-face::after,
+.automata-table[data-forward] .automata-deck:not([data-forward]) .automata-deck-plate::before {
+  opacity: 0.5;
 }
 
-.automata-index-square:focus-visible {
-  outline: none;
-}
-
-.automata-index-square:focus-visible .automata-index-picture {
-  outline: 2px solid var(--ink);
+.automata-table[data-forward] .automata-deck:not([data-forward]) .automata-deck-link {
+  transform: translateZ(-40px);
 }
 
 /*
- * A wide screen: the stage at the left, sticky under the site's bar, its column as wide as its picture.
- * The picture's side is what the window leaves after the title, the patches and the line: from 320 px
- * on a short window to 560 px on a tall one.
+ * The deck the reader is on: it comes forward, and its plates slide out from under the face to the
+ * side with the room. The strongest level lies whole beside the face, at the face's own depth; each
+ * weaker level stands 18 px further out and one step deeper, so its edge and its colour show.
  */
-@media (min-width: 1000px) {
-  .automata-wall-body {
-    --stage-side: clamp(320px, calc(100dvh - 440px), 560px);
-    grid-template-columns: var(--stage-side) minmax(0, 1fr);
-    align-items: start;
-  }
+.automata-deck[data-forward] .automata-deck-link {
+  transform: translateZ(var(--forward));
+}
 
-  .automata-wall-stage {
-    position: sticky;
-    top: var(--m);
-  }
+.automata-deck[data-forward] .automata-deck-plate {
+  /* The plates of the deck the reader is on belong to it: the pointer on them keeps the deck forward. */
+  pointer-events: auto;
+  transform: translate3d(calc((100% + 20px + (var(--depth) - 1) * 18px) * var(--fan)), 0, calc((var(--depth) - 1) * var(--plate-depth) * -1));
+}
+
+.automata-deck[data-forward] .automata-deck-name {
+  color: var(--ink);
+}
+
+.automata-deck-link:focus-visible .automata-deck-face {
+  outline: 2px solid var(--ink);
+  outline-offset: 4px;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .automata-index-picture {
+  .automata-deck-link,
+  .automata-deck-plate,
+  .automata-deck-face::after,
+  .automata-deck-plate::before {
     transition: none;
   }
 }
 
 /*
- * A phone: the stage pinned at the top, the automaton and the patches side by side under the title,
- * and the index three squares to a row under it; the square that scrolls past the reading line takes
- * the stage.
+ * The passage to a group's screen and back (wall-passage.ts): the face travels to the stage and each
+ * plate to its level, in under half a second, while the rest of the page crosses over.
  */
+::view-transition-group(automata-stage),
+::view-transition-group(automata-level-0),
+::view-transition-group(automata-level-1),
+::view-transition-group(automata-level-2),
+::view-transition-group(automata-level-3) {
+  animation-duration: 460ms;
+  animation-timing-function: cubic-bezier(0.3, 0.9, 0.25, 1);
+}
+
+::view-transition-old(automata-stage),
+::view-transition-new(automata-stage) {
+  height: 100%;
+  image-rendering: pixelated;
+}
+
+.automata-group .stage-canvas {
+  view-transition-name: automata-stage;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
+
+/* A phone: two decks to a row; the eye is the middle of the window, so a deck shows its plates as it passes. */
 @media (max-width: 640px) {
   .automata-wall {
     padding: 32px 0 var(--m);
@@ -1091,58 +1129,10 @@
     margin-bottom: var(--patch);
   }
 
-  .automata-wall-body {
-    gap: var(--patch);
-  }
-
-  .automata-wall-stage {
-    position: sticky;
-    top: 0;
-    z-index: 2;
-    grid-template-columns: 44% minmax(0, 1fr);
-    gap: var(--space-2) var(--patch);
-    padding: var(--space-2) 0 var(--patch);
-    border-bottom: 1px solid var(--line);
-    background: var(--black);
-  }
-
-  .automata-wall-stage-title {
-    grid-column: 1 / -1;
-    gap: 0 12px;
-  }
-
-  .automata-wall-stage-number {
-    font-size: var(--s1);
-    line-height: var(--lh1);
-  }
-
-  .automata-wall-stage-name {
-    font-size: var(--s0);
-    line-height: 24px;
-  }
-
-  .automata-wall-stage-picture {
-    grid-row: span 2;
-  }
-
-  .automata-wall-patches {
+  .automata-table {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-self: start;
-  }
-
-  .automata-wall-stage-line {
-    flex-direction: column;
-    align-self: end;
-  }
-
-  .automata-index {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: var(--patch) var(--space-2);
-  }
-
-  .automata-index-name {
-    font-size: var(--s-1);
-    line-height: 16px;
+    gap: 40px 24px;
+    perspective: 900px;
   }
 }
 
@@ -1165,11 +1155,4 @@
     outline-offset: 3px;
   }
 
-  .automata-index-square:hover .automata-index-picture {
-    outline-color: var(--line-2);
-  }
-
-  .automata-index-square[data-chosen]:hover .automata-index-picture {
-    outline-color: var(--ink);
-  }
 }

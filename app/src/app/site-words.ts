@@ -1087,9 +1087,7 @@ export const SITE_WORDS = {
     /** The wall's heading, on /automata. */
     wallTitle: "The automata of each basis group",
     /** The sentence under the wall's heading. {groups} and {automata} are the two counts. */
-    wallLead: "Each square is a cellular automaton, trained until DINO responded to its image as it responds to the basis group's own patches. Point at a square, or on a phone scroll past it, to grow it large beside the group's four strongest patches. {groups} basis groups, {automata} automata.",
-    /** Under the stage's patches: the way into the group on the stage. {group} is its number. */
-    stageOpen: "Open basis group {group}",
+    wallLead: "Each square is a cellular automaton, and it grows as you reach it. It was trained until DINO responded to its image as it responds to the basis group's own patches, which lie under it, the strongest on top. Move the pointer across an automaton to disturb it. {groups} basis groups, {automata} automata.",
     /** Under a card on the wall: the number of automata the group holds. {count} is the number. */
     cardCount: "{count} automata",
     cardCountOne: "1 automaton",
