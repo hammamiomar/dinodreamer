@@ -92,10 +92,18 @@ pub fn squared_distances(a_MD: Tensor<2>, b_ND: Tensor<2>) -> Tensor<2> {
     (a_M1 + b_1N - a_MD.matmul(b_ND.transpose()) * 2.0).clamp_min(0.0)
 }
 
-/// The kernel on squared distances: the mean over the widths of exp(−d / (2 w²)), same shape.
-pub fn kernel(distances_MN: Tensor<2>, widths: &[f32; 4]) -> Tensor<2> {
-    let terms = widths.iter().map(|width| (distances_MN.clone() / (-2.0 * width * width)).exp());
-    terms.reduce(|total, term| total + term).expect("four widths") / widths.len() as f32
+/// The kernel on squared distances: the mean over the widths of exp(−d / (2 w²)), same shape. All
+/// widths in one expression, as the research writes it (`objective.kernel`): `scales_11W` holds
+/// −2 w² per width.
+pub fn kernel(distances_MN: Tensor<2>, scales_11W: &Tensor<3>) -> Tensor<2> {
+    let [rows, columns] = distances_MN.dims();
+    (distances_MN.reshape([rows, columns, 1]) / scales_11W.clone()).exp().mean_dim(2).reshape([rows, columns])
+}
+
+/// −2 w² for each kernel width, [1, 1, W]: the divisors of `kernel`.
+fn kernel_scales(widths: &[f32; 4], device: &burn::tensor::Device) -> Tensor<3> {
+    let scales: Vec<f32> = widths.iter().map(|width| -2.0 * width * width).collect();
+    Tensor::from_data(TensorData::new(scales, [1, 1, widths.len()]), device)
 }
 
 /// The mean of a square matrix's off-diagonal entries, [1]; zero for a 1 × 1 matrix. The diagonal
@@ -135,6 +143,10 @@ pub struct SetLayer {
     pub widths: [f32; 4],
     /// E k(ŷ, ŷ') over distinct members.
     pub self_similarity: f32,
+    /// Fixed with the set, so an update does not recompute them: −2 w² per width [1, 1, 4] and
+    /// ‖ŷ_n‖² [1, N].
+    kernel_scales_11W: Tensor<3>,
+    squared_norms_1N: Tensor<2>,
 }
 
 impl SetLayer {
@@ -156,8 +168,28 @@ impl SetLayer {
         let distances_NN = squared_distances(standardized_ND.clone(), standardized_ND.clone());
         let median_distance = median_pairwise(&read(distances_NN.clone().flatten(0, 1)).await?, count).sqrt();
         let widths = BANDWIDTHS.map(|bandwidth| bandwidth * median_distance);
-        let self_similarity = read(off_diagonal_mean(kernel(distances_NN, &widths))).await?[0];
-        Ok(Self { layer, mean_1D, unit, standardized_ND, median_distance, widths, self_similarity })
+        let kernel_scales_11W = kernel_scales(&widths, &standardized_ND.device());
+        let self_similarity = read(off_diagonal_mean(kernel(distances_NN, &kernel_scales_11W))).await?[0];
+        Ok(Self {
+            layer,
+            mean_1D,
+            unit,
+            squared_norms_1N: standardized_ND.clone().square().sum_dim(1).transpose(),
+            standardized_ND,
+            median_distance,
+            widths,
+            self_similarity,
+            kernel_scales_11W,
+        })
+    }
+
+    /// ‖x̂_m − ŷ_n‖² for standardized canvas features [M, D], [M, N]: `squared_distances` with the
+    /// set's terms fixed at preparation.
+    fn squared_distances_to_set(&self, canvas_MD: Tensor<2>) -> Tensor<2> {
+        let [members, width] = canvas_MD.dims();
+        let canvas_M1 = canvas_MD.clone().square().sum_dim(1);
+        let products_MN = fixed_product(canvas_MD.reshape([1, members, width]), &self.standardized_ND).reshape([members, self.standardized_ND.dims()[0]]);
+        (canvas_M1 + self.squared_norms_1N.clone() - products_MN * 2.0).clamp_min(0.0)
     }
 
     /// x̂ = (x − μ) / σ for canvas features [M, D].
@@ -171,11 +203,26 @@ impl SetLayer {
         LayerTerms { value, kernel_means: None }
     }
 
+    /// E k(x̂, x̂'), [1], with the products x̂ x̂ᵀ on the fixed-product kernel. The distances
+    /// d_ij = ‖x̂_i‖² + ‖x̂_j‖² − 2 x̂_i·x̂_j are symmetric and so is the off-diagonal mask, so the gradient
+    /// through the second operand equals the gradient through the first. The second operand is
+    /// therefore detached and the gradient doubled: 2g − stop(g) has the value g and twice its gradient.
+    fn gathered_kernel_mean(&self, canvas_MD: Tensor<2>) -> Tensor<1> {
+        let [members, width] = canvas_MD.dims();
+        let fixed_MD = canvas_MD.clone().detach();
+        let canvas_M1 = canvas_MD.clone().square().sum_dim(1);
+        let fixed_1M = fixed_MD.clone().square().sum_dim(1).transpose();
+        let products_MM = fixed_product(canvas_MD.reshape([1, members, width]), &fixed_MD).reshape([members, members]);
+        let distances_MM = (canvas_M1 + fixed_1M - products_MM * 2.0).clamp_min(0.0);
+        let half = off_diagonal_mean(kernel(distances_MM, &self.kernel_scales_11W));
+        half.clone() * 2.0 - half.detach()
+    }
+
     /// E k(x̂, x̂') − 2 E k(x̂, ŷ) + E k(ŷ, ŷ'), with its two canvas terms.
     pub fn distribution_terms(&self, features_MD: Tensor<2>) -> LayerTerms {
         let canvas_MD = self.standardized(features_MD);
-        let gathered = off_diagonal_mean(kernel(squared_distances(canvas_MD.clone(), canvas_MD.clone()), &self.widths));
-        let approached = kernel(squared_distances(canvas_MD, self.standardized_ND.clone()), &self.widths).mean().reshape([1]);
+        let gathered = self.gathered_kernel_mean(canvas_MD.clone());
+        let approached = kernel(self.squared_distances_to_set(canvas_MD), &self.kernel_scales_11W).mean().reshape([1]);
         let value = gathered.clone() - approached.clone() * 2.0 + self.self_similarity;
         LayerTerms { value, kernel_means: Some([gathered, approached]) }
     }
@@ -251,7 +298,7 @@ impl TargetSet {
         let mut layers = Vec::new();
         for layer in request.compared_layers() {
             let features_ND = match (request.method, layer) {
-                (Method::BasisGroupDistribution, _) => gathered(codes(calibration.tokens(native_PTD.clone()), frame_RD)),
+                (Method::BasisGroupDistribution, _) => gathered(fixed_product(calibration.tokens(native_PTD.clone()), frame_RD)),
                 (_, Layer::Final) => gathered(native_PTD.clone()),
                 (_, Layer::Block(block)) => {
                     let position = blocks.iter().position(|&read| read == block).expect("every block layer is read");
@@ -287,12 +334,14 @@ impl TargetSet {
     }
 }
 
-/// The codes c = Fᵀ(calibrated token) of tokens [B, T, D] on the frame [R, D]: [B, T, R].
-fn codes(calibrated_BTD: Tensor<3>, frame_RD: &Tensor<2>) -> Tensor<3> {
+/// x Wᵀ for tokens [B, T, D] and a fixed matrix W [O, D], [B, T, O]: the codes on a frame, or the
+/// products with the set. On the GPU the engine's `frozen_linear`: in Chrome, Burn's generic matmul
+/// made token distribution's loss cost about 6 % of an update per layer (17 November 2026).
+fn fixed_product(tokens_BTD: Tensor<3>, fixed_OD: &Tensor<2>) -> Tensor<3> {
     #[cfg(feature = "gpu")]
-    return crate::kernels::frozen_linear(calibrated_BTD, frame_RD.clone());
+    return crate::kernels::frozen_linear(tokens_BTD, fixed_OD.clone());
     #[cfg(not(feature = "gpu"))]
-    calibrated_BTD.matmul(frame_RD.clone().transpose().unsqueeze())
+    tokens_BTD.matmul(fixed_OD.clone().transpose().unsqueeze())
 }
 
 #[cfg(test)]

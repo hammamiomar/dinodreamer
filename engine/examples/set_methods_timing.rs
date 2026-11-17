@@ -8,8 +8,9 @@
 //!   cargo run --release --features harness --example set_methods_timing -- --rounds 6 --updates 10 \
 //!       tools/fixtures/grow-recipe-oracle-12002-pyramid-seeded-batch4.json <set-method fixtures>...
 //!
-//! The first fixture is the reference. It prints one JSON report: per run the median time per
-//! update, the median of the per-index ratios to the reference, and the set's preparation time.
+//! The first fixture is the reference. `--batch 1` overrides every fixture's batch. It prints one
+//! JSON report: per run the median time per update, the median of the per-index ratios to the
+//! reference, and the set's preparation time.
 //! Assets as in grow_recipe_parity.
 #![allow(non_snake_case)] // Tensor suffixes document axes.
 #[path = "support/target_set_fixture.rs"]
@@ -49,6 +50,7 @@ fn main() {
     let arguments: Vec<String> = env::args().skip(1).collect();
     let rounds: usize = argument(&arguments, "--rounds").map_or(6, |value| value.parse().unwrap());
     let updates: usize = argument(&arguments, "--updates").map_or(10, |value| value.parse().unwrap());
+    let batch: Option<usize> = argument(&arguments, "--batch").map(|value| value.parse().unwrap());
     let paths: Vec<String> = arguments.iter().filter(|value| value.ends_with(".json")).cloned().collect();
     let model = PathBuf::from(env::var("DINODREAMER_MODEL").unwrap_or("local/release/model".into()));
     let device = Device::wgpu_options().init().unwrap().autodiff();
@@ -63,7 +65,8 @@ fn main() {
     let mut runs = Vec::new();
     for path in &paths {
         let fixture: Fixture = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
-        let request = fixture.request;
+        let mut request = fixture.request;
+        request.batch = batch.unwrap_or(request.batch);
         let frame_DR = load_frame(&fs::read(dictionary.join(format!("blocks/{:05}.safetensors", request.block))).unwrap(), &device).unwrap();
         let mut preparation_seconds = Vec::new();
         let mut target = None;

@@ -6,8 +6,8 @@
 //!       --fixture tools/fixtures/grow-recipe-oracle-12002-batch4.json --seed 1 --updates 300
 //!
 //! The request (block, k, m, batch, rule, start, method and layers) and the readout axis come from
-//! a parity fixture; `--seed` and `--batch` override it. A set method's fixture names its set's
-//! windows, which the engine prepares first. `--pictures <folder>` writes the replay grid's picture
+//! a parity fixture, or any file with the same `request`, `direction` and `set.file`; `--seed` and
+//! `--batch` override it. A set method's file names its set's windows, which the engine prepares first. `--pictures <folder>` writes the replay grid's picture
 //! at each read tick as `update-0100-tick-0600.png`, and the final rule as `rule.json`. Assets as in
 //! grow_recipe_parity.
 #![allow(non_snake_case)] // Tensor suffixes document axes.
@@ -34,8 +34,14 @@ const DICTIONARY: &str = "monet-dtd-seed9-20261004-pass-003";
 struct Fixture {
     request: FigureRequest,
     direction: [f32; 3],
+    /// A set method's set: a set file of tools/export_target_set.py, beside the fixture.
     #[serde(default)]
-    set: Option<target_set_fixture::SetRecord>,
+    set: Option<SetReference>,
+}
+
+#[derive(Deserialize)]
+struct SetReference {
+    file: String,
 }
 
 /// An opaque RGBA picture as an 8-bit RGB PNG.
