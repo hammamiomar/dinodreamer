@@ -497,7 +497,7 @@ impl Objective {
             .map(|term| {
                 let raw_B1 = match &term.kind {
                     Kind::Code(code) => code_raw(code, &readout.native_BTD, calibration),
-                    Kind::Look(look) => look_raw(look, &readout.appearance_BPD, looks.next().expect("one assignment per Look term")),
+                    Kind::Look(look) => look_raw(look, &readout.intermediate_BPD, looks.next().expect("one assignment per Look term")),
                     Kind::TotalVariation => total_variation(views_BCHW.clone()),
                     Kind::ImageL2 => image_l2(views_BCHW.clone()),
                 };
@@ -765,14 +765,14 @@ mod tests {
         }
         Readout {
             native_BTD: Tensor::from_data(TensorData::new(tokens, [1, TOKENS, WIDTH]), device),
-            appearance_BPD: Vec::new(),
+            intermediate_BPD: Vec::new(),
         }
     }
 
     fn raw_values(objective: &Objective, readout: &Readout, device: &Device) -> Vec<f32> {
         let calibration = Calibration::new(Tensor::zeros([WIDTH], device), 1.0);
         let views = Tensor::zeros([1, 3, 256, 256], device);
-        let assigned = objective.assign(&readout.appearance_BPD);
+        let assigned = objective.assign(&readout.intermediate_BPD);
         objective
             .raws(&views, readout, &assigned, &calibration)
             .into_data()
@@ -985,9 +985,9 @@ mod tests {
         let spec = ObjectiveSpec { requests: vec![RequestSpec { id: 1, respond: None, look: Some(look) }], ..Default::default() };
         let objective = Objective::build(&spec, &BTreeMap::new(), &mut cache, device).unwrap();
         let appearance_BPD = generated(values, device);
-        let readout = Readout { native_BTD: Tensor::zeros([1, TOKENS, WIDTH], device), appearance_BPD: appearance_BPD.clone() };
+        let readout = Readout { native_BTD: Tensor::zeros([1, TOKENS, WIDTH], device), intermediate_BPD: appearance_BPD.clone() };
         let calibration = Calibration::new(Tensor::zeros([WIDTH], device), 1.0);
-        let assigned = objective.assign(&readout.appearance_BPD);
+        let assigned = objective.assign(&readout.intermediate_BPD);
         let raw = objective.raws(&Tensor::zeros([1, 3, 256, 256], device), &readout, &assigned, &calibration);
         let value = raw.clone().into_data().try_to_vec::<f32>().unwrap()[0];
         // The four layers carry the same values, so the gradient of a cell's value is the sum

@@ -51,6 +51,21 @@ required-features = ["harness"]
 name = "measurement_direction_check"
 required-features = ["cpu"]
 
+[[example]]
+name = "target_set_check"
+
+[[example]]
+name = "set_methods_timing"
+required-features = ["harness"]
+
+[[example]]
+name = "reading_step_study"
+required-features = ["harness"]
+
+[[example]]
+name = "research_replay_pictures"
+required-features = ["harness"]
+
 [features]
 default = ["gpu"]
 gpu = ["burn/wgpu", "burn/extension", "dep:cubecl", "dep:burn-cubecl"]
