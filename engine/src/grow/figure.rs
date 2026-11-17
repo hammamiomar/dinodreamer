@@ -38,7 +38,7 @@ use serde::{Deserialize, Serialize};
 mod rule;
 pub mod target_set;
 #[cfg(feature = "gpu")]
-pub use rule::{Cells, FigureGradient, FigureGrid, FigureReadings, FigureRule, FigureTraining, FigureUpdate, LayerLoss};
+pub use rule::{Cells, FigureGradient, FigureGrid, FigureReadings, FigureRule, FigureTraining, FigureUpdate, LayerLoss, own_loss};
 
 pub const SIDE: usize = 128;
 pub const CELLS: usize = SIDE * SIDE;
@@ -482,6 +482,11 @@ pub struct FigureReading {
     /// Per patch of the 8 × 8 grid, all 64 of them, whether the requested group is selected there
     /// by the selection fraction's rule: the panel's map. The read region is the caller's `patches`.
     pub selected_T: Vec<bool>,
+    /// The requested group's code of every patch of the 8 × 8 grid, [64 × 3], patch t at 3t..3t + 3:
+    /// the calibrated token projected on the group's frame, the numbers whose squared norm the
+    /// selection rule ranks against the other groups' responses. The places of the patches in the
+    /// group's map.
+    pub codes_TR: Vec<f32>,
 }
 
 /// One basis group in a measurement's co-selection: the read patches on which it is among the 32
@@ -546,6 +551,7 @@ pub async fn read(
         winner_fraction: wins as f32 / patches.len() as f32,
         co_selected,
         selected_T: winners,
+        codes_TR,
     })
 }
 

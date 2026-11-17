@@ -58,6 +58,10 @@ const GRADIENT_FLOOR_FACTOR: f64 = 3.0;
 /// Readout tolerances after up to 600 replayed ticks, where float differences can change some
 /// display bytes: strength in units of m, and the winner fraction by at most one read patch.
 const STRENGTH_TOLERANCE: f64 = 0.01;
+/// The mean of the reading's per-patch codes (`FigureReading::codes_TR`) over the read patches,
+/// against the oracle's: ‖difference‖ in units of m, the strength's scale. Measured on 17 November
+/// 2026 over every fixture: at most 0.0056, where 600 replayed ticks changed some display bytes.
+const MEAN_CODE_TOLERANCE: f64 = 0.01;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -150,6 +154,8 @@ struct Reading {
     ticks: u32,
     strength: f64,
     winner_fraction: f64,
+    /// The mean code over the read patches.
+    mean_code: [f64; 3],
     levels: String,
 }
 
@@ -445,8 +451,14 @@ fn main() {
         .unwrap();
         // One read patch: 1/64 of the field, 1/16 of the centre.
         let winner_tolerance = 1.0 / grid.patches().len() as f64;
+        assert_eq!(reading.codes_TR.len(), 3 * figure::PATCHES, "a code for every patch of the 8 × 8 grid");
+        let mean_code: Vec<f64> = (0..3)
+            .map(|axis| grid.patches().iter().map(|&patch| reading.codes_TR[3 * patch + axis] as f64).sum::<f64>() / grid.patches().len() as f64)
+            .collect();
+        let mean_code_error = mean_code.iter().zip(expected.mean_code).map(|(a, e)| (a - e).powi(2)).sum::<f64>().sqrt() / request.median_norm as f64;
         let close = (reading.strength as f64 - expected.strength).abs() <= STRENGTH_TOLERANCE
-            && (reading.winner_fraction as f64 - expected.winner_fraction).abs() <= winner_tolerance;
+            && (reading.winner_fraction as f64 - expected.winner_fraction).abs() <= winner_tolerance
+            && mean_code_error <= MEAN_CODE_TOLERANCE;
         readings_match &= close;
         readings.push(json!({
             "rule": expected.rule,
@@ -454,6 +466,7 @@ fn main() {
             "ticks": expected.ticks,
             "strength": [reading.strength, expected.strength],
             "winnerFraction": [reading.winner_fraction, expected.winner_fraction],
+            "meanCode": [mean_code, expected.mean_code, mean_code_error],
             "differingBytes": rgb.iter().zip(&expected_rgb).filter(|(a, b)| a != b).count(),
             "largestByteDifference": rgb.iter().zip(&expected_rgb).map(|(a, b)| a.abs_diff(*b)).max().unwrap_or(0),
             "bytes": rgb.len(),
@@ -476,6 +489,7 @@ fn main() {
             "gradients": GRADIENT_FLOOR_FACTOR * fixture.gradient_floor,
             "gradientFloor": fixture.gradient_floor,
             "strength": STRENGTH_TOLERANCE,
+            "meanCodeOverMedianNorm": MEAN_CODE_TOLERANCE,
             "winnerFraction": "one read patch",
         },
         "updates": reports,
