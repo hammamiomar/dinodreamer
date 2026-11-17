@@ -50,6 +50,7 @@ const loadPublishedFace: LoadFace<PublishedAutomaton> = async (automaton) => ({
   material: await fetchPublishedMaterial(automaton.entry.id),
   side: automaton.entry.side,
   seed: automaton.entry.seed,
+  tick: automaton.entry.tick,
 });
 
 export function AutomataPage() {

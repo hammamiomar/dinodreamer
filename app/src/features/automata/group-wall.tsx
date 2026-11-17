@@ -49,7 +49,8 @@ const GLIDE_MS = 420;
 const GLIDE_EASING = "cubic-bezier(0.3, 0.9, 0.25, 1)";
 
 /** What a page gives the wall so that a face can grow: the automaton's definition, its grid and its seed. */
-export type LoadFace<T> = (automaton: T) => Promise<{ material: FigureMaterial; side: number; seed: number }>;
+/** A face's automaton and the replay its picture was read on: grid side, seed, and the step the face rests at. */
+export type LoadFace<T> = (automaton: T) => Promise<{ material: FigureMaterial; side: number; seed: number; tick: number }>;
 
 /** A deck's face: black until its turn, then the automaton growing, then at rest; its still where it cannot grow. */
 function DeckFace<T extends GalleryAutomaton>({ automaton, loadFace, forward, wallHidden, carried }: {

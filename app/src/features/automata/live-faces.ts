@@ -16,9 +16,24 @@ const MOST_EMERGING = 6;
 /** Ticks per frame from noise until EMERGED_TICK, about a third of a second: the image is there. */
 const EMERGE_SPEED = 8;
 const EMERGED_TICK = 160;
-/** Then ticks per frame until the face rests at RESTING_TICK, the tick a published picture is read at. */
+/**
+ * Then ticks per frame until the face rests at the automaton's reading step, where its picture was read:
+ * 600 for basis-group mean matching, the step of the lowest own loss for a set method (100 to 2,000).
+ * At least SETTLE_SPEED; faster for a late step, so the way there takes about SETTLE_FRAMES frames, as
+ * the way to step 600 does at SETTLE_SPEED.
+ */
 const SETTLE_SPEED = 2;
-const RESTING_TICK = 600;
+const SETTLE_FRAMES = 220;
+
+/**
+ * The ticks the face steps in its next frame on its way to rest at `restingTick`: fast while the image
+ * emerges, then slower, and never past the step it rests at. 0 once it is there.
+ */
+export function faceSpeed(tick: number, restingTick: number): number {
+  if (tick >= restingTick) return 0;
+  const settle = Math.max(SETTLE_SPEED, Math.ceil((restingTick - EMERGED_TICK) / SETTLE_FRAMES));
+  return Math.min(tick < EMERGED_TICK ? EMERGE_SPEED : settle, restingTick - tick);
+}
 /** After the pointer's last stamp a face runs this long, at one tick a frame, so the rule heals it in sight. */
 const HEAL_MS = 4000;
 /** The brush the pointer carries across a face, in cells of a 128-cell grid: under half the stage's brush. */
@@ -94,7 +109,7 @@ export interface LiveFace {
  * `onShown` is called at the first drawn frame and `onFailed` when the browser cannot grow it; after
  * `close` neither is called.
  */
-export function openLiveFace(canvas: HTMLCanvasElement, material: FigureMaterial, grid: { side: number; seed: number },
+export function openLiveFace(canvas: HTMLCanvasElement, material: FigureMaterial, grid: { side: number; seed: number; tick: number },
   events: { onShown: () => void; onFailed: (error: unknown) => void }): LiveFace {
   const closing = new AbortController();
   let replay: FigureReplay | null = null;
@@ -109,7 +124,7 @@ export function openLiveFace(canvas: HTMLCanvasElement, material: FigureMaterial
     hasTurn = false;
     endOfTurn();
   };
-  const growing = () => replay !== null && replay.tick < RESTING_TICK;
+  const growing = () => replay !== null && replay.tick < grid.tick;
   const run = () => {
     if (!loop) return;
     if (inView && (growing() || performance.now() < healUntil)) loop.play();
@@ -117,10 +132,11 @@ export function openLiveFace(canvas: HTMLCanvasElement, material: FigureMaterial
   };
   const onFrame = (tick: number) => {
     if (!shown) { shown = true; events.onShown(); }
-    if (tick >= EMERGED_TICK) giveTurnBack();
+    // The image is there at EMERGED_TICK, or earlier for an automaton read before it.
+    if (tick >= Math.min(EMERGED_TICK, grid.tick)) giveTurnBack();
     if (!loop) return;
-    if (tick < EMERGED_TICK) loop.setSpeed(EMERGE_SPEED);
-    else if (tick < RESTING_TICK) loop.setSpeed(SETTLE_SPEED);
+    const speed = faceSpeed(tick, grid.tick);
+    if (speed > 0) loop.setSpeed(speed);
     else {
       loop.setSpeed(1);
       if (performance.now() >= healUntil) loop.pause();
