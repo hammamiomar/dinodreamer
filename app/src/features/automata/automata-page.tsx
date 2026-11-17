@@ -47,7 +47,7 @@ export function useChoose(): (automaton: GalleryAutomaton) => void {
 
 /** A published automaton's definition for the wall's face: its file, with the grid and the seed of its published reading. */
 const loadPublishedFace: LoadFace<PublishedAutomaton> = async (automaton) => ({
-  material: await fetchPublishedMaterial(automaton.entry.id),
+  material: await fetchPublishedMaterial(automaton.entry.id, fetch, automaton.entry.tick),
   side: automaton.entry.side,
   seed: automaton.entry.seed,
   tick: automaton.entry.tick,
@@ -57,7 +57,7 @@ export function AutomataPage() {
   const index = useMaterialIndex();
   const names = useBasisGroupNames();
   const groups = useMemo(
-    () => arrangeGroups(index.index.entries.map((entry) => automatonOfEntry(entry, materialFileUrl(entry.id, "poster.png")))),
+    () => arrangeGroups(index.index.entries.map((entry) => automatonOfEntry(entry, materialFileUrl(entry.id, "poster.png", entry.tick)))),
     [index.index.entries],
   );
   const status = index.status === "loading" ? WORDS.loading
@@ -73,7 +73,7 @@ function PublishedGallery({ groups, names, status }: { groups: GalleryGroup<Publ
   // The basis group panel over this page opens the playing automaton's group on its reference patch.
   const entry = playing?.automaton.entry ?? null;
   const panelOutlet = useMemo<BasisGroupPanelOutlet>(() => ({
-    referencePatch: async (block) => (entry !== null && entry.block === block ? (await fetchPublishedMaterial(entry.id)).file.anchor : null),
+    referencePatch: async (block) => (entry !== null && entry.block === block ? (await fetchPublishedMaterial(entry.id, fetch, entry.tick)).file.anchor : null),
   }), [entry]);
   const panel: ReactNode = <Outlet context={panelOutlet} />;
 

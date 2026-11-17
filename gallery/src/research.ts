@@ -7,7 +7,7 @@
 //                   research/runs/<id>/material.json           the run's format-4 file, as exported
 //                   research/runs/<id>/still-0200.png, ...     its stills, one per tick the index lists
 
-import { readFigureMaterial } from "../../app/src/materials/material-file.ts";
+import { readFigureMaterial, type FigureMaterialFile } from "../../app/src/materials/material-file.ts";
 import {
   entryIdOfRun, placeOfRun, readResearchManifest, RESEARCH_MANIFEST_BYTES, RESEARCH_MANIFEST_KEY, researchRunKey, stillName,
   type ResearchManifest, type ResearchRun,
@@ -17,7 +17,7 @@ import type { GalleryPlace } from "../../app/src/features/gallery/gallery-place.
 import type { MaterialEntry } from "../../app/src/features/gallery/material-index.ts";
 import {
   checkedMaterial, hiddenMaterialKey, MATERIAL_DICTIONARIES, MATERIAL_LIMITS, materialPoster, PROJECT_CREDIT, publishMaterials, readMaterials,
-  setGalleryPlaces, storeMaterialSubmission, type MaterialSubmissionMetadata, type MaterialToPublish,
+  replaceMaterialFiles, setGalleryPlaces, storeMaterialSubmission, type MaterialSubmissionMetadata, type MaterialToPublish, type ReplacedMaterialFiles,
 } from "./material-review.ts";
 import { isPng, listKeys, requiredObject, submissionId, type Bucket } from "./storage.ts";
 
@@ -72,16 +72,63 @@ export async function researchRunProblems(run: ResearchRun, files: ResearchRunFi
   return problems.map((problem) => `run ${run.id}: ${problem}`);
 }
 
-/**
- * The runs a publish writes: those the stored index does not list yet. A run's files never change
- * once written, so a listed run whose file has another SHA-256 is refused; a retrained run takes a
- * new id. Changed readings and outcomes need no upload: the new index carries them.
- */
-export function runsToWrite(stored: ResearchManifest | null, next: ResearchManifest): ResearchRun[] {
+/** The listed runs whose file has another SHA-256 than the stored index gives. */
+export function changedRuns(stored: ResearchManifest | null, next: ResearchManifest): ResearchRun[] {
   const written = new Map((stored?.runs ?? []).map((run) => [run.id, run.materialSha256]));
-  const changed = next.runs.filter((run) => written.has(run.id) && written.get(run.id) !== run.materialSha256);
-  if (changed.length > 0) throw new Error(`these runs changed their file; give each a new id: ${changed.map((run) => run.id).join(", ")}`);
+  return next.runs.filter((run) => written.has(run.id) && written.get(run.id) !== run.materialSha256);
+}
+
+/**
+ * The runs a publish writes: those the stored index does not list yet. A run's files do not change
+ * once written, so a listed run whose file has another SHA-256 is refused; a retrained run takes a
+ * new id. Changed readings and outcomes of the index need no upload: the new index carries them.
+ * The one exception is asked for by name (`reread`): a run whose reading was taken again keeps its
+ * id and replaces its file, once rereadProblems finds nothing else changed.
+ */
+export function runsToWrite(stored: ResearchManifest | null, next: ResearchManifest, reread = false): ResearchRun[] {
+  const changed = changedRuns(stored, next);
+  if (changed.length > 0 && !reread) {
+    throw new Error(`these runs changed their file; give each a new id, or publish with --reread when only their reading was taken again: ${changed.map((run) => run.id).join(", ")}`);
+  }
+  const written = new Set((stored?.runs ?? []).map((run) => run.id));
   return next.runs.filter((run) => !written.has(run.id));
+}
+
+/** The parts of a run's file that a new reading replaces: the reading, and the picture of its step. */
+const REREAD_FIELDS: readonly string[] = ["reading", "preview"];
+
+/** Whether two JSON values are the same: objects by their keys, in any order; arrays in order. */
+function sameJson(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a === null || b === null || typeof a !== "object" || typeof b !== "object") return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  const [left, right] = [a as Record<string, unknown>, b as Record<string, unknown>];
+  const keys = Object.keys(left);
+  return keys.length === Object.keys(right).length && keys.every((key) => Object.hasOwn(right, key) && sameJson(left[key], right[key]));
+}
+
+/**
+ * Why a listed run's new file may not replace its stored one, or null when it may. It may when only
+ * its reading and its preview differ: the rule, and everything that made it, are the same, so the id
+ * still names the same automaton, read at another step.
+ */
+export function rereadProblem(storedText: string, nextText: string): string | null {
+  const stored = JSON.parse(storedText) as Record<string, unknown>;
+  const next = JSON.parse(nextText) as Record<string, unknown>;
+  const fields = [...new Set([...Object.keys(stored), ...Object.keys(next)])];
+  const differing = fields.filter((field) => !REREAD_FIELDS.includes(field) && !sameJson(stored[field], next[field]));
+  return differing.length === 0 ? null : `its file differs in ${differing.join(", ")}, more than its reading and preview`;
+}
+
+/** rereadProblem for each of these runs, against the file the bucket holds; empty when every one may replace its file. */
+export async function rereadProblems(bucket: Bucket, runs: readonly ResearchRun[], filesOf: (run: ResearchRun) => ResearchRunFiles): Promise<string[]> {
+  const problems: string[] = [];
+  for (const run of runs) {
+    const stored = await (await requiredObject(bucket, researchRunKey(run.id, "material.json"))).text();
+    const problem = rereadProblem(stored, new TextDecoder().decode(filesOf(run).material));
+    if (problem !== null) problems.push(`run ${run.id}: ${problem}`);
+  }
+  return problems;
 }
 
 /** Write the runs' files, then the index, so a stored index never names a run without its files. */
@@ -131,6 +178,28 @@ export async function showStoredRuns(submissions: Bucket, library: Bucket, ids: 
   const touched = new Set([...result.published, ...result.placed]);
   const entries = (await readMaterials(library)).entries.filter((entry) => touched.has(entry.id));
   return { result, entries };
+}
+
+/**
+ * Give the Automata page the new reading of re-read runs, after their files are written: each one's
+ * file comes from the private bucket, checked with the app's loader, and replaces the file of the
+ * automaton that holds its rule, shown or hidden (material-review.ts replaceMaterialFiles). A run
+ * that is not on the page changes nothing there.
+ */
+export async function republishRereadRuns(submissions: Bucket, library: Bucket, runs: readonly ResearchRun[]): Promise<ReplacedMaterialFiles> {
+  const entries = (await readMaterials(library)).entries;
+  const shown = new Set(entries.map((entry) => entry.id));
+  // A run that an earlier promotion published under a submission's id: its file's own id is the run's.
+  const promoted = new Map(entries.map((entry) => [entry.materialId, entry.id]));
+  const files = new Map<string, FigureMaterialFile>();
+  for (const run of runs) {
+    const ownId = entryIdOfRun(run);
+    const id = shown.has(ownId) ? ownId : promoted.get(run.id) ?? ownId;
+    const checked = checkedMaterial(await (await requiredObject(submissions, researchRunKey(run.id, "material.json"))).text());
+    if ("error" in checked) throw new Error(`${run.id}: ${checked.error}`);
+    files.set(id, checked.file);
+  }
+  return replaceMaterialFiles(submissions, library, files);
 }
 
 /** What showResearchRuns did, or in a dry run would do, by entry id. */

@@ -35,7 +35,7 @@ import "./owner-automata.css";
 
 const WORDS = SITE_WORDS.automataOwner;
 const PICTURES = {
-  poster: (entryId: string) => materialFileUrl(entryId, "poster.png"),
+  poster: (entry: MaterialEntry) => materialFileUrl(entry.id, "poster.png", entry.tick),
   still: (run: ResearchRun) => lastStillUrl(run) ?? "",
 };
 
@@ -248,7 +248,7 @@ function OwnerStage({ automaton, actions, notice }: { automaton: OwnerAutomaton;
   const { entry, run } = automaton;
   const privateFile = useLoaded(entry === null && run !== null ? run.id : null, () => (entry === null && run !== null ? fetchResearchMaterial(run) : null));
   const source = useMemo<MaterialSource>(() => ({
-    load: (played) => (privateFile.status === "ready" ? Promise.resolve(privateFile.value.material) : fetchPublishedMaterial(played.id)),
+    load: (played) => (privateFile.status === "ready" ? Promise.resolve(privateFile.value.material) : fetchPublishedMaterial(played.id, fetch, played.tick)),
     poster: () => automaton.pictureUrl,
     keepable: () => false,
   }), [privateFile, automaton.pictureUrl]);

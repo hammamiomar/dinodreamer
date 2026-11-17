@@ -14,8 +14,15 @@ import { EMPTY_MATERIAL_INDEX, readMaterialIndex, type MaterialFileName, type Ma
 type Fetch = typeof fetch;
 export { MATERIAL_SUBMISSION_LIMITS } from "./submission-label";
 
-export function materialFileUrl(id: string, file: MaterialFileName): string {
-  return `/api/materials/${encodeURIComponent(id)}/${file}`;
+/**
+ * The address of a published automaton's file or poster. `step` is the entry's reading step, when the
+ * caller has the entry: these objects are served as immutable, and a research automaton read again at
+ * another step keeps its id (gallery/src/research.ts), so the step in the address makes its new file a
+ * new address for a browser that holds the old one. The server ignores it.
+ */
+export function materialFileUrl(id: string, file: MaterialFileName, step?: number): string {
+  const address = `/api/materials/${encodeURIComponent(id)}/${file}`;
+  return step === undefined ? address : `${address}?step=${step}`;
 }
 
 export async function fetchMaterialIndex(fetcher: Fetch = fetch): Promise<MaterialIndex> {
@@ -27,12 +34,15 @@ export async function fetchMaterialIndex(fetcher: Fetch = fetch): Promise<Materi
 
 const publishedFiles = new Map<string, Promise<FigureMaterial>>();
 
-/** Published definitions are immutable. Share a load between playback and older index labels. */
-export function fetchPublishedMaterial(id: string, fetcher: Fetch = fetch): Promise<FigureMaterial> {
+/**
+ * A published definition by its entry id; `step` as materialFileUrl takes it. A load is shared between
+ * playback and older index labels.
+ */
+export function fetchPublishedMaterial(id: string, fetcher: Fetch = fetch, step?: number): Promise<FigureMaterial> {
   const cached = fetcher === fetch ? publishedFiles.get(id) : undefined;
   if (cached) return cached;
   const loading = (async () => {
-    const response = await fetcher(materialFileUrl(id, "material.json"));
+    const response = await fetcher(materialFileUrl(id, "material.json", step));
     if (!response.ok) throw new Error(`Automaton ${id} answered ${response.status}.`);
     return readFigureMaterial(await response.json());
   })();

@@ -5,7 +5,7 @@ import type { MaterialEntry } from "../gallery/material-index";
 import { readResearchManifest, type ResearchManifest } from "../research/research-runs";
 import { actionsFor, afterChange, ownerAutomata, ownerCounts, type OwnerRead } from "./owner-automata";
 
-const PICTURES = { poster: (id: string) => `/poster/${id}`, still: (run: { id: string }) => `/still/${run.id}` };
+const PICTURES = { poster: (entry: { id: string }) => `/poster/${entry.id}`, still: (run: { id: string }) => `/still/${run.id}` };
 
 function entry(id: string, changes: Partial<MaterialEntry> = {}): MaterialEntry {
   return {

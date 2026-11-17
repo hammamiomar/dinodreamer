@@ -181,6 +181,60 @@ export async function publishMaterials(submissions: Bucket, library: Bucket, mat
   return { shown: materials.length - hidden, hidden };
 }
 
+/** What replaceMaterialFiles did, by entry id. */
+export interface ReplacedMaterialFiles {
+  /** Shown automata whose file, poster and index entry were replaced. */
+  shown: string[];
+  /** Hidden automata whose file, poster and recovery record were replaced: a later restore shows the new file. */
+  hidden: string[];
+  /** Ids that are neither shown nor hidden; nothing was written for them. */
+  absent: string[];
+}
+
+/** An entry with a new file: what the file says replaces what the entry copied from the old one; the label, the owner's marks and the place in the grid stay. */
+function entryWithFile<Entry extends MaterialEntry>(entry: Entry, fromFile: MaterialEntry): Entry {
+  const { featured, featuredInBlock, gallery } = entry;
+  return {
+    ...entry, ...fromFile, featured,
+    ...(featuredInBlock === undefined ? {} : { featuredInBlock }),
+    ...(gallery === undefined ? {} : { gallery }),
+  };
+}
+
+/**
+ * Replace the files of automata that are shown or hidden: each one's public file and poster are
+ * written again, and its index entry, or its recovery record, takes what the new file says, the
+ * reading's step and values among it, and keeps its label, its publication time, the owner's marks
+ * and its place in the grid. It is for a file whose reading was taken again: the caller has checked
+ * that nothing else in it changed (research.ts rereadProblem). An id that is neither shown nor hidden
+ * is left alone. One index write.
+ */
+export async function replaceMaterialFiles(submissions: Bucket, library: Bucket, files: ReadonlyMap<string, FigureMaterialFile>): Promise<ReplacedMaterialFiles> {
+  let index = await readMaterials(library);
+  const shownEntries = new Map(index.entries.map((entry) => [entry.id, entry]));
+  const result: ReplacedMaterialFiles = { shown: [], hidden: [], absent: [] };
+  for (const [id, file] of files) {
+    const entry = shownEntries.get(id);
+    const record = entry === undefined ? await submissions.get(hiddenMaterialKey(id)) : null;
+    const holder: MaterialEntry | null = entry ?? (record === null ? null : JSON.parse(await record.text()) as HiddenMaterial);
+    if (holder === null) {
+      result.absent.push(id);
+      continue;
+    }
+    const fromFile = await putMaterialObjects(library, id, file, { title: holder.title, credit: holder.credit }, new Date(holder.publishedAt));
+    const replaced = entryWithFile(holder, fromFile);
+    if (entry !== undefined) {
+      index = withMaterialEntry(index, replaced);
+      result.shown.push(id);
+    } else {
+      await submissions.put(hiddenMaterialKey(id), JSON.stringify(replaced, null, 2), { httpMetadata: { contentType: "application/json" } });
+      result.hidden.push(id);
+    }
+  }
+  if (result.shown.length > 0) await writeMaterials(library, index);
+  return result;
+}
+
 /**
  * Give shown entries their place in their basis group's grid, in one index write; none when every
  * place is already as asked. An id the index does not list is left alone: a hidden automaton keeps

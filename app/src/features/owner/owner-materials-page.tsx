@@ -67,9 +67,9 @@ function ownerSource(pendingFiles: ReadonlyMap<string, FigureMaterial>): Materia
   return {
     load: (entry) => {
       const file = pendingFiles.get(entry.id);
-      return file === undefined ? fetchPublishedMaterial(entry.id) : Promise.resolve(file);
+      return file === undefined ? fetchPublishedMaterial(entry.id, fetch, entry.tick) : Promise.resolve(file);
     },
-    poster: (entry) => (pendingFiles.has(entry.id) ? `/admin/api/materials/pending/${encodeURIComponent(entry.id)}/poster.png` : materialFileUrl(entry.id, "poster.png")),
+    poster: (entry) => (pendingFiles.has(entry.id) ? `/admin/api/materials/pending/${encodeURIComponent(entry.id)}/poster.png` : materialFileUrl(entry.id, "poster.png", entry.tick)),
     keepable: () => false,
   };
 }

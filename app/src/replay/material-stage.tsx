@@ -127,8 +127,8 @@ export interface MaterialSource {
   keepable: (entry: MaterialEntry) => boolean;
 }
 export const PUBLISHED_SOURCE: MaterialSource = {
-  load: (entry) => fetchPublishedMaterial(entry.id),
-  poster: (entry) => materialFileUrl(entry.id, "poster.png"),
+  load: (entry) => fetchPublishedMaterial(entry.id, fetch, entry.tick),
+  poster: (entry) => materialFileUrl(entry.id, "poster.png", entry.tick),
   keepable: () => true,
 };
 

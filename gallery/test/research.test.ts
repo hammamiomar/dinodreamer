@@ -3,7 +3,8 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { ownerRequest } from "../src/admin.ts";
 import {
-  checkedResearchManifest, promoteResearchRun, researchRunProblems, runsToWrite, showResearchRuns, writeResearch, type ResearchRunFiles,
+  changedRuns, checkedResearchManifest, promoteResearchRun, republishRereadRuns, rereadProblem, rereadProblems, researchRunProblems, runsToWrite,
+  showResearchRuns, writeResearch, type ResearchRunFiles,
 } from "../src/research.ts";
 import { approveMaterial, hideMaterial, readMaterials } from "../src/material-review.ts";
 import { entryIdOfRun, placeOfRun, RESEARCH_MANIFEST_KEY, type ResearchManifest } from "../../app/src/features/research/research-runs.ts";
@@ -15,6 +16,15 @@ const RUN_ID = "block-12002-figure-strongest-mean-seed-1";
 const MATERIAL = new Uint8Array(readFileSync(new URL(`../seed/materials/${RUN_ID}.material.json`, import.meta.url)));
 const MATERIAL_SHA256 = createHash("sha256").update(MATERIAL).digest("hex");
 const FILES: ResearchRunFiles = { material: MATERIAL, stills: new Map([[200, PNG], [600, PNG]]) };
+
+/** The same automaton read again at step 300: its reading differs, and nothing else. */
+const REREAD = (() => {
+  const file = JSON.parse(new TextDecoder().decode(MATERIAL));
+  file.reading = { ...file.reading, tick: 300, strength: 2.5, winnerFraction: 1 };
+  return new TextEncoder().encode(JSON.stringify(file));
+})();
+const REREAD_SHA256 = createHash("sha256").update(REREAD).digest("hex");
+const REREAD_FILES: ResearchRunFiles = { material: REREAD, stills: FILES.stills };
 
 type RunFields = { id: string; materialSha256?: string; group?: number; gallery?: unknown; siteMaterials?: string[]; review?: { site: boolean; featured: boolean } };
 
@@ -59,7 +69,31 @@ describe("publishing research runs", () => {
     const stored = manifestOf([{ id: RUN_ID }]);
     expect(runsToWrite(null, stored).map((run) => run.id)).toEqual([RUN_ID]);
     expect(runsToWrite(stored, manifestOf([{ id: RUN_ID }, { id: "next-run" }])).map((run) => run.id)).toEqual(["next-run"]);
-    expect(() => runsToWrite(stored, manifestOf([{ id: RUN_ID, materialSha256: "1".repeat(64) }]))).toThrow(`give each a new id: ${RUN_ID}`);
+    expect(() => runsToWrite(stored, manifestOf([{ id: RUN_ID, materialSha256: "1".repeat(64) }]))).toThrow(RUN_ID);
+  });
+
+  it("with --reread a changed run is not refused: it is one of the changed runs, and not a new one", () => {
+    const stored = manifestOf([{ id: RUN_ID }]);
+    const next = manifestOf([{ id: RUN_ID, materialSha256: REREAD_SHA256 }, { id: "next-run" }]);
+    expect(runsToWrite(stored, next, true).map((run) => run.id)).toEqual(["next-run"]);
+    expect(changedRuns(stored, next).map((run) => run.id)).toEqual([RUN_ID]);
+    expect(changedRuns(stored, stored)).toEqual([]);
+  });
+
+  it("a file may replace the stored one when only its reading and its preview differ", async () => {
+    const text = new TextDecoder().decode(MATERIAL);
+    expect(rereadProblem(text, new TextDecoder().decode(REREAD))).toBeNull();
+    const retrained = JSON.parse(text);
+    retrained.rule.fireRate = 0.25;
+    retrained.training.updates = 7;
+    expect(rereadProblem(text, JSON.stringify(retrained))).toBe("its file differs in training, rule, more than its reading and preview");
+    const { env } = testEnv();
+    const stored = manifestText([{ id: RUN_ID }]);
+    await writeResearch(env.SUBMISSIONS, stored, checkedResearchManifest(stored).runs, () => FILES);
+    const [run] = manifestOf([{ id: RUN_ID, materialSha256: REREAD_SHA256 }]).runs;
+    expect(await rereadProblems(env.SUBMISSIONS, [run!], () => REREAD_FILES)).toEqual([]);
+    const wrong = { material: new TextEncoder().encode(JSON.stringify(retrained)), stills: FILES.stills };
+    expect(await rereadProblems(env.SUBMISSIONS, [run!], () => wrong)).toEqual([`run ${RUN_ID}: its file differs in training, rule, more than its reading and preview`]);
   });
 
   it("writes the run files before the index", async () => {
@@ -142,6 +176,51 @@ describe("showing research runs on the Automata page", () => {
     expect(result).toEqual({ published: [], placed: [], keptHidden: [RUN_ID], withoutPlace: ["no-row", "old-export"] });
     expect((await readMaterials(env.LIBRARY)).entries).toEqual([]);
     expect([placeOfRun(runs[1]!), placeOfRun(runs[2]!)]).toEqual([null, null]);
+  });
+});
+
+describe("a run read again at another step", () => {
+  const PLACE = { start: "circle", method: "token-distribution", target: "group", shown: true };
+  /** A store where the run is a shown automaton, and its re-read file has then replaced the stored one. */
+  async function storeWithRereadRun(): Promise<{ env: Env; run: ReturnType<typeof manifestOf>["runs"][number] }> {
+    const { env } = testEnv();
+    const first = manifestText([{ id: RUN_ID, gallery: PLACE, review: { site: true, featured: true } }]);
+    await writeResearch(env.SUBMISSIONS, first, checkedResearchManifest(first).runs, () => FILES);
+    await showResearchRuns(env.SUBMISSIONS, env.LIBRARY, checkedResearchManifest(first).runs, new Date("2026-11-10T20:00:00Z"), true);
+    const next = manifestText([{ id: RUN_ID, materialSha256: REREAD_SHA256, gallery: PLACE, review: { site: true, featured: true } }]);
+    const [run] = checkedResearchManifest(next).runs;
+    await writeResearch(env.SUBMISSIONS, next, [run!], () => REREAD_FILES);
+    return { env, run: run! };
+  }
+
+  it("the shown automaton takes the new reading, and keeps its label, its time, its marks and its place", async () => {
+    const { env, run } = await storeWithRereadRun();
+    const [before] = (await readMaterials(env.LIBRARY)).entries;
+    expect(before).toMatchObject({ tick: 600, publishedAt: "2026-11-10T20:00:00.000Z" });
+    expect(await republishRereadRuns(env.SUBMISSIONS, env.LIBRARY, [run])).toEqual({ shown: [RUN_ID], hidden: [], absent: [] });
+    const [after] = (await readMaterials(env.LIBRARY)).entries;
+    expect(after).toEqual({ ...before, tick: 300, strength: 2.5, winnerFraction: 1, fired: true });
+    const published = JSON.parse(await (await env.LIBRARY.get(`gallery/materials/${RUN_ID}/material.json`))!.text());
+    expect(published.reading.tick).toBe(300);
+  });
+
+  it("a hidden automaton's file and recovery record take it, so a restore shows the new reading", async () => {
+    const { env, run } = await storeWithRereadRun();
+    await hideMaterial(env.SUBMISSIONS, env.LIBRARY, RUN_ID, new Date("2026-11-12T10:00:00Z"));
+    expect(await republishRereadRuns(env.SUBMISSIONS, env.LIBRARY, [run])).toEqual({ shown: [], hidden: [RUN_ID], absent: [] });
+    expect((await readMaterials(env.LIBRARY)).entries).toEqual([]);
+    const record = JSON.parse(await (await env.SUBMISSIONS.get(`hidden/materials/${RUN_ID}.json`))!.text());
+    expect(record).toMatchObject({ tick: 300, hiddenAt: "2026-11-12T10:00:00.000Z", gallery: { start: "circle", method: "token-distribution" }, featuredInBlock: true });
+  });
+
+  it("a run that is not on the page changes nothing there", async () => {
+    const { env } = testEnv();
+    const next = manifestText([{ id: RUN_ID, materialSha256: REREAD_SHA256 }]);
+    const [run] = checkedResearchManifest(next).runs;
+    await writeResearch(env.SUBMISSIONS, next, [run!], () => REREAD_FILES);
+    const before = [...(env.LIBRARY as MemoryBucket).objects.keys()];
+    expect(await republishRereadRuns(env.SUBMISSIONS, env.LIBRARY, [run!])).toEqual({ shown: [], hidden: [], absent: [RUN_ID] });
+    expect([...(env.LIBRARY as MemoryBucket).objects.keys()]).toEqual(before);
   });
 });
 

@@ -32,7 +32,7 @@ export interface OwnerRead {
 
 /** Where the page finds an automaton's still: a published or hidden automaton's poster, or a run's last still. */
 export interface OwnerPictures {
-  poster: (entryId: string) => string;
+  poster: (entry: MaterialEntry) => string;
   still: (run: ResearchRun) => string;
 }
 
@@ -46,7 +46,7 @@ function automatonOfRun(run: ResearchRun, entry: MaterialEntry | null, state: Ow
     group: run.group,
     place,
     grids: run.rule === "pyramid" ? "coarse-fine" : "fine",
-    pictureUrl: entry === null ? pictures.still(run) : pictures.poster(entry.id),
+    pictureUrl: entry === null ? pictures.still(run) : pictures.poster(entry),
     shown: state === "shown",
     cellPicture: entry?.cellPicture === true,
     groupPicture: entry?.featuredInBlock === true,
@@ -65,7 +65,7 @@ function automatonOfEntry(entry: MaterialEntry, state: OwnerState, pictures: Own
     group: entry.block,
     place: placeOf(entry),
     grids: entry.layout === FIGURE_PYRAMID_LAYOUT ? "coarse-fine" : "fine",
-    pictureUrl: pictures.poster(entry.id),
+    pictureUrl: pictures.poster(entry),
     shown: state === "shown",
     cellPicture: entry.cellPicture === true,
     groupPicture: entry.featuredInBlock === true,
