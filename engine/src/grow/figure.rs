@@ -106,23 +106,33 @@ impl RuleKind {
 pub enum Start {
     Noise,
     CentreDisc,
+    /// The research's seeded field, the Automata page's circle on faint noise: the noise disc of
+    /// the centre on the draw at SEEDED_FIELD_BACKGROUND of its range outside (`startState` of
+    /// app/src/replay/figure-reference.ts, `trainer.seeded`). For research files; Train does not offer it.
+    SeededField,
 }
+
+/// Outside the seeded field's disc, the start draw times this amplitude.
+pub const SEEDED_FIELD_BACKGROUND: f32 = 0.25;
 
 impl Start {
     /// The patches the loss scores and the reading counts.
     pub fn patches(self) -> &'static [usize] {
         match self {
             Self::Noise => &ALL_PATCHES,
-            Self::CentreDisc => &CENTRE_PATCHES,
+            Self::CentreDisc | Self::SeededField => &CENTRE_PATCHES,
         }
     }
 
-    /// Per cell of a `side` grid, 1 where the start keeps its noise and 0 where it is zero; None
-    /// for noise everywhere. The coarse grid (side COARSE_SIDE) has half the radius.
+    /// Per cell of a `side` grid, the factor on the start's noise: 1 inside the disc, and 0 outside
+    /// it for the seeded centre or SEEDED_FIELD_BACKGROUND for the seeded field; None for noise
+    /// everywhere. The coarse grid (side COARSE_SIDE) has half the radius.
     pub fn mask(self, side: usize) -> Option<Vec<f32>> {
+        let disc = || centre_disc(side, START_RADIUS * side as f32 / SIDE as f32);
         match self {
             Self::Noise => None,
-            Self::CentreDisc => Some(centre_disc(side, START_RADIUS * side as f32 / SIDE as f32)),
+            Self::CentreDisc => Some(disc()),
+            Self::SeededField => Some(disc().into_iter().map(|inside| if inside == 1.0 { 1.0 } else { SEEDED_FIELD_BACKGROUND }).collect()),
         }
     }
 }
@@ -405,7 +415,7 @@ pub fn mean_code_loss(mean_codes_VR: Tensor<2>, code: [f32; 3], median_norm: f32
 fn scored_patches(values_VTX: Tensor<3>, start: Start) -> Tensor<3> {
     match start {
         Start::Noise => values_VTX,
-        Start::CentreDisc => {
+        Start::CentreDisc | Start::SeededField => {
             let centre: Vec<i64> = CENTRE_PATCHES.iter().map(|&patch| patch as i64).collect();
             let indices = Tensor::<1, burn::tensor::Int>::from_data(TensorData::new(centre, [CENTRE_PATCHES.len()]), &values_VTX.device());
             values_VTX.select(1, indices)
@@ -669,6 +679,21 @@ mod tests {
         let coarse = Start::CentreDisc.mask(COARSE_SIDE).unwrap();
         assert_eq!(coarse.iter().filter(|&&kept| kept == 1.0).count(), 208);
         assert!(Start::Noise.mask(SIDE).is_none());
+    }
+
+    #[test]
+    fn the_seeded_field_keeps_the_disc_and_a_quarter_of_the_noise_outside() {
+        // figure-reference.ts startState: inside the disc the draw, outside fround(0.25 × draw). The
+        // factor 0.25 is a power of two, so the product is exact and equals that rounding.
+        for side in [SIDE, COARSE_SIDE] {
+            let disc = Start::CentreDisc.mask(side).unwrap();
+            let field = Start::SeededField.mask(side).unwrap();
+            for (inside, factor) in disc.iter().zip(&field) {
+                assert_eq!(*factor, if *inside == 1.0 { 1.0 } else { SEEDED_FIELD_BACKGROUND });
+            }
+        }
+        assert_eq!(Start::SeededField.patches(), Start::CentreDisc.patches());
+        assert_eq!(serde_json::from_str::<Start>(r#""seeded-field""#).unwrap(), Start::SeededField);
     }
 
     #[test]

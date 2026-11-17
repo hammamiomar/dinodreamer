@@ -62,6 +62,10 @@ required-features = ["harness"]
 name = "reading_step_study"
 required-features = ["harness"]
 
+[[example]]
+name = "research_replay_pictures"
+required-features = ["harness"]
+
 [features]
 default = ["gpu"]
 gpu = ["burn/wgpu", "burn/extension", "dep:cubecl", "dep:burn-cubecl"]
