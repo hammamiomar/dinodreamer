@@ -165,3 +165,55 @@ The research's caveat holds: with token distribution matching the 12002 figure i
 update 1,000 it has faded by tick 600, which the site reads; at update 750 it still read 0.75 there. The product answer
 is Omar's. On 13633 the two sets give different pictures from the same seed: the research's set grows eyebrows, the
 strongest file's set grows forehead skin. A single seed per set separates them by eye only, not as a measured effect.
+
+## Evening studies for the decisions of 17 November (12, 16, 17)
+
+The outputs, pictures and sheets are in the evidence archive's folder, under `reading-step/`, `token-mean-depth/` and
+`chosen-sets/`.
+
+### The reading step (decision 12)
+
+Each final rule above was read on the replay grid at ticks 100 to 2,000 (`examples/reading_step_study.rs`). At each
+tick the study records the run's own loss on that one picture (`figure::own_loss`: the training's terms with the picture
+in place of the eight views, on the 16 scored patches) and the site's reading. The lowest own loss picked tick 150 to
+400 and landed on a clear figure in all seven runs. The highest selection share often tied at 1.00, and the tie-break by
+strength then favoured the earliest ticks. Omar chose the own loss. `figure_own_loss` takes about 21 ms per reading in
+Chrome and 22 to 25 ms natively, after a first reading that compiles the kernels (0.6 s). Chrome agrees with native
+within 2e-6.
+
+### Depth of token mean (decision 16)
+
+Token mean at the final layer and at four layers, seeds 0 to 2, on group 12002 (cartoon eyes) and group 4009 (hibiscus),
+with the research's 33 strongest as the set and the recipe above. The seed-0 runs of 12002 are the full trainings above.
+At each run's step:
+
+| Run | Final layer: step, selected, strength | Four layers: step, selected, strength |
+|---|---|---|
+| 12002, seed 0 | 400, 1.00, 1.86 | 200, 1.00, 2.28 |
+| 12002, seed 1 | 200, 1.00, 3.37 | 300, 1.00, 2.38 |
+| 12002, seed 2 | 100, 1.00, 2.50 | 300, 1.00, 2.70 |
+| 4009, seed 0 | 150, 0.81, 1.71 | 200, 1.00, 2.47 |
+| 4009, seed 1 | 150, 1.00, 1.89 | 200, 1.00, 2.30 |
+| 4009, seed 2 | 100, 0.94, 1.43 | 200, 1.00, 2.14 |
+
+By eye, all six four-layer runs show the subject in natural colours at their step: three cartoon eyes and three hibiscus
+flowers. The final-layer runs show the same subjects in saturated colours, and on 4009 they turn into flat fields by
+tick 400. Four layers holds as the default.
+
+### Basis-group distribution on a chosen set (decision 17)
+
+Groups 7178 and 12240, seed 0, three sets each from the frozen sample by decision 14's rule (`export_target_set.py
+--selection`): the 33 strongest, Level 2, and the lobe farthest from the strongest set (7178 lobe 1, 12240 lobe 2).
+
+| Set | What it holds | What grows (step: selected, strength) |
+|---|---|---|
+| 7178, 33 strongest | Red and white checked headdresses | Saturated yellow bands (150: 0.75, 1.12) |
+| 7178, Level 2 | White headdresses | An almost empty pale field (100: 0.00, 0.40) |
+| 7178, lobe 1 | Headlights, drill bits, glossy car bodies | A white glossy shape (150: 0.12, 0.20) |
+| 12240, 33 strongest | Blue tits, great tits | A tit's head, black cap and white cheek (100: 1.00, 1.71) |
+| 12240, Level 2 | The same birds, weaker | The same head (300: 1.00, 1.54) |
+| 12240, lobe 2 | Chipmunks, badgers, striped heads | Black and yellow stripes (200: 0.69, 0.97) |
+
+The picture follows the set: a lobe with other content grows other content. One seed per set, so this is a difference
+by eye. The selection share falls as the set leaves the group's strongest direction, because it measures the group,
+not the set.
