@@ -54,14 +54,17 @@ struct Axis { i0: u32, i1: u32, l0: f32, l1: f32 }
  * (pad one coarse cell circularly, interpolate with align_corners false, crop). Along each axis, fine
  * cell j reads coarse position j/2 − 0.25: for k = ⌊j/2⌋, an even j weighs cells k − 1 and k by 0.25
  * and 0.75, an odd j cells k and k + 1 by 0.75 and 0.25, wrapped. The width weights apply inside the
- * height weights, as in torch. Needs `coarse`; `side` is the coarse side.
+ * height weights, as in torch. `side` is the coarse side.
  */
-const TORUS = /* wgsl */ `
+const TORUS_AXIS = /* wgsl */ `
 fn torus_axis(j: u32, side: u32) -> Axis {
   let k = j / 2u;
   if (j % 2u == 0u) { return Axis((k + side - 1u) % side, k, 0.25, 0.75); }
   return Axis(k, (k + 1u) % side, 0.75, 0.25);
-}
+}`;
+
+/** The upsampled coarse state one channel at a time, for the pyramid's picture. Needs `coarse` as array<f32>. */
+const TORUS = /* wgsl */ `${TORUS_AXIS}
 fn coarse_at(x: u32, y: u32, side: u32, channel: u32) -> f32 { return coarse[(y * side + x) * 16u + channel]; }
 fn upsampled(x: u32, y: u32, side: u32, channel: u32) -> f32 {
   let h = torus_axis(y, side);
@@ -72,18 +75,43 @@ fn upsampled(x: u32, y: u32, side: u32, channel: u32) -> f32 {
 }`;
 
 /**
+ * The same upsampling four channels at a time, channels 4k to 4k + 3, for the pyramid's fine step.
+ * Needs `coarse` as array<vec4<f32>>: four vec4 per cell.
+ */
+const TORUS_STEP = /* wgsl */ `${TORUS_AXIS}
+fn coarse_quad(x: u32, y: u32, side: u32, k: u32) -> vec4<f32> { return coarse[(y * side + x) * 4u + k]; }
+fn upsampled_quad(x: u32, y: u32, side: u32, k: u32) -> vec4<f32> {
+  let h = torus_axis(y, side);
+  let w = torus_axis(x, side);
+  let top = coarse_quad(w.i0, h.i0, side, k) * w.l0 + coarse_quad(w.i1, h.i0, side, k) * w.l1;
+  let bottom = coarse_quad(w.i0, h.i1, side, k) * w.l0 + coarse_quad(w.i1, h.i1, side, k) * w.l1;
+  return top * h.l0 + bottom * h.l1;
+}`;
+
+/**
  * The step of one grid, written once for every rule. One invocation per cell: torus perception, then
  * inputs -> 96 ReLU -> 16 and the residual where the cell fires. The cell rule, and the pyramid's
  * coarse rule, read 64 inputs: per channel c, the identity, Sobel x / 8, Sobel y / 8 and the nine-point
  * Laplacian / 16 at 4c + k. The pyramid's fine rule reads 80: inputs 64–79 are the coarse state after
- * this tick's coarse step, upsampled on the torus (TORUS). Needs `state`, `next`, `grid`, the weight
- * accessors <weights>_w1, _b1, _w2 (fc1.weight, fc1.bias, fc2.weight by flat index) and
- * <weights>_fire_key, rule_fire_rate, and add_hidden_noise (HIDDEN).
+ * this tick's coarse step, upsampled on the torus (TORUS_STEP).
+ *
+ * The step works four values at a time. The state is read and written as four vec4 per cell (channels
+ * 4k to 4k + 3), and the inputs are one vec4 per channel, its four filters, so input vec4 q holds inputs
+ * 4q to 4q + 3. A hidden unit is a sum of vec4 dot products, and an active unit adds its output weights
+ * to the 16 channels as four vec4. Against one value at a time, this made the two-grid step about three
+ * times faster on an M1 Max and about a third faster on a 2080 Super (17 November 2026); the result
+ * differs only by the order of the float sums.
+ *
+ * Needs `state` and `next` as array<vec4<f32>>, `grid`, the weight accessors <weights>_w1(unit, q)
+ * (fc1.weight[unit, 4q..4q+3]), <weights>_b1(unit) (fc1.bias[unit]) and <weights>_w2(unit, k)
+ * (fc2.weight[4k..4k+3, unit], from a column of fc2), <weights>_fire_key, rule_fire_rate, and
+ * add_hidden_noise (HIDDEN).
  */
 function stepSource(entry: string, inputs: 64 | 80, weights: "rule" | "fine"): string {
+  const quads = inputs / 4;
   const context = inputs === 80
     ? `
-  for (var channel = 0u; channel < 16u; channel++) { perception[64u + channel] = upsampled(x, y, side / 2u, channel); }`
+  for (var k = 0u; k < 4u; k++) { perception[16u + k] = upsampled_quad(x, y, side / 2u, k); }`
     : "";
   return /* wgsl */ `
 @compute @workgroup_size(64)
@@ -91,10 +119,10 @@ fn ${entry}(@builtin(global_invocation_id) id: vec3<u32>) {
   let cell = id.x;
   let side = grid.side;
   if (cell >= side * side) { return; }
-  let base = cell * 16u;
+  let base = cell * 4u;
   if (unit(pcg(pcg(pcg(grid.seed ^ ${weights}_fire_key()) + grid.tick) + cell)) >= rule_fire_rate()) {
-    for (var channel = 0u; channel < 16u; channel++) { next[base + channel] = state[base + channel]; }
-    add_hidden_noise(base);
+    for (var k = 0u; k < 4u; k++) { next[base + k] = state[base + k]; }
+    add_hidden_noise(cell);
     return;
   }
   let x = cell % side;
@@ -104,32 +132,38 @@ fn ${entry}(@builtin(global_invocation_id) id: vec3<u32>) {
   let up = ((y + side - 1u) % side) * side;
   let row = y * side;
   let down = ((y + 1u) % side) * side;
-  var perception: array<f32, ${inputs}>;
-  for (var channel = 0u; channel < 16u; channel++) {
-    let nw = state[(up + left) * 16u + channel];
-    let n = state[(up + x) * 16u + channel];
-    let ne = state[(up + right) * 16u + channel];
-    let w = state[(row + left) * 16u + channel];
-    let centre = state[base + channel];
-    let e = state[(row + right) * 16u + channel];
-    let sw = state[(down + left) * 16u + channel];
-    let s = state[(down + x) * 16u + channel];
-    let se = state[(down + right) * 16u + channel];
-    perception[channel * 4u] = centre;
-    perception[channel * 4u + 1u] = ((ne + 2.0 * e + se) - (nw + 2.0 * w + sw)) / 8.0;
-    perception[channel * 4u + 2u] = ((sw + 2.0 * s + se) - (nw + 2.0 * n + ne)) / 8.0;
-    perception[channel * 4u + 3u] = ((nw + 2.0 * n + ne + 2.0 * w + 2.0 * e + sw + 2.0 * s + se) - 12.0 * centre) / 16.0;
+  var perception: array<vec4<f32>, ${quads}>;
+  for (var k = 0u; k < 4u; k++) {
+    let nw = state[(up + left) * 4u + k];
+    let n = state[(up + x) * 4u + k];
+    let ne = state[(up + right) * 4u + k];
+    let w = state[(row + left) * 4u + k];
+    let centre = state[base + k];
+    let e = state[(row + right) * 4u + k];
+    let sw = state[(down + left) * 4u + k];
+    let s = state[(down + x) * 4u + k];
+    let se = state[(down + right) * 4u + k];
+    let sobel_x = ((ne + 2.0 * e + se) - (nw + 2.0 * w + sw)) / 8.0;
+    let sobel_y = ((sw + 2.0 * s + se) - (nw + 2.0 * n + ne)) / 8.0;
+    let laplacian = ((nw + 2.0 * n + ne + 2.0 * w + 2.0 * e + sw + 2.0 * s + se) - 12.0 * centre) / 16.0;
+    perception[4u * k] = vec4<f32>(centre.x, sobel_x.x, sobel_y.x, laplacian.x);
+    perception[4u * k + 1u] = vec4<f32>(centre.y, sobel_x.y, sobel_y.y, laplacian.y);
+    perception[4u * k + 2u] = vec4<f32>(centre.z, sobel_x.z, sobel_y.z, laplacian.z);
+    perception[4u * k + 3u] = vec4<f32>(centre.w, sobel_x.w, sobel_y.w, laplacian.w);
   }${context}
-  var delta: array<f32, 16>;
+  var delta: array<vec4<f32>, 4>;
   for (var unit_index = 0u; unit_index < 96u; unit_index++) {
     var hidden = ${weights}_b1(unit_index);
-    for (var input = 0u; input < ${inputs}u; input++) { hidden += ${weights}_w1(unit_index * ${inputs}u + input) * perception[input]; }
+    for (var q = 0u; q < ${quads}u; q++) { hidden += dot(${weights}_w1(unit_index, q), perception[q]); }
     if (hidden > 0.0) {
-      for (var channel = 0u; channel < 16u; channel++) { delta[channel] += ${weights}_w2(channel * 96u + unit_index) * hidden; }
+      delta[0] += ${weights}_w2(unit_index, 0u) * hidden;
+      delta[1] += ${weights}_w2(unit_index, 1u) * hidden;
+      delta[2] += ${weights}_w2(unit_index, 2u) * hidden;
+      delta[3] += ${weights}_w2(unit_index, 3u) * hidden;
     }
   }
-  for (var channel = 0u; channel < 16u; channel++) { next[base + channel] = state[base + channel] + delta[channel]; }
-  add_hidden_noise(base);
+  for (var k = 0u; k < 4u; k++) { next[base + k] = state[base + k] + delta[k]; }
+  add_hidden_noise(cell);
 }`;
 }
 
@@ -138,14 +172,14 @@ fn ${entry}(@builtin(global_invocation_id) id: vec3<u32>) {
  * per value. Off at σ = 0, so the update stays exactly E18's. The pyramid refuses σ > 0.
  */
 const HIDDEN = /* wgsl */ `
-fn add_hidden_noise(base: u32) {
+fn add_hidden_noise(cell: u32) {
   let sigma = playback_hidden_noise();
   if (sigma <= 0.0) { return; }
   let key = pcg(pcg(grid.seed ^ HIDDEN_KEY) + grid.tick);
   for (var channel = 3u; channel < 16u; channel++) {
-    let index = 2u * (base + channel);
+    let index = 2u * (cell * 16u + channel);
     let radius = sqrt(-2.0 * log(1.0 - unit(pcg(key + index))));
-    next[base + channel] += sigma * radius * cos(6.283185307 * unit(pcg(key + index + 1u)));
+    next[cell * 4u + channel / 4u][channel % 4u] += sigma * radius * cos(6.283185307 * unit(pcg(key + index + 1u)));
   }
 }`;
 
@@ -154,6 +188,8 @@ const STEP_FINE = stepSource("step_fine", 80, "fine");
 
 /** Offsets into the pyramid's 17,088 values: the coarse rule's 7,776, then fine fc1.weight [96,80], fc1.bias [96], fc2.weight [16,96]. */
 const PYRAMID_FINE = { w1: 7776, b1: 15456, w2: 15552 };
+/** The same places in vec4, with the cell rule's fc1.bias and fc2.weight (values 6,144 and 6,240), for the step's accessors. */
+const QUAD = { b1: 1536, w2: 1560, fineW1: 1944, fineB1: 3864, fineW2: 3888 };
 
 /**
  * Grid side in cells, canvas pixels per cell, picture pixels per cell (1 or 2), and whether the
@@ -255,12 +291,16 @@ fn fragment_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f3
  * The pieces the embedded-rule export (embedded-rule-shader.ts) shares word for word: the hash, the start value, the
  * steps, the playback noise and the pyramid's torus upsampling.
  */
-export const FIGURE_WGSL = { hash: HASH, start: START, step: STEP_CELL, fineStep: STEP_FINE, hidden: HIDDEN, torus: `${AXIS}${TORUS}`, pyramidFine: PYRAMID_FINE };
+export const FIGURE_WGSL = { hash: HASH, start: START, step: STEP_CELL, fineStep: STEP_FINE, hidden: HIDDEN, torus: `${AXIS}${TORUS_STEP}`, pyramidFine: PYRAMID_FINE };
 
+/**
+ * The step's bindings. The rule buffer is read as vec4, and holds each fc2.weight transposed, [96, 16]
+ * (figure-replay.ts uploads it so): a hidden unit's 16 output weights are then four vec4.
+ */
 const STEP_BINDINGS = /* wgsl */ `
-@group(0) @binding(0) var<storage, read> state: array<f32>;
-@group(0) @binding(1) var<storage, read> rule: array<f32>;
-@group(0) @binding(2) var<storage, read_write> next: array<f32>;
+@group(0) @binding(0) var<storage, read> state: array<vec4<f32>>;
+@group(0) @binding(1) var<storage, read> rule: array<vec4<f32>>;
+@group(0) @binding(2) var<storage, read_write> next: array<vec4<f32>>;
 @group(0) @binding(3) var<uniform> grid: Tick;
 fn rule_fire_rate() -> f32 { return grid.fire_rate; }
 fn playback_hidden_noise() -> f32 { return grid.hidden_noise; }`;
@@ -280,21 +320,21 @@ fn start_state(@builtin(global_invocation_id) id: vec3<u32>) {
   // The cell rule, and the pyramid's coarse rule (its first 7,776 values; grid.coarse = 1).
   // The rule is read through accessors, so the embedded-rule export shares this step word for word.
   step: /* wgsl */ `${HASH}${TICK}${STEP_BINDINGS}
-fn rule_w1(index: u32) -> f32 { return rule[index]; }
-fn rule_b1(index: u32) -> f32 { return rule[6144u + index]; }
-fn rule_w2(index: u32) -> f32 { return rule[6240u + index]; }
+fn rule_w1(unit_index: u32, q: u32) -> vec4<f32> { return rule[unit_index * 16u + q]; }
+fn rule_b1(unit_index: u32) -> f32 { return rule[${QUAD.b1}u + unit_index / 4u][unit_index % 4u]; }
+fn rule_w2(unit_index: u32, k: u32) -> vec4<f32> { return rule[${QUAD.w2}u + unit_index * 4u + k]; }
 fn rule_fire_key() -> u32 { return select(FIRE_KEY, COARSE_FIRE_KEY, grid.coarse == 1u); }
 ${STEP_CELL}
 ${HIDDEN}`,
 
   // The pyramid's fine rule, after the coarse step of the same tick: it reads the new coarse grid.
   fineStep: /* wgsl */ `${HASH}${TICK}${AXIS}${STEP_BINDINGS}
-@group(0) @binding(4) var<storage, read> coarse: array<f32>;
-fn fine_w1(index: u32) -> f32 { return rule[${PYRAMID_FINE.w1}u + index]; }
-fn fine_b1(index: u32) -> f32 { return rule[${PYRAMID_FINE.b1}u + index]; }
-fn fine_w2(index: u32) -> f32 { return rule[${PYRAMID_FINE.w2}u + index]; }
+@group(0) @binding(4) var<storage, read> coarse: array<vec4<f32>>;
+fn fine_w1(unit_index: u32, q: u32) -> vec4<f32> { return rule[${QUAD.fineW1}u + unit_index * 20u + q]; }
+fn fine_b1(unit_index: u32) -> f32 { return rule[${QUAD.fineB1}u + unit_index / 4u][unit_index % 4u]; }
+fn fine_w2(unit_index: u32, k: u32) -> vec4<f32> { return rule[${QUAD.fineW2}u + unit_index * 4u + k]; }
 fn fine_fire_key() -> u32 { return FIRE_KEY; }
-${TORUS}
+${TORUS_STEP}
 ${STEP_FINE}
 ${HIDDEN}`,
 
