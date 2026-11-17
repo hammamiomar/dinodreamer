@@ -7,8 +7,9 @@
 //      is admitted (200), production answers with Cloudflare Access's sign-in redirect.
 //   3. Each route loads without a page error, a console error or a failed request, and Explore draws
 //      its block clouds: HTTP 200 alone does not establish that their format can be decoded.
-//   4. With materials published: block 12002 lists its materials, and the home and the Playground each
-//      show a canvas whose picture changes within two seconds (a material growing).
+//   4. With automata published: basis group 12002 lists its automata; the home shows a canvas whose
+//      picture changes within two seconds (an automaton growing); the Automata page grows the automaton
+//      of a basis group on its wall, and the group's screen, opened from the wall, runs one on its stage.
 //   5. Without --software: Grow on block 12002 reaches update 40 with the dictionary reader loaded
 //      (32 parts from the library bucket), then stops.
 // A failed check prints FAIL and the run exits 1.
@@ -130,7 +131,12 @@ try {
     const tiles = await page.locator(".look-material").first().waitFor({ timeout: 60_000 }).then(() => page.locator(".look-material").count(), () => 0);
     check("basis group 12002 lists its automata", tiles > 0, `${tiles} tiles`);
     await page.goto(`${BASE}/automata`);
-    await checkGrowing("Automata runs an automaton", page.locator(".material-stage canvas").first());
+    // A face on the wall grows once and then rests, so its state is the evidence, not two pictures of it.
+    const face = page.locator('.automata-deck-face[data-state="live"]').first();
+    const grown = await face.waitFor({ timeout: 60_000 }).then(() => true, () => false);
+    check("Automata grows a basis group's automaton on its wall", grown);
+    await page.locator(".automata-deck-link").first().click();
+    await checkGrowing("a basis group's screen runs an automaton", page.locator(".material-stage canvas").first());
   } else {
     results.push("SKIP automaton playback: no automaton is published yet");
   }
