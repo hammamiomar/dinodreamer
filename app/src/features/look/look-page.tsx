@@ -11,7 +11,7 @@ import { useLibrary } from "../../app/library-session";
 import { useMaterialRequest } from "../../app/material-request";
 import { useUploadedPicture } from "../../app/uploaded-picture";
 import { withFirstPrefix, withNoticeLine, type BlockCloud } from "../../library/block-cloud";
-import { GRID, MATERIAL_REQUEST_MAX_POINTS, PATCH_SLOT_OFFSET, type StrengthCuts } from "../../recipe";
+import { GRID, PATCH_SLOT_OFFSET, type StrengthCuts } from "../../recipe";
 import { downloadBlob } from "../../ui/files";
 import { keepOnModule } from "../../ui/module-snap";
 import { useMaterialIndex } from "../gallery/material-gallery";
@@ -25,7 +25,7 @@ import { cloudTokenKey, hasPicture, type CloudToken } from "./cloud-token";
 import { CloudView, type CloudViewHandle, type LookTool } from "./cloud-view";
 import { LOOK_TEXT } from "./look-text";
 import { pictureAnchor, pictureGrowRequest } from "./grow-from-picture";
-import { evenSubsample, makeMaterialRequest } from "./material-request";
+import { makeMaterialRequest, sentPoints } from "./material-request";
 import { defaultOccurrence, leadingPictures, occurrenceRequest, type OccurrenceSource } from "./occurrence-request";
 import { PictureSourceChip } from "./picture-entry";
 import { PicturePlace } from "./picture-place";
@@ -236,7 +236,8 @@ function LookBlock({ data, origin, scroller }: { data: LookData; origin: CloudTo
     downloadBlob(new Blob([JSON.stringify(material(selected), null, 2) + "\n"], { type: "application/json" }), `block-${block}-material-request.json`);
   }
   function sendToGrow() {
-    const next = material(evenSubsample(selected, MATERIAL_REQUEST_MAX_POINTS, anchor));
+    // A large region is evenly spread, keeping the anchor and the patches of the set Train would take from all of it.
+    const next = material(sentPoints(selected, token, anchor));
     const usesPicture = next.anchor?.source === "upload" || next.points.some((point) => point.source === "upload");
     setRequest(next, usesPicture && upload.picture ? { name: upload.picture.name, preview: upload.picture.preview } : null);
   }

@@ -1,3 +1,5 @@
+import { methodNeedsSet, type FigureMethod } from "../materials/material-file";
+import type { PublishState } from "../features/gallery/publish-material";
 import type { CoSelection } from "./co-selection";
 import { RESUME_UPDATES, type KeptStage } from "./figure-recipe";
 import type { GrowEvent } from "./protocol";
@@ -15,6 +17,8 @@ export interface GrowOutcome {
   /** True once Keep has saved it on this device. */
   saved: boolean;
   updates: number;
+  /** The step its reading and picture were taken at: 600, or a set method's own step (figure-recipe.ts readingStep). */
+  tick: number;
 }
 
 /** What the panel heard from the worker for the current Grow. */
@@ -23,8 +27,10 @@ export interface GrowRecord {
   active: boolean;
   phase: Extract<GrowEvent, { type: "phase" }>["phase"] | null;
   phaseMessage: string;
-  run: { run: number; runs: number } | null;
-  progress: { completed: number; total: number; trainingMs: number; readerChunks: number } | null;
+  /** The current run, of how many, and its method. */
+  run: { run: number; runs: number; method: FigureMethod } | null;
+  /** The latest update: its count, the run's last, the training time, the reader's loaded parts, and the method's own loss. */
+  progress: { completed: number; total: number; trainingMs: number; readerChunks: number; methodLoss: number } | null;
   /** The latest reading: the mean strength in m, the share of patches the block wins, which patches (the map), and the co-selected groups. */
   reading: { strength: number; winnerFraction: number; selectedPatches: Uint8Array; coSelection: CoSelection } | null;
   outcomes: GrowOutcome[];
@@ -41,29 +47,44 @@ export function recordEvent(record: GrowRecord, event: GrowEvent): GrowRecord {
     case "phase":
       return { ...record, phase: event.phase, phaseMessage: event.message };
     case "run":
-      return { ...record, run: { run: event.run, runs: event.runs }, progress: null, reading: null };
+      return { ...record, run: { run: event.run, runs: event.runs, method: event.method }, progress: null, reading: null };
     case "progress": {
-      const { completed, total, trainingMs, readerChunks } = event.progress;
-      return { ...record, progress: { completed, total, trainingMs, readerChunks } };
+      const { completed, total, trainingMs, readerChunks, methodLoss } = event.progress;
+      return { ...record, progress: { completed, total, trainingMs, readerChunks, methodLoss } };
     }
     case "reading": {
       const { strength, winnerFraction, selectedPatches, coSelection } = event.reading;
       return { ...record, reading: { strength, winnerFraction, selectedPatches, coSelection } };
     }
     case "material": {
+      // A file kept again under its id (a set method kept at another step of its ladder) replaces its outcome.
       const outcome: GrowOutcome = {
         id: event.file.id, run: event.run, stage: event.stage, fired: event.fired, saved: false, updates: event.file.training.updates,
+        tick: event.file.reading.tick,
       };
-      return { ...record, outcomes: [...record.outcomes, outcome] };
+      const others = record.outcomes.filter((each) => each.id !== outcome.id);
+      return { ...record, outcomes: [...others, outcome] };
     }
     case "error":
       return { ...record, failure: event.message };
     case "input":
     case "checkpoint":
     case "live":
-      // The input and the checkpoints serve the worker; the live pixels go to the canvas.
+    case "map":
+    case "set":
+    case "ladder":
+      // The input and the checkpoints serve the worker; the live pixels go to the canvas, the map's and the set's codes to the store's map.
       return record;
   }
+}
+
+/**
+ * Whether the person may keep a held set-method run's automaton at another step of its ladder (decision 12's
+ * override): only while its file is not sent to the gallery. `publish` is the file's publishState
+ * (features/gallery/publish-material.tsx): "awaiting" or "published" closes the step, since the gallery has that file.
+ */
+export function stepChoiceOpen(publish: PublishState): boolean {
+  return publish === "idle";
 }
 
 /** Keep saved the file on this device. */
@@ -120,10 +141,19 @@ export function hasFired(state: GrowState, record: GrowRecord): boolean {
   return isHeld(state) && resultOutcome(record)?.fired === true;
 }
 
-/** The Kept mark lights once a fired file of this Grow is saved on this device. */
+/** Whether the current run trains by a set method, which keeps its final rule whatever its selection (train-method.ts keepRule). */
+export function setMethodRun(record: GrowRecord): boolean {
+  return record.run !== null && methodNeedsSet(record.run.method);
+}
+
+/**
+ * The Kept mark lights once a fired file of this Grow is saved on this device; after a set method's
+ * run, once its final file is saved, fired or not: that rule is the run's result.
+ */
 export function keptMark(state: GrowState, record: GrowRecord): boolean {
   const outcome = isHeld(state) ? resultOutcome(record) : firstFireOfRun(record);
-  return hasFired(state, record) && outcome?.saved === true;
+  const result = hasFired(state, record) || (isHeld(state) && setMethodRun(record));
+  return result && outcome?.saved === true;
 }
 
 /**

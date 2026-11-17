@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
 import {
-  bandOfNorm, canonicalFigureFile, FIGURE_RULE_VALUES, figurePlayback, lossKindOf,
+  bandOfNorm, canonicalFigureFile, FIGURE_RULE_VALUES, figurePlayback, lossKindOf, methodOfFile,
   readFigureMaterial, hiddenNoise, replayGridSides, startKindOf, strengthStatistic, type FigureMaterialFile,
 } from "./material-file";
 
@@ -31,6 +31,35 @@ describe("figure material file (format 4)", () => {
     const file = kept();
     file.recipe.settings = { ...file.recipe.settings, lossKind: "other" };
     expect(lossKindOf(canonicalFigureFile(readFigureMaterial(file).file))).toBe("other");
+  });
+
+  it("reads a browser training's method, its layers and its set, and refuses what does not belong to the method", () => {
+    const set = { source: "sample-strongest", neighbourhood: "3x3", pictures: [{ imageId: 3536804379159069, patch: 69 }, { imageId: 12, patch: 0 }] };
+    const withSettings = (settings: Record<string, unknown>) => {
+      const file = kept();
+      file.recipe.settings = { ...file.recipe.settings, ...settings };
+      return file;
+    };
+    const tokens = readFigureMaterial(withSettings({ method: "token-distribution", layers: ["block-3", "final"], set })).file;
+    expect([methodOfFile(tokens), lossKindOf(tokens)]).toEqual(["token-distribution", "other"]);
+    expect(methodOfFile(kept())).toBeNull();
+    expect(lossKindOf(readFigureMaterial(withSettings({ method: "basis-group-mean" })).file)).toBe("plain");
+    const refusals: [Record<string, unknown>, string][] = [
+      [{ method: "token-entropy", set }, "method must be one of"],
+      [{ method: "token-mean", set }, "layers"],
+      [{ method: "token-mean", layers: ["block-12"], set }, "layers"],
+      [{ method: "token-mean", layers: ["final", "final"], set }, "layers"],
+      [{ method: "basis-group-distribution", layers: ["final"], set }, "no layers"],
+      [{ method: "basis-group-distribution" }, "target set"],
+      [{ method: "basis-group-distribution", set, lossKind: "plain" }, "not the request's"],
+      [{ method: "basis-group-mean", set }, "no target set"],
+      [{ set }, "belong to a set method"],
+      [{ method: "basis-group-distribution", set: { ...set, source: "sample" } }, "source"],
+      [{ method: "basis-group-distribution", set: { ...set, pictures: [] } }, "1 to 33"],
+      [{ method: "basis-group-distribution", set: { ...set, pictures: [{ imageId: 12, patch: 256 }] } }, "16 × 16"],
+      [{ method: "basis-group-distribution", set: { ...set, pictures: [{ imageId: 12, patch: 1 }, { imageId: 12, patch: 2 }] } }, "each picture once"],
+    ];
+    for (const [settings, message] of refusals) expect(() => readFigureMaterial(withSettings(settings)), JSON.stringify(settings)).toThrow(message);
   });
 
   it("names a start's kind by its background", () => {

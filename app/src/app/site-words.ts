@@ -895,8 +895,74 @@ export const SITE_WORDS = {
     rule: "Grids",
     /** The label over the second choice (Noise field, Noise disc). */
     start: "Start",
+    /** The label over the third choice: the space training compares in (grow/train-method.ts). */
+    space: "Space",
+    /** Its two options: the 3 numbers a basis group reads from a token, or DINO's 768 numbers for a patch. */
+    spaces: { "basis-group": "Basis group", token: "Token" },
+    /** The label over the fourth choice: what training compares, the average or the spread. */
+    comparison: "Comparison",
+    /** Its two options. */
+    comparisons: { mean: "Mean", distribution: "Distribution" },
+    /**
+     * Under the two choices, the method they make: its fixed name (automata.methods) and what it asks of the
+     * canvas. "The set" is the basis group's 33 strongest pictures, with the 3 × 3 patches around each marked patch.
+     */
+    methodHints: {
+      "basis-group-mean": "the average of the basis group's 3 numbers over the picture, toward the marked patch",
+      "token-mean": "the average of DINO's tokens over the picture, toward the average of the set",
+      "basis-group-distribution": "the basis group's 3 numbers spread over the picture as they spread over the set",
+      "token-distribution": "DINO's tokens spread over the picture as they spread over the set",
+    },
+    /** The label over the token methods' depth: which of DINO's layers they compare (grow/train-method.ts). Shown only for the Token space. */
+    depth: "Depth",
+    /** Its two options: blocks 3, 6 and 9 and the final layer, averaged; or the final layer alone. */
+    depths: { "four-layers": "Four layers", "final-layer": "Final layer" },
+    /** Why the space and the comparison cannot change when Train continues a definition. */
+    continuedMethod: "A continued automaton keeps its method.",
+    /** In place of the stop check for the methods that compare with the set: they train every update and keep the last cellular model. One line. */
+    trainsToEnd: "Trains all {updates} updates; keeps the last model.",
+    /** Added after the update counter for the methods that compare with the set: the loss the update descends, {loss} with 4 significant digits. */
+    methodLoss: "loss {loss}",
+    /** Status, first line, after a run of a method that compares with the set: its final cellular model is saved, whatever its selection. */
+    finalSaved: "Optimizer update {update} · the final cellular model is saved, read at step {tick}",
     /** The check above the primary. The first accepted checkpoint: the first checkpoint whose cellular model meets the selection target at simulation step 600, and for a noise start again at step 2,000. */
     stopAtFirstFire: "Stop at the first accepted checkpoint",
+    /**
+     * The toggle under the two choices that shows the method's two choices in their place (grow-panel.tsx
+     * ChoiceFaces): the chosen method, short, so the closed toggle says which it is. One line beside Advanced.
+     */
+    methodToggle: {
+      "basis-group-mean": "Basis-group mean",
+      "token-mean": "Token mean",
+      "basis-group-distribution": "Basis-group distribution",
+      "token-distribution": "Token distribution",
+    },
+    /**
+     * In place of the marked patch's sentence for the methods that compare with the set, beside the set's pictures,
+     * which show the 3 × 3 patches around each picture's strongest patch. {count} is the number of pictures (33, fewer
+     * when some could not be read). At most four lines beside the pictures.
+     */
+    towardSet: "Trains toward this group's {count} strongest pictures.",
+    /** The same when the visitor sent a selection from the group's page: the set is its strongest pictures, one patch each. */
+    towardSelection: "Trains toward the {count} strongest pictures of your selection.",
+    /** The same when the selection holds fewer than 33 pictures (decision 15): Train uses all of them, and says how many. */
+    towardWholeSelection: "Your selection holds {count} pictures. Train uses all {count}, one patch each.",
+    /** For a distribution method and a selection of one picture (decision 15): Train is off. */
+    setOnePicture: "One picture is not a distribution. Select more pictures on the group's page, or choose Mean.",
+    /** Under the set's sentence when the selection is Level 1 or Level 2 only (decision 15). */
+    weakSet: "A weak level tends to grow what surrounds the group's subject, not the subject.",
+    /** In place of the pictures when the visitor's selection holds no library picture with a public preview (only their own picture's patches). */
+    setEmpty: "Your selection has no library picture to train toward. Select patches of library pictures on the group's page, then send them to Train.",
+    /** Under it, in the response level's place: what each picture brings to the set. */
+    setPatches: "3 × 3 patches each",
+    /** Under that, in the place of "Pick another patch": the basis group's page, where its strongest pictures show large. */
+    setLink: "See the group's pictures",
+    /** The same for a continued automaton of such a method: {update} is the optimizer update it was saved at. */
+    continuingSet: "Continues this automaton from update {update}, toward the {count} pictures it trained toward.",
+    /** The pictures' name for a screen reader. */
+    setPictures: "The {count} pictures of the set",
+    /** In place of the pictures while they load. */
+    setLoading: "Finding the strongest pictures of basis group {block}.",
     /** The closed section under the two choices, for settings most people never change (grow-panel.tsx). */
     advanced: "Advanced",
     /** Its one setting: the grids grown per optimizer update. */
@@ -905,6 +971,8 @@ export const SITE_WORDS = {
     batchRecipe: "The recipe: four grids per update. Needs 1.5 to 1.8 GB of GPU memory.",
     /** Under it, for batch size 1: 0.8 to 0.9 GB, and 0.29 to 0.31 of the time per update, in the same measurements. */
     batchLight: "Half the memory and a third of the time of 4. It may meet the selection target less often.",
+    /** The same for the methods that compare with the set (Omar's decision 8, 17 November 2026): the research ran them at 4 only. */
+    batchLightSet: "Half the memory and a third of the time of 4. The research has no reference for this method at 1.",
     /** Why a continuation's batch size cannot change. */
     continuedBatch: "A continued automaton keeps its batch size.",
     /** In place of the hint when Train fell back to batch size 1 because a run at 4 took the page down. */
@@ -961,8 +1029,11 @@ export const SITE_WORDS = {
     firstFire: "first accepted checkpoint at update {update}",
     /** Added after the update counter while the final cellular model runs to simulation step 600 to be measured. */
     finishing: "measuring the final cellular model",
-    /** Status, first line, after a run whose automaton met the selection target (the Saved mark is lit). {update} is the optimizer update of the saved model. */
-    fired: "Optimizer update {update} · selection target met at simulation step 600",
+    /**
+     * Status, first line, after a run whose automaton met the selection target (the Saved mark is lit). {update} is the optimizer
+     * update of the saved model, {tick} the step it was read at: 600, or for the set methods the step of their lowest own loss.
+     */
+    fired: "Optimizer update {update} · selection target met at simulation step {tick}",
     /** Status, first line, after three runs that did not meet the selection target. {runs} is the number of runs. */
     noneFired: "None of the {runs} runs met the selection target. The last cellular model is saved.",
     /** Status, first line, after the person keeps a run that did not meet the selection target, with runs still to try. */
@@ -977,10 +1048,16 @@ export const SITE_WORDS = {
     coSelectedHint: "DINO sees 32 basis groups on each of the picture's {patches} patches; these are the ones it sees most often. The run meets its target when {group} is among them on {needed} patches or more.",
     /** The same for central noise initialization, which is measured on the central 4 × 4 patches only. */
     coSelectedHintCentre: "DINO sees 32 basis groups on each of the central {patches} patches; these are the ones it sees most often. The run meets its target when {group} is among them on {needed} patches or more.",
+    /** The same two for a run that compares with a set, which has no selection target. */
+    coSelectedHintSet: "DINO sees 32 basis groups on each of the picture's {patches} patches; these are the ones it sees most often.",
+    coSelectedHintSetCentre: "DINO sees 32 basis groups on each of the central {patches} patches; these are the ones it sees most often.",
     /** The measurement, second line: the selection fraction as a count of the read patches, and the count the selection target needs. The projection on the target is in the saved automaton's note, not here. */
     reading: "DINO sees {group} on {selected} of the {patches} patches. The target is {needed} patches.",
     /** The same for central noise initialization, which is measured on the central 4 × 4 patches only. */
     readingCentre: "DINO sees {group} on {selected} of the central {patches} patches. The target is {needed} patches.",
+    /** The measurement of a run that compares with a set: the count alone, since such a run has no selection target. */
+    readingSet: "DINO sees {group} on {selected} of the {patches} patches.",
+    readingSetCentre: "DINO sees {group} on {selected} of the central {patches} patches.",
     /** Added to the measurement on the second line while training goes on after the first accepted checkpoint. */
     trainingOn: "training on",
     /** A time under a minute and a half, in the time line: "40 s". */
@@ -996,6 +1073,39 @@ export const SITE_WORDS = {
     canvasLabel: "Automaton of basis group {block}, running: draw on it to damage it",
     /** The start's still picture, for a screen reader. */
     stillLabel: "The start of the automaton, before training",
+    /**
+     * The reading step's choice (step-choices.tsx), a strip under the cells after a run that compares with a
+     * set: the automaton's picture at each step it was read at, the kept step marked; a click keeps it at another.
+     */
+    step: {
+      /** The strip's name for a screen reader. */
+      label: "Reading step",
+      /** Under the pictures while the kept step is the one of the lowest loss. */
+      lowest: "The automaton is read at step {step}, where its own loss is lowest.",
+      /** After the person chose another step. {lowest} is the step of the lowest loss. */
+      chosen: "The automaton is read at step {step}. Its own loss is lowest at step {lowest}.",
+      /** Once the automaton is sent to the gallery, its step cannot change. */
+      closed: "The automaton is read at step {step}. The step is fixed once it is sent to the gallery.",
+      /** One picture's name for a screen reader. {loss} has four significant digits. */
+      picture: "Step {step}, own loss {loss}",
+    },
+    /** The live map (live-map.tsx), in the choices' place while a run trains: the canvas's 64 patches as points among the group's patches. */
+    map: {
+      /** The label above it. */
+      heading: "The canvas in the group's space",
+      /** Its name for a screen reader. {block} is the basis group. */
+      label: "The canvas's 64 patches as points among the patches of basis group {block}; drag or use the arrow keys to rotate",
+      /** Under it for a mean method. {distance} is in m, the group's median selected response magnitude, with two decimals. */
+      meanLine: "The mean of the canvas's patches is {distance} m from the target.",
+      /** Under it for a distribution method. */
+      spreadLine: "Each point is a patch of the canvas. The squares are the set's patches.",
+      /** Under it before the run's first reading. */
+      waiting: "The canvas's patches appear here at the first reading.",
+      /** Added for a token method: the map shows a part of what the run compares. */
+      shadow: "The map shows each patch's three numbers for this group. The run compares all 768.",
+      /** The toggle under the map that shows the groups DINO sees in its place, and back. */
+      toggle: "What DINO sees",
+    },
   },
 
   playground: {

@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { SITE_WORDS, fill } from "../app/site-words";
 import { SelectionMap } from "./selection-map";
 import type { KeepFailure } from "./train-run";
-import { firstFireOfRun, hasFired, keptMark, resultOutcome, type GrowRecord, type GrowState } from "./grow-view";
+import { firstFireOfRun, hasFired, keptMark, resultOutcome, setMethodRun, type GrowRecord, type GrowState } from "./grow-view";
 import { readoutText } from "./live-readout";
 import type { MaterialKind } from "./material-kind";
 import { readingRegion } from "./material-kind";
@@ -23,7 +23,9 @@ export function statusFirstLine(state: GrowState, record: GrowRecord): ReactNode
   if (state === "retry") return WORDS.retry;
   if (state === "done") {
     const result = resultOutcome(record);
-    if (result?.fired) return fired(fill(WORDS.fired, { update: number(result.updates) }));
+    if (result?.fired) return fired(fill(WORDS.fired, { update: number(result.updates), tick: number(result.tick) }));
+    // A set method keeps its one run's final rule: the selection is a reading, not the result's test.
+    if (setMethodRun(record) && result) return fill(WORDS.finalSaved, { update: number(result.updates), tick: number(result.tick) });
     // A run the person kept, with runs still to try, or the last of the runs.
     const runs = record.run?.runs ?? 0;
     return record.run && record.run.run < runs ? WORDS.keptUnfired : fill(WORDS.noneFired, { runs });
@@ -34,6 +36,8 @@ export function statusFirstLine(state: GrowState, record: GrowRecord): ReactNode
   if (record.run && record.run.run > 1) parts.push(fill(WORDS.run, { run: record.run.run, runs: record.run.runs }));
   const first = firstFireOfRun(record);
   if (state === "fired" && first) parts.push(fired(fill(WORDS.firstFire, { update: number(first.updates) })));
+  // A set method's loss: its progress, where the selection may stay low (train-method.ts).
+  if (setMethodRun(record) && record.progress) parts.push(fill(WORDS.methodLoss, { loss: record.progress.methodLoss.toPrecision(4) }));
   if (record.phase === "finishing") parts.push(WORDS.finishing);
   return parts.map((part, index) => <span key={index}>{index > 0 && " · "}{part}</span>);
 }
@@ -42,7 +46,7 @@ export function statusFirstLine(state: GrowState, record: GrowRecord): ReactNode
 function secondLine(state: GrowState, record: GrowRecord, kind: MaterialKind, block: number | null): string {
   if (state === "idle" || state === "loading" || state === "failed") return "";
   if (record.reading && block !== null) {
-    const reading = readoutText(record.reading, block, readingRegion(kind));
+    const reading = readoutText(record.reading, block, readingRegion(kind), !setMethodRun(record));
     return state === "fired" && record.phase === "training" ? `${reading} · ${WORDS.trainingOn}` : reading;
   }
   if (record.progress && record.progress.readerChunks < READER_PARTS) {

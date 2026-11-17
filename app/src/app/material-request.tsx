@@ -8,19 +8,27 @@ export interface MaterialRequestPicture {
   lift?: boolean;
 }
 
+/**
+ * Who chose a request's points: the visitor, on a group's page or their picture's page; or Train, which
+ * builds its own request for /train?block=N (the group's strongest level) and for a continuation. Train's
+ * set methods take a visitor's selection as their set, and with none the group's strongest pictures.
+ */
+export type MaterialRequestOrigin = "visitor" | "train";
+
 interface MaterialRequestState {
   request: MaterialRequest | null;
   picture: MaterialRequestPicture | null;
-  setRequest: (request: MaterialRequest | null, picture?: MaterialRequestPicture | null) => void;
+  origin: MaterialRequestOrigin;
+  setRequest: (request: MaterialRequest | null, picture?: MaterialRequestPicture | null, origin?: MaterialRequestOrigin) => void;
 }
 const MaterialRequestContext = createContext<MaterialRequestState | null>(null);
 
 /** The pending Look request survives route changes. JSON is the explicit save for now. */
 export function MaterialRequestProvider({ children }: { children: ReactNode }) {
-  const [pending, setPending] = useState<Pick<MaterialRequestState, "request" | "picture">>({ request: null, picture: null });
-  const setRequest = useCallback((request: MaterialRequest | null, picture: MaterialRequestPicture | null = null) => {
+  const [pending, setPending] = useState<Pick<MaterialRequestState, "request" | "picture" | "origin">>({ request: null, picture: null, origin: "visitor" });
+  const setRequest = useCallback((request: MaterialRequest | null, picture: MaterialRequestPicture | null = null, origin: MaterialRequestOrigin = "visitor") => {
     // Keep the preview with its request when the user later changes or removes the upload.
-    setPending({ request, picture: request ? picture : null });
+    setPending({ request, picture: request ? picture : null, origin });
   }, []);
   const value = useMemo(() => ({ ...pending, setRequest }), [pending, setRequest]);
   return <MaterialRequestContext.Provider value={value}>{children}</MaterialRequestContext.Provider>;

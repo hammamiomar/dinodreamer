@@ -6,8 +6,8 @@
 
 import type { StrengthBand } from "../../recipe";
 import {
-  FIGURE_LAYOUT, FIGURE_PYRAMID_LAYOUT, fired, lossKindOf, startKindOf, type FigureLayout, type FigureMaterialFile, type FigureStartKind,
-  type PixelsPerCell,
+  FIGURE_LAYOUT, FIGURE_PYRAMID_LAYOUT, fired, lossKindOf, methodNeedsSet, methodOfFile, startKindOf, type FigureLayout, type FigureMaterialFile,
+  type FigureStartKind, type PixelsPerCell,
 } from "../../materials/material-file.ts";
 import { isGalleryMethod, isGalleryStart, placeFromFile, type GalleryPlace } from "./gallery-place.ts";
 
@@ -46,7 +46,8 @@ export interface MaterialEntry {
   pixelsPerCell: PixelsPerCell;
   /**
    * The loss the rule trained with, from its file (lossKindOf): the request alone, or with the guide.
-   * Absent in an older index, which means plain; read it with entryLoss.
+   * Absent in an older index, which means plain; read it with entryLoss. Absent too for a set method's
+   * file, which trained toward its target set: its `gallery` place names the method.
    */
   loss?: MaterialLossKind;
   /** The research experiment that trained the rule (E18 to E21); absent for a rule grown in the browser. */
@@ -70,8 +71,9 @@ export interface MaterialEntry {
   featuredInBlock?: boolean;
   /**
    * The automaton's place in its basis group's grid on the Automata page (gallery-place.ts): the start
-   * and the method. The owner's publish of a research run writes it from the research export. Absent
-   * for a rule grown in the browser and in an older index: read it with placeOf.
+   * and the method. The owner's publish of a research run writes it from the research export, and
+   * materialEntry from the method a set method's file records. Absent for a rule grown in the browser
+   * by basis-group mean matching and in an older index: read it with placeOf.
    */
   gallery?: GalleryPlace;
   /**
@@ -95,6 +97,17 @@ export function isMaterialEntryId(id: string): boolean {
   return /^[a-z0-9][a-z0-9-]{0,95}$/.test(id);
 }
 
+/**
+ * What an entry says of its rule's objective, from its file. A set method's file gives its place, so an
+ * app built before set methods existed, which reads the place first, still files it under its method,
+ * and no reader takes it for the request's own loss. Any other file gives its loss, as before.
+ */
+function objectiveFields(file: FigureMaterialFile): Pick<MaterialEntry, "loss" | "gallery"> {
+  const method = methodOfFile(file);
+  if (method !== null && methodNeedsSet(method)) return { gallery: placeFromFile(startKindOf(file.start), "plain", method) };
+  return { loss: lossKindOf(file) === "guided" ? "guided" : "plain" };
+}
+
 export function materialEntry(id: string, file: FigureMaterialFile, label: { title: string; credit: string }, publishedAt: string): MaterialEntry {
   if (!isMaterialEntryId(id)) throw new Error(`"${id}" cannot name a published automaton`);
   const { experiment, measurementDirection } = file.recipe.settings;
@@ -106,7 +119,7 @@ export function materialEntry(id: string, file: FigureMaterialFile, label: { tit
     side: file.reading.side, seed: file.reading.seed, tick: file.reading.tick,
     engine: file.engine, trainerCommit: file.trainerCommit,
     layout: file.rule.layout, start: startKindOf(file.start), pixelsPerCell: file.picture?.pixelsPerCell ?? 1,
-    loss: lossKindOf(file) === "guided" ? "guided" : "plain",
+    ...objectiveFields(file),
     ...(typeof experiment === "string" ? { experiment } : {}),
     ...(typeof measurementDirection === "string" ? { measurementDirection } : {}),
     featured: false,

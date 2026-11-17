@@ -2,10 +2,10 @@
 // the anchor's band, so a downloaded request records the patches it represents.
 
 import type { BlockCloud } from "../../library/block-cloud";
-import { MATERIAL_REQUEST_MAX_POINTS, type MaterialRequest, type StrengthCuts } from "../../recipe";
+import type { MaterialRequest, StrengthCuts } from "../../recipe";
 import type { PreparedCloud } from "./cloud-geometry";
 import type { CloudToken } from "./cloud-token";
-import { evenSubsample, makeMaterialRequest } from "./material-request";
+import { makeMaterialRequest, sentPoints } from "./material-request";
 import { bandSelection, nearestInBand } from "./request-anchor";
 import { STRONGEST } from "./strength-bands";
 
@@ -41,7 +41,7 @@ export function occurrenceRequest({ cloud, prepared, strength, token }: Occurren
   return makeMaterialRequest({
     block: cloud.whole.block,
     token,
-    points: evenSubsample(region, MATERIAL_REQUEST_MAX_POINTS, index),
+    points: sentPoints(region, token, index),
     anchor: index,
     strength,
     coverage: { source: cloud.source, loadedRows: prepared.libraryRows, blockRows: cloud.whole.rows, selectedPoints: region.length },
