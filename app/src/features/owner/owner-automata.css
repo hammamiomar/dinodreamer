@@ -41,10 +41,13 @@
 }
 
 /* The name's field, in the name's place in the head: the heading's type on a line, and its note under it. */
+/* The field stands on the title's foot by itself. Left to the title's baseline rule, its two rows put
+   the number a line too high, over the line above it and under the site's bar. */
 .owner-name-field {
   position: relative;
   display: grid;
   flex: 1;
+  align-self: flex-end;
   min-width: 0;
   padding-bottom: 14px;
 }
