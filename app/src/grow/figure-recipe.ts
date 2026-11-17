@@ -22,6 +22,30 @@ export const FIGURE_SEED = 20261022;
 export const LIVE_SEED = 9317;
 /** E18 read its materials after 600 ticks on the 128-cell training grid. */
 export const READING_TICK = 600;
+
+/**
+ * The steps a set method's automaton is read at (decision 12, 17 November 2026, night). After a run its
+ * final rule grows on a replay grid of the live seed, and at each step the engine gives the method's
+ * own loss on that one picture against the run's set (figure_own_loss). The step with the lowest loss
+ * is the automaton's: its reading, picture and poster are taken there (readingStep). Basis-group mean
+ * matching stays at READING_TICK, the step its selection target is built on.
+ */
+export const READING_LADDER = [100, 150, 200, 300, 400, 600, 800, 1000, 1500, 2000] as const;
+
+/** A set method's own loss at one step of READING_LADDER. */
+export interface LadderReading {
+  tick: number;
+  loss: number;
+}
+
+/** The step with the lowest own loss, the earlier one on a tie; null when no step has a finite loss. */
+export function readingStep(ladder: readonly LadderReading[]): number | null {
+  let best: LadderReading | null = null;
+  for (const step of ladder) {
+    if (Number.isFinite(step.loss) && (best === null || step.loss < best.loss)) best = step;
+  }
+  return best?.tick ?? null;
+}
 /** Updates between the checkpoint readings of the rule of the moment (tick 600, seed LIVE_SEED). */
 export const CHECKPOINT_EVERY = 25;
 /** A checkpoint that fires at tick 600 grows on to this tick to see whether it holds. */
@@ -177,6 +201,8 @@ export function strengthBand(strength: number, input: Pick<FigureInput, "anchor"
 export interface Kept {
   run: number;
   stage: KeptStage;
+  /** A set method's own losses at the steps it was read at (READING_LADDER); absent for basis-group mean. */
+  ladder?: readonly LadderReading[];
   values: Float32Array;
   reading: FigureReading;
   preview: string;
@@ -261,6 +287,7 @@ export function figureMaterial(input: FigureInput, kept: Kept): FigureMaterialFi
           continuedFromUpdate: input.continuation.fromUpdate, continuedOptimizer: "fresh", continuedChange: input.continuation.change,
         } : {}),
         trainingMs: kept.trainingMs, run: kept.run, runs, fires: FIRES, stage: kept.stage,
+        ...(kept.ladder ? { readingLadder: kept.ladder.map((step) => step.tick), readingLosses: kept.ladder.map((step) => step.loss) } : {}),
       },
     },
     anchor: input.anchor,

@@ -924,7 +924,7 @@ export const SITE_WORDS = {
     /** Added after the update counter for the methods that compare with the set: the loss the update descends, {loss} with 4 significant digits. */
     methodLoss: "loss {loss}",
     /** Status, first line, after a run of a method that compares with the set: its final cellular model is saved, whatever its selection. */
-    finalSaved: "Optimizer update {update} · the final cellular model is saved",
+    finalSaved: "Optimizer update {update} · the final cellular model is saved, read at step {tick}",
     /** The check above the primary. The first accepted checkpoint: the first checkpoint whose cellular model meets the selection target at simulation step 600, and for a noise start again at step 2,000. */
     stopAtFirstFire: "Stop at the first accepted checkpoint",
     /**
@@ -1029,8 +1029,11 @@ export const SITE_WORDS = {
     firstFire: "first accepted checkpoint at update {update}",
     /** Added after the update counter while the final cellular model runs to simulation step 600 to be measured. */
     finishing: "measuring the final cellular model",
-    /** Status, first line, after a run whose automaton met the selection target (the Saved mark is lit). {update} is the optimizer update of the saved model. */
-    fired: "Optimizer update {update} · selection target met at simulation step 600",
+    /**
+     * Status, first line, after a run whose automaton met the selection target (the Saved mark is lit). {update} is the optimizer
+     * update of the saved model, {tick} the step it was read at: 600, or for the set methods the step of their lowest own loss.
+     */
+    fired: "Optimizer update {update} · selection target met at simulation step {tick}",
     /** Status, first line, after three runs that did not meet the selection target. {runs} is the number of runs. */
     noneFired: "None of the {runs} runs met the selection target. The last cellular model is saved.",
     /** Status, first line, after the person keeps a run that did not meet the selection target, with runs still to try. */

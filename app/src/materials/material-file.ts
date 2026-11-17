@@ -527,6 +527,8 @@ export const FIGURE_SETTING_KEYS: ReadonlySet<string> = new Set([
   "continuedFromUpdate", "continuedOptimizer", "continuedChange",
   // the browser Train's method (methodOfFile); a token method's layers and a set method's target set (readMethod)
   "method", "layers", "set",
+  // a set method's reading step (grow/figure-recipe.ts READING_LADDER): the steps read and the own loss at each
+  "readingLadder", "readingLosses",
 ]);
 
 /**
