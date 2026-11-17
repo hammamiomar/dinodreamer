@@ -8,11 +8,12 @@ import { downloadBlob } from "../ui/files";
 import { MaterialFrame } from "../ui/material-frame";
 import { Segmented } from "../ui/segmented";
 import {
-  changedFromRun, drawCells, sameTarget, SIDE, trainRun, useLiveCells, useTrainRun, useTrainTick,
+  changedFromRun, drawCells, sameTarget, SIDE, trainRun, useLiveCells, useTrainLadder, useTrainRun, useTrainTick,
   type GrowSettings, type KeepFailure, type TrainRunState,
 } from "./train-run";
 import { CoSelectedPictures } from "./co-selected-pictures";
 import { TrainMap } from "./train-map";
+import { KeptStepChoices } from "./step-choices";
 import { TrainLoading } from "./train-loading";
 import { LIGHT_BATCH, RECIPE_BATCH, batchFallback, clearBatchFallback, presetBatch, type BatchSize } from "./batch-size";
 import { GrowStatus } from "./grow-status";
@@ -280,6 +281,9 @@ export function GrowPanel({ block, request, origin, continuation, method, onMeth
   useEffect(() => {
     if (fallbackNote) setFace("advanced");
   }, [fallbackNote]);
+  // After a run that compares with a set, the steps it was read at stand under the cells (step-choices.tsx).
+  const siteLadder = useTrainLadder();
+  const ladder = ours ? siteLadder : null;
   const chooseBatch = (batch: BatchSize) => {
     clearBatchFallback();
     setChosenBatch(batch);
@@ -395,6 +399,7 @@ export function GrowPanel({ block, request, origin, continuation, method, onMeth
           }}
           onPointerMove={damage} onPointerUp={() => { last.current = null; }} onPointerCancel={() => { last.current = null; }} />
       </MaterialFrame>
+      {ladder && <KeptStepChoices ladder={ladder} file={resultFile} onKeep={trainRun.keepAtStep} />}
       <GrowStatus state={state} record={record} kind={shownKind} block={settings?.request.block ?? block} keepFailure={run.keepFailure} onDownload={download} />
     </section>
     <aside className="grow-side" aria-label={WORDS.title}>
@@ -402,7 +407,7 @@ export function GrowPanel({ block, request, origin, continuation, method, onMeth
       {!open && settings && anchorCode
         ? <RunFaces face={runFace} onFace={setRunFace}
           map={<TrainMap block={settings.request.block} method={settings.method} anchorCode={anchorCode} kind={settings.kind} live={ours} />}
-          dino={coSelection && <CoSelectedPictures coSelection={coSelection} region={readingRegion(shownKind)} />} />
+          dino={coSelection && <CoSelectedPictures coSelection={coSelection} region={readingRegion(shownKind)} selectionTarget={!methodNeedsSet(settings.method)} />} />
         : <ChoiceFaces face={face} onFace={setFace} methodName={WORDS.methodToggle[runMethod]}
           kind={<KindChoices kind={runKind} open={open} ruleFixed={continuation !== null} onChange={setKind} />}
           method={<MethodChoices method={runMethod} depth={depth} open={open} fixedMethod={continuation !== null} onChange={onMethod} onDepth={onDepth} />}

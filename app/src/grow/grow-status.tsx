@@ -46,7 +46,7 @@ export function statusFirstLine(state: GrowState, record: GrowRecord): ReactNode
 function secondLine(state: GrowState, record: GrowRecord, kind: MaterialKind, block: number | null): string {
   if (state === "idle" || state === "loading" || state === "failed") return "";
   if (record.reading && block !== null) {
-    const reading = readoutText(record.reading, block, readingRegion(kind));
+    const reading = readoutText(record.reading, block, readingRegion(kind), !setMethodRun(record));
     return state === "fired" && record.phase === "training" ? `${reading} · ${WORDS.trainingOn}` : reading;
   }
   if (record.progress && record.progress.readerChunks < READER_PARTS) {

@@ -1048,10 +1048,16 @@ export const SITE_WORDS = {
     coSelectedHint: "DINO sees 32 basis groups on each of the picture's {patches} patches; these are the ones it sees most often. The run meets its target when {group} is among them on {needed} patches or more.",
     /** The same for central noise initialization, which is measured on the central 4 × 4 patches only. */
     coSelectedHintCentre: "DINO sees 32 basis groups on each of the central {patches} patches; these are the ones it sees most often. The run meets its target when {group} is among them on {needed} patches or more.",
+    /** The same two for a run that compares with a set, which has no selection target. */
+    coSelectedHintSet: "DINO sees 32 basis groups on each of the picture's {patches} patches; these are the ones it sees most often.",
+    coSelectedHintSetCentre: "DINO sees 32 basis groups on each of the central {patches} patches; these are the ones it sees most often.",
     /** The measurement, second line: the selection fraction as a count of the read patches, and the count the selection target needs. The projection on the target is in the saved automaton's note, not here. */
     reading: "DINO sees {group} on {selected} of the {patches} patches. The target is {needed} patches.",
     /** The same for central noise initialization, which is measured on the central 4 × 4 patches only. */
     readingCentre: "DINO sees {group} on {selected} of the central {patches} patches. The target is {needed} patches.",
+    /** The measurement of a run that compares with a set: the count alone, since such a run has no selection target. */
+    readingSet: "DINO sees {group} on {selected} of the {patches} patches.",
+    readingSetCentre: "DINO sees {group} on {selected} of the central {patches} patches.",
     /** Added to the measurement on the second line while training goes on after the first accepted checkpoint. */
     trainingOn: "training on",
     /** A time under a minute and a half, in the time line: "40 s". */
@@ -1067,6 +1073,22 @@ export const SITE_WORDS = {
     canvasLabel: "Automaton of basis group {block}, running: draw on it to damage it",
     /** The start's still picture, for a screen reader. */
     stillLabel: "The start of the automaton, before training",
+    /**
+     * The reading step's choice (step-choices.tsx), a strip under the cells after a run that compares with a
+     * set: the automaton's picture at each step it was read at, the kept step marked; a click keeps it at another.
+     */
+    step: {
+      /** The strip's name for a screen reader. */
+      label: "Reading step",
+      /** Under the pictures while the kept step is the one of the lowest loss. */
+      lowest: "The automaton is read at step {step}, where its own loss is lowest.",
+      /** After the person chose another step. {lowest} is the step of the lowest loss. */
+      chosen: "The automaton is read at step {step}. Its own loss is lowest at step {lowest}.",
+      /** Once the automaton is sent to the gallery, its step cannot change. */
+      closed: "The automaton is read at step {step}. The step is fixed once it is sent to the gallery.",
+      /** One picture's name for a screen reader. {loss} has four significant digits. */
+      picture: "Step {step}, own loss {loss}",
+    },
     /** The live map (live-map.tsx), in the choices' place while a run trains: the canvas's 64 patches as points among the group's patches. */
     map: {
       /** The label above it. */

@@ -48,7 +48,9 @@
   grid-template-rows: subgrid;
 }
 
+/* The frame and the reading step's strip under it share the stage's one column (.grow-steps). */
 .grow-stage .frame {
+  grid-column: 1;
   grid-row: body;
   align-self: start;
   margin: calc(-1 * var(--patch));
@@ -423,6 +425,78 @@
   flex-wrap: wrap;
 }
 
+/*
+ * The reading step's strip (step-choices.tsx): the ladder's pictures in one row as wide as the cells, each
+ * with its step under it, then one sentence. It stands under the frame, in the stage's column, over the
+ * body row and the module under it, as the side does: the room the side's lower part leaves beside the
+ * cells. So it moves nothing when it comes. Its top margin is the cells and the frame's room. The kept
+ * step is outlined.
+ */
+.grow-steps {
+  display: grid;
+  grid-column: 1;
+  grid-row: body-start / foot-start;
+  align-self: start;
+  /* The frame's line and its step label lie one patch under the cells; the strip starts 12 px under them and ends 8 px over the status. */
+  margin-top: calc(var(--grow-cells) + var(--patch) + var(--space-3));
+}
+
+.grow-step-strip {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.grow-step {
+  display: grid;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-3);
+  font: inherit;
+  font-size: var(--s-1);
+  line-height: 16px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.grow-step:disabled {
+  cursor: default;
+}
+
+.grow-step img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  image-rendering: pixelated;
+}
+
+.grow-step[aria-pressed="true"] {
+  color: var(--ink);
+}
+
+.grow-step[aria-pressed="true"] img {
+  outline: 1px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.grow-step:hover:not(:disabled),
+.grow-step:focus-visible {
+  color: var(--ink);
+}
+
+.grow-step:focus-visible {
+  outline: 1px solid var(--ink-2);
+  outline-offset: 3px;
+}
+
+.grow-step-sentence {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: var(--s-1);
+  line-height: 16px;
+}
+
 /* The run's toggle holds its line before the first reading, so nothing moves when it comes (grow-panel.tsx RunFaces). */
 .grow-face-toggles[data-waiting] {
   visibility: hidden;
@@ -642,6 +716,15 @@
   .grow-choices,
   .grow-settings {
     row-gap: calc(2 * var(--patch));
+  }
+
+  /* On a phone the strip follows the frame in the page: two rows of five, so a finger can choose one. */
+  .grow-steps {
+    margin-top: calc(2 * var(--patch));
+  }
+
+  .grow-step-strip {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 
   /* On a phone the map takes the column's width, its words under it. */
