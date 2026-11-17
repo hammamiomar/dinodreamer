@@ -1086,6 +1086,20 @@ export const SITE_WORDS = {
   automata: {
     /** The wall's heading, on /automata. */
     wallTitle: "The automata of each basis group",
+    /** The wall's find field: its name for a screen reader, and what it shows while empty. */
+    find: "Find a basis group by its name or number",
+    findPlaceholder: "Name or number",
+    /** In the decks' place when the find field's words match no group. {words} is what was typed. */
+    findNothing: "No basis group has “{words}” in its name or number. Type fewer letters, or clear the field.",
+    /** The wall's order: the menu's label and its choices. */
+    sort: "Sort",
+    sorts: {
+      featured: "Featured first",
+      newest: "Newest first",
+      most: "Most automata first",
+      number: "By number",
+      name: "By name",
+    },
     /** Under a card on the wall: the number of automata the group holds. {count} is the number. */
     cardCount: "{count} automata",
     cardCountOne: "1 automaton",

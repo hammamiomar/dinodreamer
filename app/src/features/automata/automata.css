@@ -893,6 +893,27 @@
   color: var(--ink-2);
 }
 
+/* The find field and the order, on one line under the heading, as on the Index. */
+.automata-wall-tools {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--patch) 32px;
+  margin-top: var(--space-2);
+}
+
+.automata-find {
+  width: 320px;
+  max-width: 100%;
+}
+
+.automata-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--patch);
+}
+
 /*
  * The table of decks. Each deck is a square face, the group's automaton, over four plates, the group's
  * own patches by level. The table has one eye (wall-eye.ts): every deck is drawn in perspective from

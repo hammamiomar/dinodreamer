@@ -169,6 +169,49 @@ export function wallOrder<T extends GalleryAutomaton>(groups: readonly GalleryGr
   return [...groups].sort((a, b) => Number(siteFeatured(b)) - Number(siteFeatured(a)) || a.group - b.group);
 }
 
+/** The orders a reader can put the wall in. The first is the wall's own. */
+export const WALL_SORTS = ["featured", "newest", "most", "number", "name"] as const;
+export type WallSort = (typeof WALL_SORTS)[number];
+
+/** The date of a group's newest automaton that a visitor sees, as its ISO text; "" when none has a date. */
+function newestOf(group: GalleryGroup<GalleryAutomaton>): string {
+  return group.automata.reduce((newest, automaton) => (automaton.shown && automaton.madeAt > newest ? automaton.madeAt : newest), "");
+}
+
+/**
+ * The wall in the order a reader chose. Groups that tie stand in number order. By name, the named
+ * groups come first, A to Z, and the groups without a name after them.
+ */
+export function sortWall<T extends GalleryAutomaton>(groups: readonly GalleryGroup<T>[], sort: WallSort, nameOf: (group: number) => string | null): GalleryGroup<T>[] {
+  if (sort === "featured") return wallOrder(groups);
+  const byNumber = (a: GalleryGroup<T>, b: GalleryGroup<T>) => a.group - b.group;
+  const orders: Record<Exclude<WallSort, "featured">, (a: GalleryGroup<T>, b: GalleryGroup<T>) => number> = {
+    newest: (a, b) => newestOf(b).localeCompare(newestOf(a)),
+    most: (a, b) => shownCount(b.automata) - shownCount(a.automata),
+    number: byNumber,
+    name: (a, b) => {
+      const nameA = nameOf(a.group);
+      const nameB = nameOf(b.group);
+      if (nameA === null || nameB === null) return Number(nameA === null) - Number(nameB === null);
+      return nameA.localeCompare(nameB, undefined, { sensitivity: "base" });
+    },
+  };
+  return [...groups].sort((a, b) => orders[sort](a, b) || byNumber(a, b));
+}
+
+/**
+ * The groups a reader's words find, in the order given: a group whose number holds the digits typed, or
+ * whose name holds every word typed, in any case. No words find every group.
+ */
+export function findGroups<T extends GalleryAutomaton>(groups: readonly GalleryGroup<T>[], words: string, nameOf: (group: number) => string | null): GalleryGroup<T>[] {
+  const typed = words.trim().toLowerCase().split(/\s+/).filter((word) => word !== "");
+  if (typed.length === 0) return [...groups];
+  return groups.filter((group) => {
+    const name = nameOf(group.group)?.toLowerCase() ?? "";
+    return (typed.length === 1 && String(group.group).includes(typed[0]!)) || typed.every((word) => name.includes(word));
+  });
+}
+
 /** The groups before and after one in the wall's order, for a group's Previous and Next; null at an end. */
 export function neighboursOf(groups: readonly GalleryGroup<GalleryAutomaton>[], group: number): { previous: number | null; next: number | null } {
   const ordered = wallOrder(groups).map((each) => each.group);

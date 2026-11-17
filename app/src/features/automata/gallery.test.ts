@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { GalleryMethod, GalleryStart } from "../gallery/gallery-place";
 import {
-  addressSearch, arrangeGroup, neighboursOf, arrangeGroups, automatonToPlay, axesOf, cellAt, cellBeside, COMMON_METHODS, COMMON_STARTS, groupOfAutomaton,
+  addressSearch, arrangeGroup, findGroups, neighboursOf, sortWall, arrangeGroups, automatonToPlay, axesOf, cellAt, cellBeside, COMMON_METHODS, COMMON_STARTS, groupOfAutomaton,
   groupPath, pictureOfCell, pictureOfGroup, readAddress, shownCount, tryAfter, wallOrder, type GalleryAutomaton,
 } from "./gallery";
 
@@ -145,6 +145,37 @@ describe("the stage and the arrow keys", () => {
     expect(cellBeside(group, from, "down").place).toEqual(from);
     expect(cellBeside(group, { start: "noise", method: "token-distribution" }, "down").place.start).toBe("circle-on-noise");
     expect(cellBeside(group, { start: "circle-on-noise", method: "token-distribution" }, "up").place.start).toBe("noise");
+  });
+});
+
+describe("the wall in a reader's order, and what a reader's words find", () => {
+  const groups = arrangeGroups([
+    automaton("a", "noise", "basis-group-mean", { group: 729, madeAt: "2026-10-22" }),
+    automaton("b", "noise", "basis-group-mean", { group: 2568, siteFeatured: true, madeAt: "2026-10-20" }),
+    automaton("c", "noise", "basis-group-mean", { group: 12002, madeAt: "2026-11-05" }),
+    automaton("d", "circle", "basis-group-mean", { group: 12002, madeAt: "2026-10-01" }),
+    automaton("e", "noise", "basis-group-mean", { group: 12240, madeAt: "2026-11-09", shown: false }),
+    automaton("f", "noise", "basis-group-mean", { group: 12240, madeAt: "2026-10-30" }),
+  ]);
+  const names: Record<number, string> = { 729: "light on glass", 2568: "golden fur", 12002: "Cartoon eyes" };
+  const nameOf = (group: number) => names[group] ?? null;
+  const numbers = (found: { group: number }[]) => found.map((group) => group.group);
+
+  test("the wall's own order, then the newest automaton a visitor sees, the most automata, the number, the name", () => {
+    expect(numbers(sortWall(groups, "featured", nameOf))).toEqual([2568, 729, 12002, 12240]);
+    expect(numbers(sortWall(groups, "newest", nameOf))).toEqual([12002, 12240, 729, 2568]);
+    expect(numbers(sortWall(groups, "most", nameOf))).toEqual([12002, 729, 2568, 12240]);
+    expect(numbers(sortWall(groups, "number", nameOf))).toEqual([729, 2568, 12002, 12240]);
+    expect(numbers(sortWall(groups, "name", nameOf))).toEqual([12002, 2568, 729, 12240]);
+  });
+
+  test("digits find the groups whose number holds them; words find the groups whose name holds every one", () => {
+    expect(numbers(findGroups(groups, "12", nameOf))).toEqual([12002, 12240]);
+    expect(numbers(findGroups(groups, "002", nameOf))).toEqual([12002]);
+    expect(numbers(findGroups(groups, "EYES", nameOf))).toEqual([12002]);
+    expect(numbers(findGroups(groups, "glass light", nameOf))).toEqual([729]);
+    expect(numbers(findGroups(groups, "  ", nameOf))).toEqual([729, 2568, 12002, 12240]);
+    expect(findGroups(groups, "zebra", nameOf)).toEqual([]);
   });
 });
 

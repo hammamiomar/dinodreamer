@@ -12,7 +12,7 @@
 //
 // With reduced motion, or where the browser cannot grow an automaton, a face is its still.
 
-import { useEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode, type RefObject } from "react";
 import { flushSync } from "react-dom";
 import { Link } from "react-router";
 import { fill, SITE_WORDS } from "../../app/site-words";
@@ -27,7 +27,8 @@ import { nameOf, type BasisGroupNames } from "../gallery/basis-groups";
 import { BAND_COLOURS } from "../look/strength-bands";
 import { LibraryImage } from "../../ui/library-image";
 import { useMediaMatch } from "../../ui/media-match";
-import { addressSearch, pictureOfGroup, shownCount, wallOrder, type GalleryAutomaton, type GalleryGroup } from "./gallery";
+import { Select } from "../../ui/select";
+import { addressSearch, findGroups, pictureOfGroup, shownCount, sortWall, WALL_SORTS, type GalleryAutomaton, type GalleryGroup, type WallSort } from "./gallery";
 import { useGroupPictures } from "./group-levels";
 import { FROM_WALL } from "./group-screen";
 import { openLiveFace, type LiveFace } from "./live-faces";
@@ -43,6 +44,9 @@ const PATCHES_PER_SIDE = 16;
 const SHARE_IN_VIEW = 0.25;
 /** The pointer may cross the room between two decks this long before the deck it left goes back down. */
 const LEAVE_MS = 180;
+/** A deck that changes place, when the wall is sorted or searched, glides there in this time. */
+const GLIDE_MS = 420;
+const GLIDE_EASING = "cubic-bezier(0.3, 0.9, 0.25, 1)";
 
 /** What a page gives the wall so that a face can grow: the automaton's definition, its grid and its seed. */
 export type LoadFace<T> = (automaton: T) => Promise<{ material: FigureMaterial; side: number; seed: number }>;
@@ -181,7 +185,7 @@ function Deck<T extends GalleryAutomaton>({ group, name, mark, loadFace, forward
   const picture = pictureOfGroup(group);
   const count = shownCount(group.automata);
   return (
-    <li ref={self} className="automata-deck" data-forward={forward || undefined} style={{ "--fan": fan } as CSSProperties}>
+    <li ref={self} className="automata-deck" data-group={group.group} data-forward={forward || undefined} style={{ "--fan": fan } as CSSProperties}>
       <Link className="automata-deck-link" to={{ search: addressSearch({ group: group.group, automaton: null }) }} state={FROM_WALL} viewTransition
         aria-label={fill(WORDS.cardName, { group: group.group, name: name ?? "" }).trim()} onClick={onOpen}
         onPointerEnter={(event) => { if (event.pointerType === "mouse" && self.current) onLook(self.current); }} onPointerLeave={onLeave}
@@ -202,6 +206,32 @@ function Deck<T extends GalleryAutomaton>({ group, name, mark, loadFace, forward
   );
 }
 
+/**
+ * When the decks change places (another order, or other words in the find field), each deck that stays
+ * glides from where it stood to where it stands. `order` names the decks in their order; the places are
+ * read after every layout, so the glide starts from where a deck was last drawn.
+ */
+function useDecksGlide(table: RefObject<HTMLElement | null>, order: string, still: boolean): void {
+  const places = useRef(new Map<string, { left: number; top: number }>());
+  useLayoutEffect(() => {
+    const element = table.current;
+    if (!element) return;
+    const origin = element.getBoundingClientRect();
+    const before = places.current;
+    const now = new Map<string, { left: number; top: number }>();
+    for (const deck of element.querySelectorAll<HTMLElement>(".automata-deck")) {
+      // A deck's place in the table, so that scrolling between two layouts is no move.
+      const place = { left: deck.offsetLeft, top: deck.offsetTop };
+      const key = deck.dataset.group!;
+      now.set(key, place);
+      const from = before.get(key);
+      if (still || origin.width === 0 || !from || (from.left === place.left && from.top === place.top)) continue;
+      deck.animate([{ transform: `translate(${from.left - place.left}px, ${from.top - place.top}px)` }, { transform: "none" }], { duration: GLIDE_MS, easing: GLIDE_EASING });
+    }
+    if (origin.width > 0) places.current = now;
+  }, [table, order, still]);
+}
+
 export function GroupWall<T extends GalleryAutomaton>({ groups, names, status, aside, markOf, loadFace, lead, hidden = false, children }: {
   groups: readonly GalleryGroup<T>[];
   names: BasisGroupNames;
@@ -218,10 +248,14 @@ export function GroupWall<T extends GalleryAutomaton>({ groups, names, status, a
   hidden?: boolean;
   children?: ReactNode;
 }) {
-  const ordered = wallOrder(groups);
+  const [sort, setSort] = useState<WallSort>("featured");
+  const [words, setWords] = useState("");
+  const name = (group: number) => nameOf(names, group);
+  const ordered = findGroups(sortWall(groups, sort, name), words, name);
   const still = useMediaMatch("(prefers-reduced-motion: reduce)");
   const table = useRef<HTMLOListElement>(null);
   useWallEye(table, !still, !hidden);
+  useDecksGlide(table, ordered.map((group) => group.group).join(" "), still);
   const [forward, setForward] = useState<{ group: number; fan: 1 | -1 } | null>(null);
   // Rendering again after a deck is marked as the one that opens puts the passage's names on it before the page changes.
   const [, setMarked] = useState(0);
@@ -252,8 +286,24 @@ export function GroupWall<T extends GalleryAutomaton>({ groups, names, status, a
         <h1 className="heading">{WORDS.wallTitle}</h1>
         {aside}
         {lead}
+        {groups.length > 0 && (
+          <div className="automata-wall-tools">
+            <input className="input automata-find" type="search" aria-label={WORDS.find} placeholder={WORDS.findPlaceholder} value={words}
+              onChange={(event) => setWords(event.target.value)}
+              onKeyDown={(event) => { if (event.key === "Escape") setWords(""); }} />
+            <label className="automata-sort">
+              <span className="label">{WORDS.sort}</span>
+              <Select value={sort} onChange={(event) => setSort(event.target.value as WallSort)}>
+                {WALL_SORTS.map((each) => <option key={each} value={each}>{WORDS.sorts[each]}</option>)}
+              </Select>
+            </label>
+          </div>
+        )}
       </header>
       {status !== null && <p className="automata-status" role="status">{status}</p>}
+      {status === null && groups.length > 0 && ordered.length === 0 && (
+        <p className="automata-status" role="status">{fill(WORDS.findNothing, { words: words.trim() })}</p>
+      )}
       <ol ref={table} className="automata-table" data-forward={forward !== null || undefined} data-still={still || undefined}>
         {ordered.map((group) => (
           <Deck key={group.group} group={group} name={nameOf(names, group.group)} mark={markOf?.(group)} loadFace={still ? undefined : loadFace}
