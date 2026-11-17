@@ -4,14 +4,13 @@ import { ENGINE_BUILD_NAME } from "../app/config";
 import { AssetLoader, blockPath, fetchModelRelease, type ModelRelease } from "../synthesis/assets";
 import { decodeReaderIndex, type ReaderChunk } from "../reader/assets";
 import { LOOK_CLOUDS_PATH, decodeLookSummary } from "../library/look-cloud";
-import { STRONGEST_CLOUDS_PATH, readStrongestRows } from "../library/full-cloud";
 import { openLibrary } from "../library/library";
-import { methodNeedsSet, type FigureReading, type FigureTargetSet, type SetPicture } from "../materials/material-file";
+import { methodNeedsSet, type FigureReading, type FigureTargetSet } from "../materials/material-file";
 import {
   CHECKPOINT_EVERY, HOLD_TICK, LIVE_SEED, READING_TICK, RESUME_UPDATES, RUNS, afterRun, continuedInput, engineRequest, figureInput, figureMaterial,
   fired, firstFire, firstFireCondition, plannedRuns, readPatches, strengthBand, type FigureInput, type FigureObjective, type KeptStage,
 } from "./figure-recipe";
-import { fetchSetPictures, resolveTargetSet, targetSetRecord } from "./target-set";
+import { fetchSetPictures, targetSetRecord } from "./target-set";
 import { keepRule } from "./train-method";
 import { coSelection, type CoSelectedColumns } from "./co-selection";
 import type { MaterialKind } from "./material-kind";
@@ -382,29 +381,22 @@ function createTraining(input: FigureInput, command: Extract<GrowCommand, { type
 }
 
 /**
- * A set method's target set (target-set.ts): the continued definition's own pictures, or the group's
- * 33 strongest distinct public pictures; their previews fetched, a picture that cannot be fetched
- * dropped, and the rest prepared by the engine in one DINO pass. The record names the pictures it
- * prepared, in set order. The block's frame must be loaded.
+ * A set method's target set (target-set.ts), as the page resolved it or the continued definition records
+ * it: the pictures' previews fetched, a picture that cannot be fetched dropped, and the rest prepared by
+ * the engine in one DINO pass. The record keeps the set's source and names the pictures it prepared, in
+ * set order. The block's frame must be loaded.
  */
-async function prepareTargetSet(input: FigureInput, saved: FigureTargetSet | null, location: { baseUrl: string; release: string }) {
+async function prepareTargetSet(input: FigureInput, given: FigureTargetSet, location: { baseUrl: string; release: string }) {
   phase("loading", "Finding the target set's pictures…");
   const library = await openLibrary(location);
-  let pictures: SetPicture[];
-  if (saved) {
-    pictures = saved.pictures;
-  } else {
-    const strongest = await readStrongestRows(fetch, `${location.baseUrl}/${STRONGEST_CLOUDS_PATH}/${input.block}.bin`, input.block);
-    if (!strongest) throw new Error(`Basis group ${input.block} has no strongest rows to take a target set from.`);
-    pictures = resolveTargetSet(strongest.rows);
-  }
+  const { pictures } = given;
   const fetched = await fetchSetPictures(pictures, (imageId) => library.previewUrl(imageId), fetch,
     (answered) => phase("loading", `Fetching the target set's pictures · ${answered}/${pictures.length}`));
   if (fetched.pictures.length === 0) throw new Error("None of the target set's pictures could be fetched.");
   phase("loading", `Preparing the target set: ${fetched.pictures.length} pictures through DINO…`);
   const patches = Uint32Array.from(fetched.pictures, (picture) => picture.patch);
   const set = await engine!.prepare_figure_set(JSON.stringify(engineRequest(input)), fetched.pngs, patches);
-  return { set, record: targetSetRecord(fetched.pictures) };
+  return { set, record: targetSetRecord(given.source, fetched.pictures) };
 }
 
 /**
@@ -426,13 +418,14 @@ async function grow(command: Extract<GrowCommand, { type: "start" }>) {
     throw new Error("This automaton definition belongs to another basis collection than this release's.");
   }
   // A continuation trains toward what its definition trained toward; a new run toward the chosen method.
-  const chosen: FigureObjective = continuation?.source.objective ?? { method: command.method, layers: command.layers, set: null };
+  const chosen: FigureObjective = continuation?.source.objective ?? { method: command.method, layers: command.layers, set: command.set };
   let input = figureInput(command.request, summary, dictionaryId, command.kind, command.batch, 1, { ...chosen, set: null });
   send({ type: "input", anchor: input.anchor, medianNorm: input.medianNorm, direction: input.direction, batch: input.batch });
   await loadModel(release, assets, input.block);
   let set: BrowserFigureSet | null = null;
   let objective: FigureObjective = input.objective;
   if (methodNeedsSet(chosen.method)) {
+    if (!chosen.set || chosen.set.pictures.length === 0) throw new Error("A set method needs a target set of one or more pictures.");
     const prepared = await prepareTargetSet(input, chosen.set, { baseUrl: command.release.baseUrl, release: release.release });
     set = prepared.set;
     objective = { ...input.objective, set: prepared.record };

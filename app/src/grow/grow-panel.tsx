@@ -24,10 +24,12 @@ import { BRUSH, strokeStamps } from "./live-brush";
 import { continuedKind, type ContinuationSource } from "./continuation";
 import { RULE_CHOICES, START_CHOICES, kindFromSearch, kindLabel, readingRegion, type MaterialKind } from "./material-kind";
 import { startStill } from "./start-still";
-import { methodNeedsSet, type FigureMethod } from "../materials/material-file";
+import { setRefusal } from "./target-set";
+import { methodNeedsSet, methodReadsTokens, type FigureMethod, type FigureTargetSet } from "../materials/material-file";
+import type { MaterialRequestOrigin } from "../app/material-request";
 import { FIGURE_UPDATES, RUNS } from "./figure-recipe";
 import {
-  TRAIN_COMPARISONS, TRAIN_SPACES, comparisonOf, keepRule, methodOf, spaceOf, type TrainComparison, type TrainSpace,
+  TOKEN_DEPTHS, TRAIN_COMPARISONS, TRAIN_SPACES, comparisonOf, keepRule, methodOf, spaceOf, type TokenDepth, type TrainComparison, type TrainSpace,
 } from "./train-method";
 
 // The page shows the site's persistent run only when its target matches. grow-view.ts maps
@@ -83,8 +85,9 @@ function KindChoices({ kind, open, ruleFixed, onChange }: {
  * The method: one choice of space and one of comparison, and under them the method they make, by its
  * name. Fixed while a run trains or waits; a continuation keeps its definition's method (`fixedMethod`).
  */
-function MethodChoices({ method, open, fixedMethod, onChange }: {
-  method: FigureMethod; open: boolean; fixedMethod: boolean; onChange: (method: FigureMethod) => void;
+function MethodChoices({ method, depth, open, fixedMethod, onChange, onDepth }: {
+  method: FigureMethod; depth: TokenDepth; open: boolean; fixedMethod: boolean;
+  onChange: (method: FigureMethod) => void; onDepth: (depth: TokenDepth) => void;
 }) {
   const fixed = { unavailable: !open, reason: open ? undefined : WORDS.stop };
   const choice = fixedMethod ? { unavailable: true, reason: WORDS.continuedMethod } : fixed;
@@ -101,6 +104,12 @@ function MethodChoices({ method, open, fixedMethod, onChange }: {
       <Segmented<TrainComparison> label={WORDS.comparison} value={comparison} onChange={(value) => onChange(methodOf(space, value))}
         segments={TRAIN_COMPARISONS.map((value) => ({ value, label: WORDS.comparisons[value], ...choice }))} />
       <p className="grow-hint">{hintSentence(`${SITE_WORDS.automata.methods[method]}: ${WORDS.methodHints[method]}`)}</p>
+    </div>
+    {/* The depth is a token method's alone; its room stays when the space is the basis group, so nothing moves. */}
+    <div className="grow-field grow-depth" data-absent={!methodReadsTokens(method) || undefined} aria-hidden={!methodReadsTokens(method) || undefined}>
+      <span className="label">{WORDS.depth}</span>
+      <Segmented<TokenDepth> label={WORDS.depth} value={depth} onChange={onDepth}
+        segments={TOKEN_DEPTHS.map((value) => ({ value, label: WORDS.depths[value], ...choice }))} />
     </div>
   </div>;
 }
@@ -176,10 +185,17 @@ function growTime(record: GrowRecord, settings: GrowSettings | null,
   return { time: timeBefore(before.kind, before.stopAtFirstFire, before.continuation?.fromUpdate ?? 0, before.batch), template: WORDS.timeBefore };
 }
 
-export function GrowPanel({ block, request, continuation, method, onMethod, heading }: {
+export function GrowPanel({ block, request, origin, continuation, method, onMethod, depth, onDepth, set, heading }: {
   /** The block the page is about, before its request has loaded. */
   block: number | null;
   request: MaterialRequest | null;
+  /** Who chose the request's points (material-request.tsx); a run records it, so the way back restores it. */
+  origin: MaterialRequestOrigin;
+  /** A token method's depth, owned by the page with the method. */
+  depth: TokenDepth;
+  onDepth: (depth: TokenDepth) => void;
+  /** A set method's target set as the page resolved and shows it (target-set.ts); null while it loads or for another method. */
+  set: FigureTargetSet | null;
   /** The saved definition the page continues (/train?continue=), or null for a new automaton. */
   continuation: ContinuationSource | null;
   /** The chosen method: the page owns it, since it decides what the heading says the run trains toward. */
@@ -213,7 +229,10 @@ export function GrowPanel({ block, request, continuation, method, onMethod, head
     if (!settings || adopted.current === settings) return;
     adopted.current = settings;
     setKind(settings.kind);
-    if (!settings.continuation) onMethod(settings.method);
+    if (!settings.continuation) {
+      onMethod(settings.method);
+      onDepth(settings.depth);
+    }
     setStopAtFirstFire(settings.stopAtFirstFire);
   }, [settings]);
   // While the page shows the run, the corner tray need not.
@@ -243,7 +262,11 @@ export function GrowPanel({ block, request, continuation, method, onMethod, head
     setChosenBatch(batch);
   };
   // A set method trains to the end: the stop check does not apply (keepRule).
-  const chosen = { kind: runKind, method: runMethod, stopAtFirstFire: stopAtFirstFire && rule.keepsFirstFire, continuation, batch: runBatch };
+  // A continuation prepares its definition's own set in the worker, so it carries none.
+  const runSet = continuation || !methodNeedsSet(runMethod) ? null : set;
+  const chosen = {
+    kind: runKind, method: runMethod, depth, set: runSet, origin, stopAtFirstFire: stopAtFirstFire && rule.keepsFirstFire, continuation, batch: runBatch,
+  };
   const changed = settings !== null && changedFromRun(settings, chosen);
   const primary = primaryAction(state, changed);
   const open = choicesOpen(state);
@@ -255,7 +278,9 @@ export function GrowPanel({ block, request, continuation, method, onMethod, head
   const shownMethod = settings && record.active ? settings.method : runMethod;
   // A result is offered to publish when it met the selection target, or, for a set method, always (keepRule).
   const publishable = result !== undefined && (result.fired || !keepRule(shownMethod, settings?.continuation != null, RUNS).publishesOnlyFired);
-  const ready = request?.anchor !== undefined && request.mode !== "plant";
+  // A set method trains once its set has one or more pictures; a continuation brings its own.
+  const setReady = continuation !== null || !methodNeedsSet(runMethod) || (runSet !== null && setRefusal(runMethod, runSet) === null);
+  const ready = request?.anchor !== undefined && request.mode !== "plant" && setReady;
   const time = growTime(record, settings, chosen, primary);
 
   // The live grid while the run is this page's; without one, the start of the chosen kind as a still.
@@ -351,7 +376,7 @@ export function GrowPanel({ block, request, continuation, method, onMethod, head
       {coSelection ? <CoSelectedPictures coSelection={coSelection} region={readingRegion(shownKind)} />
         : <ChoiceFaces face={face} onFace={setFace} methodName={WORDS.methodToggle[runMethod]}
           kind={<KindChoices kind={runKind} open={open} ruleFixed={continuation !== null} onChange={setKind} />}
-          method={<MethodChoices method={runMethod} open={open} fixedMethod={continuation !== null} onChange={onMethod} />}
+          method={<MethodChoices method={runMethod} depth={depth} open={open} fixedMethod={continuation !== null} onChange={onMethod} onDepth={onDepth} />}
           advanced={<AdvancedChoices batch={!open && settings ? settings.batch : runBatch} method={runMethod} note={fallbackNote}
             fixed={continuation ? WORDS.continuedBatch : open ? undefined : WORDS.stop} onBatch={chooseBatch} />} />}
       <TimeLine time={time.time} template={time.template} />

@@ -1,44 +1,99 @@
-import type { CloudRows } from "../library/block-cloud";
-import { MOST_SET_PICTURES, type FigureTargetSet, type SetPicture } from "../materials/material-file";
+import type { LookPoint } from "../library/look-cloud";
+import {
+  MOST_SET_PICTURES, bandOfNorm, methodComparesDistributions, type FigureMethod, type FigureTargetSet, type SetPicture, type TargetSetSource,
+} from "../materials/material-file";
+import type { MaterialPoint, StrengthCuts } from "../recipe";
 
-// The target set of a set method (Omar's decision 2, 17 November 2026): the basis group's 33 strongest
-// distinct public pictures, with the 3 × 3 tokens around each one's patch, as in the research's standard
-// runs (research/given-set: selection.Band(block, "pole"), given_set.build with "3x3"). The worker
-// resolves it, fetches the pictures and has the engine prepare it once per run (grow.worker.ts).
+// The target set of a set method (Omar, 17 November 2026, evening): the patches the visitor selected on a
+// group's page and sent to Train; with no selection, the group's strongest pictures in its public sample
+// cloud, which is the research's own set. Either way the research's rule picks the pictures (meme, from
+// research/given-set: selection.Band(block, "pole"), given_set.build with "3x3"). The page resolves the set
+// and shows it; the worker fetches the pictures and has the engine prepare them once per run.
 
-/**
- * Where the set's pictures come from: the group's published strongest rows, the top 1,024 of the
- * whole response set. The research takes them from a frozen 4,096-row public sample; the two give
- * different sets (8 to 30 shared pictures of 33 on six groups). Which one the page uses is Omar's
- * decision. Until then it is the strongest file, the only one the browser has.
- */
-export const SET_SOURCE: FigureTargetSet["source"] = "strongest";
+/** The research's standard set: at most this many pictures. Fewer is allowed, down to one. */
+export const SET_PICTURES = MOST_SET_PICTURES;
 export const SET_NEIGHBOURHOOD: FigureTargetSet["neighbourhood"] = "3x3";
 
 /** A token's slot counts DINO's 5 prefix tokens (the class token and 4 registers) before the 256 patches. */
 const PREFIX_SLOTS = 5;
 
+/** One patch that may enter a set: its picture, its token slot, the norm of its code, and whether the picture is public. */
+export interface SetCandidate {
+  imageId: number;
+  slot: number;
+  norm: number;
+  publicPreview: boolean;
+}
+
 /**
- * The set's pictures from a group's strongest rows: the rows in file order, which is descending norm;
- * public rows only; the first row of each distinct picture; the first `count`. The research orders its
- * public rows by norm with a stable sort and takes the first row per picture the same way
- * (selection.distinct_pictures).
+ * The set's pictures from candidate patches, by the research's rule: public pictures only; strongest
+ * first by the norm of the code, ties in the given order (a stable sort, as the research's); one patch
+ * for each distinct picture, its strongest; the first `count`. A pure function of the rows, so a
+ * selection and the sample cloud take the same rule.
  */
-export function resolveTargetSet(rows: Pick<CloudRows, "count" | "imageIds" | "slots" | "publicPreview">, count = MOST_SET_PICTURES): SetPicture[] {
+export function resolveTargetSet(candidates: readonly SetCandidate[], count = SET_PICTURES): SetPicture[] {
+  const strongestFirst = candidates.filter((candidate) => candidate.publicPreview).sort((a, b) => b.norm - a.norm);
   const pictures: SetPicture[] = [];
   const taken = new Set<number>();
-  for (let row = 0; row < rows.count && pictures.length < count; row++) {
-    const imageId = rows.imageIds[row]!;
-    if (rows.publicPreview[row] !== 1 || taken.has(imageId)) continue;
-    taken.add(imageId);
-    pictures.push({ imageId, patch: rows.slots[row]! - PREFIX_SLOTS });
+  for (const candidate of strongestFirst) {
+    if (pictures.length === count) break;
+    if (taken.has(candidate.imageId)) continue;
+    taken.add(candidate.imageId);
+    pictures.push({ imageId: candidate.imageId, patch: candidate.slot - PREFIX_SLOTS });
   }
   return pictures;
 }
 
-/** The set as a kept file records it (`recipe.settings.set`), in set order. */
-export function targetSetRecord(pictures: readonly SetPicture[]): FigureTargetSet {
-  return { source: SET_SOURCE, neighbourhood: SET_NEIGHBOURHOOD, pictures: pictures.map(({ imageId, patch }) => ({ imageId, patch })) };
+/**
+ * The candidates of a visitor's selection (MaterialRequest.points): its library patches, the norm of
+ * each code. A patch of the visitor's own picture is not a candidate: its pixels are not in the library.
+ */
+export function selectionCandidates(points: readonly MaterialPoint[]): SetCandidate[] {
+  return points.flatMap((point) => point.source === "library"
+    ? [{ imageId: point.imageId, slot: point.slot, norm: Math.hypot(...point.code), publicPreview: point.publicPreview !== false }]
+    : []);
+}
+
+/** The fewest pictures a distribution method takes (decision 15, 17 November 2026): one picture is not a distribution. */
+export const FEWEST_DISTRIBUTION_PICTURES = 2;
+
+/**
+ * Why a method cannot train toward a set, or null when it can (decision 15): a set needs a picture, and a
+ * distribution method needs FEWEST_DISTRIBUTION_PICTURES. A mean method takes a set of one picture.
+ */
+export function setRefusal(method: FigureMethod, set: FigureTargetSet): "empty" | "one-picture" | null {
+  if (set.pictures.length === 0) return "empty";
+  if (methodComparesDistributions(method) && set.pictures.length < FEWEST_DISTRIBUTION_PICTURES) return "one-picture";
+  return null;
+}
+
+/**
+ * Whether a selection lies only at Level 1 or Level 2, by Look's band rule on the reference patch's cuts
+ * (decision 15): a weak level tends to grow what surrounds the group's subject. False without library patches.
+ */
+export function weakSelection(points: readonly MaterialPoint[], strength: StrengthCuts): boolean {
+  const library = points.filter((point) => point.source === "library");
+  return library.length > 0 && library.every((point) => {
+    const band = bandOfNorm(Math.hypot(...point.code), strength);
+    return band === "barely" || band === "weakly";
+  });
+}
+
+/** The candidates of the group's sample cloud (clouds/<block>.json), in file order, with the norms the file stores. */
+export function sampleCandidates(points: readonly LookPoint[]): SetCandidate[] {
+  return points.map((point) => ({ imageId: point.imageId, slot: point.slot, norm: point.norm, publicPreview: point.publicPreview }));
+}
+
+/** Whether two sets are the same: the same source and the same pictures in the same order; two absent sets are. */
+export function sameTargetSet(a: FigureTargetSet | null, b: FigureTargetSet | null): boolean {
+  if (a === null || b === null) return a === b;
+  return a.source === b.source && a.pictures.length === b.pictures.length
+    && a.pictures.every((picture, index) => picture.imageId === b.pictures[index]!.imageId && picture.patch === b.pictures[index]!.patch);
+}
+
+/** The set as a kept file and the worker's command carry it, in set order. */
+export function targetSetRecord(source: TargetSetSource, pictures: readonly SetPicture[]): FigureTargetSet {
+  return { source, neighbourhood: SET_NEIGHBOURHOOD, pictures: pictures.map(({ imageId, patch }) => ({ imageId, patch })) };
 }
 
 /** The set's pictures that could be fetched, in set order, with their PNG bytes. */

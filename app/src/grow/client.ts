@@ -1,9 +1,4 @@
-import type { FigureLayer, FigureMethod } from "../materials/material-file";
-import type { MaterialRequest } from "../recipe";
-import type { ReleaseLocation } from "../synthesis/protocol";
-import type { ContinuationChange, ContinuationSource } from "./continuation";
-import type { MaterialKind } from "./material-kind";
-import type { GrowCommand, GrowEvent } from "./protocol";
+import type { GrowCommand, GrowEvent, GrowStart } from "./protocol";
 
 /** One worker owns the training, its GPU pool and the live grid. Disposing the client ends them. */
 export class GrowClient {
@@ -12,9 +7,8 @@ export class GrowClient {
     this.worker.onmessage = ({ data }: MessageEvent<GrowEvent>) => onEvent(data);
     this.worker.onerror = (event) => onEvent({ type: "error", message: event.message });
   }
-  start(request: MaterialRequest, release: ReleaseLocation, kind: MaterialKind, method: FigureMethod, layers: FigureLayer[], batch: 1 | 4,
-    stopAtFirstFire: boolean, continuation?: { source: ContinuationSource; change: ContinuationChange }) {
-    this.send({ type: "start", request, release, kind, method, layers, batch, stopAtFirstFire, ...(continuation ? { continuation } : {}) });
+  start(start: GrowStart) {
+    this.send({ type: "start", ...start });
   }
   stop() { this.send({ type: "stop" }); }
   resumeTraining() { this.send({ type: "resume-training" }); }

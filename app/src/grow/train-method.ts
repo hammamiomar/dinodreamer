@@ -29,14 +29,35 @@ export function comparisonOf(method: FigureMethod): TrainComparison {
 }
 
 /**
- * The layers a token method compares, averaged in its loss. Omar has not decided them; until he does,
- * they are the research's standard runs: token distribution at blocks 3, 6 and 9 (zero-based) and the
- * final layer (sweep T2), token mean at the final layer. A basis-group method reads the final layer's
- * codes and records no layers.
+ * How deep a token method compares DINO's tokens (Omar, 17 November 2026, evening, on meme's advice from
+ * the research): four layers, the patch tokens after zero-based blocks 3, 6 and 9 and the final layer,
+ * averaged in the loss (sweep T2), the default for both token methods; or the final layer alone, the
+ * tokens the basis groups read. A basis-group method reads the final layer's codes and has no depth.
  */
-export function methodLayers(method: FigureMethod): FigureLayer[] {
-  if (!methodReadsTokens(method)) return [];
-  return method === "token-distribution" ? ["block-3", "block-6", "block-9", "final"] : ["final"];
+export type TokenDepth = "four-layers" | "final-layer";
+export const TOKEN_DEPTHS: readonly TokenDepth[] = ["four-layers", "final-layer"];
+export const DEFAULT_DEPTH: TokenDepth = "four-layers";
+const DEPTH_LAYERS: Record<TokenDepth, FigureLayer[]> = {
+  "four-layers": ["block-3", "block-6", "block-9", "final"],
+  "final-layer": ["final"],
+};
+
+/** The layers a method compares at a depth: a token method's depth, none for a basis-group method. */
+export function methodLayers(method: FigureMethod, depth: TokenDepth = DEFAULT_DEPTH): FigureLayer[] {
+  return methodReadsTokens(method) ? [...DEPTH_LAYERS[depth]] : [];
+}
+
+/** The depth of recorded layers (a continued file's), or null for layers Train does not offer. */
+export function depthOfLayers(layers: readonly FigureLayer[]): TokenDepth | null {
+  const found = TOKEN_DEPTHS.find((depth) => DEPTH_LAYERS[depth].length === layers.length
+    && DEPTH_LAYERS[depth].every((layer, index) => layers[index] === layer));
+  return found ?? null;
+}
+
+/** The depth a /train address asks for (`depth`: "final-layer"), the default otherwise. */
+export function depthFromSearch(search: URLSearchParams): TokenDepth {
+  const depth = search.get("depth");
+  return (TOKEN_DEPTHS as readonly (string | null)[]).includes(depth) ? depth as TokenDepth : DEFAULT_DEPTH;
 }
 
 /**

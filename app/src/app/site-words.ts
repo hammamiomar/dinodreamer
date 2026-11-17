@@ -913,6 +913,10 @@ export const SITE_WORDS = {
       "basis-group-distribution": "the basis group's 3 numbers spread over the picture as they spread over the set",
       "token-distribution": "DINO's tokens spread over the picture as they spread over the set",
     },
+    /** The label over the token methods' depth: which of DINO's layers they compare (grow/train-method.ts). Shown only for the Token space. */
+    depth: "Depth",
+    /** Its two options: blocks 3, 6 and 9 and the final layer, averaged; or the final layer alone. */
+    depths: { "four-layers": "Four layers", "final-layer": "Final layer" },
     /** Why the space and the comparison cannot change when Train continues a definition. */
     continuedMethod: "A continued automaton keeps its method.",
     /** In place of the stop check for the methods that compare with the set: they train every update and keep the last cellular model. One line. */
@@ -939,6 +943,16 @@ export const SITE_WORDS = {
      * when some could not be read). At most four lines beside the pictures.
      */
     towardSet: "Trains toward this group's {count} strongest pictures.",
+    /** The same when the visitor sent a selection from the group's page: the set is its strongest pictures, one patch each. */
+    towardSelection: "Trains toward the {count} strongest pictures of your selection.",
+    /** The same when the selection holds fewer than 33 pictures (decision 15): Train uses all of them, and says how many. */
+    towardWholeSelection: "Your selection holds {count} pictures. Train uses all {count}, one patch each.",
+    /** For a distribution method and a selection of one picture (decision 15): Train is off. */
+    setOnePicture: "One picture is not a distribution. Select more pictures on the group's page, or choose Mean.",
+    /** Under the set's sentence when the selection is Level 1 or Level 2 only (decision 15). */
+    weakSet: "A weak level tends to grow what surrounds the group's subject, not the subject.",
+    /** In place of the pictures when the visitor's selection holds no library picture with a public preview (only their own picture's patches). */
+    setEmpty: "Your selection has no library picture to train toward. Select patches of library pictures on the group's page, then send them to Train.",
     /** Under it, in the response level's place: what each picture brings to the set. */
     setPatches: "3 × 3 patches each",
     /** Under that, in the place of "Pick another patch": the basis group's page, where its strongest pictures show large. */

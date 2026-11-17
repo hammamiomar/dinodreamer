@@ -34,7 +34,7 @@ describe("figure material file (format 4)", () => {
   });
 
   it("reads a browser training's method, its layers and its set, and refuses what does not belong to the method", () => {
-    const set = { source: "strongest", neighbourhood: "3x3", pictures: [{ imageId: 3536804379159069, patch: 69 }, { imageId: 12, patch: 0 }] };
+    const set = { source: "sample-strongest", neighbourhood: "3x3", pictures: [{ imageId: 3536804379159069, patch: 69 }, { imageId: 12, patch: 0 }] };
     const withSettings = (settings: Record<string, unknown>) => {
       const file = kept();
       file.recipe.settings = { ...file.recipe.settings, ...settings };

@@ -1,9 +1,9 @@
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { Outlet, useSearchParams } from "react-router";
 import { useLibrary } from "../app/library-session";
-import { useMaterialRequest } from "../app/material-request";
+import { useMaterialRequest, type MaterialRequestOrigin } from "../app/material-request";
 import { SITE_WORDS, fill } from "../app/site-words";
-import type { MaterialAnchor } from "../recipe";
+import type { MaterialAnchor, MaterialRequest } from "../recipe";
 import { useObjectUrl } from "../ui/files";
 import { fetchPublishedMaterial } from "../features/gallery/material-gallery";
 import { WARNED_BELOW } from "../features/look/grow-from-picture";
@@ -13,13 +13,15 @@ import { BasisGroupLink } from "../features/look/basis-group-panel";
 import { TokenPicture } from "../features/look/token-pictures";
 import { keptMaterials } from "../storage/materials";
 import { LibraryImage } from "../ui/library-image";
-import { methodNeedsSet, type FigureMaterial, type FigureMethod, type SetPicture } from "../materials/material-file";
+import { methodNeedsSet, type FigureMaterial, type FigureMethod, type FigureTargetSet, type SetPicture } from "../materials/material-file";
 import { continuationRequest, continuationSource, type ContinuationSource } from "./continuation";
 import { GrowPanel } from "./grow-panel";
 import { trainRun } from "./train-run";
 import { bandName } from "./live-readout";
-import { resolveTargetSet } from "./target-set";
-import { methodFromSearch } from "./train-method";
+import {
+  SET_PICTURES, resolveTargetSet, sampleCandidates, selectionCandidates, setRefusal, targetSetRecord, weakSelection,
+} from "./target-set";
+import { DEFAULT_DEPTH, depthFromSearch, depthOfLayers, methodFromSearch } from "./train-method";
 import "./grow.css";
 
 const WORDS = SITE_WORDS.grow;
@@ -62,7 +64,7 @@ function SetCrop({ picture }: { picture: SetPicture }) {
  * the way to another patch, the group's page, where its pictures show large. A set method does not train
  * toward the reference patch, so there is no level to choose.
  */
-function SetOccurrence({ block, pictures, sentence }: { block: number; pictures: readonly SetPicture[]; sentence: string }) {
+function SetOccurrence({ block, pictures, sentence, warning }: { block: number; pictures: readonly SetPicture[]; sentence: string; warning: string | null }) {
   return <div className="grow-set">
     <div className="grow-set-pictures" role="img" aria-label={fill(WORDS.setPictures, { count: pictures.length })}>
       {pictures.map((picture) => <SetCrop key={picture.imageId} picture={picture} />)}
@@ -70,28 +72,49 @@ function SetOccurrence({ block, pictures, sentence }: { block: number; pictures:
     <div>
       <p>{sentence}</p>
       <span className="band">{WORDS.setPatches}</span>
+      {warning && <p className="grow-warning">{warning}</p>}
       <BasisGroupLink className="grow-pick" block={block}>{WORDS.setLink}</BasisGroupLink>
     </div>
   </div>;
 }
 
+/** What the block says of a set: the group's strongest; a selection's strongest 33; or, for a smaller selection, how many it uses. */
+function setSentence(set: FigureTargetSet): string {
+  const count = set.pictures.length;
+  if (set.source === "sample-strongest") return fill(WORDS.towardSet, { count });
+  return fill(count < SET_PICTURES ? WORDS.towardWholeSelection : WORDS.towardSelection, { count });
+}
+
 /**
- * The set a new run of a set method resolves, from the group's strongest rows by the worker's own rule
- * (target-set.ts resolveTargetSet): null while it loads or for another method, [] when the rows cannot be read.
+ * The set a new run of a set method trains toward (target-set.ts), by the research's rule: from the
+ * visitor's selection; for the request Train built itself, from the group's sample cloud. `set` is null
+ * for another method and while the sample loads; `problem` says why the sample could not be read.
  */
-function useSetPictures(block: number | null, method: FigureMethod): SetPicture[] | null {
+function useTargetSet(request: MaterialRequest | null, origin: MaterialRequestOrigin, method: FigureMethod) {
   const library = useLibrary();
-  const [state, setState] = useState<{ block: number; pictures: SetPicture[] } | null>(null);
-  const wanted = block !== null && methodNeedsSet(method);
+  const wanted = request !== null && methodNeedsSet(method);
+  const fromSelection = wanted && origin === "visitor";
+  const fromSample = wanted && origin === "train";
+  const block = request?.block ?? null;
+  const selection = useMemo(() => fromSelection && request !== null
+    ? targetSetRecord("selection", resolveTargetSet(selectionCandidates(request.points)))
+    : null, [fromSelection, request]);
+  const [sample, setSample] = useState<{ block: number; set: FigureTargetSet | null; problem: string | null } | null>(null);
   useEffect(() => {
-    if (!wanted || block === null) return;
+    if (!fromSample || block === null) return;
     let current = true;
-    void library.strongestRows(block).then((rows) => {
-      if (current) setState({ block, pictures: rows ? resolveTargetSet(rows) : [] });
-    });
+    void library.lookCloud(block).then(
+      (cloud) => {
+        const set = targetSetRecord("sample-strongest", resolveTargetSet(sampleCandidates(cloud.fixture.points)));
+        if (current) setSample({ block, set, problem: null });
+      },
+      (error: unknown) => { if (current) setSample({ block, set: null, problem: error instanceof Error ? error.message : String(error) }); },
+    );
     return () => { current = false; };
-  }, [library, block, wanted]);
-  return wanted && state?.block === block ? state.pictures : null;
+  }, [library, block, fromSample]);
+  if (fromSelection) return { set: selection, problem: null };
+  if (fromSample && sample?.block === block) return { set: sample.set, problem: sample.problem };
+  return { set: null, problem: null };
 }
 
 /**
@@ -155,11 +178,11 @@ function useContinuationRequest(source: ContinuationSource | null, level: BandIn
     // Back on Train for a definition whose run goes on, the page aims where that run does, at whatever level it chose.
     const running = trainRun.state().settings;
     if (level === null && running?.continuation?.id === source.id) {
-      setRequest(running.request, running.picture);
+      setRequest(running.request, running.picture, running.origin);
       return;
     }
     if (level === null || STRENGTH_BANDS[level] === source.anchor.band) {
-      setRequest(continuationRequest(source));
+      setRequest(continuationRequest(source), null, "train");
       return;
     }
     let current = true;
@@ -168,7 +191,7 @@ function useContinuationRequest(source: ContinuationSource | null, level: BandIn
       if (!current) return;
       const next = bandRequest(cloud, sampleStrengthCuts(cloud.whole.gateMedian, cloud.sample.norms), level);
       if (!next) throw new Error("This response level has no public reference patch.");
-      setRequest(next);
+      setRequest(next, null, "train");
       setSelection({ source, level, problem: null });
     }).catch((error: unknown) => {
       if (current) setSelection({ source, level, problem: error instanceof Error ? error.message : String(error) });
@@ -201,7 +224,8 @@ function useBlockRequest(block: number | null) {
     void library.blockCloud(block).then((cloud) => {
       if (!current) return;
       const next = strongestBandRequest(cloud, sampleStrengthCuts(cloud.whole.gateMedian, cloud.sample.norms));
-      if (next) setRequest(next);
+      // Train builds this request itself: a set method then takes the group's strongest pictures, not this level.
+      if (next) setRequest(next, null, "train");
       else setProblem("none");
     }).catch((error: unknown) => { if (current) setProblem(String(error)); });
     return () => { current = false; };
@@ -213,7 +237,7 @@ function useBlockRequest(block: number | null) {
 export function GrowPage() {
   const [search] = useSearchParams();
   const asked = askedBlock(search);
-  const { request, picture } = useMaterialRequest();
+  const { request, picture, origin } = useMaterialRequest();
   const { loading, problem } = useBlockRequest(asked);
   const continued = useContinuationSource(search.get("continue"));
   const source = continued.source;
@@ -229,7 +253,10 @@ export function GrowPage() {
   // The method: "Train a variation" names it in the address; a continuation trains by its definition's own.
   const [chosenMethod, setChosenMethod] = useState<FigureMethod>(() => methodFromSearch(search));
   const method = continuing && source ? source.objective.method : chosenMethod;
-  const setPictures = useSetPictures(continuing ? null : block, method);
+  // A token method's depth: the address's, or a continuation's own layers.
+  const [chosenDepth, setChosenDepth] = useState(() => depthFromSearch(search));
+  const depth = continuing && source ? depthOfLayers(source.objective.layers) ?? DEFAULT_DEPTH : chosenDepth;
+  const target = useTargetSet(continuing || waiting ? null : request, origin, method);
 
   // Under the display: the occurrence, or why there is none yet.
   let occurrence: ReactNode;
@@ -245,7 +272,7 @@ export function GrowPage() {
     // A set method's definition continues toward its own set; the reference patch plays no part.
     const { pictures } = source.objective.set;
     const sentence = fill(WORDS.continuingSet, { update: source.fromUpdate.toLocaleString("en-US"), count: pictures.length });
-    occurrence = <SetOccurrence block={source.block} pictures={pictures} sentence={sentence} />;
+    occurrence = <SetOccurrence block={source.block} pictures={pictures} sentence={sentence} warning={null} />;
   }
   else if (continuing && source) {
     occurrence = <>
@@ -258,15 +285,23 @@ export function GrowPage() {
   else if (request?.mode === "plant") occurrence = <p className="grow-note">{WORDS.plant}</p>;
   else if (request && !request.anchor) occurrence = <p className="grow-note">{WORDS.noAnchor}</p>;
   else if (request?.anchor && methodNeedsSet(method)) {
-    occurrence = setPictures === null
-      ? <p className="grow-note" role="status">{fill(WORDS.setLoading, { block: request.block })}</p>
-      : <SetOccurrence block={request.block} pictures={setPictures} sentence={fill(WORDS.towardSet, { count: setPictures.length })} />;
+    const { set, problem: setProblem } = target;
+    if (setProblem !== null) occurrence = <p className="grow-note">{setProblem}</p>;
+    else if (set === null) occurrence = <p className="grow-note" role="status">{fill(WORDS.setLoading, { block: request.block })}</p>;
+    else if (setRefusal(method, set) === "empty") occurrence = <p className="grow-note">{WORDS.setEmpty}</p>;
+    else {
+      const refused = setRefusal(method, set) === "one-picture";
+      const weak = set.source === "selection" && weakSelection(request.points, request.anchor.strength);
+      occurrence = <SetOccurrence block={request.block} pictures={set.pictures} sentence={setSentence(set)}
+        warning={refused ? WORDS.setOnePicture : weak ? WORDS.weakSet : null} />;
+    }
   }
   else if (request?.anchor) occurrence = <Occurrence block={request.block} anchor={request.anchor} uploadUrl={uploadUrl} lift={picture?.lift ?? false} />;
   else occurrence = <p className="grow-note">{WORDS.nothing}</p>;
 
   return <main className="grow-page">
-    <GrowPanel block={block} request={waiting ? null : request} continuation={continuing ? source : null} method={method} onMethod={setChosenMethod} heading={<>
+    <GrowPanel block={block} request={waiting ? null : request} origin={origin} continuation={continuing ? source : null}
+      method={method} onMethod={setChosenMethod} depth={depth} onDepth={setChosenDepth} set={target.set} heading={<>
       <h1 className="display grow-title" style={{ "--lines": block === null ? 1 : 2 } as CSSProperties}>{WORDS.title}{block !== null && <><br />{block}</>}</h1>
       <div className="grow-occurrence">{occurrence}</div>
     </>} />

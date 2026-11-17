@@ -212,7 +212,7 @@ describe("retry on the outcome", () => {
 
 describe("a set method's run and kept file", () => {
   const set = {
-    source: "strongest" as const, neighbourhood: "3x3" as const,
+    source: "sample-strongest" as const, neighbourhood: "3x3" as const,
     pictures: [{ imageId: 3536804379159069, patch: 69 }, { imageId: 12, patch: 255 }],
   };
   const objective = { method: "token-distribution" as const, layers: ["block-3", "block-6", "block-9", "final"] as FigureLayer[], set };

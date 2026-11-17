@@ -26,7 +26,7 @@ describe("an entry from a file", () => {
 });
 
 describe("an entry from a set method's file", () => {
-  const set = { source: "strongest", neighbourhood: "3x3", pictures: [{ imageId: 3536804379159069, patch: 69 }] };
+  const set = { source: "selection", neighbourhood: "3x3", pictures: [{ imageId: 3536804379159069, patch: 69 }] };
   const trained = (method: string, extra: Record<string, unknown> = {}, start?: FigureMaterialFile["start"]): FigureMaterialFile => ({
     ...FILE, ...(start ? { start } : {}),
     recipe: { ...FILE.recipe, settings: { ...FILE.recipe.settings, method, set, ...extra } as FigureMaterialFile["recipe"]["settings"] },

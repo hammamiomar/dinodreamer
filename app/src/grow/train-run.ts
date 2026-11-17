@@ -1,17 +1,18 @@
 import { useEffect, useSyncExternalStore, type RefObject } from "react";
 import { RELEASE_LOCATION } from "../app/config";
-import type { MaterialRequestPicture } from "../app/material-request";
+import type { MaterialRequestOrigin, MaterialRequestPicture } from "../app/material-request";
 import type { MaterialRequest } from "../recipe";
 import { announceKept } from "../replay/keep-material";
 import { keepMaterial } from "../storage/materials";
-import { readFigureMaterial, type FigureMaterialFile, type FigureMethod } from "../materials/material-file";
+import { methodReadsTokens, readFigureMaterial, type FigureMaterialFile, type FigureMethod, type FigureTargetSet } from "../materials/material-file";
 import type { ReleaseLocation } from "../synthesis/protocol";
 import { SAMPLE_EVERY_TICKS, sampledAccent } from "../ui/sampled-accent";
 import { GrowClient } from "./client";
 import { continuationChange, type ContinuationSource } from "./continuation";
 import { NO_RECORD, markSaved, recordEvent, type GrowRecord } from "./grow-view";
 import type { MaterialKind } from "./material-kind";
-import { methodLayers } from "./train-method";
+import { methodLayers, type TokenDepth } from "./train-method";
+import { sameTargetSet } from "./target-set";
 import type { GrowEvent } from "./protocol";
 import { clearRunOnPageHide, noteInterruptedRun, runMemory, type BatchSize } from "./batch-size";
 
@@ -26,6 +27,12 @@ export interface GrowSettings {
   kind: MaterialKind;
   /** What it compares the canvas with (train-method.ts). A continuation trains by its definition's own method. */
   method: FigureMethod;
+  /** A token method's depth (train-method.ts); ignored by the basis-group methods. */
+  depth: TokenDepth;
+  /** A set method's target set, as the page resolved and showed it (target-set.ts); null otherwise and for a continuation. */
+  set: FigureTargetSet | null;
+  /** Who chose the request's points: the visitor, or Train for /train?block=N. The way back to Train restores it. */
+  origin: MaterialRequestOrigin;
   stopAtFirstFire: boolean;
   /** The saved definition a run continues (Train resume, case 2), or null for a new automaton. */
   continuation: ContinuationSource | null;
@@ -211,8 +218,11 @@ export function createTrainRun(dependencies: TrainRunDependencies): TrainRun {
         // A continuation records what it changed.
         const source = settings.continuation;
         const continuation = source && request.anchor ? { source, change: continuationChange(source, settings.kind.start, request.anchor) } : undefined;
-        created.start(request, dependencies.release, settings.kind, settings.method, methodLayers(settings.method), runBatch,
-          settings.stopAtFirstFire, continuation);
+        created.start({
+          request, release: dependencies.release, kind: settings.kind, method: settings.method, layers: methodLayers(settings.method, settings.depth),
+          set: settings.continuation ? null : settings.set, batch: runBatch, stopAtFirstFire: settings.stopAtFirstFire,
+          ...(continuation ? { continuation } : {}),
+        });
       } catch (error) {
         onEvent({ type: "error", message: String(error) });
       }
@@ -230,15 +240,18 @@ export function createTrainRun(dependencies: TrainRunDependencies): TrainRun {
 }
 
 /**
- * Whether the page's choices describe another run than the held one: another kind, method, stop rule,
- * continuation or batch size. Then Train starts that run; otherwise Resume trains the held one on.
+ * Whether the page's choices describe another run than the held one: another kind, method, token depth,
+ * target set, stop rule, continuation or batch size. Then Train starts that run; otherwise Resume trains
+ * the held one on.
  */
 export function changedFromRun(
-  run: GrowSettings, chosen: Pick<GrowSettings, "kind" | "method" | "stopAtFirstFire" | "continuation" | "batch">,
+  run: GrowSettings, chosen: Pick<GrowSettings, "kind" | "method" | "depth" | "set" | "stopAtFirstFire" | "continuation" | "batch">,
 ): boolean {
   return run.kind.rule !== chosen.kind.rule
     || run.kind.start !== chosen.kind.start
     || run.method !== chosen.method
+    || (methodReadsTokens(chosen.method) && run.depth !== chosen.depth)
+    || !sameTargetSet(run.set, chosen.set)
     || run.stopAtFirstFire !== chosen.stopAtFirstFire
     || run.continuation?.id !== chosen.continuation?.id
     || run.batch !== chosen.batch;

@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { FIGURE_METHODS } from "../materials/material-file";
 import { RUNS } from "./figure-recipe";
 import {
-  DEFAULT_METHOD, TRAIN_COMPARISONS, TRAIN_SPACES, comparisonOf, keepRule, methodFromSearch, methodLayers, methodOf, spaceOf,
+  DEFAULT_DEPTH, DEFAULT_METHOD, TRAIN_COMPARISONS, TRAIN_SPACES, comparisonOf, depthFromSearch, depthOfLayers, keepRule, methodFromSearch,
+  methodLayers, methodOf, spaceOf,
 } from "./train-method";
 
 describe("Train's method", () => {
@@ -21,11 +22,22 @@ describe("Train's method", () => {
     expect([spaceOf("basis-group-distribution"), comparisonOf("basis-group-distribution")]).toEqual(["basis-group", "distribution"]);
   });
 
-  it("compares a token method at the research's standard layers, a basis-group method at none", () => {
-    expect(methodLayers("token-distribution")).toEqual(["block-3", "block-6", "block-9", "final"]);
-    expect(methodLayers("token-mean")).toEqual(["final"]);
-    expect(methodLayers("basis-group-mean")).toEqual([]);
+  it("compares both token methods at four layers by default or the final layer alone; a basis-group method has no depth", () => {
+    expect(DEFAULT_DEPTH).toBe("four-layers");
+    for (const method of ["token-mean", "token-distribution"] as const) {
+      expect(methodLayers(method)).toEqual(["block-3", "block-6", "block-9", "final"]);
+      expect(methodLayers(method, "final-layer")).toEqual(["final"]);
+    }
+    expect(methodLayers("basis-group-mean", "final-layer")).toEqual([]);
     expect(methodLayers("basis-group-distribution")).toEqual([]);
+  });
+
+  it("reads a depth from recorded layers and from the address", () => {
+    expect(depthOfLayers(["block-3", "block-6", "block-9", "final"])).toBe("four-layers");
+    expect(depthOfLayers(["final"])).toBe("final-layer");
+    expect(depthOfLayers(["block-3"])).toBeNull();
+    expect(depthFromSearch(new URLSearchParams("block=12002&depth=final-layer"))).toBe("final-layer");
+    expect(depthFromSearch(new URLSearchParams("block=12002&depth=deep"))).toBe("four-layers");
   });
 });
 

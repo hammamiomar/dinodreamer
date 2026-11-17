@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { targetSetRecord } from "./target-set";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { MaterialAnchor, MaterialRequest } from "../recipe";
 import { NO_RECORD } from "./grow-view";
@@ -12,7 +13,10 @@ const anchor: MaterialAnchor = {
   source: "library", imageId: 7, slot: 40, code: [1, 2, 3], band: "strongest", norm: 2, strength: { ring: 1, cuts: [1.2, 1.5, 1.8], maximum: 3 },
 };
 const request: MaterialRequest = { block: 12002, points: [], anchor };
-const choices = { kind: { rule: "cell", start: "noise" }, method: "basis-group-mean", stopAtFirstFire: false, continuation: null, picture: null, batch: 4 } as const;
+const choices = {
+  kind: { rule: "cell", start: "noise" }, method: "basis-group-mean", depth: "four-layers", set: null, origin: "visitor",
+  stopAtFirstFire: false, continuation: null, picture: null, batch: 4,
+} as const;
 /** The tab's record of a run, as calls. */
 function fakeRunRecord() {
   const calls: string[] = [];
@@ -57,6 +61,32 @@ afterEach(() => {
 });
 
 describe("the site's Train run (train-run.ts)", () => {
+  it("sends the worker a set method's layers at its depth and the set the page resolved; a continuation brings its own", () => {
+    const workers = fakeWorkers();
+    const start = vi.fn<TrainRunClient["start"]>();
+    const run = createTrainRun({
+      createClient: (onEvent) => ({ ...workers.createClient(onEvent), start }),
+      keep: async () => {}, release: { url: "", name: "test" } as never, runRecord: fakeRunRecord(),
+    });
+    const set = targetSetRecord("selection", [{ imageId: 7, patch: 35 }]);
+    run.start(request, { ...choices, method: "token-mean", depth: "final-layer", set });
+    expect(start.mock.lastCall?.[0]).toMatchObject({ method: "token-mean", layers: ["final"], set });
+    run.start(request, { ...choices, method: "token-distribution", set });
+    expect(start.mock.lastCall?.[0].layers).toEqual(["block-3", "block-6", "block-9", "final"]);
+    run.start(request, { ...choices, method: "basis-group-distribution", depth: "final-layer", set });
+    expect(start.mock.lastCall?.[0].layers).toEqual([]);
+  });
+
+  it("starts another run for another depth of a token method or another set, not for a basis-group method's depth", () => {
+    const set = targetSetRecord("selection", [{ imageId: 7, patch: 35 }]);
+    const held = { ...choices, request, method: "token-mean" as const, set };
+    expect(changedFromRun(held, { ...held, depth: "final-layer" })).toBe(true);
+    expect(changedFromRun(held, { ...held, set: targetSetRecord("sample-strongest", set.pictures) })).toBe(true);
+    expect(changedFromRun(held, { ...held })).toBe(false);
+    const codes = { ...held, method: "basis-group-distribution" as const };
+    expect(changedFromRun(codes, { ...codes, depth: "final-layer" })).toBe(false);
+  });
+
   it.each([1, 4] as const)("continues a saved batch-%i definition at its recorded batch", (savedBatch) => {
     const material = readFigureMaterial(JSON.parse(readFileSync(
       new URL("../../fixtures/materials/block-12002-figure-strongest-mean-seed-1.material.json", import.meta.url), "utf8",
@@ -72,9 +102,9 @@ describe("the site's Train run (train-run.ts)", () => {
       runRecord: fakeRunRecord(),
     });
     run.start(request, { ...choices, batch: chosenBatch });
-    expect(start.mock.lastCall?.[5]).toBe(chosenBatch);
+    expect(start.mock.lastCall?.[0].batch).toBe(chosenBatch);
     run.start(request, { ...choices, batch: chosenBatch, continuation: source });
-    expect(start.mock.lastCall?.[5]).toBe(savedBatch);
+    expect(start.mock.lastCall?.[0].batch).toBe(savedBatch);
     expect(run.state().settings?.batch).toBe(savedBatch);
   });
 

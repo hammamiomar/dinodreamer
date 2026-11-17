@@ -122,7 +122,7 @@ describe("material review", () => {
   it("accepts a set method's file from Train, keeps its method, layers and set, and files it in its method's column", async () => {
     const { env, submissions, library } = testEnv();
     const trained = JSON.parse(text(firedName));
-    const set = { source: "strongest", neighbourhood: "3x3", pictures: [{ imageId: 3536804379159069, patch: 69 }, { imageId: 12, patch: 255 }] };
+    const set = { source: "selection", neighbourhood: "3x3", pictures: [{ imageId: 3536804379159069, patch: 69 }, { imageId: 12, patch: 255 }] };
     trained.recipe.settings = { ...trained.recipe.settings, method: "token-distribution", layers: ["block-3", "block-6", "block-9", "final"], set };
     const submitted = await submitMaterial(env, { material: JSON.stringify(trained) });
     expect(submitted.status).toBe(201);

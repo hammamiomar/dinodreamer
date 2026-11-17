@@ -1,5 +1,5 @@
 import type { MaterialAnchor, MaterialRequest, StrengthBand } from "../recipe";
-import type { Control, FigureLayer, FigureMaterialFile, FigureMethod } from "../materials/material-file";
+import type { Control, FigureLayer, FigureMaterialFile, FigureMethod, FigureTargetSet } from "../materials/material-file";
 import type { KeptStage } from "./figure-recipe";
 import type { CoSelection } from "./co-selection";
 import type { ContinuationChange, ContinuationSource } from "./continuation";
@@ -94,11 +94,12 @@ export interface Checkpoint {
 export type GrowCommand =
   /**
    * `stopAtFirstFire`: end a run at its first fire; otherwise train on to update 1,000 and keep the final rule too.
-   * `method` and a token method's `layers` (train-method.ts); a set method's worker resolves and prepares the target
-   * set, or, for a continuation, prepares the definition's own (`continuation.source.objective`).
+   * `method` and a token method's `layers` (train-method.ts). `set`: a set method's target set as the page resolved
+   * and shows it (target-set.ts), which the worker fetches and prepares; null for basis-group mean matching and for a
+   * continuation, which prepares its definition's own (`continuation.source.objective`).
    */
   | { type: "start"; request: MaterialRequest; release: ReleaseLocation; kind: MaterialKind; method: FigureMethod; layers: FigureLayer[];
-    batch: 1 | 4; stopAtFirstFire: boolean;
+    set: FigureTargetSet | null; batch: 1 | 4; stopAtFirstFire: boolean;
     /** Train on from a saved definition (Train resume, case 2): one run from its rule, not new seeds. */
     continuation?: { source: ContinuationSource; change: ContinuationChange } }
   /** Stop the current run's training now: keep its rule as the final one and hold its trainer. */
@@ -111,6 +112,9 @@ export type GrowCommand =
   | { type: "keep" }
   /** Brush stamps on the live grid, [x, y, radius] in cells (the Keep runtime's damage brush). */
   | { type: "brush"; stamps: [number, number, number][] };
+
+/** The start command's fields, as the store gives them to the client. */
+export type GrowStart = Omit<Extract<GrowCommand, { type: "start" }>, "type">;
 
 export type GrowEvent =
   /**

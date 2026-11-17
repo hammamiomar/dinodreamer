@@ -154,6 +154,11 @@ export function methodNeedsSet(method: FigureMethod): boolean {
   return method !== "basis-group-mean";
 }
 
+/** Whether a method compares the spread of the canvas's patches with the set's, not their mean. */
+export function methodComparesDistributions(method: FigureMethod): boolean {
+  return method === "basis-group-distribution" || method === "token-distribution";
+}
+
 /** Whether a method compares DINO's tokens, at the layers the file records. */
 export function methodReadsTokens(method: FigureMethod): boolean {
   return method === "token-mean" || method === "token-distribution";
@@ -180,12 +185,20 @@ export interface SetPicture {
 }
 
 /**
+ * Where a target set's pictures came from: "selection", the patches the visitor selected on a group's
+ * page and sent to Train; "sample-strongest", with no selection, the strongest of the group's public
+ * sample cloud (clouds/<block>.json), the research's own set (grow/target-set.ts).
+ */
+export type TargetSetSource = "selection" | "sample-strongest";
+const TARGET_SET_SOURCES: readonly unknown[] = ["selection", "sample-strongest"];
+
+/**
  * The target set a set method trained toward, in set order, so a continuation prepares the same set
- * even after the library changes. `source` names where the pictures came from: "strongest", the
- * group's published strongest rows. `neighbourhood` "3x3": the 3 × 3 tokens around each patch.
+ * even after the library changes. `source` says where the pictures came from (TargetSetSource);
+ * `pictures` is the set itself. `neighbourhood` "3x3": the 3 × 3 tokens around each patch.
  */
 export interface FigureTargetSet {
-  source: "strongest";
+  source: TargetSetSource;
   neighbourhood: "3x3";
   pictures: SetPicture[];
 }
@@ -359,7 +372,7 @@ function readFigureReading(value: unknown) {
 
 function readTargetSet(value: unknown): FigureTargetSet {
   const set = record(value, "target set");
-  if (set.source !== "strongest") throw new Error('The target set\'s source must be "strongest"');
+  if (!TARGET_SET_SOURCES.includes(set.source)) throw new Error('The target set\'s source must be "selection" or "sample-strongest"');
   if (set.neighbourhood !== "3x3") throw new Error('The target set\'s neighbourhood must be "3x3"');
   if (!Array.isArray(set.pictures) || set.pictures.length < 1 || set.pictures.length > MOST_SET_PICTURES) {
     throw new Error(`The target set needs 1 to ${MOST_SET_PICTURES} pictures`);
@@ -375,7 +388,7 @@ function readTargetSet(value: unknown): FigureTargetSet {
     seen.add(picture.imageId as number);
     return { imageId: picture.imageId as number, patch: picture.patch as number };
   });
-  return { source: "strongest", neighbourhood: "3x3", pictures };
+  return { source: set.source as TargetSetSource, neighbourhood: "3x3", pictures };
 }
 
 /**

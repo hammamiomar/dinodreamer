@@ -475,6 +475,11 @@
   cursor: pointer;
 }
 
+/* The depth's room when the space is the basis group: kept, so changing the space moves nothing. */
+.grow-depth[data-absent] {
+  visibility: hidden;
+}
+
 /* A set method's line in the stop check's place: the same one line, with nothing to press. */
 .grow-run-note {
   margin: 0;
