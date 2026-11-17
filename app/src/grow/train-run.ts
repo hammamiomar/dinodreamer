@@ -3,17 +3,18 @@ import { RELEASE_LOCATION } from "../app/config";
 import type { MaterialRequestOrigin, MaterialRequestPicture } from "../app/material-request";
 import type { MaterialRequest } from "../recipe";
 import { announceKept } from "../replay/keep-material";
+import { readSubmittedMaterials } from "../features/gallery/publish-material";
 import { keepMaterial } from "../storage/materials";
 import { methodReadsTokens, readFigureMaterial, type FigureMaterialFile, type FigureMethod, type FigureTargetSet } from "../materials/material-file";
 import type { ReleaseLocation } from "../synthesis/protocol";
 import { SAMPLE_EVERY_TICKS, sampledAccent } from "../ui/sampled-accent";
 import { GrowClient } from "./client";
 import { continuationChange, type ContinuationSource } from "./continuation";
-import { NO_RECORD, markSaved, recordEvent, type GrowRecord } from "./grow-view";
+import { NO_RECORD, markSaved, recordEvent, resultOutcome, type GrowRecord } from "./grow-view";
 import type { MaterialKind } from "./material-kind";
 import { methodLayers, type TokenDepth } from "./train-method";
 import { sameTargetSet } from "./target-set";
-import type { GrowEvent } from "./protocol";
+import type { GrowEvent, TrainLadder } from "./protocol";
 import { clearRunOnPageHide, noteInterruptedRun, runMemory, type BatchSize } from "./batch-size";
 
 // One site-wide Train run owns the worker, saved files and live grid. The page and corner tray
@@ -58,6 +59,8 @@ export interface TrainRunState {
   keepFailure: KeepFailure | null;
   /** The Train page shows this run, so the corner tray need not (trayShown). */
   shownOnPage: boolean;
+  /** A held set-method run's reading ladder (decision 12): each step's picture and own loss, and the kept step; null otherwise. */
+  ladder: TrainLadder | null;
 }
 
 /**
@@ -94,6 +97,7 @@ export interface TrainRunClient {
   resumeTraining(): void;
   restart(): void;
   keep(): void;
+  keepAtStep(step: number): void;
   brush(stamps: [number, number, number][]): void;
   dispose(): void;
 }
@@ -105,6 +109,8 @@ export interface TrainRunDependencies {
   release: ReleaseLocation;
   /** Whether a run is training now, so a page that goes down mid-run can be told from one the person left (batch-size.ts). */
   runRecord: Pick<typeof runMemory, "started" | "ended" | "deviceLost">;
+  /** The ids of the files this browser sent to the gallery: a sent file's step is closed (stepChoiceOpen). */
+  sentMaterialIds(): ReadonlySet<string>;
 }
 
 export interface TrainRun {
@@ -129,6 +135,12 @@ export interface TrainRun {
   restart(): void;
   /** After such a run: holds its final rule as the result, as a run that has ended. */
   keep(): void;
+  /**
+   * A held set-method run: keeps its automaton at another step of its ladder (decision 12's override), the same
+   * file at that step's reading, picture and poster, and the live grid loops to it. Nothing when there is no
+   * such step, the step is kept already, or the file has been sent to the gallery from this browser.
+   */
+  keepAtStep(step: number): void;
   /** Damage stamps on the live grid, [x, y, radius] in cells. */
   brush(stamps: [number, number, number][]): void;
   /** The Train page tells the store while it shows this run. */
@@ -138,7 +150,7 @@ export interface TrainRun {
 /** Cells along a side of the live grid: the worker's pictures are SIDE × SIDE, one pixel per cell. */
 export const SIDE = 128;
 
-const IDLE: TrainRunState = { record: NO_RECORD, settings: null, files: new Map(), sampled: null, keepFailure: null, shownOnPage: false };
+const IDLE: TrainRunState = { record: NO_RECORD, settings: null, files: new Map(), sampled: null, keepFailure: null, shownOnPage: false, ladder: null };
 
 export function createTrainRun(dependencies: TrainRunDependencies): TrainRun {
   let state: TrainRunState = IDLE;
@@ -211,12 +223,18 @@ export function createTrainRun(dependencies: TrainRunDependencies): TrainRun {
       const { patchCodes, selectedPatches, tick, completed } = event.reading;
       setMap({ patchCodes, selectedPatches, tick, completed });
     }
+    if (event.type === "ladder") {
+      update({ ladder: event.ladder });
+      return;
+    }
     if (event.type === "material") keep(event.file);
     if (event.type === "phase") {
       // The trainer holds its memory while it loads, trains and measures; not while the live grid only runs.
       const training = event.phase === "loading" || event.phase === "training" || event.phase === "finishing";
       if (training) dependencies.runRecord.started(runBatch);
       else dependencies.runRecord.ended();
+      // A ladder belongs to the held rule it was read from: training changes the rule, and a new keep reads a new ladder.
+      if (training && state.ladder !== null) update({ ladder: null });
     }
     if (event.type === "error") {
       if (event.deviceLost) dependencies.runRecord.deviceLost(runBatch);
@@ -238,7 +256,7 @@ export function createTrainRun(dependencies: TrainRunDependencies): TrainRun {
     client = null;
     live = null;
     sampledAt = -1;
-    update({ record: NO_RECORD, settings: null, sampled: null, files: new Map(), keepFailure: null });
+    update({ record: NO_RECORD, settings: null, sampled: null, files: new Map(), keepFailure: null, ladder: null });
     notifyLive();
     setTokens = null;
     setMap(null);
@@ -290,6 +308,13 @@ export function createTrainRun(dependencies: TrainRunDependencies): TrainRun {
     resumeTraining: () => client?.resumeTraining(),
     restart: () => client?.restart(),
     keep: () => client?.keep(),
+    keepAtStep(step) {
+      const { ladder, record } = state;
+      const kept = resultOutcome(record);
+      if (!client || !ladder || !kept || step === ladder.kept || !ladder.steps.some((each) => each.tick === step)) return;
+      if (dependencies.sentMaterialIds().has(kept.id)) return;
+      client.keepAtStep(step);
+    },
     brush: (stamps) => client?.brush(stamps),
     showOnPage(shown) {
       if (state.shownOnPage !== shown) update({ shownOnPage: shown });
@@ -356,6 +381,7 @@ export const trainRun: TrainRun = createTrainRun({
   },
   release: RELEASE_LOCATION,
   runRecord: runMemory,
+  sentMaterialIds: () => new Set(Object.keys(readSubmittedMaterials())),
 });
 
 /** The run as views show it; re-renders on each change of its record, choices, files or tray state, not on its frames. */
@@ -371,6 +397,11 @@ export function useTrainMap(): LiveMap | null {
 /** A set method's run's target set for the live map (TrainSetTokens); null for basis-group mean and with no run. */
 export function useTrainSet(): TrainSetTokens | null {
   return useSyncExternalStore(trainRun.subscribeMap, trainRun.setTokens);
+}
+
+/** A held set-method run's reading ladder (TrainLadder): null for basis-group mean, while training and before a run ends. */
+export function useTrainLadder(): TrainLadder | null {
+  return useSyncExternalStore(trainRun.subscribe, () => trainRun.state().ladder);
 }
 
 /** The live grid's tick, re-rendering with each frame: for the line that counts the steps. */

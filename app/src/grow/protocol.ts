@@ -115,8 +115,20 @@ export type GrowCommand =
   | { type: "restart" }
   /** After such a run: hold its final rule as the result instead, as a run that has ended. */
   | { type: "keep" }
+  /** A held set-method run: keep its automaton at this step of its ladder instead (decision 12's override; same file id). */
+  | { type: "keep-at-step"; step: number }
   /** Brush stamps on the live grid, [x, y, radius] in cells (the Keep runtime's damage brush). */
   | { type: "brush"; stamps: [number, number, number][] };
+
+/**
+ * A held set-method run's reading ladder (figure-recipe.ts READING_LADDER): for each step the grid reached
+ * in the finite range, the 128 px picture there as a PNG data URL (the poster of a file kept at that step)
+ * and the method's own loss on it; and the step the automaton is kept at.
+ */
+export interface TrainLadder {
+  steps: { tick: number; loss: number; picture: string }[];
+  kept: number;
+}
 
 /** The start command's fields, as the store gives them to the client. */
 export type GrowStart = Omit<Extract<GrowCommand, { type: "start" }>, "type">;
@@ -146,6 +158,8 @@ export type GrowEvent =
    * A picture brings 9 tokens, or 4 or 6 where its 3 × 3 meets its window's edge. The live map's target.
    */
   | { type: "set"; codes: Float32Array; tokenPictures: Uint16Array }
+  /** A set method's reading ladder at a keep (decision 12): each step's picture and own loss, and the kept step. */
+  | { type: "ladder"; ladder: TrainLadder }
   | { type: "material"; file: FigureMaterialFile; run: number; stage: KeptStage; fired: boolean }
   /** `deviceLost`: WebGPU lost the device, which on a device without room for the run means out of memory. */
   | { type: "error"; message: string; deviceLost?: boolean };

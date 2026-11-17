@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { FigureMaterialFile } from "../materials/material-file";
 import {
   NO_RECORD, choicesOpen, markSaved, recordEvent, growState, hasFired, keptMark, primaryAction, resultOutcome, resumeUpdates,
-  shownCoSelection, stopAction,
+  shownCoSelection, stepChoiceOpen, stopAction,
   type GrowOutcome, type GrowRecord, type GrowState,
 } from "./grow-view";
 
@@ -110,6 +110,18 @@ describe("the record", () => {
     expect([record.progress, record.reading]).toEqual([{ completed: 25, trainingMs: 9875, readerChunks: 26, methodLoss: 0.5 }, reading]);
     record = recordEvent(record, { type: "run", run: 2, runs: 3, seed: 20273025, method: "basis-group-mean" });
     expect([record.progress, record.reading]).toEqual([null, null]);
+  });
+
+  it("replaces the outcome of a file kept again under its id, as a set method kept at another step", () => {
+    const at = (tick: number) => ({ id: "final", training: { seed: 1, updates: 1000 }, reading: { tick } }) as unknown as FigureMaterialFile;
+    let record = recordEvent(training, { type: "material", file: at(150), run: 1, stage: "final", fired: false });
+    record = markSaved(record, "final");
+    record = recordEvent(record, { type: "material", file: at(300), run: 1, stage: "final", fired: false });
+    expect(record.outcomes).toEqual([{ id: "final", run: 1, stage: "final", fired: false, saved: false, updates: 1000, tick: 300 }]);
+  });
+
+  it("opens a step choice only while the kept file is not sent to the gallery", () => {
+    expect([stepChoiceOpen("idle"), stepChoiceOpen("awaiting"), stepChoiceOpen("published")]).toEqual([true, false, false]);
   });
 
   it("keeps each file unsaved until Keep has saved it", () => {
