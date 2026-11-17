@@ -13,6 +13,7 @@ import {
 } from "./figure-recipe";
 import { fetchSetPictures, targetSetRecord } from "./target-set";
 import { keepRule } from "./train-method";
+import { LIVE_LOOP_STEPS, LIVE_LOOP_STEPS_PER_UPDATE, loopTurn } from "./live-loop";
 import { coSelection, type CoSelectedColumns } from "./co-selection";
 import type { MaterialKind } from "./material-kind";
 import { adapterUnavailable, type Checkpoint, type GrowCommand, type GrowEvent, type GrowProgress, type LiveReading, type LiveRule } from "./protocol";
@@ -58,6 +59,8 @@ let decision: Decision | null = null;
 /** Brush stamps for the live grid, applied before its next frame. None while a kept reading grows. */
 const stamps: [number, number, number][] = [];
 let brushOpen = true;
+/** When the latest brush stamps arrived: a set method's loop waits for the brush before it starts again (live-loop.ts). */
+let lastStroke: number | null = null;
 let engine: BrowserEngine | undefined;
 
 async function png(pixels: Uint8ClampedArray, side: number): Promise<string> {
@@ -196,11 +199,45 @@ interface Session {
   keepsFirstFire: boolean;
   /** A set method's prepared set, kept after the run for the reading ladder (ownLossLadder); null for basis-group mean. */
   set: BrowserFigureSet | null;
+  /** A set method's live grid loop (live-loop.ts); null for basis-group mean, whose live grid grows on. */
+  loop: LoopGrid | null;
   /** Sum of complete update calls, over every Resume. */
   trainingMs: number;
   firstKept: boolean;
   /** The run's last kept final file: its update and its reading. */
   kept: { update: number; reading: FigureReading } | null;
+}
+
+/** A set method's live grid on its loop: the step it grows to, and when the hold of that step's picture began. */
+interface LoopGrid {
+  end: number;
+  heldSince: number | null;
+}
+
+/**
+ * One turn of a set method's live grid on its loop (live-loop.ts loopTurn): grow up to `steps` toward the
+ * loop's end, and on reaching it read the picture there, the loop's one reading, when `canRead`; or hold
+ * that picture, with the brush's stamps; or start again from the live seed's start. The reading, or null.
+ */
+async function turnLoop(live: BrowserFigureGrid, loop: LoopGrid, steps: number, input: FigureInput, rule: LiveRule, completed: number,
+  began: number, canRead: boolean): Promise<LiveReading | null> {
+  const turn = loopTurn(live.tick(), loop.end, steps, loop.heldSince, lastStroke, performance.now());
+  if (turn.kind === "restart") {
+    live.restart(LIVE_SEED);
+    loop.heldSince = null;
+    await showLive(live, 0, rule, completed);
+    return null;
+  }
+  if (turn.kind === "hold") {
+    loop.heldSince ??= performance.now();
+    await showLive(live, 0, rule, completed);
+    return null;
+  }
+  await showLive(live, turn.steps, rule, completed);
+  if (!turn.reachesEnd) return null;
+  loop.heldSince = performance.now();
+  // A grid that left the finite range gives no reading; the loop starts it again after the hold.
+  return canRead ? readIfFinite(live, input, rule, completed, began) : null;
 }
 
 /** How a stretch of training ended: at the run's target update, by the person's Stop, or at its first fire (`stopAtFirstFire`). */
@@ -271,6 +308,8 @@ async function ownLossLadder(values: Float32Array, input: FigureInput, set: Brow
 async function train(session: Session, live: BrowserFigureGrid, reader: ReaderLoad, began: number, stopAtFirstFire: boolean): Promise<TrainingEnd> {
   const { training, input, run } = session;
   stopping = false;
+  // A set method's loop grows to LIVE_LOOP_STEPS while it trains; a grid past it (after a hold at the kept step) holds, then starts again.
+  if (session.loop) session.loop.end = LIVE_LOOP_STEPS;
   // When the shown grid was last read, by a reading or for the live map, and the wait that reading earns.
   let lastMap = performance.now();
   let mapWait = MAP_EVERY_MS;
@@ -291,24 +330,31 @@ async function train(session: Session, live: BrowserFigureGrid, reader: ReaderLo
     await reader.step();
     const values = await training.values();
     live.set_rule(values);
-    await showLive(live, LIVE_TICKS_PER_UPDATE, "training", update);
-    if (reader.ready && update % READ_EVERY === 0) {
-      const reading = await readIfFinite(live, input, "training", update, began);
-      if (reading) {
-        send({ type: "reading", reading });
+    if (session.loop) {
+      // A set method's live grid loops to LIVE_LOOP_STEPS and is read there once a loop; no reading falls mid-loop.
+      const reading = await turnLoop(live, session.loop, LIVE_LOOP_STEPS_PER_UPDATE, input, "training", update, began, reader.ready);
+      if (reading) send({ type: "reading", reading });
+    } else {
+      // Basis-group mean's live grid grows on, read every READ_EVERY updates and, between, for the live map.
+      await showLive(live, LIVE_TICKS_PER_UPDATE, "training", update);
+      if (reader.ready && update % READ_EVERY === 0) {
+        const reading = await readIfFinite(live, input, "training", update, began);
+        if (reading) {
+          send({ type: "reading", reading });
+          lastMap = performance.now();
+          mapWait = mapInterval(reading.readMs);
+        } else {
+          restartLive(live);
+        }
+      } else if (reader.ready && update % CHECKPOINT_EVERY !== 0 && performance.now() - lastMap >= mapWait) {
+        // Between the readings, the live map's reading of the shown grid; never in an update that runs a checkpoint.
+        const reading = await readIfFinite(live, input, "training", update, began);
         lastMap = performance.now();
-        mapWait = mapInterval(reading.readMs);
-      } else {
-        restartLive(live);
-      }
-    } else if (reader.ready && update % CHECKPOINT_EVERY !== 0 && performance.now() - lastMap >= mapWait) {
-      // Between the readings, the live map's reading of the shown grid; never in an update that runs a checkpoint.
-      const reading = await readIfFinite(live, input, "training", update, began);
-      lastMap = performance.now();
-      if (reading) {
-        mapWait = mapInterval(reading.readMs);
-        const { patchCodes, selectedPatches, tick, readMs } = reading;
-        send({ type: "map", patchCodes, selectedPatches, tick, completed: update, readMs });
+        if (reading) {
+          mapWait = mapInterval(reading.readMs);
+          const { patchCodes, selectedPatches, tick, readMs } = reading;
+          send({ type: "map", patchCodes, selectedPatches, tick, completed: update, readMs });
+        }
       }
     }
     // The target update's checkpoint is the final reading.
@@ -393,9 +439,19 @@ async function trainWithStops(session: Session, live: BrowserFigureGrid, reader:
     await keepUnkept(session, live, reader, began);
     const completed = session.training.completed();
     phase("stopped", `Stopped at optimizer update ${completed.toLocaleString("en-US")}. Resume trains on from here.`);
-    await liveLoop(live, session.input, completed, began, ["resume-training"]);
+    await liveLoop(live, session.input, completed, began, ["resume-training"], heldLoop(session));
     phase("training", session.firstKept ? "Still improving after the first accepted checkpoint" : "Training on this device");
   }
+}
+
+/**
+ * A held set-method run's loop: to the automaton's own step, the kept file's reading step (readingStep),
+ * or LIVE_LOOP_STEPS before anything is kept. Null for basis-group mean.
+ */
+function heldLoop(session: Session): LoopGrid | null {
+  if (!session.loop) return null;
+  session.loop.end = session.kept?.reading.tick ?? LIVE_LOOP_STEPS;
+  return session.loop;
 }
 
 /**
@@ -403,15 +459,22 @@ async function trainWithStops(session: Session, live: BrowserFigureGrid, reader:
  * or a run's end, the next seed or this rule after a run that did not meet the target. The caller
  * names the hold's phase first. `completed`: the update of the held rule.
  */
-async function liveLoop(live: BrowserFigureGrid, input: FigureInput, completed: number, began: number, accepts: readonly Decision[]): Promise<Decision> {
+async function liveLoop(live: BrowserFigureGrid, input: FigureInput, completed: number, began: number, accepts: readonly Decision[],
+  loop: LoopGrid | null = null): Promise<Decision> {
   decision = null;
   let lastRead = performance.now();
   for (;;) {
     if (decision !== null && accepts.includes(decision)) return decision;
     decision = null;
     const started = performance.now();
-    await showLive(live, LIVE_TICKS_PER_FRAME, "final", completed);
-    if (performance.now() - lastRead >= LIVE_READ_MS) {
+    if (loop) {
+      // A set method's held grid loops to its own step, read there once a loop.
+      const reading = await turnLoop(live, loop, LIVE_TICKS_PER_FRAME, input, "final", completed, began, true);
+      if (reading) send({ type: "reading", reading });
+    } else {
+      await showLive(live, LIVE_TICKS_PER_FRAME, "final", completed);
+    }
+    if (!loop && performance.now() - lastRead >= LIVE_READ_MS) {
       const reading = await readIfFinite(live, input, "final", completed, began);
       if (reading) send({ type: "reading", reading });
       else restartLive(live);
@@ -428,7 +491,7 @@ async function liveLoop(live: BrowserFigureGrid, input: FigureInput, completed: 
 async function holdRun(session: Session, live: BrowserFigureGrid, reader: ReaderLoad, began: number, stopAtFirstFire: boolean): Promise<never> {
   for (;;) {
     phase("live", "The automaton keeps running here.");
-    await liveLoop(live, session.input, session.training.completed(), began, ["resume-training"]);
+    await liveLoop(live, session.input, session.training.completed(), began, ["resume-training"], heldLoop(session));
     if (session.training.completed() >= session.training.target()) session.training.extend(RESUME_UPDATES);
     phase("training", session.firstKept ? "Still improving after the first accepted checkpoint" : "Training on this device");
     const end = await trainWithStops(session, live, reader, began, stopAtFirstFire);
@@ -526,7 +589,10 @@ async function grow(command: Extract<GrowCommand, { type: "start" }>) {
       session?.training.free();
       session = null;
       const training = createTraining(input, command, set);
-      session = { training, input, run, keepsFirstFire: rule.keepsFirstFire, set, trainingMs: 0, firstKept: false, kept: null };
+      session = {
+        training, input, run, keepsFirstFire: rule.keepsFirstFire, set, loop: set ? { end: LIVE_LOOP_STEPS, heldSince: null } : null,
+        trainingMs: 0, firstKept: false, kept: null,
+      };
       const end = await trainWithStops(session, live, reader, began, stopAtFirstFire);
       if (end === "first fire") {
         // The live grid already grows the first-fire rule; it starts again from the seed's start.
@@ -555,7 +621,13 @@ async function grow(command: Extract<GrowCommand, { type: "start" }>) {
 self.onmessage = ({ data }: MessageEvent<GrowCommand>) => {
   if (data.type === "stop") { stopping = true; return; }
   if (data.type === "resume-training" || data.type === "restart" || data.type === "keep") { decision = data.type; return; }
-  if (data.type === "brush") { if (brushOpen) stamps.push(...data.stamps); return; }
+  if (data.type === "brush") {
+    if (brushOpen) {
+      stamps.push(...data.stamps);
+      lastStroke = performance.now();
+    }
+    return;
+  }
   if (busy) return;
   busy = true;
   void grow(data).catch((error: unknown) => send({ type: "error", message: String(error) })).finally(() => {
