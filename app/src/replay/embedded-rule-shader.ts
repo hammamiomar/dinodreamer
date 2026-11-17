@@ -38,6 +38,23 @@ function weightConstants(values: Float32Array, arrays: WeightArray[]): string {
   return arrays.map(({ name, offset, length, note }) => `// ${note}\n${constantArray(values, name, offset, length)}`).join("\n\n");
 }
 
+/**
+ * The step's weight accessors (figure-shaders.ts stepSource) over the constant arrays, which keep the
+ * weights in their own layout: fc1.weight [96, inputs] and fc2.weight [16, 96], row-major. `_w1(unit, q)`
+ * is fc1.weight[unit, 4q..4q+3], `_b1(unit)` fc1.bias[unit], `_w2(unit, k)` fc2.weight[4k..4k+3, unit].
+ */
+function quadAccessors(prefix: "rule" | "fine", w1: string, b1: string, w2: string, inputs: 64 | 80): string {
+  return `fn ${prefix}_w1(unit_index: u32, q: u32) -> vec4<f32> {
+  let i = unit_index * ${inputs}u + 4u * q;
+  return vec4<f32>(${w1}[i], ${w1}[i + 1u], ${w1}[i + 2u], ${w1}[i + 3u]);
+}
+fn ${prefix}_b1(unit_index: u32) -> f32 { return ${b1}[unit_index]; }
+fn ${prefix}_w2(unit_index: u32, k: u32) -> vec4<f32> {
+  let i = 4u * k * 96u + unit_index;
+  return vec4<f32>(${w2}[i], ${w2}[i + 96u], ${w2}[i + 192u], ${w2}[i + 288u]);
+}`;
+}
+
 function materialLines(file: FigureMaterialFile): string {
   return `// ${file.name}: DinoDreamer cellular automaton, a shader with its weights embedded.
 // Generated from the automaton definition ${file.id}.material.json; edit the definition, not this file.
@@ -69,7 +86,8 @@ export function embeddedRuleShaderSource(file: FigureMaterialFile, values: Float
   const header = `${materialLines(file)}
 //
 // Replay contract:
-//   State: array<f32> of side * side * 16 values, cells row-major, 16 channels last. side is ${sides}.
+//   State: side * side * 16 float32 values, cells row-major, 16 channels last, bound as array<vec4<f32>>
+//          (four vec4 per cell, channels 4k to 4k + 3). side is ${sides}.
 ${start}
 //   Cell update: cell n updates at simulation step t when unit(pcg(pcg(pcg(seed ^ 0x66697265) + t) + n))
 //         < FIRE_RATE, the cell update probability.
@@ -84,7 +102,7 @@ ${display}
 //   2. Make two compute pipelines from this module with layout "auto": entry points start_state and
 //      step_cell. Bind group 0 of each: binding 0 = the current state (step_cell only), binding 1 = the
 //      buffer to write, binding 2 = the uniform.
-//   3. Start: write Grid { side, seed, 0, 0 }; dispatch start_state with ceil(side * side * 16 / 64)
+//   3. Start: write Grid { side, seed, 0, 0 }; dispatch start_state with ceil(side * side * 4 / 64)
 //      workgroups writing A. A is the current state at simulation step 0.
 //   4. Simulation step t (0, 1, 2, ...): write Grid { side, seed, t, 0 }; dispatch step_cell with ceil(side * side / 64)
 //      workgroups from the current state into the other buffer; that buffer becomes the current state.
@@ -98,21 +116,24 @@ const START_DISC: f32 = ${wgslFloat(startDisc)}; // seeded start radius in cells
 const START_BACKGROUND: f32 = ${wgslFloat(startBackground)}; // the start draw's amplitude outside the disc; 0 is zero there
 ${FIGURE_WGSL.hash}${FIGURE_WGSL.start}
 struct Grid { side: u32, seed: u32, tick: u32, unused: u32 }
-@group(0) @binding(0) var<storage, read> state: array<f32>;
-@group(0) @binding(1) var<storage, read_write> next: array<f32>;
+@group(0) @binding(0) var<storage, read> state: array<vec4<f32>>;
+@group(0) @binding(1) var<storage, read_write> next: array<vec4<f32>>;
 @group(0) @binding(2) var<uniform> grid: Grid;
-fn rule_w1(index: u32) -> f32 { return W1[index]; }
-fn rule_b1(index: u32) -> f32 { return B1[index]; }
-fn rule_w2(index: u32) -> f32 { return W2[index]; }
+${quadAccessors("rule", "W1", "B1", "W2", 64)}
 fn rule_fire_key() -> u32 { return FIRE_KEY; }
 fn rule_fire_rate() -> f32 { return FIRE_RATE; }
 fn playback_hidden_noise() -> f32 { return HIDDEN_NOISE; }
 
 @compute @workgroup_size(64)
 fn start_state(@builtin(global_invocation_id) id: vec3<u32>) {
-  let index = id.x;
-  if (index >= grid.side * grid.side * 16u) { return; }
-  next[index] = start_value(index, grid.side, pcg(grid.seed ^ NOISE_KEY), START_DISC, START_BACKGROUND);
+  let quad = id.x;
+  if (quad >= grid.side * grid.side * 4u) { return; }
+  let key = pcg(grid.seed ^ NOISE_KEY);
+  let index = 4u * quad;
+  next[quad] = vec4<f32>(start_value(index, grid.side, key, START_DISC, START_BACKGROUND),
+    start_value(index + 1u, grid.side, key, START_DISC, START_BACKGROUND),
+    start_value(index + 2u, grid.side, key, START_DISC, START_BACKGROUND),
+    start_value(index + 3u, grid.side, key, START_DISC, START_BACKGROUND));
 }
 ${FIGURE_WGSL.step}
 ${FIGURE_WGSL.hidden}
@@ -132,8 +153,8 @@ function embeddedPyramidShaderSource(file: FigureMaterialFile, values: Float32Ar
   const header = `${materialLines(file)}
 //
 // Replay contract of the two-scale cellular model:
-//   Two grids, each array<f32> of n * n * 16 values, cells row-major, 16 channels last: the fine grid
-//   (n = side, 128 or 256) and the coarse grid (n = side / 2).
+//   Two grids, each n * n * 16 float32 values, cells row-major, 16 channels last, bound as array<vec4<f32>>
+//   (four vec4 per cell): the fine grid (n = side, 128 or 256) and the coarse grid (n = side / 2).
 ${start}
 //   Cell update: cell c of a grid updates at simulation step t when unit(pcg(pcg(pcg(seed ^ KEY) + t) + c))
 //         < FIRE_RATE, the cell update probability; KEY = 0x66697265 for the fine grid and 0x63666972 for the
@@ -156,7 +177,7 @@ ${start}
 //      start_state), binding 1 = the buffer to write, binding 2 = that grid's uniform, binding 3 = the coarse
 //      buffer that step_cell has just written (step_fine only).
 //   3. Start: write both uniforms with tick 0; dispatch start_state into CA with the coarse uniform
-//      (ceil((side / 2)^2 * 16 / 64) workgroups) and into A with the fine uniform (ceil(side^2 * 16 / 64)).
+//      (ceil((side / 2)^2 * 4 / 64) workgroups) and into A with the fine uniform (ceil(side^2 * 4 / 64)).
 //   4. Simulation step t: write both uniforms with tick t; dispatch step_cell from the current coarse buffer into the
 //      other one (ceil((side / 2)^2 / 64) workgroups), then step_fine from the current fine buffer into the
 //      other one, reading the new coarse buffer (ceil(side^2 / 64)). Swap both pairs. Submit once per simulation step.
@@ -169,27 +190,28 @@ const START_DISC: f32 = ${wgslFloat(startDisc)}; // seeded start radius in fine 
 const START_BACKGROUND: f32 = ${wgslFloat(startBackground)}; // the start draw's amplitude outside the disc; 0 is zero there
 ${FIGURE_WGSL.hash}${FIGURE_WGSL.start}${FIGURE_WGSL.torus}
 struct Grid { side: u32, seed: u32, tick: u32, coarse: u32 }
-@group(0) @binding(0) var<storage, read> state: array<f32>;
-@group(0) @binding(1) var<storage, read_write> next: array<f32>;
+@group(0) @binding(0) var<storage, read> state: array<vec4<f32>>;
+@group(0) @binding(1) var<storage, read_write> next: array<vec4<f32>>;
 @group(0) @binding(2) var<uniform> grid: Grid;
-@group(0) @binding(3) var<storage, read> coarse: array<f32>;
-fn rule_w1(index: u32) -> f32 { return W1C[index]; }
-fn rule_b1(index: u32) -> f32 { return B1C[index]; }
-fn rule_w2(index: u32) -> f32 { return W2C[index]; }
+@group(0) @binding(3) var<storage, read> coarse: array<vec4<f32>>;
+${quadAccessors("rule", "W1C", "B1C", "W2C", 64)}
 fn rule_fire_key() -> u32 { return COARSE_FIRE_KEY; }
-fn fine_w1(index: u32) -> f32 { return W1F[index]; }
-fn fine_b1(index: u32) -> f32 { return B1F[index]; }
-fn fine_w2(index: u32) -> f32 { return W2F[index]; }
+${quadAccessors("fine", "W1F", "B1F", "W2F", 80)}
 fn fine_fire_key() -> u32 { return FIRE_KEY; }
 fn rule_fire_rate() -> f32 { return FIRE_RATE; }
 fn playback_hidden_noise() -> f32 { return HIDDEN_NOISE; }
 
 @compute @workgroup_size(64)
 fn start_state(@builtin(global_invocation_id) id: vec3<u32>) {
-  let index = id.x;
-  if (index >= grid.side * grid.side * 16u) { return; }
+  let quad = id.x;
+  if (quad >= grid.side * grid.side * 4u) { return; }
   let key = pcg(grid.seed ^ select(NOISE_KEY, COARSE_NOISE_KEY, grid.coarse == 1u));
-  next[index] = start_value(index, grid.side, key, START_DISC / f32(1u + grid.coarse), START_BACKGROUND);
+  let disc = START_DISC / f32(1u + grid.coarse);
+  let index = 4u * quad;
+  next[quad] = vec4<f32>(start_value(index, grid.side, key, disc, START_BACKGROUND),
+    start_value(index + 1u, grid.side, key, disc, START_BACKGROUND),
+    start_value(index + 2u, grid.side, key, disc, START_BACKGROUND),
+    start_value(index + 3u, grid.side, key, disc, START_BACKGROUND));
 }
 ${FIGURE_WGSL.step}
 ${FIGURE_WGSL.fineStep}

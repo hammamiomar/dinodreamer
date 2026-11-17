@@ -181,8 +181,18 @@ export async function createFigureReplay(options: FigureReplayOptions, rule: Fig
     const uniform = GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST;
     const stateBytes = side * side * 16 * 4;
     const states = [0, 1].map((index) => allocateBuffer({ label: `figure state ${index}`, size: stateBytes, usage: storage }));
+    // The step reads a hidden unit's 16 output weights as four vec4 (figure-shaders.ts STEP_BINDINGS), so each
+    // fc2.weight [16, 96] is uploaded transposed, [96, 16]: the cell rule's at value 6,240, the fine rule's at 15,552.
+    const stepRule = Float32Array.from(rule.values);
+    const transposeOutputWeights = (offset: number) => {
+      for (let channel = 0; channel < 16; channel++) {
+        for (let unit = 0; unit < 96; unit++) stepRule[offset + unit * 16 + channel] = rule.values[offset + channel * 96 + unit];
+      }
+    };
+    transposeOutputWeights(6240);
+    if (pyramid) transposeOutputWeights(15552);
     const ruleBuffer = allocateBuffer({ label: "figure rule", size: rule.values.byteLength, usage: storage });
-    gpu.queue.writeBuffer(ruleBuffer, 0, Float32Array.from(rule.values));
+    gpu.queue.writeBuffer(ruleBuffer, 0, stepRule);
     const coarseStates = pyramid
       ? [0, 1].map((index) => allocateBuffer({ label: `figure coarse state ${index}`, size: coarseSide * coarseSide * 16 * 4, usage: storage }))
       : [];
