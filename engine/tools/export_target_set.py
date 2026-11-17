@@ -7,6 +7,11 @@ picture's source, patch and dot. Two sources:
 - `--strongest <block>`: the set from the published strongest file (the top 1,024 rows of the whole
   cloud) by the same rule (`selection.Band(block, "pole", source="strongest")`), with the windows
   cut from the PNG previews the browser reads. Downloads go to `--cache`.
+- `--block <block> --selection pole | level-<k> | lobe-<i>`: a selection of the group's map, the frozen
+  sample, by the rule of the brief's decision 14: the public rows of the selection, strongest first,
+  one patch for each picture, at most 33. `pole` is the whole map (the research's pole), `level-<k>`
+  the site's level k (`library.band_edges`), `lobe-<i>` the cone of lobe i (`selection.lobe_cones`).
+  Windows from the PNG previews, as with `--strongest`.
 
 A set holds the 3 x 3 tokens around one patch of each picture. The window is the aligned 128 px
 window of the 256 px picture that holds the patch nearest its centre (`library.aligned_window`);
@@ -63,6 +68,44 @@ def strongest_set(library, selection, block: int, cache: Path) -> tuple[list[np.
 
     library.CLOUD_CACHE = cache / "clouds"  # load_cloud reads its cache path at call time: downloads stay in --cache
     patches = selection.Band(block, "pole", source="strongest").resolve()
+    windows, pictures = preview_windows(library, patches, cache)
+    selection_record = {"block": block, "level": "pole", "pictures": len(patches), "source": "strongest"}
+    return windows, pictures, {"selection": selection_record, "asset": anchor_pictures.ASSET}
+
+
+def chosen_set(library, selection, block: int, choice: str, cache: Path) -> tuple[list[np.ndarray], list[dict], dict]:
+    """A selection of the frozen sample by decision 14's rule, its windows from the previews, and its provenance."""
+    import anchor_pictures  # noqa: E402
+
+    cloud = library.load_cloud(block, "sample")
+    public_N = np.flatnonzero(cloud.public_N)
+    if choice == "pole":
+        inside_N, region = public_N, {"kind": "pole"}
+    elif choice.startswith("level-"):
+        level = int(choice.removeprefix("level-"))
+        edges = library.band_edges(block)
+        norms_N = cloud.norms_N[public_N]
+        inside_N = public_N[(norms_N >= edges[level - 1]) & (norms_N < edges[level])]
+        region = {"kind": "level", "level": level, "norms": [edges[level - 1], edges[level]]}
+    elif choice.startswith("lobe-"):
+        index = int(choice.removeprefix("lobe-"))
+        cone = selection.lobe_cones(block)[index]
+        inside_N = public_N[cone.inside(cloud)[public_N]]
+        region = {"kind": "lobe", "index": index, "direction": list(cone.direction_R), "angleDegrees": cone.angle_degrees}
+    else:
+        raise SystemExit(f"unknown selection {choice!r}: pole, level-<k> or lobe-<i>")
+    order_N = inside_N[np.argsort(-cloud.norms_N[inside_N], kind="stable")]
+    patches = selection.from_rows(cloud, selection.distinct_pictures(cloud, order_N, 33))
+    windows, pictures = preview_windows(library, patches, cache)
+    selection_record = {"block": block, "source": "sample", "rule": "strongest first, one patch per picture, at most 33",
+                        "region": region, "rowsInRegion": len(inside_N), "pictures": len(patches)}
+    return windows, pictures, {"selection": selection_record, "asset": anchor_pictures.ASSET}
+
+
+def preview_windows(library, patches, cache: Path) -> tuple[list[np.ndarray], list[dict]]:
+    """Each patch's aligned window, cut from its picture's PNG preview (kept in the cache), and its record."""
+    import anchor_pictures  # noqa: E402
+
     windows, pictures = [], []
     for patch in patches:
         path = cache / "previews" / f"{patch.source}.png"
@@ -72,9 +115,8 @@ def strongest_set(library, selection, block: int, cache: Path) -> tuple[list[np.
         pixels_HW3 = np.asarray(Image.open(io.BytesIO(path.read_bytes())).convert("RGB"), np.uint8)
         window_HW3, dot = library.aligned_window(pixels_HW3, patch.patch)
         windows.append(window_HW3)
-        pictures.append({"source": int(patch.source), "patch": int(patch.patch), "dot": int(dot)})
-    selection_record = {"block": block, "level": "pole", "pictures": len(patches), "source": "strongest"}
-    return windows, pictures, {"selection": selection_record, "asset": anchor_pictures.ASSET}
+        pictures.append({"source": int(patch.source), "patch": int(patch.patch), "dot": int(dot), "norm": round(float(patch.norm), 4)})
+    return windows, pictures
 
 
 def main() -> None:
@@ -82,11 +124,14 @@ def main() -> None:
     parser.add_argument("--given-set", type=Path, required=True, help="the given-set tool, research/given-set")
     parser.add_argument("--name", help="a saved set under out/sets, e.g. block-12002-pole-3x3")
     parser.add_argument("--strongest", type=int, help="a basis group: its set from the published strongest file")
-    parser.add_argument("--cache", type=Path, help="with --strongest: where the strongest file and the previews are kept")
+    parser.add_argument("--block", type=int, help="with --selection: the basis group")
+    parser.add_argument("--selection", help="pole, level-<k> or lobe-<i> of the group's frozen sample")
+    parser.add_argument("--cache", type=Path, help="with --strongest or --selection: where the strongest file and the previews are kept")
     parser.add_argument("--output", type=Path, required=True, help="the set's JSON; the sheet is written beside it")
     args = parser.parse_args()
-    if (args.name is None) == (args.strongest is None) or (args.strongest is not None and args.cache is None):
-        raise SystemExit("Give --name, or --strongest with --cache")
+    sources = [args.name is not None, args.strongest is not None, args.selection is not None]
+    if sum(sources) != 1 or (not args.name and args.cache is None) or ((args.selection is None) != (args.block is None)):
+        raise SystemExit("Give --name, or --strongest with --cache, or --block and --selection with --cache")
     sys.dont_write_bytecode = True
     sys.path.insert(0, str(args.given_set.resolve()))
     from givenset import library, selection  # noqa: E402
@@ -94,9 +139,12 @@ def main() -> None:
     if args.name:
         windows, pictures, provenance = research_set(library, args.given_set, args.name)
         block = provenance["selection"]["block"]
-    else:
+    elif args.strongest is not None:
         windows, pictures, provenance = strongest_set(library, selection, args.strongest, args.cache)
         block = args.strongest
+    else:
+        windows, pictures, provenance = chosen_set(library, selection, args.block, args.selection, args.cache)
+        block = args.block
     rows = -(-len(pictures) // COLUMNS)
     sheet_HW3 = np.zeros((rows * WINDOW_SIDE, COLUMNS * WINDOW_SIDE, 3), np.uint8)
     for index, window_HW3 in enumerate(windows):
