@@ -60,6 +60,18 @@ export interface TrainRunState {
   shownOnPage: boolean;
 }
 
+/**
+ * The latest reading of the shown grid for the live map: each patch's code in the group's space (192
+ * values, patch t at [3t, 3t + 3)) and which of the 64 patches select the group, at a tick of an update.
+ * The worker's "map" events give it while training, its readings at other times.
+ */
+export interface LiveMap {
+  patchCodes: Float32Array;
+  selectedPatches: Uint8Array;
+  tick: number;
+  completed: number;
+}
+
 /** The live grid's latest picture: SIDE × SIDE RGBA bytes, one pixel per cell. */
 export interface LiveCells {
   pixels_N4: Uint8ClampedArray;
@@ -91,6 +103,9 @@ export interface TrainRun {
   subscribe(listener: () => void): () => void;
   live(): LiveCells | null;
   subscribeLive(listener: () => void): () => void;
+  /** The live map's latest reading, with its own listeners, as the frames have. */
+  map(): LiveMap | null;
+  subscribeMap(listener: () => void): () => void;
   /** Starts a new run; a running one ends first. Files it kept stay kept. */
   start(request: MaterialRequest, settings: Omit<GrowSettings, "request">): void;
   /** Ends the worker; the views show the start again. Files already kept stay in Keep. */
@@ -123,6 +138,12 @@ export function createTrainRun(dependencies: TrainRunDependencies): TrainRun {
   let runBatch: BatchSize = 4;
   const listeners = new Set<() => void>();
   const liveListeners = new Set<() => void>();
+  let map: LiveMap | null = null;
+  const mapListeners = new Set<() => void>();
+  const setMap = (next: LiveMap | null) => {
+    map = next;
+    for (const listener of mapListeners) listener();
+  };
 
   const update = (change: Partial<TrainRunState>) => {
     state = { ...state, ...change };
@@ -161,6 +182,15 @@ export function createTrainRun(dependencies: TrainRunDependencies): TrainRun {
       notifyLive();
       return;
     }
+    if (event.type === "map") {
+      const { patchCodes, selectedPatches, tick, completed } = event;
+      setMap({ patchCodes, selectedPatches, tick, completed });
+      return;
+    }
+    if (event.type === "reading") {
+      const { patchCodes, selectedPatches, tick, completed } = event.reading;
+      setMap({ patchCodes, selectedPatches, tick, completed });
+    }
     if (event.type === "material") keep(event.file);
     if (event.type === "phase") {
       // The trainer holds its memory while it loads, trains and measures; not while the live grid only runs.
@@ -190,6 +220,7 @@ export function createTrainRun(dependencies: TrainRunDependencies): TrainRun {
     sampledAt = -1;
     update({ record: NO_RECORD, settings: null, sampled: null, files: new Map(), keepFailure: null });
     notifyLive();
+    setMap(null);
   };
 
   return {
@@ -202,6 +233,11 @@ export function createTrainRun(dependencies: TrainRunDependencies): TrainRun {
     subscribeLive(listener) {
       liveListeners.add(listener);
       return () => liveListeners.delete(listener);
+    },
+    map: () => map,
+    subscribeMap(listener) {
+      mapListeners.add(listener);
+      return () => mapListeners.delete(listener);
     },
     start(request, settings) {
       clear();
@@ -303,6 +339,11 @@ export const trainRun: TrainRun = createTrainRun({
 /** The run as views show it; re-renders on each change of its record, choices, files or tray state, not on its frames. */
 export function useTrainRun(): TrainRunState {
   return useSyncExternalStore(trainRun.subscribe, trainRun.state);
+}
+
+/** The live map's latest reading (LiveMap), re-rendering with each; null before the first or with no run. */
+export function useTrainMap(): LiveMap | null {
+  return useSyncExternalStore(trainRun.subscribeMap, trainRun.map);
 }
 
 /** The live grid's tick, re-rendering with each frame: for the line that counts the steps. */

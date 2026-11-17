@@ -4,7 +4,7 @@ import type { MaterialAnchor, MaterialRequest } from "../recipe";
 import { canonicalFigureFile, lossKindOf, methodOfFile, readFigureMaterial, type FigureLayer } from "../materials/material-file";
 import {
   FIGURE_SEED, NO_ANCHOR_ERROR, RUNS, afterRun, continuedInput, engineRequest, figureInput, figureMaterial, fired, firstFire, firstFireCondition,
-  plannedRuns, runSeed, strengthBand,
+  plannedRuns, READING_LADDER, READING_TICK, readingStep, runSeed, strengthBand,
 } from "./figure-recipe";
 import { readoutText } from "./live-readout";
 import { continuationSource } from "./continuation";
@@ -259,6 +259,34 @@ describe("a set method's run and kept file", () => {
   });
 });
 
+describe("a set method's reading step (decision 12)", () => {
+  it("reads at ten steps from 100 to 2,000; basis-group mean stays at 600", () => {
+    expect(READING_LADDER).toEqual([100, 150, 200, 300, 400, 600, 800, 1000, 1500, 2000]);
+    expect(READING_TICK).toBe(600);
+  });
+
+  it("takes the step of the lowest own loss, the earlier one on a tie, and skips a loss that is not finite", () => {
+    expect(readingStep([{ tick: 100, loss: 0.3 }, { tick: 150, loss: 0.1 }, { tick: 200, loss: 0.2 }])).toBe(150);
+    expect(readingStep([{ tick: 100, loss: 0.1 }, { tick: 150, loss: 0.1 }])).toBe(100);
+    expect(readingStep([{ tick: 100, loss: Number.NaN }, { tick: 150, loss: 0.4 }])).toBe(150);
+    expect(readingStep([])).toBeNull();
+  });
+
+  it("records the steps read and their own losses in the kept file", () => {
+    const set = { source: "sample-strongest" as const, neighbourhood: "3x3" as const, pictures: [{ imageId: 12, patch: 0 }, { imageId: 13, patch: 1 }] };
+    const input = figureInput(request(), summary, "dictionary", DEFAULT_KIND, 4, 1, { method: "token-distribution", layers: ["final"], set });
+    const ladder = [{ tick: 100, loss: 0.3 }, { tick: 150, loss: 0.1 }];
+    const file = figureMaterial(input, {
+      run: 1, stage: "final", values: new Float32Array(7776), updates: 1000, trainingMs: 1, engine: "bundled", ladder,
+      preview: "data:image/png;base64,iVBORw0KGgo=",
+      reading: { status: "measured", strength: 0.4, winnerFraction: 0.2, side: 128, seed: 9317, tick: 150, note: "test" },
+    });
+    const canonical = canonicalFigureFile(readFigureMaterial(JSON.parse(JSON.stringify(file))).file);
+    expect(canonical.recipe.settings).toMatchObject({ readingLadder: [100, 150], readingLosses: [0.3, 0.1] });
+    expect(canonical.reading.tick).toBe(150);
+  });
+});
+
 describe("first fire", () => {
   it("is a checkpoint that fires at tick 600 and still fires at tick 2,000, for the noise kinds", () => {
     for (const rule of ["cell", "pyramid"] as const) {
@@ -285,7 +313,7 @@ describe("first fire", () => {
 
 describe("live readout", () => {
   const reading = (winnerFraction: number, completed: number): LiveReading => ({
-    strength: 2.3137, band: "strongly", winnerFraction, seed: 9317, tick: completed * 8, rule: "training", completed,
+    patchCodes: new Float32Array(192), strength: 2.3137, band: "strongly", winnerFraction, seed: 9317, tick: completed * 8, rule: "training", completed,
     elapsedMs: completed * 300, readMs: 40, selectedPatches: new Uint8Array(64), coSelection: { readPatches: 64, top: [], requested: { group: 12002, rank: 1, patches: 63, positionSum: 63 } },
   });
 

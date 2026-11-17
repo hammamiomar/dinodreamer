@@ -16,6 +16,8 @@ export interface GrowOutcome {
   /** True once Keep has saved it on this device. */
   saved: boolean;
   updates: number;
+  /** The step its reading and picture were taken at: 600, or a set method's own step (figure-recipe.ts readingStep). */
+  tick: number;
 }
 
 /** What the panel heard from the worker for the current Grow. */
@@ -56,6 +58,7 @@ export function recordEvent(record: GrowRecord, event: GrowEvent): GrowRecord {
     case "material": {
       const outcome: GrowOutcome = {
         id: event.file.id, run: event.run, stage: event.stage, fired: event.fired, saved: false, updates: event.file.training.updates,
+        tick: event.file.reading.tick,
       };
       return { ...record, outcomes: [...record.outcomes, outcome] };
     }
@@ -64,7 +67,8 @@ export function recordEvent(record: GrowRecord, event: GrowEvent): GrowRecord {
     case "input":
     case "checkpoint":
     case "live":
-      // The input and the checkpoints serve the worker; the live pixels go to the canvas.
+    case "map":
+      // The input and the checkpoints serve the worker; the live pixels go to the canvas, the map's codes to the store's map.
       return record;
   }
 }

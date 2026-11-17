@@ -58,6 +58,11 @@ export interface LiveFrame {
 }
 
 export interface LiveReading {
+  /**
+   * The group's code of each of the 64 patches, row-major on the 8 × 8 grid, patch t at [3t, 3t + 3): the
+   * calibrated token projected on the group's frame, not divided by a gate, as the group map's cloud codes.
+   */
+  patchCodes: Float32Array;
   /** Mean over the read patches of u·c_t / m: all 64, or the central 4 × 4 for a seeded start. */
   strength: number;
   band: StrengthBand;
@@ -129,6 +134,12 @@ export type GrowEvent =
   | { type: "progress"; progress: GrowProgress }
   | { type: "live"; frame: LiveFrame }
   | { type: "reading"; reading: LiveReading }
+  /**
+   * The grid the page shows, read while training for the live map: at most once a second and within 3 % of the
+   * training time (grow.worker.ts mapInterval), never in an update that runs a checkpoint; the patches' codes and
+   * which select the group. Readings feed the map too (train-run.ts). `readMs`: the reading's time.
+   */
+  | { type: "map"; patchCodes: Float32Array; selectedPatches: Uint8Array; tick: number; completed: number; readMs: number }
   | { type: "material"; file: FigureMaterialFile; run: number; stage: KeptStage; fired: boolean }
   /** `deviceLost`: WebGPU lost the device, which on a device without room for the run means out of memory. */
   | { type: "error"; message: string; deviceLost?: boolean };

@@ -87,6 +87,31 @@ describe("the site's Train run (train-run.ts)", () => {
     expect(changedFromRun(codes, { ...codes, depth: "final-layer" })).toBe(false);
   });
 
+  it("keeps the live map's latest reading from map events and readings, with its own listeners, and clears it with the run", () => {
+    const workers = fakeWorkers();
+    const run = createTrainRun({ createClient: workers.createClient, keep: async () => {}, release: { url: "", name: "test" } as never, runRecord: fakeRunRecord() });
+    const heard = vi.fn();
+    const changes = vi.fn();
+    run.subscribeMap(heard);
+    run.subscribe(changes);
+    run.start(request, choices);
+    changes.mockClear();
+    const patchCodes = new Float32Array(192).fill(0.5);
+    const selectedPatches = new Uint8Array(64).fill(1);
+    workers.made[0]!.say({ type: "map", patchCodes, selectedPatches, tick: 96, completed: 12, readMs: 30 });
+    expect(run.map()).toEqual({ patchCodes, selectedPatches, tick: 96, completed: 12 });
+    expect(heard).toHaveBeenCalled();
+    // A map event changes no record, so the views that read the record do not render again.
+    expect(changes).not.toHaveBeenCalled();
+    workers.made[0]!.say({ type: "reading", reading: {
+      patchCodes, selectedPatches, strength: 1, band: "strongly", winnerFraction: 1, tick: 160, seed: 9317, rule: "training", completed: 20,
+      elapsedMs: 0, readMs: 30, coSelection: { readPatches: 64, top: [], requested: { group: 12002, rank: 1, patches: 64, positionSum: 64 } },
+    } });
+    expect(run.map()?.tick).toBe(160);
+    run.end();
+    expect(run.map()).toBeNull();
+  });
+
   it.each([1, 4] as const)("continues a saved batch-%i definition at its recorded batch", (savedBatch) => {
     const material = readFigureMaterial(JSON.parse(readFileSync(
       new URL("../../fixtures/materials/block-12002-figure-strongest-mean-seed-1.material.json", import.meta.url), "utf8",

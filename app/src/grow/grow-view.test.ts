@@ -8,8 +8,8 @@ import {
 
 const progress = { completed: 300, total: 1000, trainingMs: 120000, readerChunks: 32, methodLoss: 0.012 };
 const reading = { strength: 1.58, winnerFraction: 1, selectedPatches: new Uint8Array(64).fill(1), coSelection: { readPatches: 64, top: [], requested: { group: 12002, rank: 1, patches: 64, positionSum: 64 } } };
-const firstFire: GrowOutcome = { id: "first", run: 1, stage: "first fire", fired: true, saved: true, updates: 250 };
-const finalFired: GrowOutcome = { id: "final", run: 1, stage: "final", fired: true, saved: true, updates: 1000 };
+const firstFire: GrowOutcome = { id: "first", run: 1, stage: "first fire", fired: true, saved: true, updates: 250, tick: 600 };
+const finalFired: GrowOutcome = { id: "final", run: 1, stage: "final", fired: true, saved: true, updates: 1000, tick: 600 };
 const training: GrowRecord = { ...NO_RECORD, active: true, phase: "training", run: { run: 1, runs: 3, method: "basis-group-mean" }, progress, reading };
 
 describe("the state table", () => {
@@ -95,7 +95,7 @@ describe("what each state shows", () => {
 
 
 describe("the record", () => {
-  const file = (id: string, updates: number) => ({ id, training: { seed: 1, updates } }) as unknown as FigureMaterialFile;
+  const file = (id: string, updates: number) => ({ id, training: { seed: 1, updates }, reading: { tick: 600 } }) as unknown as FigureMaterialFile;
 
   it("follows a run: a new run without progress, then progress and readings", () => {
     let record: GrowRecord = { ...NO_RECORD, active: true };
@@ -106,7 +106,7 @@ describe("the record", () => {
     expect([record.run, growState(record)]).toEqual([{ run: 1, runs: 3, method: "basis-group-mean" }, "loading"]);
     record = recordEvent(record, { type: "progress", progress: { completed: 25, trainingMs: 9875, readerChunks: 26, methodLoss: 0.5 } as never });
     expect(growState(record)).toBe("training");
-    record = recordEvent(record, { type: "reading", reading: { ...reading, band: "strongest", seed: 9317, tick: 200, rule: "training", completed: 25, elapsedMs: 0, readMs: 60 } });
+    record = recordEvent(record, { type: "reading", reading: { ...reading, patchCodes: new Float32Array(192), band: "strongest", seed: 9317, tick: 200, rule: "training", completed: 25, elapsedMs: 0, readMs: 60 } });
     expect([record.progress, record.reading]).toEqual([{ completed: 25, trainingMs: 9875, readerChunks: 26, methodLoss: 0.5 }, reading]);
     record = recordEvent(record, { type: "run", run: 2, runs: 3, seed: 20273025, method: "basis-group-mean" });
     expect([record.progress, record.reading]).toEqual([null, null]);
@@ -114,7 +114,7 @@ describe("the record", () => {
 
   it("keeps each file unsaved until Keep has saved it", () => {
     let record = recordEvent(training, { type: "material", file: file("first", 250), run: 1, stage: "first fire", fired: true });
-    expect(record.outcomes).toEqual([{ id: "first", run: 1, stage: "first fire", fired: true, saved: false, updates: 250 }]);
+    expect(record.outcomes).toEqual([{ id: "first", run: 1, stage: "first fire", fired: true, saved: false, updates: 250, tick: 600 }]);
     record = markSaved(record, "first");
     expect(record.outcomes[0]!.saved).toBe(true);
   });

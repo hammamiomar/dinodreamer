@@ -23,9 +23,9 @@ export function statusFirstLine(state: GrowState, record: GrowRecord): ReactNode
   if (state === "retry") return WORDS.retry;
   if (state === "done") {
     const result = resultOutcome(record);
-    if (result?.fired) return fired(fill(WORDS.fired, { update: number(result.updates) }));
+    if (result?.fired) return fired(fill(WORDS.fired, { update: number(result.updates), tick: number(result.tick) }));
     // A set method keeps its one run's final rule: the selection is a reading, not the result's test.
-    if (setMethodRun(record)) return fill(WORDS.finalSaved, { update: number(result?.updates ?? 0) });
+    if (setMethodRun(record) && result) return fill(WORDS.finalSaved, { update: number(result.updates), tick: number(result.tick) });
     // A run the person kept, with runs still to try, or the last of the runs.
     const runs = record.run?.runs ?? 0;
     return record.run && record.run.run < runs ? WORDS.keptUnfired : fill(WORDS.noneFired, { runs });
