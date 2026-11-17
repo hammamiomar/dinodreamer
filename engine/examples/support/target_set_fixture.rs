@@ -130,6 +130,17 @@ pub fn compare_set(target: &TargetSet, record: &SetRecord) -> (Value, bool) {
             "errors": errors,
         })
     }).collect();
-    (json!({"pictures": target.pictures, "layers": layers, "pass": pass,
+    // Every token's code, against the oracle's where it recorded them: basis-group distribution's
+    // features are the codes, standardized, so the codes are the unit times them plus the mean.
+    let codes_error = record.layers.iter().find(|layer| layer.width == 3).map(|layer| {
+        let mean = floats(&layer.mean);
+        let expected: Vec<f32> = floats(&layer.standardized)
+            .chunks_exact(3)
+            .flat_map(|code| (0..3).map(|axis| code[axis] * layer.rms as f32 + mean[axis]).collect::<Vec<f32>>())
+            .collect();
+        relative_rms(&target.codes_NR, &expected)
+    });
+    pass &= target.codes_NR.len() == 3 * target.pictures_N.len() && codes_error.is_none_or(|error| error <= SET_VECTOR_TOLERANCE);
+    (json!({"pictures": target.pictures, "layers": layers, "codes": codes_error, "pass": pass,
             "tolerances": {"scalars": SET_SCALAR_TOLERANCE, "vectors": SET_VECTOR_TOLERANCE}}), pass)
 }

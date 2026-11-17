@@ -7,6 +7,8 @@
 //!       tools/fixtures/grow-recipe-oracle-12002-pyramid-seeded-token-distribution-batch4.json
 //!   cargo run --release --features harness --example target_set_check -- <the same fixture>
 //!
+//! For the basis-group distribution fixture it also prepares token-method sets from the same windows:
+//! every method keeps the same codes of its tokens (`TargetSet::codes_NR`), so they must be identical.
 //! Assets as in grow_recipe_parity. It prints one JSON report and exits 1 when the set differs.
 #![allow(non_snake_case)] // Tensor suffixes document axes.
 #[path = "support/target_set_fixture.rs"]
@@ -15,7 +17,7 @@ mod target_set_fixture;
 use burn::tensor::{Device, Tensor, TensorData};
 use dinodreamer_engine::{
     encoder::{Block, DEPTH, Dino},
-    grow::figure::{FigureRequest, target_set::{TargetSet, WINDOW_SIDE}},
+    grow::figure::{FigureRequest, Layer, Method, target_set::{TargetSet, WINDOW_SIDE}},
     objective::{Calibration, load_frame},
 };
 use serde::Deserialize;
@@ -55,13 +57,27 @@ fn main() {
 
     let (windows, dots, file) = target_set_fixture::load_windows(&Path::new(&path).with_file_name(&fixture.set.file));
     assert_eq!(file.block, block, "the set file is the request's basis group's");
-    let windows_P3HW = Tensor::<4>::from_data(TensorData::new(windows, [dots.len(), 3, WINDOW_SIDE, WINDOW_SIDE]), &device);
+    let prepare = |request: &FigureRequest| {
+        let windows_P3HW = Tensor::<4>::from_data(TensorData::new(windows.clone(), [dots.len(), 3, WINDOW_SIDE, WINDOW_SIDE]), &device);
+        pollster::block_on(TargetSet::prepare(&encoder, &calibration, &frame_DR.clone().transpose(), request, windows_P3HW, &dots)).unwrap()
+    };
     let started = std::time::Instant::now();
-    let target = pollster::block_on(TargetSet::prepare(&encoder, &calibration, &frame_DR.transpose(), &fixture.request, windows_P3HW, &dots)).unwrap();
+    let target = prepare(&fixture.request);
     let seconds = started.elapsed().as_secs_f64();
-    let (report, pass) = target_set_fixture::compare_set(&target, &fixture.set);
+    let (report, mut pass) = target_set_fixture::compare_set(&target, &fixture.set);
+    let mut same_codes = None;
+    if fixture.request.method == Method::BasisGroupDistribution {
+        let token_methods = [(Method::TokenDistribution, vec![Layer::Final]), (Method::TokenMean, vec![Layer::Block(3), Layer::Final])];
+        let identical = token_methods.into_iter().all(|(method, layers)| {
+            let other = prepare(&FigureRequest { method, layers, ..fixture.request.clone() });
+            other.codes_NR == target.codes_NR && other.pictures_N == target.pictures_N
+        });
+        pass &= identical;
+        same_codes = Some(identical);
+    }
     let backend = if cfg!(feature = "gpu") { "wgpu" } else { "cpu" };
-    println!("{}", serde_json::to_string_pretty(&json!({"fixture": path, "backend": backend, "seconds": seconds, "set": report})).unwrap());
+    println!("{}", serde_json::to_string_pretty(&json!({"fixture": path, "backend": backend, "seconds": seconds, "set": report,
+        "tokenMethodsKeepTheSameCodes": same_codes, "pass": pass})).unwrap());
     if !pass {
         std::process::exit(1);
     }

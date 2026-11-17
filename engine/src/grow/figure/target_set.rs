@@ -261,6 +261,12 @@ pub struct TargetSet {
     pub pictures: usize,
     /// In the request's order of compared layers (`FigureRequest::compared_layers`).
     pub layers: Vec<SetLayer>,
+    /// Every set token's code, [N × 3] picture-major in set order: the calibrated final-layer token
+    /// projected on the group's frame, the space of a reading's `codes_TR` and of the group's map.
+    /// Kept for every method, so a page can draw the set in the map.
+    pub codes_NR: Vec<f32>,
+    /// The picture of each token: its index among the windows given to `prepare`.
+    pub pictures_N: Vec<u16>,
 }
 
 impl TargetSet {
@@ -295,10 +301,11 @@ impl TargetSet {
         let blocks = request.intermediate_blocks();
         let readout = encoder.readout(windows_P3HW, &blocks);
         let native_PTD = readout.native_BTD.slice([0..pictures, PREFIX..PREFIX + PATCHES, 0..WIDTH]);
+        let codes_NR = gathered(fixed_product(calibration.tokens(native_PTD.clone()), frame_RD));
         let mut layers = Vec::new();
         for layer in request.compared_layers() {
             let features_ND = match (request.method, layer) {
-                (Method::BasisGroupDistribution, _) => gathered(fixed_product(calibration.tokens(native_PTD.clone()), frame_RD)),
+                (Method::BasisGroupDistribution, _) => codes_NR.clone(),
                 (_, Layer::Final) => gathered(native_PTD.clone()),
                 (_, Layer::Block(block)) => {
                     let position = blocks.iter().position(|&read| read == block).expect("every block layer is read");
@@ -307,7 +314,9 @@ impl TargetSet {
             };
             layers.push(SetLayer::prepare(layer, features_ND).await?);
         }
-        Ok(Self { method: request.method, block: request.block, pictures, layers })
+        let pictures_N = dots.iter().enumerate().flat_map(|(picture, &dot)| vec![picture as u16; neighbourhood(dot).len()]).collect();
+        let codes_NR = read(codes_NR.flatten(0, 1)).await?;
+        Ok(Self { method: request.method, block: request.block, pictures, layers, codes_NR, pictures_N })
     }
 
     /// Whether this set serves the request: the same method, basis group and layers.
@@ -491,7 +500,7 @@ mod tests {
                     layers.push(layer);
                     canvases.push(Tensor::<2>::from_data(TensorData::new(canvas, [case.canvas, case.width]), &device).require_grad());
                 }
-                let target = TargetSet { method, block: 0, pictures: 0, layers };
+                let target = TargetSet { method, block: 0, pictures: 0, layers, codes_NR: Vec::new(), pictures_N: Vec::new() };
                 let loss = target.loss(canvases.clone());
                 let value = pollster::block_on(read(loss.value.clone())).unwrap()[0];
                 assert!(relative(value as f64, case.value) <= VALUE_TOLERANCE, "{}: the loss {value} against {}", case.name, case.value);
