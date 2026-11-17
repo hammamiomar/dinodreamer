@@ -1,10 +1,9 @@
-//! A study for the reading step of the set methods: each trained rule grows on the replay grid
-//! (seed 9317, the site's live seed) and is read at a ladder of ticks. At each tick it records
-//! (a) the run's own loss on that one picture: its method and layers against its prepared set, on
-//! the scored region (basis-group mean: the code loss), and (b) the site's reading: the group's
-//! selection share and strength over the read patches. It prints one JSON line per tick and writes
-//! the picture of every tick, `<name>-tick-0200.png`, for the contact sheet. Evidence only: the
-//! page does not use this.
+//! The reading step of the set methods: each trained rule grows on the replay grid (seed 9317, the
+//! site's live seed) and is read at the ladder of decision 12 of the brief. At each tick it records
+//! (a) the run's own loss on that one picture (`figure::own_loss`, as the page reads it), and (b) the
+//! site's reading: the group's selection share and strength over the read patches. A basis-group
+//! mean run has no set and records (b) only. It prints one JSON line per tick and writes the picture
+//! of every tick, `<name>-tick-0200.png`, for the contact sheet.
 //!
 //!   cargo run --release --features harness --example reading_step_study -- --runs <runs.json> --pictures <folder>
 //!
@@ -17,12 +16,8 @@ mod target_set_fixture;
 
 use burn::tensor::{Device, Tensor, TensorData};
 use dinodreamer_engine::{
-    encoder::{Block, DEPTH, Dino, PREFIX, WIDTH},
-    grow::figure::{
-        self, FigureGrid, FigureRequest, FigureRule, Layer, Method, PATCHES, mean_code_loss, region_features, region_mean_codes,
-        target_set::{TargetSet, WINDOW_SIDE},
-    },
-    kernels::frozen_linear,
+    encoder::{Block, DEPTH, Dino},
+    grow::figure::{self, FigureGrid, FigureRequest, FigureRule, target_set::{TargetSet, WINDOW_SIDE}},
     objective::{Calibration, load_frame},
     reader::DictionaryReader,
 };
@@ -33,7 +28,8 @@ use std::{env, fs, path::{Path, PathBuf}, time::Instant};
 const ENCODER: &str = "dinov3-vitb16-pretrain-lvd1689m";
 const DICTIONARY: &str = "monet-dtd-seed9-20261004-pass-003";
 const LIVE_SEED: u32 = 9317;
-const TICKS: [u32; 11] = [50, 100, 150, 200, 300, 400, 600, 800, 1000, 1500, 2000];
+/// Decision 12's ladder. The first study of 17 November 2026 also read tick 50.
+const TICKS: [u32; 10] = [100, 150, 200, 300, 400, 600, 800, 1000, 1500, 2000];
 
 #[derive(Deserialize)]
 struct Run {
@@ -73,30 +69,6 @@ fn write_png(path: &Path, rgba: &[u8]) {
     encoder.write_header().unwrap().write_image_data(&rgb).unwrap();
 }
 
-/// The run's own loss on one picture [1, 3, 128, 128]: the training's terms with one picture in
-/// place of the eight views (M = 16 scored tokens from the centre disc).
-fn own_loss(encoder: &Dino, calibration: &Calibration, frame_RD: &Tensor<2>, request: &FigureRequest, target: Option<&TargetSet>, picture_1CHW: Tensor<4>) -> f32 {
-    let blocks = request.intermediate_blocks();
-    let readout = encoder.readout(picture_1CHW, &blocks);
-    let native_1TD = readout.native_BTD.slice([0..1, PREFIX..PREFIX + PATCHES, 0..WIDTH]);
-    let codes_1TR = frozen_linear(calibration.tokens(native_1TD.clone()), frame_RD.clone());
-    let loss = match target {
-        None => mean_code_loss(region_mean_codes(codes_1TR, request.start), request.code, request.median_norm),
-        Some(target) => {
-            let features = request.compared_layers().into_iter().map(|layer| match (request.method, layer) {
-                (Method::BasisGroupDistribution, _) => region_features(codes_1TR.clone(), request.start),
-                (_, Layer::Final) => region_features(native_1TD.clone(), request.start),
-                (_, Layer::Block(block)) => {
-                    let position = blocks.iter().position(|&read| read == block).unwrap();
-                    region_features(readout.intermediate_BPD[position].clone(), request.start)
-                }
-            }).collect();
-            target.loss(features).value
-        }
-    };
-    pollster::block_on(loss.into_data_async()).unwrap().try_to_vec::<f32>().unwrap()[0]
-}
-
 fn main() {
     let arguments: Vec<String> = env::args().skip(1).collect();
     let runs_path = PathBuf::from(argument(&arguments, "--runs"));
@@ -127,11 +99,11 @@ fn main() {
         let definition_path = base.join(&run.definition);
         let definition: Definition = serde_json::from_slice(&fs::read(&definition_path).unwrap()).unwrap();
         let request = saved.request;
-        let frame_RD = load_frame(&fs::read(dictionary.join(format!("blocks/{:05}.safetensors", request.block))).unwrap(), &device).unwrap().transpose();
+        let frame_DR = load_frame(&fs::read(dictionary.join(format!("blocks/{:05}.safetensors", request.block))).unwrap(), &device).unwrap();
         let target = definition.set.map(|set| {
             let (windows, dots, _) = target_set_fixture::load_windows(&definition_path.with_file_name(&set.file));
             let windows_P3HW = Tensor::<4>::from_data(TensorData::new(windows, [dots.len(), 3, WINDOW_SIDE, WINDOW_SIDE]), &device);
-            pollster::block_on(TargetSet::prepare(&encoder, &calibration, &frame_RD, &request, windows_P3HW, &dots)).unwrap()
+            pollster::block_on(TargetSet::prepare(&encoder, &calibration, &frame_DR.clone().transpose(), &request, windows_P3HW, &dots)).unwrap()
         });
         let rule = FigureRule::fixed(request.rule, &saved.values, &device).unwrap();
         let mut grid = FigureGrid::new(LIVE_SEED, request.rule, request.start, &device);
@@ -144,7 +116,9 @@ fn main() {
             }
             write_png(&pictures.join(format!("{}-tick-{tick:04}.png", run.name)), &pollster::block_on(grid.rgba()).unwrap());
             let started = Instant::now();
-            let loss = own_loss(&encoder, &calibration, &frame_RD, &request, target.as_ref(), grid.picture());
+            let loss = target.as_ref().map(|target| {
+                pollster::block_on(figure::own_loss(&encoder, &calibration, &frame_DR, &request, target, grid.picture())).unwrap()
+            });
             let loss_seconds = started.elapsed().as_secs_f64();
             let started = Instant::now();
             let reading = pollster::block_on(figure::read(

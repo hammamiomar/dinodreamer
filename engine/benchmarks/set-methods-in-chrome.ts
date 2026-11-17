@@ -10,7 +10,9 @@
 // It needs `pnpm build:engine` (pkg/) and local/release (tools/local_release.py). The fixtures give the
 // requests; the first is the reference. Chrome runs headless with its own GPU process. With
 // `--profile <prefix>` it then records a CPU profile of `--profile-updates` more updates of each method,
-// `<prefix>-<n>-<method>.cpuprofile`; `--batch 1` overrides every request's batch; `--package pkg-profile` serves a build that keeps function names
+// `<prefix>-<n>-<method>.cpuprofile`; `--batch 1` overrides every request's batch; `--ladder-rule
+// <rule.json>` (of grow_recipe_train) reads that rule on the live grid (seed 9317) at decision 12's
+// ladder with `figure_own_loss`, against the set of the run with its method and layers, and times it; `--package pkg-profile` serves a build that keeps function names
 // (CARGO_PROFILE_RELEASE_STRIP=false wasm-pack build --target web --release --out-dir pkg-profile).
 import { chromium } from "playwright-core";
 import { createServer } from "node:http";
@@ -24,7 +26,7 @@ const CONTENT_TYPES: Record<string, string> = { ".html": "text/html", ".js": "te
 
 interface Options {
   set: string; previews: string; output: string; rounds: number; updates: number; fixtures: string[];
-  packageFolder: string; profile: string | null; profileUpdates: number; batch: number | null;
+  packageFolder: string; profile: string | null; profileUpdates: number; batch: number | null; ladderRule: string | null;
 }
 
 function parseOptions(values: string[]): Options {
@@ -38,7 +40,7 @@ function parseOptions(values: string[]): Options {
   return {
     set: named("--set"), previews: named("--previews"), output: named("--output"),
     rounds: Number(named("--rounds", "5")), updates: Number(named("--updates", "10")), fixtures,
-    batch: named("--batch", "") ? Number(named("--batch", "")) : null, packageFolder: named("--package", "pkg"), profile: named("--profile", "") || null, profileUpdates: Number(named("--profile-updates", "6")),
+    batch: named("--batch", "") ? Number(named("--batch", "")) : null, ladderRule: named("--ladder-rule", "") || null, packageFolder: named("--package", "pkg"), profile: named("--profile", "") || null, profileUpdates: Number(named("--profile-updates", "6")),
   };
 }
 
@@ -104,7 +106,7 @@ async function measure(input: {
       }
     }
     const training = set ? engine.create_figure_on_set(json, set) : engine.create_figure(json);
-    runs.push({ request, set: set ? JSON.parse(set.summary()) : null, preparationMs, training, first: null as unknown, seconds: [] as number[],
+    runs.push({ request, set: set ? JSON.parse(set.summary()) : null, preparedSet: set, preparationMs, training, first: null as unknown, seconds: [] as number[],
       dispatches: [] as number[], steps: [] as number[] });
   }
   for (let round = 0; round < input.rounds; round++) {
@@ -124,7 +126,9 @@ async function measure(input: {
     }
   }
   // Kept for the profile's updates (`profiledUpdates`).
-  (globalThis as Record<string, unknown>).setMethodsState = { engine, trainings: runs.map((run) => run.training) };
+  (globalThis as Record<string, unknown>).setMethodsState = {
+    engine, trainings: runs.map((run) => run.training), sets: runs.map((run) => run.preparedSet), requests: runs.map((run) => run.request),
+  };
   const median = (values: number[]) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)];
   const reference = runs[0].seconds;
   return runs.map((run) => ({
@@ -138,6 +142,26 @@ async function measure(input: {
 async function profiledUpdates(input: { index: number; count: number }) {
   const state = (globalThis as Record<string, unknown>).setMethodsState as { engine: { figure_update(training: unknown): Promise<string> }; trainings: unknown[] };
   for (let update = 0; update < input.count; update++) await state.engine.figure_update(state.trainings[input.index]);
+}
+
+/** Runs in the page after `measure`: a saved rule on the live grid, read at the ladder with `figure_own_loss`. */
+async function ownLossLadder(input: { request: Record<string, unknown>; values: number[]; ladder: number[] }) {
+  const state = (globalThis as Record<string, unknown>).setMethodsState as {
+    engine: Record<string, (...values: unknown[]) => any>; sets: unknown[]; requests: Record<string, unknown>[];
+  };
+  const sameLayers = (request: Record<string, unknown>) => JSON.stringify(request.layers ?? []) === JSON.stringify(input.request.layers ?? []);
+  const index = state.requests.findIndex((request) => request.method === input.request.method && sameLayers(request));
+  if (index < 0 || !state.sets[index]) throw new Error("No run prepared a set for the ladder rule's method and layers");
+  const grid = state.engine.create_figure_grid(9317, input.request.rule, input.request.start);
+  grid.set_rule(new Float32Array(input.values));
+  const readings = [];
+  for (const tick of input.ladder) {
+    await grid.advance(tick - grid.tick());
+    const started = performance.now();
+    const loss = await state.engine.figure_own_loss(grid, JSON.stringify(input.request), state.sets[index]);
+    readings.push({ tick, loss, ms: performance.now() - started });
+  }
+  return readings;
 }
 
 async function main(): Promise<void> {
@@ -171,6 +195,13 @@ async function main(): Promise<void> {
     });
     const report = { browser: browser.version(), set: options.set, rounds: options.rounds, updatesPerRound: options.updates, runs };
     await writeFile(resolve(options.output), JSON.stringify(report, null, 1) + "\n");
+    if (options.ladderRule) {
+      const rule = JSON.parse(await readFile(resolve(options.ladderRule), "utf8"));
+      const ladder = [100, 150, 200, 300, 400, 600, 800, 1000, 1500, 2000];
+      const readings = await page.evaluate(ownLossLadder, { request: rule.request, values: rule.values, ladder });
+      await writeFile(resolve(options.output.replace(/\.json$/, "-own-loss-ladder.json")), JSON.stringify({ rule: options.ladderRule, readings }, null, 1) + "\n");
+      console.log(JSON.stringify(readings));
+    }
     if (options.profile) {
       const cdp = await page.context().newCDPSession(page);
       await cdp.send("Profiler.enable");

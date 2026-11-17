@@ -424,6 +424,41 @@ fn read_views(encoder: &Dino, calibration: &Calibration, frame_RD: &Tensor<2>, p
     ViewReading { native_VTD, codes_VTR, intermediate_VTD: readout.intermediate_BPD }
 }
 
+/// The canvas features of each compared layer, [M, D] (`region_features`): the codes for
+/// basis-group distribution, the final or an intermediate layer's tokens for a token method.
+fn compared_features(request: &FigureRequest, reading: &ViewReading, blocks: &[usize]) -> Vec<Tensor<2>> {
+    request.compared_layers().into_iter().map(|layer| match (request.method, layer) {
+        (Method::BasisGroupDistribution, _) => region_features(reading.codes_VTR.clone(), request.start),
+        (_, Layer::Final) => region_features(reading.native_VTD.clone(), request.start),
+        (_, Layer::Block(block)) => {
+            let position = blocks.iter().position(|&read| read == block).expect("every block layer is read");
+            region_features(reading.intermediate_VTD[position].clone(), request.start)
+        }
+    }).collect()
+}
+
+/// A set method's loss on one displayed picture [1, 3, 128, 128]: the training's terms with the picture
+/// in place of the eight views, so the scored patches of the start give M = 16 or 64 canvas tokens.
+/// Decision 12 of the brief reads the final rule on the live grid at a ladder of ticks and keeps the
+/// tick with the lowest value. One DINO pass at the method's layers and one readback: 22 to 25 ms
+/// natively on an M1 Max (17 November 2026).
+pub async fn own_loss(
+    encoder: &Dino,
+    calibration: &Calibration,
+    frame_DR: &Tensor<2>,
+    request: &FigureRequest,
+    target: &TargetSet,
+    picture_1CHW: Tensor<4>,
+) -> Result<f32, String> {
+    request.validate()?;
+    target.serves(request)?;
+    let blocks = request.intermediate_blocks();
+    let reading = read_views(encoder, calibration, &frame_DR.clone().transpose(), picture_1CHW, &blocks);
+    let loss = target.loss(compared_features(request, &reading, &blocks)).value;
+    let values = loss.into_data_async().await.map_err(|e| e.to_string())?.try_to_vec::<f32>().map_err(|e| e.to_string())?;
+    values.first().copied().filter(|value| value.is_finite()).ok_or_else(|| "The picture's loss is not finite".into())
+}
+
 /// One compared layer's terms after an update: its value and, for a distribution method, the
 /// kernel means E k(x̂, x̂') (`kernelXx`) and E k(x̂, ŷ) (`kernelXy`) of `target_set`.
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -717,7 +752,7 @@ impl FigureTraining {
         let (mean_codes_VR, code_loss, set_loss, excess, loss) = profiling::broad("objective", || {
             let mean_codes_VR = region_mean_codes(reading.codes_VTR.clone(), start);
             let code_loss = mean_code_loss(mean_codes_VR.clone(), code, median_norm);
-            let set_loss = self.target.as_ref().map(|target| target.loss(self.compared_features(&reading, &blocks)));
+            let set_loss = self.target.as_ref().map(|target| target.loss(compared_features(&self.request, &reading, &blocks)));
             let method_loss = set_loss.as_ref().map_or(code_loss.clone(), |set_loss| set_loss.value.clone());
             let excess = overflow(&leaf.tensors());
             let loss = method_loss + excess.clone() * OVERFLOW_WEIGHT;
@@ -752,19 +787,6 @@ impl FigureTraining {
         })
     }
 
-    /// The canvas features of each compared layer, [M, D] (`region_features`): the codes for
-    /// basis-group distribution, the final or an intermediate layer's tokens for a token method.
-    fn compared_features(&self, reading: &ViewReading, blocks: &[usize]) -> Vec<Tensor<2>> {
-        let start = self.request.start;
-        self.request.compared_layers().into_iter().map(|layer| match (self.request.method, layer) {
-            (Method::BasisGroupDistribution, _) => region_features(reading.codes_VTR.clone(), start),
-            (_, Layer::Final) => region_features(reading.native_VTD.clone(), start),
-            (_, Layer::Block(block)) => {
-                let position = blocks.iter().position(|&read| read == block).expect("every block layer is read");
-                region_features(reading.intermediate_VTD[position].clone(), start)
-            }
-        }).collect()
-    }
 
     /// Adam on the normalized gradients at this update's rate; the grown states return to the pool.
     pub async fn apply(&mut self, gradient: FigureGradient) -> Result<FigureUpdate, String> {

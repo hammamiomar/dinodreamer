@@ -119,9 +119,26 @@ impl BrowserEngine {
         })
     }
 
+    /// A set method's loss on the grid's displayed picture (`figure::own_loss`): the run's method,
+    /// layers and block from `request` (JSON of its FigureRequest), against its prepared `set`, over the
+    /// patches its start scores. Read at each step of the reading ladder, the lowest value names the
+    /// automaton's step (brief, decision 12). The grid must grow the request's rule kind and start.
+    pub async fn figure_own_loss(&self, live: &BrowserFigureGrid, request: &str, set: &BrowserFigureSet) -> Result<f32, JsValue> {
+        let request: FigureRequest = serde_json::from_str(request).map_err(error)?;
+        if (live.grid.rule, live.grid.start) != (request.rule, request.start) {
+            return Err(error("The grid grows another rule kind or start than the request"));
+        }
+        let engine = self.engine()?;
+        let frame_DR = self.loaded_frame(request.block)?;
+        figure::own_loss(&engine.encoder, &engine.calibration, &frame_DR, &request, &set.set, live.grid.picture())
+            .await
+            .map_err(error)
+    }
+
     /// Strength and winner fraction of the grid's displayed picture, over the patches its start
     /// reads (all 64, or the central 4 × 4), and the co-selected basis groups of those patches as
-    /// three parallel arrays by share (`figure::co_selection`). Needs the whole reader.
+    /// three parallel arrays by share (`figure::co_selection`). `selectedPatches` (64 bytes) and
+    /// `patchCodes` (192 floats, patch t's code at 3t..3t + 3) cover all 64 patches. Needs the whole reader.
     pub async fn figure_reading(
         &self,
         live: &BrowserFigureGrid,
@@ -157,6 +174,7 @@ impl BrowserEngine {
         set(&result, "coSelectedJoint", column(|entry| entry.joint as u16))?;
         set(&result, "coSelectedPositionSum", column(|entry| entry.position_sum as u16))?;
         set(&result, "selectedPatches", Uint8Array::from(reading.selected_T.iter().map(|&selected| u8::from(selected)).collect::<Vec<u8>>().as_slice()))?;
+        set(&result, "patchCodes", Float32Array::from(reading.codes_TR.as_slice()))?;
         set(&result, "readPatches", live.grid.patches().len() as u32)?;
         set(&result, "tick", live.grid.tick)?;
         set(&result, "seed", live.grid.seed)?;
