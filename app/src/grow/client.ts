@@ -14,6 +14,7 @@ export class GrowClient {
   resumeTraining() { this.send({ type: "resume-training" }); }
   restart() { this.send({ type: "restart" }); }
   keep() { this.send({ type: "keep" }); }
+  keepAtStep(step: number) { this.send({ type: "keep-at-step", step }); }
   brush(stamps: [number, number, number][]) { this.send({ type: "brush", stamps }); }
   private send(command: GrowCommand) { this.worker.postMessage(command); }
   dispose() { this.worker.terminate(); }

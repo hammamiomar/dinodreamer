@@ -1,4 +1,5 @@
 import { methodNeedsSet, type FigureMethod } from "../materials/material-file";
+import type { PublishState } from "../features/gallery/publish-material";
 import type { CoSelection } from "./co-selection";
 import { RESUME_UPDATES, type KeptStage } from "./figure-recipe";
 import type { GrowEvent } from "./protocol";
@@ -56,11 +57,13 @@ export function recordEvent(record: GrowRecord, event: GrowEvent): GrowRecord {
       return { ...record, reading: { strength, winnerFraction, selectedPatches, coSelection } };
     }
     case "material": {
+      // A file kept again under its id (a set method kept at another step of its ladder) replaces its outcome.
       const outcome: GrowOutcome = {
         id: event.file.id, run: event.run, stage: event.stage, fired: event.fired, saved: false, updates: event.file.training.updates,
         tick: event.file.reading.tick,
       };
-      return { ...record, outcomes: [...record.outcomes, outcome] };
+      const others = record.outcomes.filter((each) => each.id !== outcome.id);
+      return { ...record, outcomes: [...others, outcome] };
     }
     case "error":
       return { ...record, failure: event.message };
@@ -69,9 +72,19 @@ export function recordEvent(record: GrowRecord, event: GrowEvent): GrowRecord {
     case "live":
     case "map":
     case "set":
+    case "ladder":
       // The input and the checkpoints serve the worker; the live pixels go to the canvas, the map's and the set's codes to the store's map.
       return record;
   }
+}
+
+/**
+ * Whether the person may keep a held set-method run's automaton at another step of its ladder (decision 12's
+ * override): only while its file is not sent to the gallery. `publish` is the file's publishState
+ * (features/gallery/publish-material.tsx): "awaiting" or "published" closes the step, since the gallery has that file.
+ */
+export function stepChoiceOpen(publish: PublishState): boolean {
+  return publish === "idle";
 }
 
 /** Keep saved the file on this device. */

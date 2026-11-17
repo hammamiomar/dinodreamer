@@ -56,6 +56,8 @@ let stopping = false;
 /** What the person chose while the live grid grows a held rule (liveLoop): Resume, or after a run that did not meet the target, the next seed or this rule. */
 type Decision = "resume-training" | "restart" | "keep";
 let decision: Decision | null = null;
+/** A step of the held run's ladder the person chose to keep its automaton at (keep-at-step); applied by liveLoop. */
+let pendingStep: number | null = null;
 /** Brush stamps for the live grid, applied before its next frame. None while a kept reading grows. */
 const stamps: [number, number, number][] = [];
 let brushOpen = true;
@@ -201,11 +203,30 @@ interface Session {
   set: BrowserFigureSet | null;
   /** A set method's live grid loop (live-loop.ts); null for basis-group mean, whose live grid grows on. */
   loop: LoopGrid | null;
+  /** A held set-method run's reading ladder, read at its last keep; null while it trains and for basis-group mean. */
+  ladder: HeldLadder | null;
   /** Sum of complete update calls, over every Resume. */
   trainingMs: number;
   firstKept: boolean;
   /** The run's last kept final file: its update and its reading. */
   kept: { update: number; reading: FigureReading } | null;
+}
+
+/** One step of a set method's reading ladder: the method's own loss, the reading and the picture there, and the picture as a PNG. */
+interface LadderStep {
+  tick: number;
+  loss: number;
+  reading: LiveReading | null;
+  pixels: Uint8ClampedArray;
+  picture: string;
+}
+
+/** A held set-method run's ladder (decision 12): the rule it was read from, at which update, and its steps. */
+interface HeldLadder {
+  values: Float32Array;
+  completed: number;
+  trainingMs: number;
+  steps: LadderStep[];
 }
 
 /** A set method's live grid on its loop: the step it grows to, and when the hold of that step's picture began. */
@@ -278,25 +299,44 @@ async function material(input: FigureInput, run: number, stage: KeptStage, value
 }
 
 /**
- * A set method's final rule grown on its own replay grid of the live seed through READING_LADDER, with
- * the method's own loss on the picture at each step against the run's set (figure_own_loss; decision 12).
- * A grid that leaves the finite range ends the ladder there.
+ * A set method's final rule grown on its own replay grid of the live seed through READING_LADDER: at each
+ * step, the method's own loss on the picture against the run's set (figure_own_loss; decision 12), the
+ * reading and the picture, so the automaton can be kept at any step at once (keptAtStep). A grid that
+ * leaves the finite range ends the ladder there. The reader must be loaded.
  */
-async function ownLossLadder(values: Float32Array, input: FigureInput, set: BrowserFigureSet): Promise<LadderReading[]> {
+async function readLadder(values: Float32Array, input: FigureInput, set: BrowserFigureSet, completed: number, began: number): Promise<LadderStep[]> {
   const grid = replayGrid(input.kind);
   const request = JSON.stringify(engineRequest(input));
-  const ladder: LadderReading[] = [];
+  const steps: LadderStep[] = [];
   try {
     grid.set_rule(values);
     for (const tick of READING_LADDER) {
-      await grid.advance(tick - grid.tick());
+      const pixels = await grid.advance(tick - grid.tick());
       if (!(await grid.finite())) break;
-      ladder.push({ tick, loss: await engine!.figure_own_loss(grid, request, set) });
+      const loss = await engine!.figure_own_loss(grid, request, set);
+      const reading = await read(grid, input, "final", completed, began);
+      steps.push({ tick, loss, reading, pixels, picture: await png(pixels, 128) });
     }
   } finally {
     grid.free();
   }
-  return ladder;
+  return steps;
+}
+
+/**
+ * The held set-method run's file kept at `tick` of its ladder: that step's reading, picture and poster,
+ * under the same id as at any other step. Tells the page the kept step. Null when the ladder has no such step.
+ */
+async function keptAtStep(session: Session, tick: number) {
+  const ladder = session.ladder;
+  const step = ladder?.steps.find((each) => each.tick === tick);
+  if (!ladder || !step) return null;
+  const losses: LadderReading[] = ladder.steps.map(({ tick: at, loss }) => ({ tick: at, loss }));
+  const file = await material(session.input, session.run, "final", ladder.values, step.reading, step.pixels, ladder.completed, ladder.trainingMs, tick, losses);
+  session.kept = { update: ladder.completed, reading: file.reading };
+  send({ type: "ladder", ladder: { steps: ladder.steps.map(({ tick: at, loss, picture }) => ({ tick: at, loss, picture })), kept: tick } });
+  if (step.reading) send({ type: "reading", reading: step.reading });
+  return file;
 }
 
 /**
@@ -310,6 +350,8 @@ async function train(session: Session, live: BrowserFigureGrid, reader: ReaderLo
   stopping = false;
   // A set method's loop grows to LIVE_LOOP_STEPS while it trains; a grid past it (after a hold at the kept step) holds, then starts again.
   if (session.loop) session.loop.end = LIVE_LOOP_STEPS;
+  // A ladder belongs to the rule it was read from; training changes the rule.
+  session.ladder = null;
   // When the shown grid was last read, by a reading or for the live map, and the wait that reading earns.
   let lastMap = performance.now();
   let mapWait = MAP_EVERY_MS;
@@ -394,25 +436,35 @@ async function keepFinal(session: Session, live: BrowserFigureGrid, reader: Read
   brushOpen = false;
   stamps.length = 0;
   const values = await training.values();
-  let ladder: LadderReading[] | undefined;
-  let tick = READING_TICK;
+  await reader.finish();
   if (session.set) {
+    // A set method keeps its automaton at the step of the lowest own loss of its ladder; the live grid then loops to it.
     phase("finishing", `Reading the final cellular model of run ${run} at steps ${READING_LADDER[0]} to ${READING_LADDER.at(-1)!.toLocaleString("en-US")}`);
-    ladder = await ownLossLadder(values, input, session.set);
-    tick = readingStep(ladder) ?? READING_TICK;
+    pendingStep = null;
+    const steps = await readLadder(values, input, session.set, completed, began);
+    session.ladder = { values, completed, trainingMs, steps };
+    const tick = readingStep(steps);
+    const file = tick === null ? null : await keptAtStep(session, tick);
+    if (file) {
+      brushOpen = true;
+      live.restart(LIVE_SEED);
+      live.set_rule(values);
+      if (session.loop) session.loop.heldSince = null;
+      return file;
+    }
   }
+  const tick = READING_TICK;
   phase("finishing", `Running the final cellular model of run ${run} to simulation step ${tick} and measuring it`);
   live.restart(LIVE_SEED);
   live.set_rule(values);
   let pixels = await showLive(live, 0, "final", completed);
   while (live.tick() < tick) pixels = await showLive(live, Math.min(20, tick - live.tick()), "final", completed);
-  await reader.finish();
   const reading = await readIfFinite(live, input, "final", completed, began);
   if (reading) send({ type: "reading", reading });
   brushOpen = true;
   send({ type: "checkpoint", checkpoint: { run, completed, strength: reading?.strength ?? 0, band: reading?.band ?? "barely",
     winnerFraction: reading?.winnerFraction ?? 0, tick, readMs: reading?.readMs ?? 0, hold: null, finite: reading !== null } });
-  const file = await material(input, run, "final", values, reading, pixels, completed, trainingMs, tick, ladder);
+  const file = await material(input, run, "final", values, reading, pixels, completed, trainingMs, tick);
   session.kept = { update: completed, reading: file.reading };
   return file;
 }
@@ -439,7 +491,7 @@ async function trainWithStops(session: Session, live: BrowserFigureGrid, reader:
     await keepUnkept(session, live, reader, began);
     const completed = session.training.completed();
     phase("stopped", `Stopped at optimizer update ${completed.toLocaleString("en-US")}. Resume trains on from here.`);
-    await liveLoop(live, session.input, completed, began, ["resume-training"], heldLoop(session));
+    await liveLoop(live, session, completed, began, ["resume-training"]);
     phase("training", session.firstKept ? "Still improving after the first accepted checkpoint" : "Training on this device");
   }
 }
@@ -459,13 +511,26 @@ function heldLoop(session: Session): LoopGrid | null {
  * or a run's end, the next seed or this rule after a run that did not meet the target. The caller
  * names the hold's phase first. `completed`: the update of the held rule.
  */
-async function liveLoop(live: BrowserFigureGrid, input: FigureInput, completed: number, began: number, accepts: readonly Decision[],
-  loop: LoopGrid | null = null): Promise<Decision> {
+async function liveLoop(live: BrowserFigureGrid, held: Session, completed: number, began: number, accepts: readonly Decision[]): Promise<Decision> {
+  const { input } = held;
+  const loop = heldLoop(held);
   decision = null;
   let lastRead = performance.now();
   for (;;) {
     if (decision !== null && accepts.includes(decision)) return decision;
     decision = null;
+    // A set method's automaton kept at another step of its ladder: its file again, and the loop grows to that step.
+    if (pendingStep !== null) {
+      const step = pendingStep;
+      pendingStep = null;
+      const file = await keptAtStep(held, step);
+      if (file && loop) {
+        send({ type: "material", file, run: held.run, stage: "final", fired: fired(file.reading) });
+        loop.end = step;
+        loop.heldSince = null;
+        live.restart(LIVE_SEED);
+      }
+    }
     const started = performance.now();
     if (loop) {
       // A set method's held grid loops to its own step, read there once a loop.
@@ -491,7 +556,7 @@ async function liveLoop(live: BrowserFigureGrid, input: FigureInput, completed: 
 async function holdRun(session: Session, live: BrowserFigureGrid, reader: ReaderLoad, began: number, stopAtFirstFire: boolean): Promise<never> {
   for (;;) {
     phase("live", "The automaton keeps running here.");
-    await liveLoop(live, session.input, session.training.completed(), began, ["resume-training"], heldLoop(session));
+    await liveLoop(live, session, session.training.completed(), began, ["resume-training"]);
     if (session.training.completed() >= session.training.target()) session.training.extend(RESUME_UPDATES);
     phase("training", session.firstKept ? "Still improving after the first accepted checkpoint" : "Training on this device");
     const end = await trainWithStops(session, live, reader, began, stopAtFirstFire);
@@ -590,7 +655,7 @@ async function grow(command: Extract<GrowCommand, { type: "start" }>) {
       session = null;
       const training = createTraining(input, command, set);
       session = {
-        training, input, run, keepsFirstFire: rule.keepsFirstFire, set, loop: set ? { end: LIVE_LOOP_STEPS, heldSince: null } : null,
+        training, input, run, keepsFirstFire: rule.keepsFirstFire, set, loop: set ? { end: LIVE_LOOP_STEPS, heldSince: null } : null, ladder: null,
         trainingMs: 0, firstKept: false, kept: null,
       };
       const end = await trainWithStops(session, live, reader, began, stopAtFirstFire);
@@ -606,7 +671,7 @@ async function grow(command: Extract<GrowCommand, { type: "start" }>) {
       // The person chooses: the next seed, or this rule as the result, which holdRun grows.
       phase("retry", `Run ${run} did not meet the selection target (selection fraction ${Math.round((reading.winnerFraction ?? 0) * 100)} % at step ${READING_TICK}). `
         + `Restart from the next seed, or keep this automaton.`);
-      const choice = await liveLoop(live, session.input, session.training.completed(), began, ["restart", "keep"]);
+      const choice = await liveLoop(live, session, session.training.completed(), began, ["restart", "keep"]);
       if (choice === "keep") break;
       live.restart(LIVE_SEED);
     }
@@ -621,6 +686,7 @@ async function grow(command: Extract<GrowCommand, { type: "start" }>) {
 self.onmessage = ({ data }: MessageEvent<GrowCommand>) => {
   if (data.type === "stop") { stopping = true; return; }
   if (data.type === "resume-training" || data.type === "restart" || data.type === "keep") { decision = data.type; return; }
+  if (data.type === "keep-at-step") { pendingStep = data.step; return; }
   if (data.type === "brush") {
     if (brushOpen) {
       stamps.push(...data.stamps);

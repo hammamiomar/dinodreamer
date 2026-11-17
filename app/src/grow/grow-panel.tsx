@@ -38,7 +38,7 @@ import {
 
 const WORDS = SITE_WORDS.grow;
 /** What the page shows while the site's run is another target's, or there is none: the start. */
-const NO_RUN: TrainRunState = { record: NO_RECORD, settings: null, files: new Map(), sampled: null, keepFailure: null, shownOnPage: false };
+const NO_RUN: TrainRunState = { record: NO_RECORD, settings: null, files: new Map(), sampled: null, keepFailure: null, shownOnPage: false, ladder: null };
 
 /** The primary as a button: inverted for the actions that start training, outlined for Stop. */
 const PRIMARY_BUTTON = {

@@ -40,6 +40,7 @@ function fakeWorkers() {
       resumeTraining: () => { calls.push("resume-training"); },
       restart: () => { calls.push("restart"); },
       keep: () => { calls.push("keep"); },
+      keepAtStep: (step: number) => { calls.push(`keep at ${step}`); },
       brush: () => { calls.push("brush"); },
       dispose: () => { calls.push("dispose"); },
     };
@@ -50,7 +51,7 @@ function fakeWorkers() {
 function store() {
   const workers = fakeWorkers();
   const runRecord = fakeRunRecord();
-  const run = createTrainRun({ createClient: workers.createClient, keep: async () => {}, release: { url: "", name: "test" } as never, runRecord });
+  const run = createTrainRun({ createClient: workers.createClient, keep: async () => {}, release: { url: "", name: "test" } as never, runRecord, sentMaterialIds: () => new Set() });
   return { run, workers, runRecord };
 }
 
@@ -66,7 +67,7 @@ describe("the site's Train run (train-run.ts)", () => {
     const start = vi.fn<TrainRunClient["start"]>();
     const run = createTrainRun({
       createClient: (onEvent) => ({ ...workers.createClient(onEvent), start }),
-      keep: async () => {}, release: { url: "", name: "test" } as never, runRecord: fakeRunRecord(),
+      keep: async () => {}, release: { url: "", name: "test" } as never, runRecord: fakeRunRecord(), sentMaterialIds: () => new Set(),
     });
     const set = targetSetRecord("selection", [{ imageId: 7, patch: 35 }]);
     run.start(request, { ...choices, method: "token-mean", depth: "final-layer", set });
@@ -89,7 +90,7 @@ describe("the site's Train run (train-run.ts)", () => {
 
   it("keeps the live map's latest reading from map events and readings, with its own listeners, and clears it with the run", () => {
     const workers = fakeWorkers();
-    const run = createTrainRun({ createClient: workers.createClient, keep: async () => {}, release: { url: "", name: "test" } as never, runRecord: fakeRunRecord() });
+    const run = createTrainRun({ createClient: workers.createClient, keep: async () => {}, release: { url: "", name: "test" } as never, runRecord: fakeRunRecord(), sentMaterialIds: () => new Set() });
     const heard = vi.fn();
     const changes = vi.fn();
     run.subscribeMap(heard);
@@ -112,9 +113,36 @@ describe("the site's Train run (train-run.ts)", () => {
     expect(run.map()).toBeNull();
   });
 
+  it("keeps a held set-method run's ladder, sends a step choice only when it can change the kept file, and drops the ladder when training resumes", () => {
+    const workers = fakeWorkers();
+    let sent = new Set<string>();
+    const run = createTrainRun({
+      createClient: workers.createClient, keep: async () => {}, release: { url: "", name: "test" } as never, runRecord: fakeRunRecord(),
+      sentMaterialIds: () => sent,
+    });
+    run.start(request, { ...choices, method: "token-distribution" });
+    const worker = workers.made[0]!;
+    run.keepAtStep(300);
+    expect(worker.calls).toEqual(["start"]); // no ladder yet
+    const ladder = { steps: [100, 150, 300].map((tick) => ({ tick, loss: tick / 1000, picture: `data:image/png;base64,${tick}` })), kept: 150 };
+    worker.say({ type: "ladder", ladder });
+    worker.say({ type: "material", file: { id: "kept", training: { seed: 1, updates: 1000 }, reading: { tick: 150 } } as never, run: 1, stage: "final", fired: false });
+    expect(run.state().ladder).toEqual(ladder);
+    run.keepAtStep(150); // the kept step already
+    run.keepAtStep(600); // not a step of this ladder
+    expect(worker.calls).toEqual(["start"]);
+    run.keepAtStep(300);
+    expect(worker.calls).toEqual(["start", "keep at 300"]);
+    sent = new Set(["kept"]);
+    run.keepAtStep(100); // sent to the gallery: the step is closed
+    expect(worker.calls).toEqual(["start", "keep at 300"]);
+    worker.say({ type: "phase", phase: "training", message: "" });
+    expect(run.state().ladder).toBeNull();
+  });
+
   it("keeps a set method's target set with the map, tells the map's listeners, and clears it with the run", () => {
     const workers = fakeWorkers();
-    const run = createTrainRun({ createClient: workers.createClient, keep: async () => {}, release: { url: "", name: "test" } as never, runRecord: fakeRunRecord() });
+    const run = createTrainRun({ createClient: workers.createClient, keep: async () => {}, release: { url: "", name: "test" } as never, runRecord: fakeRunRecord(), sentMaterialIds: () => new Set() });
     const heard = vi.fn();
     run.subscribeMap(heard);
     run.start(request, choices);
@@ -141,6 +169,7 @@ describe("the site's Train run (train-run.ts)", () => {
       keep: async () => {},
       release: { url: "", name: "test" } as never,
       runRecord: fakeRunRecord(),
+      sentMaterialIds: () => new Set(),
     });
     run.start(request, { ...choices, batch: chosenBatch });
     expect(start.mock.lastCall?.[0].batch).toBe(chosenBatch);
@@ -239,7 +268,7 @@ describe("the site's Train run (train-run.ts)", () => {
   it("reports a worker construction failure instead of remaining active", () => {
     const run = createTrainRun({
       createClient: () => { throw new Error("Worker blocked"); },
-      keep: async () => {}, release: { url: "", name: "test" } as never, runRecord: fakeRunRecord(),
+      keep: async () => {}, release: { url: "", name: "test" } as never, runRecord: fakeRunRecord(), sentMaterialIds: () => new Set(),
     });
     expect(() => run.start(request, choices)).not.toThrow();
     expect(run.state().record).toMatchObject({ active: false, failure: "Error: Worker blocked" });
@@ -249,7 +278,7 @@ describe("the site's Train run (train-run.ts)", () => {
     const workers = fakeWorkers();
     let finish!: () => void;
     const keep = () => new Promise<void>((resolve, reject) => { finish = result === "resolve" ? resolve : () => reject(new Error("quota")); });
-    const run = createTrainRun({ createClient: workers.createClient, keep, release: { url: "", name: "test" } as never, runRecord: fakeRunRecord() });
+    const run = createTrainRun({ createClient: workers.createClient, keep, release: { url: "", name: "test" } as never, runRecord: fakeRunRecord(), sentMaterialIds: () => new Set() });
     const file = JSON.parse(readFileSync(new URL("../../fixtures/materials/block-12002-figure-strongest-mean-seed-1.material.json", import.meta.url), "utf8"));
     run.start(request, choices);
     workers.made[0].say({ type: "material", file, run: 1, stage: "final", fired: true });
