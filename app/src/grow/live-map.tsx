@@ -1,18 +1,20 @@
-// The live map of a training run. The basis group's cloud stands in its own three numbers, as on the
-// group's page; the run's target is marked on it; and the canvas's 64 patches are points on it, placed
-// by each reading (live-map-points.ts). A run is those points moving: under a mean method their mean closes on
-// the target, under a distribution method they spread over the set. Every point is a reading. Between
-// two readings the points travel for a moment, so the eye can follow which went where; at rest the map
-// draws nothing new and costs nothing. Drag to rotate; the arrow keys rotate too.
+// The live map of a training run. The basis group's cloud stands in its own three numbers; the run's
+// target is marked on it; and the canvas's 64 patches are points on it, placed by each reading
+// (live-map-points.ts). A run is those points moving: under a mean method their mean closes on the target,
+// under a distribution method they spread over the set. The map is framed on that way (MapFrame): the
+// origin, where a canvas of noise starts, is at the bottom, and the target at the top. Every point is a
+// reading. Between two readings the points travel for a moment, so the eye can follow which went where;
+// at rest the map draws nothing new and costs nothing. Drag to rotate; the arrow keys rotate too.
 
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { SITE_WORDS, fill } from "../app/site-words";
 import { bandColours, bandIndex } from "../features/look/strength-bands";
-import { LOOK_ORBIT } from "../features/look/look-camera";
 import type { StrengthCuts } from "../recipe";
 import { orbitBy, projector, type Orbit, type Vec3, type View } from "../ui/code-space/projection";
 import { useMediaMatch } from "../ui/media-match";
-import { between, cloudPoints, distanceInMedians, mapFit, meanOf, patchPoints, scoredMean, withMean } from "./live-map-points";
+import {
+  between, cloudPoints, distanceInMedians, inFrame, journeyFit, mapFrame, meanOf, patchPoints, scoredMean, widenedRadius, withMean,
+} from "./live-map-points";
 import { readPatchIndices, type ReadRegion } from "./selection-cells";
 import "./live-map.css";
 
@@ -27,6 +29,8 @@ const KEY_TURN_PX = 24;
  */
 const SIZE = { row: 1.5, unscored: 2, scored: 3.5, member: 5, manyMember: 3, mean: 7, target: 11 } as const;
 const MANY_MEMBERS = 40;
+/** The view the map opens in and a double click returns to: the frame nearly face on, turned a little so its depth shows. */
+const MAP_ORBIT: Orbit = { yaw: -0.4, pitch: 0.15, zoom: 1 };
 const ARROWS: Record<string, readonly [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
 
 const WORDS = SITE_WORDS.grow.map;
@@ -58,22 +62,27 @@ function inks(element: Element): { ink: string; ink2: string; ink3: string } {
 
 export function LiveMap({ cloud, strength, target, comparison, shadow, patchCodes, region, medianNorm, label }: LiveMapProps) {
   const canvas = useRef<HTMLCanvasElement>(null);
-  const orbit = useRef<Orbit>(LOOK_ORBIT);
-  /** The patches as they are drawn now, and the travel to the newest reading while it lasts. */
+  const orbit = useRef<Orbit>(MAP_ORBIT);
+  /** The patches as they are drawn now, and the travel to the newest reading while it lasts; in the group's own axes, as the path is. */
   const shown = useRef<Vec3[]>([]);
   const travel = useRef<{ from: Vec3[]; to: Vec3[]; started: number; frame: number } | null>(null);
   const path = useRef<Vec3[]>([]);
   const still = useMediaMatch("(prefers-reduced-motion: reduce)");
   const [distance, setDistance] = useState<number | null>(null);
 
-  const rows = useMemo(() => cloudPoints(cloud.codes, cloud.count), [cloud]);
+  const nativeRows = useMemo(() => cloudPoints(cloud.codes, cloud.count), [cloud]);
+  const frame = useMemo(() => mapFrame(target, nativeRows), [target, nativeRows]);
+  const rows = useMemo(() => nativeRows.map((row) => inFrame(frame, row)), [nativeRows, frame]);
+  const framedTarget = useMemo(() => target.map((member) => inFrame(frame, member)), [target, frame]);
+  const journey = useMemo(() => journeyFit(framedTarget), [framedTarget]);
+  /** The view's radius: the journey's, widened for a patch that lay outside it and never narrowed in a run. */
+  const radius = useRef(journey.radius);
   /** The rows of each level, so a level is drawn in one colour without sorting 4,096 rows. */
   const levels = useMemo(() => {
     const members: number[][] = [[], [], [], []];
     for (let row = 0; row < cloud.count; row++) members[bandIndex(cloud.norms[row]!, strength)]!.push(row);
     return members;
   }, [cloud, strength]);
-  const fit = useMemo(() => mapFit(rows, target), [rows, target]);
   const targetMean = useMemo(() => meanOf(target), [target]);
   const scored = useMemo(() => new Set(readPatchIndices(region)), [region]);
 
@@ -86,8 +95,10 @@ export function LiveMap({ cloud, strength, target, comparison, shadow, patchCode
     const ratio = window.devicePixelRatio || 1;
     const [width, height] = [Math.round(box.width * ratio), Math.round(box.height * ratio)];
     if (element.width !== width || element.height !== height) { element.width = width; element.height = height; }
-    const view: View = { fit, orbit: orbit.current, width: box.width, height: box.height };
-    const place = projector(view);
+    const view: View = { fit: { center: journey.center, radius: radius.current }, orbit: orbit.current, width: box.width, height: box.height };
+    const placeFramed = projector(view);
+    /** A point of the group's own axes, on the screen. */
+    const place = (point: Vec3) => placeFramed(inFrame(frame, point));
     const { ink, ink2, ink3 } = inks(element);
     context.setTransform(ratio, 0, 0, ratio, 0, 0);
     context.clearRect(0, 0, box.width, box.height);
@@ -98,7 +109,7 @@ export function LiveMap({ cloud, strength, target, comparison, shadow, patchCode
     levels.forEach((members, level) => {
       context.fillStyle = colours[level]!;
       for (const row of members) {
-        const at = place(rows[row]!);
+        const at = placeFramed(rows[row]!);
         context.fillRect(at.x - SIZE.row / 2, at.y - SIZE.row / 2, SIZE.row, SIZE.row);
       }
     });
@@ -161,18 +172,20 @@ export function LiveMap({ cloud, strength, target, comparison, shadow, patchCode
     context.beginPath();
     context.arc(mean.x, mean.y, SIZE.mean / 2, 0, 2 * Math.PI);
     context.stroke();
-  }, [fit, levels, rows, target, targetMean, comparison, scored]);
+  }, [journey, frame, levels, rows, target, targetMean, comparison, scored]);
 
   // A new reading: the points travel from where they are drawn to their new places, then rest.
   useEffect(() => {
     if (patchCodes === null) {
       shown.current = [];
       path.current = [];
+      radius.current = journey.radius;
       setDistance(null);
       draw();
       return;
     }
     const to = patchPoints(patchCodes);
+    radius.current = widenedRadius({ center: journey.center, radius: Math.max(radius.current, journey.radius) }, to.map((patch) => inFrame(frame, patch)));
     const mean = scoredMean(to, region);
     path.current = withMean(path.current, mean);
     setDistance(distanceInMedians(mean, targetMean, medianNorm));
@@ -196,7 +209,7 @@ export function LiveMap({ cloud, strength, target, comparison, shadow, patchCode
     };
     travel.current = { from, to, started: performance.now(), frame: requestAnimationFrame(step) };
     return () => { if (travel.current) cancelAnimationFrame(travel.current.frame); };
-  }, [patchCodes, region, targetMean, medianNorm, still, draw]);
+  }, [patchCodes, region, targetMean, medianNorm, still, draw, journey, frame]);
 
   // Its box changed, or what it draws on did: draw again.
   useEffect(() => {
@@ -233,7 +246,7 @@ export function LiveMap({ cloud, strength, target, comparison, shadow, patchCode
     <figure className="live-map">
       <canvas ref={canvas} className="live-map-canvas" role="img" aria-label={label} tabIndex={0}
         onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerEnd} onPointerCancel={onPointerEnd}
-        onDoubleClick={() => { orbit.current = LOOK_ORBIT; draw(); }} onKeyDown={onKeyDown} />
+        onDoubleClick={() => { orbit.current = MAP_ORBIT; draw(); }} onKeyDown={onKeyDown} />
       <figcaption className="live-map-line">
         <span role="status">{line}</span>
         {shadow && distance !== null && <span className="live-map-shadow">{WORDS.shadow}</span>}

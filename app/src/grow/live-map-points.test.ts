@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
-  between, cloudPoints, distanceInMedians, mapFit, mapTarget, meanOf, patchPoints, PATCH_CODE_VALUES, PATH_READINGS, scoredMean, withMean,
+  between, cloudPoints, distanceInMedians, inFrame, journeyFit, mapFrame, mapTarget, meanOf, NATIVE_FRAME, patchPoints, PATCH_CODE_VALUES, PATH_READINGS,
+  scoredMean, widenedRadius, withMean,
 } from "./live-map-points";
 
 const codesOf = (value: (patch: number) => [number, number, number]) =>
@@ -53,14 +54,35 @@ describe("from one reading to the next", () => {
 });
 
 describe("the map's view", () => {
-  test("fits the cloud and the target, wherever the canvas's patches are", () => {
-    const cloud = cloudPoints(Float32Array.from([-1, 0, 0, 1, 0, 0]), 2);
-    const fit = mapFit(cloud, [[0, 3, 0]]);
-    expect(fit.center.every(Number.isFinite)).toBe(true);
-    // The fit's sphere holds the two rows and the target.
-    for (const point of [...cloud, [0, 3, 0] as const]) {
-      expect(Math.hypot(point[0] - fit.center[0], point[1] - fit.center[1], point[2] - fit.center[2])).toBeLessThanOrEqual(fit.radius + 1e-6);
-    }
+  // A cloud that is wide along the first axis, and a target along the third.
+  const cloud = cloudPoints(Float32Array.from([-4, 0, 1, 4, 0, 1, 0, 0.5, 2, 0, -0.5, 2]), 4);
+  const target = [[0, 0, 6] as const];
+
+  test("up runs from the origin toward the target's mean, and across is where the cloud is widest at right angles to it", () => {
+    const frame = mapFrame(target, cloud);
+    expect(frame.up).toEqual([0, 0, 1]);
+    [1, 0, 0].forEach((value, axis) => expect(frame.across[axis]).toBeCloseTo(value));
+    // The target is straight up, the cloud's wide rows left and right of the way to it.
+    const placed = inFrame(frame, target[0]!);
+    expect(placed[0]).toBeCloseTo(0);
+    expect(placed[1]).toBeCloseTo(6);
+    expect(inFrame(frame, cloud[1]!)[0]).toBeCloseTo(4);
+    // A rotation: lengths stay.
+    expect(Math.hypot(...inFrame(frame, [1, 2, 3]))).toBeCloseTo(Math.hypot(1, 2, 3));
+    expect(mapFrame([], cloud)).toBe(NATIVE_FRAME);
+  });
+
+  test("the view holds the origin and the target, not the cloud's far rows", () => {
+    const fit = journeyFit([[0, 6, 0]]);
+    expect(fit.center).toEqual([0, 3, 0]);
+    expect(fit.radius).toBeGreaterThan(3);
+    expect(fit.radius).toBeLessThan(4);
+  });
+
+  test("the view widens for a patch outside it, and not for one inside", () => {
+    const fit = journeyFit([[0, 6, 0]]);
+    expect(widenedRadius(fit, [[0, 1, 0], [1, 3, 0]])).toBe(fit.radius);
+    expect(widenedRadius(fit, [[0, -4, 0]])).toBeGreaterThan(7);
   });
 });
 

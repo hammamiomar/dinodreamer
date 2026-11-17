@@ -52,11 +52,86 @@ export function cloudPoints(codes: ArrayLike<number>, count: number): Vec3[] {
 }
 
 /**
- * The view's fit: the cloud's rows and the target, and never the canvas's patches. So the view holds
- * still while the patches move, and a patch that starts far outside the cloud is seen arriving.
+ * The map's own frame, a rotation of the group's space: `up` runs from the origin, where a canvas of noise
+ * starts, toward the target's mean; `across` is the direction at right angles to it in which the group's cloud
+ * is widest; `toward` faces the viewer. So a run reads from the bottom of the map to the top whatever the
+ * group, and never along the line of sight.
  */
-export function mapFit(cloud: readonly Vec3[], target: readonly Vec3[]): Fit {
-  return fitCodes([...cloud, ...target]);
+export interface MapFrame {
+  across: Vec3;
+  up: Vec3;
+  toward: Vec3;
+}
+
+/** The group's own axes: the frame when there is no target to face yet. */
+export const NATIVE_FRAME: MapFrame = { across: [1, 0, 0], up: [0, 1, 0], toward: [0, 0, 1] };
+
+const dot = (a: Vec3, b: Vec3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const cross = (a: Vec3, b: Vec3): Vec3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const scaled = (a: Vec3, by: number): Vec3 => [a[0] * by, a[1] * by, a[2] * by];
+const unit = (a: Vec3): Vec3 => scaled(a, 1 / Math.hypot(a[0], a[1], a[2]));
+
+/** The frame for a target and the group's cloud (MapFrame); the group's own axes for a target at the origin. */
+export function mapFrame(target: readonly Vec3[], cloud: readonly Vec3[]): MapFrame {
+  const mean = meanOf(target);
+  if (Math.hypot(mean[0], mean[1], mean[2]) < 1e-9) return NATIVE_FRAME;
+  const up = unit(mean);
+  // Two directions at right angles to `up`: from the group's axis least along it.
+  const least = [0, 1, 2].reduce((best, axis) => (Math.abs(up[axis]!) < Math.abs(up[best]!) ? axis : best), 0);
+  const a = unit(cross(up, [least === 0 ? 1 : 0, least === 1 ? 1 : 0, least === 2 ? 1 : 0]));
+  const b = cross(up, a);
+  // The cloud's widest direction among them: the first principal direction of its rows in that plane.
+  const centre = meanOf(cloud);
+  let aa = 0;
+  let ab = 0;
+  let bb = 0;
+  for (const row of cloud) {
+    const offset: Vec3 = [row[0] - centre[0], row[1] - centre[1], row[2] - centre[2]];
+    const alongA = dot(offset, a);
+    const alongB = dot(offset, b);
+    aa += alongA * alongA;
+    ab += alongA * alongB;
+    bb += alongB * alongB;
+  }
+  const angle = 0.5 * Math.atan2(2 * ab, aa - bb);
+  const widest: Vec3 = [
+    a[0] * Math.cos(angle) + b[0] * Math.sin(angle), a[1] * Math.cos(angle) + b[1] * Math.sin(angle), a[2] * Math.cos(angle) + b[2] * Math.sin(angle),
+  ];
+  // Either sense is the widest direction; take the one along the group's axis it leans on most, so it does not flip.
+  const leading = [0, 1, 2].reduce((best, axis) => (Math.abs(widest[axis]!) > Math.abs(widest[best]!) ? axis : best), 0);
+  const across = widest[leading]! < 0 ? scaled(widest, -1) : widest;
+  return { across, up, toward: cross(across, up) };
+}
+
+/** A point of the group's space in the map's frame: across, up, toward the viewer. */
+export function inFrame(frame: MapFrame, point: Vec3): Vec3 {
+  return [dot(point, frame.across), dot(point, frame.up), dot(point, frame.toward)];
+}
+
+/** The room the view leaves around the origin and the target, as a share of the sphere that holds them. */
+const JOURNEY_MARGIN = 1.25;
+/** The room it leaves around a patch that lay outside it. */
+const WIDENED_MARGIN = 1.05;
+
+/**
+ * The view's fit, in the map's frame: the origin and the target, and never the group's whole cloud, whose
+ * far rows would make a run's way a small part of the map. The cloud's rows outside it are not drawn.
+ */
+export function journeyFit(target: readonly Vec3[]): Fit {
+  const fit = fitCodes([[0, 0, 0], ...target]);
+  return { center: fit.center, radius: fit.radius * JOURNEY_MARGIN };
+}
+
+/**
+ * The radius that also holds these patches: the view widens for a patch outside it, so no patch is lost
+ * from the map, and the caller never narrows it again, so the view holds still while the patches move.
+ */
+export function widenedRadius(fit: Fit, patches: readonly Vec3[]): number {
+  let radius = fit.radius;
+  for (const patch of patches) {
+    radius = Math.max(radius, Math.hypot(patch[0] - fit.center[0], patch[1] - fit.center[1], patch[2] - fit.center[2]) * WIDENED_MARGIN);
+  }
+  return radius;
 }
 
 /** The most means the map keeps for the mean's path: the last readings, oldest first. */
