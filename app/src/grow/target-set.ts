@@ -15,7 +15,7 @@ export const SET_PICTURES = MOST_SET_PICTURES;
 export const SET_NEIGHBOURHOOD: FigureTargetSet["neighbourhood"] = "3x3";
 
 /** A token's slot counts DINO's 5 prefix tokens (the class token and 4 registers) before the 256 patches. */
-export const PREFIX_SLOTS = 5;
+const PREFIX_SLOTS = 5;
 
 /** One patch that may enter a set: its picture, its token slot, the norm of its code, and whether the picture is public. */
 export interface SetCandidate {

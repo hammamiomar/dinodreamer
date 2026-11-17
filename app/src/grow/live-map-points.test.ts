@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
-  between, cloudPoints, distanceInMedians, mapFit, mapTarget, meanOf, patchPoints, PATCH_CODE_VALUES, PATH_READINGS, scoredMean, setPoints, withMean,
+  between, cloudPoints, distanceInMedians, mapFit, mapTarget, meanOf, patchPoints, PATCH_CODE_VALUES, PATH_READINGS, scoredMean, withMean,
 } from "./live-map-points";
 
 const codesOf = (value: (patch: number) => [number, number, number]) =>
@@ -65,22 +65,10 @@ describe("the map's view", () => {
 });
 
 describe("the run's target on the map", () => {
-  // Library patches: picture 7's patch 0 is slot 5, after DINO's 5 prefix tokens.
-  const patches = [
-    { imageId: 7, slot: 5, code: [1, 0, 0] as const },
-    { imageId: 8, slot: 25, code: [0, 2, 0] as const },
-    { imageId: 9, slot: 6, code: [0, 0, 3] as const },
-  ];
-
-  test("a set's pictures are their patches' codes in set order; a picture the page has no code for is left out", () => {
-    const pictures = [{ imageId: 8, patch: 20 }, { imageId: 7, patch: 0 }, { imageId: 10, patch: 3 }];
-    expect(setPoints(pictures, patches)).toEqual([[0, 2, 0], [1, 0, 0]]);
-  });
-
-  test("basis-group mean matching trains toward the reference patch's code; a set method toward the set", () => {
-    const pictures = [{ imageId: 9, patch: 1 }];
-    expect(mapTarget("basis-group-mean", [4, 4, 4], pictures, patches)).toEqual([[4, 4, 4]]);
-    expect(mapTarget("token-mean", [4, 4, 4], pictures, patches)).toEqual([[0, 0, 3]]);
-    expect(mapTarget("basis-group-distribution", [4, 4, 4], pictures, patches)).toEqual([[0, 0, 3]]);
+  test("basis-group mean matching trains toward the reference patch's code; a set method toward every token of its set", () => {
+    const codes = Float32Array.from([1, 0, 0, 0, 2, 0, 0, 0, 3]);
+    expect(mapTarget("basis-group-mean", [4, 4, 4], codes)).toEqual([[4, 4, 4]]);
+    expect(mapTarget("token-mean", [4, 4, 4], codes)).toEqual([[1, 0, 0], [0, 2, 0], [0, 0, 3]]);
+    expect(mapTarget("basis-group-distribution", [4, 4, 4], null)).toEqual([]);
   });
 });

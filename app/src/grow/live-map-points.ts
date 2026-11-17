@@ -5,9 +5,8 @@
 // No DOM or React here: live-map.tsx draws what this file computes.
 
 import { fitCodes, type Fit, type Vec3 } from "../ui/code-space/projection";
-import type { FigureMethod, SetPicture } from "../materials/material-file";
+import type { FigureMethod } from "../materials/material-file";
 import { MAP_PATCHES, readPatchIndices, type ReadRegion } from "./selection-cells";
-import { PREFIX_SLOTS } from "./target-set";
 
 /** The values of one reading's patch codes: three for each of the 64 patches, patch t at [3t, 3t + 3). */
 export const PATCH_CODE_VALUES = MAP_PATCHES * 3;
@@ -68,32 +67,12 @@ export function withMean(path: readonly Vec3[], mean: Vec3): Vec3[] {
   return [...path, mean].slice(-PATH_READINGS);
 }
 
-/** A library patch with its code: a selection's points and the sample cloud's rows both give these. */
-export interface CodedPatch {
-  imageId: number;
-  slot: number;
-  code: Vec3;
-}
-
-/**
- * The set's pictures as points of the map: the code of each picture's patch, found among `patches` by
- * its picture and token slot, in set order. A picture whose patch is not among them is left out. These
- * are the set's centre patches only; the 3 x 3 neighbours each picture also brings are not in the page's
- * clouds.
- */
-export function setPoints(pictures: readonly SetPicture[], patches: readonly CodedPatch[]): Vec3[] {
-  const codes = new Map<string, Vec3>();
-  for (const patch of patches) codes.set(`${patch.imageId}:${patch.slot}`, patch.code);
-  return pictures.flatMap((picture) => {
-    const code = codes.get(`${picture.imageId}:${picture.patch + PREFIX_SLOTS}`);
-    return code ? [code] : [];
-  });
-}
-
 /**
  * What a run trains toward, as points of the map: basis-group mean matching, the reference patch's code;
- * a set method, the set's patches (setPoints).
+ * a set method, every token of its prepared set (the engine's set codes, N x 3), none until the worker has
+ * prepared it.
  */
-export function mapTarget(method: FigureMethod, anchorCode: Vec3, pictures: readonly SetPicture[], patches: readonly CodedPatch[]): Vec3[] {
-  return method === "basis-group-mean" ? [anchorCode] : setPoints(pictures, patches);
+export function mapTarget(method: FigureMethod, anchorCode: Vec3, setCodes: Float32Array | null): Vec3[] {
+  if (method === "basis-group-mean") return [anchorCode];
+  return setCodes ? cloudPoints(setCodes, setCodes.length / 3) : [];
 }

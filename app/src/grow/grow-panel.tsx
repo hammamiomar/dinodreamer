@@ -26,7 +26,7 @@ import { continuedKind, type ContinuationSource } from "./continuation";
 import { RULE_CHOICES, START_CHOICES, kindFromSearch, kindLabel, readingRegion, type MaterialKind } from "./material-kind";
 import { startStill } from "./start-still";
 import { setRefusal } from "./target-set";
-import { methodNeedsSet, methodReadsTokens, type FigureMethod, type FigureTargetSet, type SetPicture } from "../materials/material-file";
+import { methodNeedsSet, methodReadsTokens, type FigureMethod, type FigureTargetSet } from "../materials/material-file";
 import type { MaterialRequestOrigin } from "../app/material-request";
 import { FIGURE_UPDATES, RUNS } from "./figure-recipe";
 import {
@@ -37,8 +37,6 @@ import {
 // worker events to the controls and status shown in this layout.
 
 const WORDS = SITE_WORDS.grow;
-/** A run without a set: basis-group mean matching, or a continuation whose file records none. */
-const NO_PICTURES: readonly SetPicture[] = [];
 /** What the page shows while the site's run is another target's, or there is none: the start. */
 const NO_RUN: TrainRunState = { record: NO_RECORD, settings: null, files: new Map(), sampled: null, keepFailure: null, shownOnPage: false };
 
@@ -299,7 +297,6 @@ export function GrowPanel({ block, request, origin, continuation, method, onMeth
   // While a run trains, the choices' place shows the live map, or the groups DINO sees.
   const [runFace, setRunFace] = useState<RunFace>("map");
   const anchorCode = settings?.request.anchor?.code;
-  const runPictures = settings?.set?.pictures ?? settings?.continuation?.objective.set?.pictures ?? NO_PICTURES;
   const result = isHeld(state) ? resultOutcome(record) : undefined;
   const resultFile = result ? run.files.get(result.id) : undefined;
   // The frame and the status name what the frame shows: the run's kind while its worker plays it.
@@ -404,8 +401,7 @@ export function GrowPanel({ block, request, origin, continuation, method, onMeth
       {heading}
       {!open && settings && anchorCode
         ? <RunFaces face={runFace} onFace={setRunFace}
-          map={<TrainMap block={settings.request.block} method={settings.method} anchorCode={anchorCode} pictures={runPictures}
-            points={settings.request.points} kind={settings.kind} live={ours} />}
+          map={<TrainMap block={settings.request.block} method={settings.method} anchorCode={anchorCode} kind={settings.kind} live={ours} />}
           dino={coSelection && <CoSelectedPictures coSelection={coSelection} region={readingRegion(shownKind)} />} />
         : <ChoiceFaces face={face} onFace={setFace} methodName={WORDS.methodToggle[runMethod]}
           kind={<KindChoices kind={runKind} open={open} ruleFixed={continuation !== null} onChange={setKind} />}
