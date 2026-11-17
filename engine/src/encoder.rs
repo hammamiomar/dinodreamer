@@ -288,10 +288,11 @@ impl Rope {
 
 /// Both readout conventions from one encoder pass.
 pub struct Readout {
-    /// Final layer with the pretrained affine output LayerNorm: CLS, four storage tokens, 256 patches.
+    /// Final layer with the pretrained affine output LayerNorm: CLS, four storage tokens and the patches.
     pub native_BTD: Tensor<3>,
-    /// Patch tokens after each of `APPEARANCE_LAYERS`, affine-free LayerNorm. Empty when not requested.
-    pub appearance_BPD: Vec<Tensor<3>>,
+    /// Patch tokens after each requested zero-based block, in increasing order, under the affine-free
+    /// LayerNorm. Empty when none is requested.
+    pub intermediate_BPD: Vec<Tensor<3>>,
 }
 
 /// Weights do not require gradients. Operations still track gradients of the input image.
@@ -370,7 +371,7 @@ impl Dino {
     }
 
     pub fn forward(&self, images_BCHW: Tensor<4>) -> Tensor<3> {
-        self.readout(images_BCHW, false).native_BTD
+        self.readout(images_BCHW, &[]).native_BTD
     }
 
     /// One full pass over one picture that keeps layer `layer` (0–11) open: `Probe`. The tokens
@@ -393,29 +394,31 @@ impl Dino {
         Probe { before_1TD, after_1TD, attention_1HTT, native_1TD: self.output_norm.forward(tokens_1TD) }
     }
 
-    /// One pass. Appearance readouts are added only when an appearance term needs them.
-    pub fn readout(&self, images_BCHW: Tensor<4>, appearance: bool) -> Readout {
+    /// One pass, with the patch tokens after each of `intermediate` (zero-based blocks, e.g.
+    /// `APPEARANCE_LAYERS` for an appearance term) under the affine-free LayerNorm.
+    pub fn readout(&self, images_BCHW: Tensor<4>, intermediate: &[usize]) -> Readout {
         assert_eq!(
             self.blocks.len(),
             DEPTH,
             "Load all twelve DINO layers before inference"
         );
+        assert!(intermediate.windows(2).all(|pair| pair[0] < pair[1]), "intermediate blocks increase");
         let mut tokens_BTD = profile_reader("patch embedding forward", || self.embed(images_BCHW));
         let rope = if tokens_BTD.dims()[1] == TOKENS { &self.rope } else { &self.rope_8x8 };
-        let mut appearance_BPD = Vec::new();
+        let mut intermediate_BPD = Vec::new();
         for (layer, block) in self.blocks.iter().enumerate() {
             tokens_BTD = block.forward(tokens_BTD, rope);
-            if appearance && APPEARANCE_LAYERS.contains(&layer) {
+            if intermediate.contains(&layer) {
                 let [batch, tokens, _] = tokens_BTD.dims();
                 let patches_BPD = tokens_BTD
                     .clone()
                     .slice([0..batch, PREFIX..tokens, 0..WIDTH]);
-                appearance_BPD.push(affine_free_norm(patches_BPD));
+                intermediate_BPD.push(affine_free_norm(patches_BPD));
             }
         }
         Readout {
             native_BTD: profile_reader("norm forward", || self.output_norm.forward(tokens_BTD)),
-            appearance_BPD,
+            intermediate_BPD,
         }
     }
 }

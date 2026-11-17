@@ -20,7 +20,7 @@
 use burn::tensor::Device;
 use dinodreamer_engine::{
     encoder::{Block, DEPTH, Dino},
-    grow::figure::{self, FigureGrid, FigureRequest, FigureRule, FigureTraining, RuleKind, Start, UPDATES},
+    grow::figure::{self, FigureGrid, FigureRequest, FigureRule, FigureTraining, Method, RuleKind, Start, UPDATES},
     objective::{Calibration, load_frame},
     reader::DictionaryReader,
 };
@@ -62,6 +62,8 @@ fn definition(file: &Value) -> (FigureRequest, u32, [f32; 3]) {
         batch: file["recipe"]["settings"]["batch"].as_u64().unwrap() as usize,
         rule,
         start,
+        method: Method::BasisGroupMean,
+        layers: Vec::new(),
     };
     (request, file["training"]["updates"].as_u64().unwrap() as u32, [code[0] / length, code[1] / length, code[2] / length])
 }
@@ -146,13 +148,13 @@ fn main() {
         let (request, from, direction) = definition(&file);
         let name = PathBuf::from(path).file_name().unwrap().to_string_lossy().to_string();
         let started = std::time::Instant::now();
-        let mut original = FigureTraining::new(request.clone(), frame(&models, request.block), models.device.clone()).unwrap();
+        let mut original = FigureTraining::new(request.clone(), None, frame(&models, request.block), models.device.clone()).unwrap();
         train_to(&models, &mut original, from, direction);
         let values = pollster::block_on(original.rule.values()).unwrap();
         let (adam, pool) = (original.optimizer_state(), original.pool_states());
 
         // G1: the original's optimizer state and pool carried into a continued run.
-        let mut exact = FigureTraining::continued(request.clone(), &values, from, frame(&models, request.block), models.device.clone()).unwrap();
+        let mut exact = FigureTraining::continued(request.clone(), None, &values, from, frame(&models, request.block), models.device.clone()).unwrap();
         exact.set_optimizer_state(adam.clone());
         exact.set_pool_states(pool);
         let continued_measure = train_to(&models, &mut exact, from + g1_updates, direction).0;
@@ -176,7 +178,7 @@ fn main() {
             drop(original);
             let mut arms = serde_json::Map::new();
             for arm in ["fresh", "stored moments"] {
-                let mut run = FigureTraining::continued(request.clone(), &values, from, frame(&models, request.block), models.device.clone()).unwrap();
+                let mut run = FigureTraining::continued(request.clone(), None, &values, from, frame(&models, request.block), models.device.clone()).unwrap();
                 if arm == "stored moments" {
                     run.set_optimizer_state(adam.clone());
                 }

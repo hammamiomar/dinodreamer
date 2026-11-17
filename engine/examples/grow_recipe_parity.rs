@@ -1,7 +1,10 @@
 //! Figure-recipe parity against the CPU oracle (`tools/prepare_grow_recipe.py`). The engine
 //! trains from the oracle's request and seed, then compares every recorded update: the drawn
 //! plan, loss terms, per-view mean codes, grown states, normalized gradients and parameters,
-//! and finally the live grid's picture and readouts. It prints one JSON report.
+//! and finally the live grid's picture and readouts. It prints one JSON report. For a set method
+//! the engine first prepares the target set from the fixture's raw-pixel windows and compares it
+//! with the oracle's (`support/target_set_fixture.rs`); the update's terms include the method's
+//! loss and each compared layer's terms.
 //!
 //!   cargo run --release --features harness --example grow_recipe_parity -- \
 //!       tools/fixtures/grow-recipe-oracle-12002-batch4.json [report.json]
@@ -17,14 +20,18 @@
 //! times the sign of its gradient, so a gradient element near zero can flip and the
 //! trajectories then separate.
 #![allow(non_snake_case)] // Tensor suffixes document axes.
+#[path = "support/target_set_fixture.rs"]
+mod target_set_fixture;
+
 use base64::{Engine as _, engine::general_purpose::STANDARD};
-use burn::tensor::{Device, Tensor};
+use burn::tensor::{Device, Tensor, TensorData};
 use dinodreamer_engine::{
     encoder::{Block, DEPTH, Dino},
-    grow::figure::{self, Cells, FigureGrid, FigureRequest, FigureRule, FigureTraining, Plan},
+    grow::figure::{self, Cells, FigureGrid, FigureReadings, FigureRequest, FigureRule, FigureTraining, Layer, LayerLoss, Plan, target_set::{TargetSet, WINDOW_SIDE}},
     objective::{Calibration, load_frame},
     reader::DictionaryReader,
 };
+use target_set_fixture::{SetRecord, compare_set, load_windows};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::{
@@ -37,8 +44,8 @@ const DICTIONARY: &str = "monet-dtd-seed9-20261004-pass-003";
 /// A continued record's grown states after its first rollout, largest absolute difference: float32
 /// rounding of the trained rule's steps (5.4e-7 measured on block 12002).
 const GROWN_TOLERANCE: f64 = 1e-5;
-/// Update-0 tolerances: relative error of the loss terms, relative RMS of the mean codes and
-/// of the normalized gradients. The grown states of update 0 are the drawn noise: exact.
+/// Update-0 tolerances: relative error of the loss terms (also a set method's loss and layer
+/// terms), relative RMS of the mean codes and of the normalized gradients. The grown states of update 0 are the drawn noise: exact.
 const LOSS_TOLERANCE: f64 = 1e-4;
 const CODES_TOLERANCE: f64 = 1e-3;
 /// The gradient tolerance is this multiple of the fixture's `gradientFloor`: the reference's own
@@ -63,6 +70,9 @@ struct Fixture {
     #[serde(default)]
     from_update: Option<u32>,
     gradient_floor: f64,
+    /// A set method's prepared set, from the windows of `set.file` beside the fixture.
+    #[serde(default)]
+    set: Option<SetRecord>,
     #[serde(default)]
     updates: Vec<Record>,
     /// Large fixtures store each update beside the fixture to keep every file below 1 MB.
@@ -85,11 +95,26 @@ struct Lockstep {
     #[serde(default)]
     initial_coarse: Option<String>,
     loss: f64,
+    #[serde(default)]
+    method_loss: Option<f64>,
+    #[serde(default)]
+    layer_terms: Vec<LayerTermsRecord>,
     mean_codes: Vec<f64>,
     grown_sample: String,
     #[serde(default)]
     grown_coarse_sample: Option<String>,
     gradients: String,
+}
+
+/// A compared layer's value and, for a distribution method, its kernel means E k(x, x') and E k(x, y).
+#[derive(Deserialize)]
+struct LayerTermsRecord {
+    layer: Layer,
+    value: f64,
+    #[serde(default)]
+    xx: Option<f64>,
+    #[serde(default)]
+    xy: Option<f64>,
 }
 
 #[derive(Deserialize)]
@@ -100,6 +125,10 @@ struct Record {
     learning_rate: f64,
     loss: f64,
     code_loss: f64,
+    #[serde(default)]
+    method_loss: Option<f64>,
+    #[serde(default)]
+    layer_terms: Vec<LayerTermsRecord>,
     overflow: f64,
     state_max: f64,
     mean_codes: Vec<f64>,
@@ -199,6 +228,42 @@ fn relative(actual: f64, expected: f64) -> f64 {
     (actual - expected).abs() / expected.abs().max(1e-12)
 }
 
+/// Each compared layer's terms against the oracle's: [engine, oracle, relative error] per term,
+/// and the largest relative error.
+fn compare_layers(actual: &[LayerLoss], expected: &[LayerTermsRecord]) -> (Value, f64) {
+    assert_eq!(actual.len(), expected.len(), "the engine and the oracle compare the same layers");
+    let mut largest = 0.0f64;
+    let mut term = |engine: Option<f32>, oracle: Option<f64>| match (engine, oracle) {
+        (Some(engine), Some(oracle)) => {
+            let error = relative(engine as f64, oracle);
+            largest = largest.max(error);
+            json!([engine, oracle, error])
+        }
+        (None, None) => Value::Null,
+        _ => panic!("the engine and the oracle disagree on a layer's terms"),
+    };
+    let layers = actual.iter().zip(expected).map(|(engine, oracle)| {
+        assert_eq!(engine.layer, oracle.layer, "the layers come in the request's order");
+        json!({"layer": engine.layer, "value": term(Some(engine.value), Some(oracle.value)),
+               "kernelXx": term(engine.kernel_xx, oracle.xx), "kernelXy": term(engine.kernel_xy, oracle.xy)})
+    }).collect();
+    (Value::Array(layers), largest)
+}
+
+/// A set method's target set from the fixture's windows, and its comparison with the oracle's.
+fn prepare_set(fixture_path: &Path, fixture: &Fixture, encoder: &Dino, calibration: &Calibration, frame_DR: &Tensor<2>, device: &Device) -> Option<(TargetSet, Value, bool)> {
+    let record = fixture.set.as_ref()?;
+    let (windows, dots, file) = load_windows(&fixture_path.with_file_name(&record.file));
+    assert_eq!(file.block, fixture.request.block, "the set file is the request's basis group's");
+    let windows_P3HW = Tensor::<4>::from_data(TensorData::new(windows, [dots.len(), 3, WINDOW_SIDE, WINDOW_SIDE]), device);
+    let started = std::time::Instant::now();
+    let target = pollster::block_on(TargetSet::prepare(encoder, calibration, &frame_DR.clone().transpose(), &fixture.request, windows_P3HW, &dots)).unwrap();
+    let seconds = started.elapsed().as_secs_f64();
+    let (mut report, pass) = compare_set(&target, record);
+    report["seconds"] = json!(seconds);
+    Some((target, report, pass))
+}
+
 fn load_reader(directory: &PathBuf, device: &Device) -> DictionaryReader {
     let index: Value = serde_json::from_slice(&fs::read(directory.join("reader.json")).unwrap()).unwrap();
     let mut reader = DictionaryReader::default();
@@ -234,14 +299,22 @@ fn main() {
 
     let request = fixture.request.clone();
     let first = fixture.from_update.unwrap_or(0);
+    let mut gate = Vec::new();
+    let prepared = prepare_set(Path::new(fixture_path), &fixture, &encoder, &calibration, &frame_DR, &device);
+    let (target, set_report) = match prepared {
+        Some((target, report, pass)) => {
+            gate.push(("set", pass));
+            (Some(target), report)
+        }
+        None => (None, Value::Null),
+    };
     let mut training = match fixture.from_update {
-        Some(from) => FigureTraining::continued(request.clone(), &floats(&fixture.initial_values), from, frame_DR, device.clone()).unwrap(),
-        None => FigureTraining::new(request.clone(), frame_DR, device.clone()).unwrap(),
+        Some(from) => FigureTraining::continued(request.clone(), target, &floats(&fixture.initial_values), from, frame_DR, device.clone()).unwrap(),
+        None => FigureTraining::new(request.clone(), target, frame_DR, device.clone()).unwrap(),
     };
     let initial = pollster::block_on(training.rule.values()).unwrap();
     let initial_check = compare(&initial, &floats(&fixture.initial_values), 0.0);
     let mut reports = Vec::new();
-    let mut gate = Vec::new();
     // Draws do not depend on the numerics, so every update's plan must match exactly.
     let mut plans_match = true;
     for record in &fixture.updates {
@@ -261,11 +334,15 @@ fn main() {
         let grown_norm = grown.iter().chain(grown_coarse.iter().flatten()).map(|v| (*v as f64).powi(2)).sum::<f64>().sqrt();
         let codes: Vec<f32> = update.mean_codes.clone();
         let expected_codes: Vec<f32> = record.mean_codes.iter().map(|v| *v as f32).collect();
+        let (layer_terms, layer_error) = compare_layers(&update.layers, &record.layer_terms);
+        let method_loss = record.method_loss.map(|expected| json!([update.method_loss, expected, relative(update.method_loss as f64, expected)]));
         let report = json!({
             "update": record.update,
             "planMatches": plan == record.plan,
             "learningRate": [update.learning_rate, record.learning_rate],
             "loss": [update.loss, record.loss, relative(update.loss as f64, record.loss)],
+            "methodLoss": method_loss,
+            "layerTerms": layer_terms,
             "codeLoss": [update.code_loss, record.code_loss, relative(update.code_loss as f64, record.code_loss)],
             "overflow": [update.overflow, record.overflow],
             "stateMax": [update.state_max, record.state_max],
@@ -283,6 +360,13 @@ fn main() {
             let coarse_error = report["grownCoarseSample"]["maximumAbsolute"].as_f64().unwrap_or(0.0);
             let grown_error = report["grownSample"]["maximumAbsolute"].as_f64().unwrap().max(coarse_error);
             gate.push(("loss", relative(update.loss as f64, record.loss) <= LOSS_TOLERANCE));
+            if request.method.needs_set() {
+                // Each layer's value and kernel means. An MMD value is a difference of kernel means near
+                // 0.7 that leaves 0.1 to 0.3; measured on 17 November 2026: at most 8.5e-6 (group 12002).
+                gate.push(("layer terms", layer_error <= LOSS_TOLERANCE));
+                // The basis-group mean loss stays a reading on the same tokens.
+                gate.push(("code loss reading", relative(update.code_loss as f64, record.code_loss) <= LOSS_TOLERANCE));
+            }
             gate.push(("mean codes", codes_error <= CODES_TOLERANCE));
             // A fresh run's first update grows its drawn noise unchanged (each fc2 starts at zero), so
             // those states must match exactly; a continued rule grows them, and they match to float32
@@ -320,12 +404,14 @@ fn main() {
             0,
         )));
         let (grown, grown_coarse) = grown_values(&gradient.grown);
-        let metrics = pollster::block_on(read(gradient.metrics.clone()));
+        let readings = FigureReadings::decode(&pollster::block_on(read(gradient.metrics.clone())), &request);
         let expected_codes: Vec<f32> = expected.mean_codes.iter().map(|v| *v as f32).collect();
         let report = json!({
             "update": expected.update,
-            "loss": [metrics[0], expected.loss, relative(metrics[0] as f64, expected.loss)],
-            "meanCodes": compare(&metrics[5..], &expected_codes, 1e-3),
+            "loss": [readings.loss, expected.loss, relative(readings.loss as f64, expected.loss)],
+            "methodLoss": expected.method_loss.map(|loss| json!([readings.method_loss, loss, relative(readings.method_loss as f64, loss)])),
+            "layerTerms": compare_layers(&readings.layers, &expected.layer_terms).0,
+            "meanCodes": compare(&readings.mean_codes, &expected_codes, 1e-3),
             "grownSample": compare(&sample(&grown), &floats(&expected.grown_sample), 1e-5),
             "grownCoarseSample": compare_coarse(&grown_coarse, &expected.grown_coarse_sample),
             "gradients": compare(&normalized, &floats(&expected.gradients), 1e-5),
@@ -381,8 +467,11 @@ fn main() {
         "initialValues": initial_check,
         "gate": gate.iter().map(|(name, pass)| json!({"check": name, "pass": pass})).collect::<Vec<_>>(),
         "pass": gate.iter().all(|(_, pass)| *pass) && initial_check["maximumAbsolute"].as_f64() == Some(0.0),
+        "set": set_report,
         "tolerances": {
             "loss": LOSS_TOLERANCE,
+            "setScalars": target_set_fixture::SET_SCALAR_TOLERANCE,
+            "setVectors": target_set_fixture::SET_VECTOR_TOLERANCE,
             "meanCodes": CODES_TOLERANCE,
             "gradients": GRADIENT_FLOOR_FACTOR * fixture.gradient_floor,
             "gradientFloor": fixture.gradient_floor,
@@ -436,6 +525,34 @@ mod tests {
                 assert_eq!(floats(&record.gradients).len(), 17_088);
                 assert_eq!(floats(&record.values).len(), 17_088);
                 assert_eq!(record.plan, Plan::draw(fixture.request.seed, record.update, 4));
+            }
+            for file in std::iter::once(path).chain(fixture.update_files.iter().map(|file| directory.join(file))) {
+                assert!(fs::metadata(&file).unwrap().len() <= 1_000_000, "{} exceeds 1 MB", file.display());
+            }
+        }
+    }
+
+    #[test]
+    fn set_method_fixtures_name_their_set_and_stay_within_the_file_limit() {
+        let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("tools/fixtures");
+        for (name, layers) in [
+            ("grow-recipe-oracle-12002-pyramid-seeded-token-distribution-batch4.json", 4),
+            ("grow-recipe-oracle-12002-pyramid-token-distribution-batch4.json", 4),
+            ("grow-recipe-oracle-12002-pyramid-seeded-basis-group-distribution-batch4.json", 1),
+            ("grow-recipe-oracle-12002-pyramid-seeded-token-mean-batch4.json", 1),
+            ("grow-recipe-oracle-12002-pyramid-seeded-token-mean-four-layers-batch4.json", 4),
+        ] {
+            let path = directory.join(name);
+            let fixture = load_fixture(&path);
+            assert!(fixture.request.validate().is_ok() && fixture.request.method.needs_set(), "{name}");
+            let set = fixture.set.as_ref().expect("a set method's fixture records its set");
+            assert_eq!((set.layers.len(), fixture.request.compared_layers().len()), (layers, layers), "{name}");
+            let (windows, dots, file) = load_windows(&directory.join(&set.file));
+            assert_eq!((file.block, dots.len(), windows.len()), (fixture.request.block, 33, 33 * 3 * WINDOW_SIDE * WINDOW_SIDE));
+            assert!(set.layers.iter().all(|layer| layer.tokens == 297), "the 3 × 3 tokens of 33 windows whose dots lie inside");
+            for record in &fixture.updates {
+                assert_eq!(record.layer_terms.len(), layers, "{name}: every update records each layer");
+                assert!(record.method_loss.is_some(), "{name}: every update records the method's loss");
             }
             for file in std::iter::once(path).chain(fixture.update_files.iter().map(|file| directory.join(file))) {
                 assert!(fs::metadata(&file).unwrap().len() <= 1_000_000, "{} exceeds 1 MB", file.display());

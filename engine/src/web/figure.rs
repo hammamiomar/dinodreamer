@@ -1,13 +1,22 @@
 //! The figure recipe's WASM boundary. The worker owns files, progress and scheduling.
 use super::{BrowserEngine, error, set};
-use crate::grow::figure::{self, FigureGrid, FigureRequest, FigureRule, FigureTraining, RuleKind, Start};
-use burn::tensor::Device;
-use js_sys::{Float32Array, Object, Uint8Array, Uint8ClampedArray, Uint16Array};
+use crate::grow::figure::{
+    self, FigureGrid, FigureRequest, FigureRule, FigureTraining, RuleKind, Start,
+    target_set::{self, TargetSet, WINDOW_SIDE},
+};
+use burn::tensor::{Device, Tensor, TensorData};
+use js_sys::{Array, Float32Array, Object, Uint8Array, Uint8ClampedArray, Uint16Array};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
 pub struct BrowserFigure {
     training: FigureTraining,
+}
+
+/// The target set of a set method, prepared once on the GPU and shared by the trainings that use it.
+#[wasm_bindgen]
+pub struct BrowserFigureSet {
+    set: TargetSet,
 }
 
 /// The live grid on the Keep replay contract, with the rule it currently grows.
@@ -18,35 +27,70 @@ pub struct BrowserFigureGrid {
     device: Device,
 }
 
+impl BrowserEngine {
+    fn loaded_frame(&self, block: u32) -> Result<Tensor<2>, JsValue> {
+        Ok(self.engine()?.frames.get(&block).ok_or_else(|| error("Load the selected dictionary frame first"))?.clone())
+    }
+
+    /// A training of `request` (JSON of a FigureRequest), fresh or continued from a saved rule.
+    fn figure_training(&self, request: &str, target: Option<TargetSet>, continued: Option<(&[f32], u32)>) -> Result<BrowserFigure, JsValue> {
+        let request: FigureRequest = serde_json::from_str(request).map_err(error)?;
+        let frame_DR = self.loaded_frame(request.block)?;
+        let training = match continued {
+            None => FigureTraining::new(request, target, frame_DR, self.device.clone()),
+            Some((values, from_update)) => FigureTraining::continued(request, target, values, from_update, frame_DR, self.device.clone()),
+        };
+        Ok(BrowserFigure { training: training.map_err(error)? })
+    }
+}
+
 #[wasm_bindgen]
 impl BrowserEngine {
-    /// `request` is the JSON of a FigureRequest; the block's frame must be loaded.
+    /// A basis-group mean training. `request` is the JSON of a FigureRequest; the block's frame must be loaded.
     pub fn create_figure(&self, request: &str) -> Result<BrowserFigure, JsValue> {
-        let request: FigureRequest = serde_json::from_str(request).map_err(error)?;
-        let frame_DR = self
-            .engine()?
-            .frames
-            .get(&request.block)
-            .ok_or_else(|| error("Load the selected dictionary frame first"))?
-            .clone();
-        Ok(BrowserFigure {
-            training: FigureTraining::new(request, frame_DR, self.device.clone()).map_err(error)?,
-        })
+        self.figure_training(request, None, None)
     }
 
     /// A run continued from a saved definition: `values` its rule, `from_update` its update count;
     /// `request` as in `create_figure`, with the definition's seed (Train resume, case 2).
     pub fn create_figure_continued(&self, request: &str, values: &[f32], from_update: u32) -> Result<BrowserFigure, JsValue> {
+        self.figure_training(request, None, Some((values, from_update)))
+    }
+
+    /// A set method's training on its prepared set; `request` names the same method, layers and block.
+    pub fn create_figure_on_set(&self, request: &str, set: &BrowserFigureSet) -> Result<BrowserFigure, JsValue> {
+        self.figure_training(request, Some(set.set.clone()), None)
+    }
+
+    /// A set method's run continued from a saved definition, as `create_figure_continued`.
+    pub fn create_figure_continued_on_set(&self, request: &str, set: &BrowserFigureSet, values: &[f32], from_update: u32) -> Result<BrowserFigure, JsValue> {
+        self.figure_training(request, Some(set.set.clone()), Some((values, from_update)))
+    }
+
+    /// Prepare the target set of a set method (`target_set`): `request` is the JSON of the
+    /// FigureRequest it serves (method, layers and block), `pictures` the set's 256 px library
+    /// preview PNGs, decoded without colour management, and `patches` the patch of each on its 16 × 16
+    /// grid. DINO reads each picture's aligned 128 px window. The block's frame must be loaded.
+    pub async fn prepare_figure_set(&self, request: &str, pictures: Array, patches: &[u32]) -> Result<BrowserFigureSet, JsValue> {
         let request: FigureRequest = serde_json::from_str(request).map_err(error)?;
-        let frame_DR = self
-            .engine()?
-            .frames
-            .get(&request.block)
-            .ok_or_else(|| error("Load the selected dictionary frame first"))?
-            .clone();
-        Ok(BrowserFigure {
-            training: FigureTraining::continued(request, values, from_update, frame_DR, self.device.clone()).map_err(error)?,
-        })
+        if pictures.length() as usize != patches.len() || patches.iter().any(|&patch| patch >= 256) {
+            return Err(error("A target set needs one patch of the 16 × 16 grid for each picture"));
+        }
+        let mut windows_CHW = Vec::with_capacity(patches.len() * 3 * WINDOW_SIDE * WINDOW_SIDE);
+        let mut dots = Vec::with_capacity(patches.len());
+        for (png, &patch) in pictures.iter().zip(patches) {
+            let picture_CHW = crate::assets::decode_preview(&Uint8Array::new(&png).to_vec()).map_err(error)?;
+            let window = target_set::aligned_window(patch as usize);
+            windows_CHW.extend(target_set::window_pixels(&picture_CHW, window));
+            dots.push(window.dot);
+        }
+        let windows_P3HW = Tensor::<4>::from_data(TensorData::new(windows_CHW, [dots.len(), 3, WINDOW_SIDE, WINDOW_SIDE]), &self.device);
+        let engine = self.engine()?;
+        let frame_RD = self.loaded_frame(request.block)?.transpose();
+        let set = TargetSet::prepare(&engine.encoder, &engine.calibration, &frame_RD, &request, windows_P3HW, &dots)
+            .await
+            .map_err(error)?;
+        Ok(BrowserFigureSet { set })
     }
 
     pub async fn figure_update(&self, training: &mut BrowserFigure) -> Result<String, JsValue> {
@@ -117,6 +161,22 @@ impl BrowserEngine {
         set(&result, "tick", live.grid.tick)?;
         set(&result, "seed", live.grid.seed)?;
         Ok(result.into())
+    }
+}
+
+#[wasm_bindgen]
+impl BrowserFigureSet {
+    /// The prepared set as JSON: its method, basis group and pictures, and per compared layer its
+    /// tokens, unit σ, median distance h and self-similarity E k(ŷ, ŷ') (`target_set`).
+    pub fn summary(&self) -> String {
+        let layers: Vec<serde_json::Value> = self.set.layers.iter().map(|layer| serde_json::json!({
+            "layer": layer.layer,
+            "tokens": layer.standardized_ND.dims()[0],
+            "unit": layer.unit,
+            "medianDistance": layer.median_distance,
+            "selfSimilarity": layer.self_similarity,
+        })).collect();
+        serde_json::json!({"method": self.set.method, "block": self.set.block, "pictures": self.set.pictures, "layers": layers}).to_string()
     }
 }
 

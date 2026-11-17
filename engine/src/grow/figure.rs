@@ -27,7 +27,7 @@ use super::{
     views::{Distill, SCALES},
 };
 use crate::{
-    encoder::{Dino, PREFIX},
+    encoder::{DEPTH, Dino, PREFIX},
     objective::Calibration,
     reader::{DictionaryReader, WINNERS},
 };
@@ -36,8 +36,9 @@ use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "gpu")]
 mod rule;
+pub mod target_set;
 #[cfg(feature = "gpu")]
-pub use rule::{Cells, FigureGradient, FigureGrid, FigureRule, FigureTraining, FigureUpdate};
+pub use rule::{Cells, FigureGradient, FigureGrid, FigureReadings, FigureRule, FigureTraining, FigureUpdate, LayerLoss};
 
 pub const SIDE: usize = 128;
 pub const CELLS: usize = SIDE * SIDE;
@@ -139,6 +140,72 @@ pub fn centre_disc(side: usize, radius: f32) -> Vec<f32> {
         .collect()
 }
 
+/// What training asks of the canvas: one choice of space and one of comparison (research/given-set,
+/// "The four methods"). The space is the basis group, the 3 numbers it reads from a token, or the
+/// token, DINO's 768 numbers for a patch. Mean matching asks for the canvas's average; distribution
+/// matching asks the canvas's patches to be spread like the target set's (`target_set`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum Method {
+    /// mean_v ‖mean_{t∈P} c_vt − k‖² / m² (`mean_code_loss`); the research's `plain`.
+    #[default]
+    BasisGroupMean,
+    /// ‖mean_m x_m‖² on the set-standardized tokens; the research's `point`.
+    TokenMean,
+    /// The unbiased MMD² on the set-standardized codes c = Fᵀ(calibrated token); `projection-mmd`.
+    BasisGroupDistribution,
+    /// The unbiased MMD² on the set-standardized tokens; the research's `mmd`.
+    TokenDistribution,
+}
+
+impl Method {
+    /// Whether the method compares the canvas with a target set.
+    pub fn needs_set(self) -> bool {
+        self != Self::BasisGroupMean
+    }
+
+    /// Whether the method reads DINO's tokens at the request's layers.
+    pub fn reads_tokens(self) -> bool {
+        matches!(self, Self::TokenMean | Self::TokenDistribution)
+    }
+
+    pub fn compares_distributions(self) -> bool {
+        matches!(self, Self::BasisGroupDistribution | Self::TokenDistribution)
+    }
+}
+
+/// A DINO readout that a token method compares: the patch tokens after zero-based block k under a
+/// LayerNorm without learned parameters ("block-k"), or the final layer under DINO's own output
+/// norm ("final"), the tokens the basis groups read. The names are the research's layer keys.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(try_from = "String", into = "String")]
+pub enum Layer {
+    Block(usize),
+    Final,
+}
+
+impl TryFrom<String> for Layer {
+    type Error = String;
+    fn try_from(name: String) -> Result<Self, String> {
+        if name == "final" {
+            return Ok(Self::Final);
+        }
+        match name.strip_prefix("block-").and_then(|block| block.parse::<usize>().ok()) {
+            Some(block) if block < DEPTH => Ok(Self::Block(block)),
+            _ => Err(format!("A layer is \"final\" or \"block-k\" with k from 0 to {}, not {name:?}", DEPTH - 1)),
+        }
+    }
+}
+
+impl From<Layer> for String {
+    fn from(layer: Layer) -> String {
+        match layer {
+            Layer::Block(block) => format!("block-{block}"),
+            Layer::Final => "final".into(),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FigureRequest {
@@ -152,6 +219,12 @@ pub struct FigureRequest {
     pub batch: usize,
     pub rule: RuleKind,
     pub start: Start,
+    #[serde(default)]
+    pub method: Method,
+    /// The token methods' layers, averaged in the loss; empty for the basis-group methods, which
+    /// read the final layer.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub layers: Vec<Layer>,
 }
 
 impl FigureRequest {
@@ -166,7 +239,31 @@ impl FigureRequest {
         {
             return Err("The figure recipe needs a block, a finite nonzero anchor code, a positive median norm and batch 1 or 4".into());
         }
+        let distinct = self.layers.iter().enumerate().all(|(index, layer)| !self.layers[..index].contains(layer));
+        if self.method.reads_tokens() != !self.layers.is_empty() || !distinct {
+            return Err("A token method needs one or more distinct layers; a basis-group method takes none".into());
+        }
         Ok(())
+    }
+
+    /// The layers whose features the method compares: the request's for a token method, the final
+    /// layer's codes for basis-group distribution, none for basis-group mean.
+    pub fn compared_layers(&self) -> Vec<Layer> {
+        match self.method {
+            Method::BasisGroupMean => Vec::new(),
+            Method::BasisGroupDistribution => vec![Layer::Final],
+            Method::TokenMean | Method::TokenDistribution => self.layers.clone(),
+        }
+    }
+
+    /// The zero-based DINO blocks whose intermediate tokens the method reads, increasing.
+    pub fn intermediate_blocks(&self) -> Vec<usize> {
+        let mut blocks: Vec<usize> = self.layers.iter().filter_map(|layer| match layer {
+            Layer::Block(block) => Some(*block),
+            Layer::Final => None,
+        }).collect();
+        blocks.sort_unstable();
+        blocks
     }
 }
 
@@ -304,18 +401,30 @@ pub fn mean_code_loss(mean_codes_VR: Tensor<2>, code: [f32; 3], median_norm: f32
     (mean_codes_VR - target_1R).square().sum_dim(1).mean_dim(0).reshape([1]) / (median_norm * median_norm)
 }
 
+/// The values of the patches the start scores, [V, T, X] → [V, P, X]: all 64, or the central 4 × 4.
+fn scored_patches(values_VTX: Tensor<3>, start: Start) -> Tensor<3> {
+    match start {
+        Start::Noise => values_VTX,
+        Start::CentreDisc => {
+            let centre: Vec<i64> = CENTRE_PATCHES.iter().map(|&patch| patch as i64).collect();
+            let indices = Tensor::<1, burn::tensor::Int>::from_data(TensorData::new(centre, [CENTRE_PATCHES.len()]), &values_VTX.device());
+            values_VTX.select(1, indices)
+        }
+    }
+}
+
 /// The mean code of each view over the patches the start scores, [V, T, R] → [V, R].
 pub fn region_mean_codes(codes_VTR: Tensor<3>, start: Start) -> Tensor<2> {
     let views = codes_VTR.dims()[0];
-    let scored_VTR = match start {
-        Start::Noise => codes_VTR,
-        Start::CentreDisc => {
-            let centre: Vec<i64> = CENTRE_PATCHES.iter().map(|&patch| patch as i64).collect();
-            let indices = Tensor::<1, burn::tensor::Int>::from_data(TensorData::new(centre, [CENTRE_PATCHES.len()]), &codes_VTR.device());
-            codes_VTR.select(1, indices)
-        }
-    };
-    scored_VTR.mean_dim(1).reshape([views, 3])
+    scored_patches(codes_VTR, start).mean_dim(1).reshape([views, 3])
+}
+
+/// The scored patches of all views as one set of canvas features, [V, T, X] → [M, X] with
+/// M = V·P, view by view: what a set method compares with the target set (`recipe.Trainer`'s region).
+pub fn region_features(values_VTX: Tensor<3>, start: Start) -> Tensor<2> {
+    let scored_VPX = scored_patches(values_VTX, start);
+    let [views, patches, width] = scored_VPX.dims();
+    scored_VPX.reshape([views * patches, width])
 }
 
 /// The archive's state overflow: mean |x − clamp(x, −1, 1)| over every value of the grown states.
@@ -681,7 +790,7 @@ mod tests {
     fn requests_need_a_code_a_scale_and_a_supported_batch() {
         let mut request = FigureRequest {
             block: 12002, code: [8.08, -9.04, 8.77], median_norm: 5.32, seed: 0, batch: 4,
-            rule: RuleKind::Cell, start: Start::Noise,
+            rule: RuleKind::Cell, start: Start::Noise, method: Method::BasisGroupMean, layers: Vec::new(),
         };
         assert!(request.validate().is_ok());
         request.batch = 2;
@@ -695,6 +804,32 @@ mod tests {
     }
 
     #[test]
+    fn a_token_method_needs_its_layers_and_a_basis_group_method_none() {
+        let mut request: FigureRequest = serde_json::from_str(
+            r#"{"block": 12002, "code": [8.08, -9.04, 8.77], "medianNorm": 5.32, "seed": 0, "batch": 4,
+                "rule": "pyramid", "start": "centre-disc", "method": "token-distribution",
+                "layers": ["block-3", "block-6", "block-9", "final"]}"#,
+        )
+        .unwrap();
+        assert!(request.validate().is_ok());
+        assert_eq!(request.layers, [Layer::Block(3), Layer::Block(6), Layer::Block(9), Layer::Final]);
+        assert_eq!(request.intermediate_blocks(), [3, 6, 9]);
+        assert_eq!(request.compared_layers(), request.layers);
+        assert_eq!(serde_json::to_value(&request).unwrap()["layers"], serde_json::json!(["block-3", "block-6", "block-9", "final"]));
+        request.layers = vec![Layer::Final, Layer::Final];
+        assert!(request.validate().is_err(), "repeated layers");
+        request.layers.clear();
+        assert!(request.validate().is_err(), "a token method without layers");
+        request.method = Method::BasisGroupDistribution;
+        assert!(request.validate().is_ok());
+        assert_eq!(request.compared_layers(), [Layer::Final]);
+        request.layers = vec![Layer::Final];
+        assert!(request.validate().is_err(), "a basis-group method takes no layers");
+        assert!(serde_json::from_str::<Layer>(r#""block-12""#).is_err());
+        assert!(serde_json::from_str::<Layer>(r#""block 3""#).is_err());
+    }
+
+    #[test]
     fn requests_name_the_kind_as_the_material_file_does() {
         let request: FigureRequest = serde_json::from_str(
             r#"{"block": 12002, "code": [8.08, -9.04, 8.77], "medianNorm": 5.32, "seed": 0, "batch": 4,
@@ -702,5 +837,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!((request.rule, request.start), (RuleKind::Pyramid, Start::CentreDisc));
+        // A request without a method is basis-group mean matching, as every request before the set methods.
+        assert_eq!((request.method, request.layers.len()), (Method::BasisGroupMean, 0));
     }
 }
