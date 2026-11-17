@@ -226,6 +226,57 @@
   color: var(--warn);
 }
 
+/*
+ * A set method's target in the occurrence's place and shape: its pictures as a square of the
+ * patch picture's size, six crops to a row, and the sentence beside it. A crop shows the 3 × 3 patches
+ * (48 of the picture's 256 px) at a sixth of the square: the thumbnail scaled by side / 48 px, moved
+ * up and left by the window's first row and column.
+ */
+.grow-set {
+  --grow-set-crop-side: calc(var(--grow-picture) / 6);
+  display: grid;
+  grid-template-columns: var(--grow-picture) minmax(0, 1fr);
+  gap: var(--patch);
+  align-items: start;
+}
+
+.grow-set-pictures {
+  display: grid;
+  grid-template-columns: repeat(6, var(--grow-set-crop-side));
+  grid-auto-rows: var(--grow-set-crop-side);
+  width: var(--grow-picture);
+  height: var(--grow-picture);
+  background: var(--black);
+}
+
+.grow-set-crop {
+  position: relative;
+  overflow: hidden;
+}
+
+.grow-set-crop img {
+  position: absolute;
+  top: calc(var(--row0) * var(--grow-set-crop-side) / -3);
+  left: calc(var(--column0) * var(--grow-set-crop-side) / -3);
+  width: calc(16 * var(--grow-set-crop-side) / 3);
+  max-width: none;
+  height: auto;
+}
+
+/* The words beside the pictures take the patch occurrence's lines (.grow-toward p and its band). */
+.grow-set p {
+  overflow-wrap: anywhere;
+  margin: 0;
+  color: var(--ink-2);
+  line-height: 24px;
+}
+
+.grow-set .band {
+  display: block;
+  line-height: 16px;
+  color: var(--ink-2);
+}
+
 /* The occurrence: the picture with its patch marked, the sentence, the band, the way to another patch. */
 .grow-toward {
   display: grid;
@@ -365,6 +416,13 @@
   }
 }
 
+/* The toggles of the method and of Advanced, on one label-sized line. */
+.grow-face-toggles {
+  display: flex;
+  gap: var(--patch) calc(2 * var(--patch));
+  flex-wrap: wrap;
+}
+
 /* One label-sized line, a + or − after it. */
 .grow-advanced-toggle {
   justify-self: start;
@@ -415,6 +473,12 @@
   font-size: var(--s-1);
   line-height: 16px;
   cursor: pointer;
+}
+
+/* A set method's line in the stop check's place: the same one line, with nothing to press. */
+.grow-run-note {
+  margin: 0;
+  cursor: default;
 }
 
 /* The check is one patch: its edges sit on the patches like the rows around it. */

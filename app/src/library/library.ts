@@ -30,7 +30,7 @@ import type {
 } from "./records";
 import type { Token } from "../recipe";
 import { decodeLookFixture, decodeLookSummary, LOOK_CLOUDS_PATH, type LookCloud } from "./look-cloud";
-import { emptyRows, sampleBlockCloud, sampleRows, withNoticeLine, withStrongestRows, type BlockCloud, type StrongestRead } from "./block-cloud";
+import { emptyRows, sampleBlockCloud, sampleRows, withNoticeLine, withStrongestRows, type BlockCloud, type CloudRows, type StrongestRead } from "./block-cloud";
 import {
   FULL_CLOUDS_PATH,
   fullBlockCloud,
@@ -232,6 +232,15 @@ export class Library {
     if (!read || "problem" in read) return null;
     const index = read.rows.publicPreview.findIndex((flag) => flag === 1);
     return index < 0 ? null : { imageId: read.rows.imageIds[index]!, slot: read.rows.slots[index]! };
+  }
+
+  /**
+   * A basis group's strongest rows, descending by norm: Train shows a set method's target set from
+   * them (grow/target-set.ts). Null when the rows cannot be read.
+   */
+  async strongestRows(block: number): Promise<CloudRows | null> {
+    const read = await this.strongestRead(block);
+    return !read || "problem" in read ? null : read.rows;
   }
 
   /**

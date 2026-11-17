@@ -14,16 +14,21 @@ import { SelectionMap } from "./selection-map";
 import { statusFirstLine } from "./grow-status";
 import { growState, hasFired, isHeld, resultOutcome, stopAction, type GrowState } from "./grow-view";
 import { SIDE, trainRun, trayShown, useLiveCells, useTrainRun, type GrowSettings } from "./train-run";
+import { DEFAULT_METHOD } from "./train-method";
 import "./train-tray.css";
 
 const WORDS = SITE_WORDS.grow;
 /** Phone width: the tray is a sheet across the window and starts folded, as the editor's dock. */
 const NARROW_WINDOW = "(max-width: 700px)";
 
-/** The Train page of the run: its definition's address for a continuation, else its basis group's. */
+/**
+ * The Train page of the run: its definition's address for a continuation, else its basis group's, with
+ * its method when it is not the default, so the page names the run's target from the start.
+ */
 export function trainPath(settings: GrowSettings): string {
   if (settings.continuation) return `/train?continue=${encodeURIComponent(settings.continuation.id)}`;
-  return `/train?block=${settings.request.block}`;
+  const method = settings.method === DEFAULT_METHOD ? "" : `&method=${settings.method}`;
+  return `/train?block=${settings.request.block}${method}`;
 }
 
 /**

@@ -123,10 +123,75 @@ export function startKindOf(start: FigureStart | undefined): FigureStartKind {
 export type FigureLossKind = "plain" | "guided" | "plain-margin" | "other";
 const FIGURE_LOSS_KINDS: readonly unknown[] = ["plain", "guided", "plain-margin", "other"];
 
+/**
+ * The loss kind of a rule. A file of a set method (`settings.method`) trained toward its target set,
+ * not toward the request's code, so it is "other"; otherwise its `lossKind`, and absent means plain.
+ */
 export function lossKindOf(file: Pick<FigureMaterialFile, "recipe">): FigureLossKind {
+  const method = file.recipe.settings.method;
+  if (method !== undefined && method !== "basis-group-mean") return "other";
   const kind = file.recipe.settings.lossKind;
   return kind === "guided" || kind === "plain-margin" || kind === "other" ? kind : "plain";
 }
+
+/**
+ * The method a browser training records in `settings.method`: one choice of space (the basis group's
+ * 3 numbers, or DINO's 768 for a token) and one of comparison (the mean, or the distribution). The
+ * names are the Automata page's (features/gallery/gallery-place.ts). A file without the field was
+ * trained by basis-group mean matching, or by the research, whose export gives its place.
+ */
+export const FIGURE_METHODS = ["basis-group-mean", "token-mean", "basis-group-distribution", "token-distribution"] as const;
+export type FigureMethod = (typeof FIGURE_METHODS)[number];
+
+/** The method the file records, or null when it records none. */
+export function methodOfFile(file: Pick<FigureMaterialFile, "recipe">): FigureMethod | null {
+  const method = file.recipe.settings.method;
+  return (FIGURE_METHODS as readonly unknown[]).includes(method) ? method as FigureMethod : null;
+}
+
+/** Whether a method compares the canvas with a target set: every method but basis-group mean matching. */
+export function methodNeedsSet(method: FigureMethod): boolean {
+  return method !== "basis-group-mean";
+}
+
+/** Whether a method compares DINO's tokens, at the layers the file records. */
+export function methodReadsTokens(method: FigureMethod): boolean {
+  return method === "token-mean" || method === "token-distribution";
+}
+
+/**
+ * A layer a token method compares, as the engine names it (engine/src/grow/figure.rs, `Layer`): the
+ * patch tokens after zero-based DINO block k, or the final layer, the tokens the basis groups read.
+ */
+export type FigureLayer = `block-${number}` | "final";
+/** DINOv3 ViT-B/16 has 12 blocks, 0 to 11. */
+const DINO_BLOCKS = 12;
+
+export function isFigureLayer(value: unknown): value is FigureLayer {
+  if (value === "final") return true;
+  const block = typeof value === "string" ? /^block-(\d{1,2})$/.exec(value)?.[1] : undefined;
+  return block !== undefined && Number(block) < DINO_BLOCKS && String(Number(block)) === block;
+}
+
+/** One picture of a target set: a library picture and the patch of its 16 × 16 grid (slot − 5). */
+export interface SetPicture {
+  imageId: number;
+  patch: number;
+}
+
+/**
+ * The target set a set method trained toward, in set order, so a continuation prepares the same set
+ * even after the library changes. `source` names where the pictures came from: "strongest", the
+ * group's published strongest rows. `neighbourhood` "3x3": the 3 × 3 tokens around each patch.
+ */
+export interface FigureTargetSet {
+  source: "strongest";
+  neighbourhood: "3x3";
+  pictures: SetPicture[];
+}
+/** The research's standard set has 33 pictures; a file may hold fewer (a picture that could not be fetched is dropped). */
+export const MOST_SET_PICTURES = 33;
+const PICTURE_PATCHES = 256;
 
 /** Picture pixels per cell along each axis. 2 shows a 64-cell grid as a 128-pixel picture. */
 export type PixelsPerCell = 1 | 2;
@@ -148,7 +213,11 @@ export interface FigureMaterialFile {
     source: string;
     sourceSha256: string;
     /** m and u of the loss and the readout travel with the rule. */
-    settings: Record<string, unknown> & { medianNorm: number; lobeDirection: Control; lossKind?: FigureLossKind };
+    settings: Record<string, unknown> & {
+      medianNorm: number; lobeDirection: Control; lossKind?: FigureLossKind;
+      /** A browser training's method (methodOfFile), a token method's layers and a set method's target set. */
+      method?: FigureMethod; layers?: FigureLayer[]; set?: FigureTargetSet;
+    };
   };
   /** The request's patch, as Look wrote it. */
   anchor: MaterialAnchor;
@@ -288,6 +357,57 @@ function readFigureReading(value: unknown) {
   text(reading.note, "measurement conditions");
 }
 
+function readTargetSet(value: unknown): FigureTargetSet {
+  const set = record(value, "target set");
+  if (set.source !== "strongest") throw new Error('The target set\'s source must be "strongest"');
+  if (set.neighbourhood !== "3x3") throw new Error('The target set\'s neighbourhood must be "3x3"');
+  if (!Array.isArray(set.pictures) || set.pictures.length < 1 || set.pictures.length > MOST_SET_PICTURES) {
+    throw new Error(`The target set needs 1 to ${MOST_SET_PICTURES} pictures`);
+  }
+  const seen = new Set<number>();
+  const pictures = set.pictures.map((value) => {
+    const picture = record(value, "target set picture");
+    if (!Number.isSafeInteger(picture.imageId) || (picture.imageId as number) < 1) throw new Error("Invalid target set picture in the automaton definition");
+    if (!Number.isInteger(picture.patch) || (picture.patch as number) < 0 || (picture.patch as number) >= PICTURE_PATCHES) {
+      throw new Error("A target set picture's patch is a position of its 16 × 16 grid");
+    }
+    if (seen.has(picture.imageId as number)) throw new Error("A target set has each picture once");
+    seen.add(picture.imageId as number);
+    return { imageId: picture.imageId as number, patch: picture.patch as number };
+  });
+  return { source: "strongest", neighbourhood: "3x3", pictures };
+}
+
+/**
+ * A browser training's method and what it needs: a token method its distinct layers, a set method its
+ * target set, a basis-group method neither. A set method's loss is not the request's, so a file must
+ * not also claim the request's loss kinds.
+ */
+function readMethod(settings: Record<string, unknown>) {
+  if (settings.method === undefined) {
+    if (settings.layers !== undefined || settings.set !== undefined) throw new Error("Layers and a target set belong to a set method");
+    return;
+  }
+  if (!(FIGURE_METHODS as readonly unknown[]).includes(settings.method)) {
+    throw new Error(`The automaton definition's method must be one of ${FIGURE_METHODS.join(", ")}`);
+  }
+  const method = settings.method as FigureMethod;
+  if (methodReadsTokens(method)) {
+    const layers = settings.layers;
+    if (!Array.isArray(layers) || layers.length === 0 || !layers.every(isFigureLayer) || new Set(layers).size !== layers.length) {
+      throw new Error('A token method records its distinct layers: "block-k" or "final"');
+    }
+  } else if (settings.layers !== undefined) {
+    throw new Error("A basis-group method records no layers");
+  }
+  if (methodNeedsSet(method)) {
+    readTargetSet(settings.set);
+    if (settings.lossKind !== undefined && settings.lossKind !== "other") throw new Error("A set method's loss is not the request's");
+  } else if (settings.set !== undefined) {
+    throw new Error("Basis-group mean matching has no target set");
+  }
+}
+
 function readStart(value: unknown) {
   const start = record(value, "start");
   if (start.kind === "noise") return;
@@ -321,6 +441,7 @@ export function readFigureMaterial(value: unknown, dictionaryId?: string): Figur
   if (number(settings.medianNorm, "median selected response magnitude") <= 0) throw new Error("Invalid median selected response magnitude in the automaton definition");
   if (Math.abs(Math.hypot(...vector(settings.lobeDirection, "directional extension direction")) - 1) > 1e-3) throw new Error("The directional extension direction must be a unit vector");
   if (settings.lossKind !== undefined && !FIGURE_LOSS_KINDS.includes(settings.lossKind)) throw new Error('The automaton definition\'s loss kind must be "plain", "guided", "plain-margin" or "other"');
+  readMethod(settings);
   readAnchor(file.anchor);
   const training = record(file.training, "training");
   unsigned(training.seed, "training seed");
@@ -391,7 +512,26 @@ export const FIGURE_SETTING_KEYS: ReadonlySet<string> = new Set([
   "lossKind", "guideRatio", "guideReleaseFraction", "guideReleaseFloor", "guideUnits",
   // a Train run continued from a saved definition (ancestorId): its start update, its fresh optimizer, what it changed
   "continuedFromUpdate", "continuedOptimizer", "continuedChange",
+  // the browser Train's method (methodOfFile); a token method's layers and a set method's target set (readMethod)
+  "method", "layers", "set",
 ]);
+
+/**
+ * A token method's layers and a set method's target set, rebuilt field by field: their lists are longer
+ * or deeper than settingValue keeps. readFigureMaterial has checked them (readMethod).
+ */
+function methodSettings(settings: Record<string, unknown>): { layers?: FigureLayer[]; set?: FigureTargetSet } {
+  const set = settings.set as FigureTargetSet | undefined;
+  return {
+    ...(Array.isArray(settings.layers) ? { layers: [...settings.layers as FigureLayer[]] } : {}),
+    ...(set ? {
+      set: {
+        source: set.source, neighbourhood: set.neighbourhood,
+        pictures: set.pictures.map((picture) => ({ imageId: picture.imageId, patch: picture.patch })),
+      },
+    } : {}),
+  };
+}
 
 /**
  * The file rebuilt from the fields format 4 defines, after readFigureMaterial accepted it. An unknown
@@ -400,10 +540,13 @@ export const FIGURE_SETTING_KEYS: ReadonlySet<string> = new Set([
  */
 export function canonicalFigureFile(file: FigureMaterialFile): FigureMaterialFile {
   const { anchor, picture, recipe, reading, rule, start, training } = file;
-  const settings = Object.fromEntries(Object.entries(recipe.settings)
-    .filter(([key]) => FIGURE_SETTING_KEYS.has(key))
-    .map(([key, value]) => [key, settingValue(value)] as const)
-    .filter(([, value]) => value !== undefined)) as FigureMaterialFile["recipe"]["settings"];
+  const settings = {
+    ...Object.fromEntries(Object.entries(recipe.settings)
+      .filter(([key]) => FIGURE_SETTING_KEYS.has(key))
+      .map(([key, value]) => [key, settingValue(value)] as const)
+      .filter(([, value]) => value !== undefined)),
+    ...methodSettings(recipe.settings),
+  } as FigureMaterialFile["recipe"]["settings"];
   const point = anchor.source === "library"
     ? { source: "library" as const, imageId: anchor.imageId, ...(anchor.publicPreview === false ? { publicPreview: false as const } : {}) }
     : { source: "upload" as const };

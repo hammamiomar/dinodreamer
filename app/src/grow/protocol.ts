@@ -1,5 +1,5 @@
 import type { MaterialAnchor, MaterialRequest, StrengthBand } from "../recipe";
-import type { Control, FigureMaterialFile } from "../materials/material-file";
+import type { Control, FigureLayer, FigureMaterialFile, FigureMethod } from "../materials/material-file";
 import type { KeptStage } from "./figure-recipe";
 import type { CoSelection } from "./co-selection";
 import type { ContinuationChange, ContinuationSource } from "./continuation";
@@ -28,7 +28,12 @@ export interface GrowProgress {
   /** Since the Grow click, including loading, the live grid and readings. */
   elapsedMs: number;
   updateMs: number;
+  /** The method's loss plus 10 × overflow: what the update descends. */
   loss: number;
+  method: FigureMethod;
+  /** The method's own loss; for basis-group mean matching the same as codeLoss. */
+  methodLoss: number;
+  /** ‖mean code − k‖² / m², the basis-group mean loss; under a set method a reading only. */
   codeLoss: number;
   overflow: number;
   stateMax: number;
@@ -87,8 +92,13 @@ export interface Checkpoint {
 }
 
 export type GrowCommand =
-  /** `stopAtFirstFire`: end a run at its first fire; otherwise train on to update 1,000 and keep the final rule too. */
-  | { type: "start"; request: MaterialRequest; release: ReleaseLocation; kind: MaterialKind; batch: 1 | 4; stopAtFirstFire: boolean;
+  /**
+   * `stopAtFirstFire`: end a run at its first fire; otherwise train on to update 1,000 and keep the final rule too.
+   * `method` and a token method's `layers` (train-method.ts); a set method's worker resolves and prepares the target
+   * set, or, for a continuation, prepares the definition's own (`continuation.source.objective`).
+   */
+  | { type: "start"; request: MaterialRequest; release: ReleaseLocation; kind: MaterialKind; method: FigureMethod; layers: FigureLayer[];
+    batch: 1 | 4; stopAtFirstFire: boolean;
     /** Train on from a saved definition (Train resume, case 2): one run from its rule, not new seeds. */
     continuation?: { source: ContinuationSource; change: ContinuationChange } }
   /** Stop the current run's training now: keep its rule as the final one and hold its trainer. */
@@ -110,7 +120,7 @@ export type GrowEvent =
    */
   | { type: "phase"; phase: "loading" | "training" | "finishing" | "retry" | "live" | "stopped"; message: string }
   | { type: "input"; anchor: MaterialAnchor; medianNorm: number; direction: Control; batch: 1 | 4 }
-  | { type: "run"; run: number; runs: number; seed: number }
+  | { type: "run"; run: number; runs: number; seed: number; method: FigureMethod }
   | { type: "checkpoint"; checkpoint: Checkpoint }
   | { type: "progress"; progress: GrowProgress }
   | { type: "live"; frame: LiveFrame }

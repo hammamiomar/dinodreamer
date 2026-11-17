@@ -895,8 +895,60 @@ export const SITE_WORDS = {
     rule: "Grids",
     /** The label over the second choice (Noise, Central noise). */
     start: "Start",
+    /** The label over the third choice: the space training compares in (grow/train-method.ts). */
+    space: "Space",
+    /** Its two options: the 3 numbers a basis group reads from a token, or DINO's 768 numbers for a patch. */
+    spaces: { "basis-group": "Basis group", token: "Token" },
+    /** The label over the fourth choice: what training compares, the average or the spread. */
+    comparison: "Comparison",
+    /** Its two options. */
+    comparisons: { mean: "Mean", distribution: "Distribution" },
+    /**
+     * Under the two choices, the method they make: its fixed name (automata.methods) and what it asks of the
+     * canvas. "The set" is the basis group's 33 strongest pictures, with the 3 × 3 patches around each marked patch.
+     */
+    methodHints: {
+      "basis-group-mean": "the average of the basis group's 3 numbers over the picture, toward the marked patch",
+      "token-mean": "the average of DINO's tokens over the picture, toward the average of the set",
+      "basis-group-distribution": "the basis group's 3 numbers spread over the picture as they spread over the set",
+      "token-distribution": "DINO's tokens spread over the picture as they spread over the set",
+    },
+    /** Why the space and the comparison cannot change when Train continues a definition. */
+    continuedMethod: "A continued automaton keeps its method.",
+    /** In place of the stop check for the methods that compare with the set: they train every update and keep the last cellular model. One line. */
+    trainsToEnd: "Trains all {updates} updates; keeps the last model.",
+    /** Added after the update counter for the methods that compare with the set: the loss the update descends, {loss} with 4 significant digits. */
+    methodLoss: "loss {loss}",
+    /** Status, first line, after a run of a method that compares with the set: its final cellular model is saved, whatever its selection. */
+    finalSaved: "Optimizer update {update} · the final cellular model is saved",
     /** The check above the primary. The first accepted checkpoint: the first checkpoint whose cellular model meets the selection target at simulation step 600, and for a noise start again at step 2,000. */
     stopAtFirstFire: "Stop at the first accepted checkpoint",
+    /**
+     * The toggle under the two choices that shows the method's two choices in their place (grow-panel.tsx
+     * ChoiceFaces): the chosen method, short, so the closed toggle says which it is. One line beside Advanced.
+     */
+    methodToggle: {
+      "basis-group-mean": "Basis-group mean",
+      "token-mean": "Token mean",
+      "basis-group-distribution": "Basis-group distribution",
+      "token-distribution": "Token distribution",
+    },
+    /**
+     * In place of the marked patch's sentence for the methods that compare with the set, beside the set's pictures,
+     * which show the 3 × 3 patches around each picture's strongest patch. {count} is the number of pictures (33, fewer
+     * when some could not be read). At most four lines beside the pictures.
+     */
+    towardSet: "Trains toward this group's {count} strongest pictures.",
+    /** Under it, in the response level's place: what each picture brings to the set. */
+    setPatches: "3 × 3 patches each",
+    /** Under that, in the place of "Pick another patch": the basis group's page, where its strongest pictures show large. */
+    setLink: "See the group's pictures",
+    /** The same for a continued automaton of such a method: {update} is the optimizer update it was saved at. */
+    continuingSet: "Continues this automaton from update {update}, toward the {count} pictures it trained toward.",
+    /** The pictures' name for a screen reader. */
+    setPictures: "The {count} pictures of the set",
+    /** In place of the pictures while they load. */
+    setLoading: "Finding the strongest pictures of basis group {block}.",
     /** The closed section under the two choices, for settings most people never change (grow-panel.tsx). */
     advanced: "Advanced",
     /** Its one setting: the grids grown per optimizer update. */
@@ -905,6 +957,8 @@ export const SITE_WORDS = {
     batchRecipe: "The recipe: four grids per update. Needs 1.5 to 1.8 GB of GPU memory.",
     /** Under it, for batch size 1: 0.8 to 0.9 GB, and 0.29 to 0.31 of the time per update, in the same measurements. */
     batchLight: "Half the memory and a third of the time of 4. It may meet the selection target less often.",
+    /** The same for the methods that compare with the set (Omar's decision 8, 17 November 2026): the research ran them at 4 only. */
+    batchLightSet: "Half the memory and a third of the time of 4. The research has no reference for this method at 1.",
     /** Why a continuation's batch size cannot change. */
     continuedBatch: "A continued automaton keeps its batch size.",
     /** In place of the hint when Train fell back to batch size 1 because a run at 4 took the page down. */

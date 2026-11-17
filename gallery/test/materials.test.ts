@@ -119,6 +119,26 @@ describe("material review", () => {
     expect((await worker.fetch(new Request(`https://app.test/api/materials/${id}/rule.wgsl`), env)).status).toBe(404);
   });
 
+  it("accepts a set method's file from Train, keeps its method, layers and set, and files it in its method's column", async () => {
+    const { env, submissions, library } = testEnv();
+    const trained = JSON.parse(text(firedName));
+    const set = { source: "strongest", neighbourhood: "3x3", pictures: [{ imageId: 3536804379159069, patch: 69 }, { imageId: 12, patch: 255 }] };
+    trained.recipe.settings = { ...trained.recipe.settings, method: "token-distribution", layers: ["block-3", "block-6", "block-9", "final"], set };
+    const submitted = await submitMaterial(env, { material: JSON.stringify(trained) });
+    expect(submitted.status).toBe(201);
+    const entry = await approveMaterial(submissions, library, submitted.body.id!, new Date("2026-11-17T03:00:00Z"));
+    expect(entry.gallery).toEqual({ start: "noise", method: "token-distribution" });
+    expect(entry).not.toHaveProperty("loss");
+    const stored = JSON.parse(new TextDecoder().decode(library.objects.get(materialKey(entry.id, "material.json"))!.body));
+    expect(stored.recipe.settings).toMatchObject({ method: "token-distribution", layers: ["block-3", "block-6", "block-9", "final"], set });
+    const listed = (await (await worker.fetch(new Request("https://app.test/api/materials"), env)).json()) as unknown;
+    expect(readMaterialIndex(listed).entries[0]!.gallery?.method).toBe("token-distribution");
+    // A set method's file without its set is refused at the boundary.
+    const unset = { ...trained, recipe: { ...trained.recipe, settings: { ...trained.recipe.settings, set: undefined } } };
+    const refused = await submitMaterial(env, { material: JSON.stringify(unset) });
+    expect([refused.status, refused.body.error]).toEqual([400, expect.stringMatching(/target set/)]);
+  });
+
   it("seeds project entries, marks those that did not fire, and hides, restores and purges them", async () => {
     const { env, submissions, library } = testEnv();
     const now = new Date("2026-10-23T03:00:00Z");

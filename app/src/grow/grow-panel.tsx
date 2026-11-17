@@ -24,6 +24,11 @@ import { BRUSH, strokeStamps } from "./live-brush";
 import { continuedKind, type ContinuationSource } from "./continuation";
 import { RULE_CHOICES, START_CHOICES, kindFromSearch, kindLabel, readingRegion, type MaterialKind } from "./material-kind";
 import { startStill } from "./start-still";
+import { methodNeedsSet, type FigureMethod } from "../materials/material-file";
+import { FIGURE_UPDATES, RUNS } from "./figure-recipe";
+import {
+  TRAIN_COMPARISONS, TRAIN_SPACES, comparisonOf, keepRule, methodOf, spaceOf, type TrainComparison, type TrainSpace,
+} from "./train-method";
 
 // The page shows the site's persistent run only when its target matches. grow-view.ts maps
 // worker events to the controls and status shown in this layout.
@@ -74,11 +79,41 @@ function KindChoices({ kind, open, ruleFixed, onChange }: {
   </div>;
 }
 
-const BATCH_HINT: Record<BatchSize, string> = { 4: WORDS.batchRecipe, 1: WORDS.batchLight };
+/**
+ * The method: one choice of space and one of comparison, and under them the method they make, by its
+ * name. Fixed while a run trains or waits; a continuation keeps its definition's method (`fixedMethod`).
+ */
+function MethodChoices({ method, open, fixedMethod, onChange }: {
+  method: FigureMethod; open: boolean; fixedMethod: boolean; onChange: (method: FigureMethod) => void;
+}) {
+  const fixed = { unavailable: !open, reason: open ? undefined : WORDS.stop };
+  const choice = fixedMethod ? { unavailable: true, reason: WORDS.continuedMethod } : fixed;
+  const space = spaceOf(method);
+  const comparison = comparisonOf(method);
+  return <div className="grow-choices">
+    <div className="grow-field grow-space">
+      <span className="label">{WORDS.space}</span>
+      <Segmented<TrainSpace> label={WORDS.space} value={space} onChange={(value) => onChange(methodOf(value, comparison))}
+        segments={TRAIN_SPACES.map((value) => ({ value, label: WORDS.spaces[value], ...choice }))} />
+    </div>
+    <div className="grow-field grow-comparison">
+      <span className="label">{WORDS.comparison}</span>
+      <Segmented<TrainComparison> label={WORDS.comparison} value={comparison} onChange={(value) => onChange(methodOf(space, value))}
+        segments={TRAIN_COMPARISONS.map((value) => ({ value, label: WORDS.comparisons[value], ...choice }))} />
+      <p className="grow-hint">{hintSentence(`${SITE_WORDS.automata.methods[method]}: ${WORDS.methodHints[method]}`)}</p>
+    </div>
+  </div>;
+}
+
+/** The batch size's hint: at 1, a set method's says the research has no reference for it (Omar's decision 8). */
+function batchHint(batch: BatchSize, method: FigureMethod): string {
+  if (batch === RECIPE_BATCH) return WORDS.batchRecipe;
+  return methodNeedsSet(method) ? WORDS.batchLightSet : WORDS.batchLight;
+}
 
 /** Advanced's settings: the batch size. `note` replaces the hint after a fallback; `fixed` is why it cannot change now. */
-function AdvancedChoices({ batch, fixed, note, onBatch }: {
-  batch: BatchSize; fixed: string | undefined; note: string | null; onBatch: (batch: BatchSize) => void;
+function AdvancedChoices({ batch, method, fixed, note, onBatch }: {
+  batch: BatchSize; method: FigureMethod; fixed: string | undefined; note: string | null; onBatch: (batch: BatchSize) => void;
 }) {
   const choice = { unavailable: fixed !== undefined, reason: fixed };
   return <div className="grow-choices">
@@ -86,26 +121,38 @@ function AdvancedChoices({ batch, fixed, note, onBatch }: {
       <span className="label">{WORDS.batchSize}</span>
       <Segmented label={WORDS.batchSize} value={String(batch) as "1" | "4"} onChange={(value) => onBatch(value === "1" ? LIGHT_BATCH : RECIPE_BATCH)}
         segments={[{ value: "1", label: "1", ...choice }, { value: "4", label: "4", ...choice }]} />
-      <p className="grow-hint">{note ?? BATCH_HINT[batch]}</p>
+      <p className="grow-hint">{note ?? batchHint(batch, method)}</p>
     </div>
   </div>;
 }
 
+/** The face the choices' box shows: the kind choices, the method, or Advanced's settings. */
+type ChoiceFace = "kind" | "method" | "advanced";
+
 /**
- * The choices' box and the Advanced line under it. The box holds two faces in one place, the kind
- * choices and Advanced's settings, and shows one at a time; it is as tall as the taller face, so
- * opening Advanced moves nothing on the page. The faces cross-fade (grow.css).
+ * The choices' box and the line of toggles under it. The box holds three faces in one place, the kind
+ * choices, the method and Advanced's settings, and shows one at a time; it is as tall as the tallest
+ * face, so opening one moves nothing on the page. A toggle opens its face, or closes it back to the
+ * kind choices. The faces cross-fade (grow.css).
  */
-function ChoiceFaces({ choices, advanced, advancedOpen, onAdvanced }: {
-  choices: ReactNode; advanced: ReactNode; advancedOpen: boolean; onAdvanced: (open: boolean) => void;
+function ChoiceFaces({ kind, method, methodName, advanced, face, onFace }: {
+  kind: ReactNode; method: ReactNode; methodName: string; advanced: ReactNode; face: ChoiceFace; onFace: (face: ChoiceFace) => void;
 }) {
+  const shown = (name: ChoiceFace) => ({ "data-shown": face === name || undefined, "aria-hidden": face !== name || undefined });
+  const toggle = (name: Exclude<ChoiceFace, "kind">, words: string) => (
+    <button type="button" className="grow-advanced-toggle label" aria-expanded={face === name} aria-controls={`grow-${name}`}
+      onClick={() => onFace(face === name ? "kind" : name)}>{words}</button>
+  );
   return <div className="grow-settings">
     <div className="grow-faces">
-      <div className="grow-face" data-shown={!advancedOpen || undefined} aria-hidden={advancedOpen || undefined}>{choices}</div>
-      <div className="grow-face" id="grow-advanced" data-shown={advancedOpen || undefined} aria-hidden={!advancedOpen || undefined}>{advanced}</div>
+      <div className="grow-face" {...shown("kind")}>{kind}</div>
+      <div className="grow-face" id="grow-method" {...shown("method")}>{method}</div>
+      <div className="grow-face" id="grow-advanced" {...shown("advanced")}>{advanced}</div>
     </div>
-    <button type="button" className="grow-advanced-toggle label" aria-expanded={advancedOpen} aria-controls="grow-advanced"
-      onClick={() => onAdvanced(!advancedOpen)}>{WORDS.advanced}</button>
+    <div className="grow-face-toggles">
+      {toggle("method", methodName)}
+      {toggle("advanced", WORDS.advanced)}
+    </div>
   </div>;
 }
 
@@ -120,7 +167,7 @@ function TimeLine({ time, template }: { time: GrowTime; template: string }) {
 
 /** Which time the line shows, by state: the run's own while it runs or after, the chosen kind's before. */
 function growTime(record: GrowRecord, settings: GrowSettings | null,
-  chosen: Pick<GrowSettings, "kind" | "stopAtFirstFire" | "continuation" | "batch">, primary: ReturnType<typeof primaryAction>): { time: GrowTime; template: string } {
+  chosen: Pick<GrowSettings, "kind" | "method" | "stopAtFirstFire" | "continuation" | "batch">, primary: ReturnType<typeof primaryAction>): { time: GrowTime; template: string } {
   if ((primary === "open" || primary === "restart") && record.progress) return { time: timeTaken(record.progress, settings?.continuation?.fromUpdate ?? 0), template: WORDS.timeTaken };
   if ((primary === "stop" || primary === "resume") && settings && record.progress) {
     return { time: timeLeft(settings.kind, settings.stopAtFirstFire, record.progress, settings.continuation?.fromUpdate ?? 0, settings.batch), template: WORDS.timeLeft };
@@ -129,12 +176,15 @@ function growTime(record: GrowRecord, settings: GrowSettings | null,
   return { time: timeBefore(before.kind, before.stopAtFirstFire, before.continuation?.fromUpdate ?? 0, before.batch), template: WORDS.timeBefore };
 }
 
-export function GrowPanel({ block, request, continuation, heading }: {
+export function GrowPanel({ block, request, continuation, method, onMethod, heading }: {
   /** The block the page is about, before its request has loaded. */
   block: number | null;
   request: MaterialRequest | null;
   /** The saved definition the page continues (/train?continue=), or null for a new automaton. */
   continuation: ContinuationSource | null;
+  /** The chosen method: the page owns it, since it decides what the heading says the run trains toward. */
+  method: FigureMethod;
+  onMethod: (method: FigureMethod) => void;
   /** The display and the occurrence, from the page. */
   heading: ReactNode;
 }) {
@@ -163,6 +213,7 @@ export function GrowPanel({ block, request, continuation, heading }: {
     if (!settings || adopted.current === settings) return;
     adopted.current = settings;
     setKind(settings.kind);
+    if (!settings.continuation) onMethod(settings.method);
     setStopAtFirstFire(settings.stopAtFirstFire);
   }, [settings]);
   // While the page shows the run, the corner tray need not.
@@ -172,6 +223,9 @@ export function GrowPanel({ block, request, continuation, heading }: {
     return () => trainRun.showOnPage(false);
   }, [ours]);
   const runKind = continuation ? continuedKind(continuation, kind) : kind;
+  // A continuation trains by its definition's method.
+  const runMethod = continuation ? continuation.objective.method : method;
+  const rule = keepRule(runMethod, continuation !== null, RUNS);
   // A held run (stopped, or ended with its live grid) trains on at its own batch size. A continuation
   // keeps its definition's. Otherwise the person's choice, or the preset.
   const held = settings !== null && record.active;
@@ -179,15 +233,17 @@ export function GrowPanel({ block, request, continuation, heading }: {
   // After a run at 4 took the page or the device down, the preset is 1, and the hint says why.
   const fallback = !continuation && !held && chosenBatch === null && runBatch === LIGHT_BATCH ? batchFallback() : null;
   const fallbackNote = fallback ? (fallback.reason === "reload" ? WORDS.fallbackReload : WORDS.fallbackDevice) : null;
-  const [advancedOpen, setAdvancedOpen] = useState(fallbackNote !== null);
+  // A batch fallback opens Advanced, whose hint says why.
+  const [face, setFace] = useState<ChoiceFace>(() => fallbackNote !== null ? "advanced" : "kind");
   useEffect(() => {
-    if (fallbackNote) setAdvancedOpen(true);
+    if (fallbackNote) setFace("advanced");
   }, [fallbackNote]);
   const chooseBatch = (batch: BatchSize) => {
     clearBatchFallback();
     setChosenBatch(batch);
   };
-  const chosen = { kind: runKind, stopAtFirstFire, continuation, batch: runBatch };
+  // A set method trains to the end: the stop check does not apply (keepRule).
+  const chosen = { kind: runKind, method: runMethod, stopAtFirstFire: stopAtFirstFire && rule.keepsFirstFire, continuation, batch: runBatch };
   const changed = settings !== null && changedFromRun(settings, chosen);
   const primary = primaryAction(state, changed);
   const open = choicesOpen(state);
@@ -196,6 +252,9 @@ export function GrowPanel({ block, request, continuation, heading }: {
   const resultFile = result ? run.files.get(result.id) : undefined;
   // The frame and the status name what the frame shows: the run's kind while its worker plays it.
   const shownKind = settings && record.active ? settings.kind : runKind;
+  const shownMethod = settings && record.active ? settings.method : runMethod;
+  // A result is offered to publish when it met the selection target, or, for a set method, always (keepRule).
+  const publishable = result !== undefined && (result.fired || !keepRule(shownMethod, settings?.continuation != null, RUNS).publishesOnlyFired);
   const ready = request?.anchor !== undefined && request.mode !== "plant";
   const time = growTime(record, settings, chosen, primary);
 
@@ -250,7 +309,7 @@ export function GrowPanel({ block, request, continuation, heading }: {
   let runLine: ReactNode;
   if (primary === "open" || primary === "resume") {
     runLine = <div className="grow-publish">
-      {resultFile && result?.fired && <PublishMaterial key={resultFile.id} file={resultFile} />}
+      {resultFile && publishable && <PublishMaterial key={resultFile.id} file={resultFile} />}
       {/* After Stop, Resume is the primary; after a run's end, a word here, since opening the result is the likelier step. */}
       {primary === "open" && record.progress && <button type="button" className="button" onClick={trainRun.resumeTraining}>
         {fill(WORDS.trainFurther, { updates: resumeUpdates(record.progress).toLocaleString("en-US") })}
@@ -260,6 +319,8 @@ export function GrowPanel({ block, request, continuation, heading }: {
     runLine = <div className="grow-publish">
       <button type="button" className="button" onClick={trainRun.keep}>{WORDS.keepRun}</button>
     </div>;
+  } else if (!rule.keepsFirstFire) {
+    runLine = <p className="grow-stop-check grow-run-note">{fill(WORDS.trainsToEnd, { updates: FIGURE_UPDATES.toLocaleString("en-US") })}</p>;
   } else {
     runLine = <label className="grow-stop-check">
       <input type="checkbox" checked={stopAtFirstFire} disabled={!open} onChange={(event) => setStopAtFirstFire(event.target.checked)} />
@@ -288,9 +349,10 @@ export function GrowPanel({ block, request, continuation, heading }: {
     <aside className="grow-side" aria-label={WORDS.title}>
       {heading}
       {coSelection ? <CoSelectedPictures coSelection={coSelection} region={readingRegion(shownKind)} />
-        : <ChoiceFaces advancedOpen={advancedOpen} onAdvanced={setAdvancedOpen}
-          choices={<KindChoices kind={runKind} open={open} ruleFixed={continuation !== null} onChange={setKind} />}
-          advanced={<AdvancedChoices batch={!open && settings ? settings.batch : runBatch} note={fallbackNote}
+        : <ChoiceFaces face={face} onFace={setFace} methodName={WORDS.methodToggle[runMethod]}
+          kind={<KindChoices kind={runKind} open={open} ruleFixed={continuation !== null} onChange={setKind} />}
+          method={<MethodChoices method={runMethod} open={open} fixedMethod={continuation !== null} onChange={onMethod} />}
+          advanced={<AdvancedChoices batch={!open && settings ? settings.batch : runBatch} method={runMethod} note={fallbackNote}
             fixed={continuation ? WORDS.continuedBatch : open ? undefined : WORDS.stop} onBatch={chooseBatch} />} />}
       <TimeLine time={time.time} template={time.template} />
       {runLine}

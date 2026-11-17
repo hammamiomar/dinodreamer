@@ -12,7 +12,7 @@ const anchor: MaterialAnchor = {
   source: "library", imageId: 7, slot: 40, code: [1, 2, 3], band: "strongest", norm: 2, strength: { ring: 1, cuts: [1.2, 1.5, 1.8], maximum: 3 },
 };
 const request: MaterialRequest = { block: 12002, points: [], anchor };
-const choices = { kind: { rule: "cell", start: "noise" }, stopAtFirstFire: false, continuation: null, picture: null, batch: 4 } as const;
+const choices = { kind: { rule: "cell", start: "noise" }, method: "basis-group-mean", stopAtFirstFire: false, continuation: null, picture: null, batch: 4 } as const;
 /** The tab's record of a run, as calls. */
 function fakeRunRecord() {
   const calls: string[] = [];
@@ -72,9 +72,9 @@ describe("the site's Train run (train-run.ts)", () => {
       runRecord: fakeRunRecord(),
     });
     run.start(request, { ...choices, batch: chosenBatch });
-    expect(start.mock.lastCall?.[3]).toBe(chosenBatch);
+    expect(start.mock.lastCall?.[5]).toBe(chosenBatch);
     run.start(request, { ...choices, batch: chosenBatch, continuation: source });
-    expect(start.mock.lastCall?.[3]).toBe(savedBatch);
+    expect(start.mock.lastCall?.[5]).toBe(savedBatch);
     expect(run.state().settings?.batch).toBe(savedBatch);
   });
 
@@ -111,8 +111,8 @@ describe("the site's Train run (train-run.ts)", () => {
     expect(workers.made[0]!.calls).toEqual(["start"]);
     expect(run.state().settings).toMatchObject({ request, kind: choices.kind, stopAtFirstFire: false });
     expect(run.state().record.active).toBe(true);
-    workers.made[0]!.say({ type: "run", run: 1, runs: 3, seed: 1 });
-    expect(run.state().record.run).toEqual({ run: 1, runs: 3 });
+    workers.made[0]!.say({ type: "run", run: 1, runs: 3, seed: 1, method: "basis-group-mean" });
+    expect(run.state().record.run).toEqual({ run: 1, runs: 3, method: "basis-group-mean" });
     expect(changes).toHaveBeenCalled();
   });
 
@@ -150,7 +150,7 @@ describe("the site's Train run (train-run.ts)", () => {
     run.start({ ...request, block: 9759 }, choices);
     expect(workers.made[0]!.calls).toEqual(["start", "dispose"]);
     expect(run.state().settings?.request.block).toBe(9759);
-    workers.made[0]!.say({ type: "run", run: 2, runs: 3, seed: 2 });
+    workers.made[0]!.say({ type: "run", run: 2, runs: 3, seed: 2, method: "basis-group-mean" });
     expect(run.state().record.run).toBeNull();
     run.end();
     expect(workers.made[1]!.calls.at(-1)).toBe("dispose");

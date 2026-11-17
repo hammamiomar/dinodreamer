@@ -35,6 +35,10 @@ describe("material stage wording", () => {
   it("sends 'Train another variation' to Train with the automaton's kind", () => {
     expect(growVariationPath(entry)).toBe("/train?block=12002&rule=cell&start=noise");
     expect(growVariationPath({ ...entry, layout: "figure-pyramid-16-96-torus-v1", start: "centre-disc" })).toBe("/train?block=12002&rule=pyramid&start=centre-disc");
+    // A set method's place names its method; a place Train does not train leaves the default.
+    expect(growVariationPath({ ...entry, gallery: { start: "noise", method: "token-distribution" } }))
+      .toBe("/train?block=12002&rule=cell&start=noise&method=token-distribution");
+    expect(growVariationPath({ ...entry, gallery: { start: "noise", method: "basis-group-mean-guided" } })).toBe("/train?block=12002&rule=cell&start=noise");
     expect(growVariationPath({ ...entry, pixelsPerCell: 2 })).toBe("/train?block=12002&rule=cell&start=noise");
   });
 

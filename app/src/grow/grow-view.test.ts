@@ -6,18 +6,18 @@ import {
   type GrowOutcome, type GrowRecord, type GrowState,
 } from "./grow-view";
 
-const progress = { completed: 300, total: 1000, trainingMs: 120000, readerChunks: 32 };
+const progress = { completed: 300, total: 1000, trainingMs: 120000, readerChunks: 32, methodLoss: 0.012 };
 const reading = { strength: 1.58, winnerFraction: 1, selectedPatches: new Uint8Array(64).fill(1), coSelection: { readPatches: 64, top: [], requested: { group: 12002, rank: 1, patches: 64, positionSum: 64 } } };
 const firstFire: GrowOutcome = { id: "first", run: 1, stage: "first fire", fired: true, saved: true, updates: 250 };
 const finalFired: GrowOutcome = { id: "final", run: 1, stage: "final", fired: true, saved: true, updates: 1000 };
-const training: GrowRecord = { ...NO_RECORD, active: true, phase: "training", run: { run: 1, runs: 3 }, progress, reading };
+const training: GrowRecord = { ...NO_RECORD, active: true, phase: "training", run: { run: 1, runs: 3, method: "basis-group-mean" }, progress, reading };
 
 describe("the state table", () => {
   const rows: [string, GrowRecord, GrowState][] = [
     ["nothing started", NO_RECORD, "idle"],
     ["the worker loads the model", { ...NO_RECORD, active: true, phase: "loading" }, "loading"],
     ["updates arrive", training, "training"],
-    ["the next seed starts, before its first update", { ...training, run: { run: 2, runs: 3 }, progress: null, reading: null }, "training"],
+    ["the next seed starts, before its first update", { ...training, run: { run: 2, runs: 3, method: "basis-group-mean" }, progress: null, reading: null }, "training"],
     ["the run's first fire is kept and training goes on", { ...training, outcomes: [firstFire] }, "fired"],
     ["the final rule grows to tick 600 after a first fire", { ...training, phase: "finishing", outcomes: [firstFire] }, "fired"],
     ["a run's last update did not meet the target and its rule grows while the person decides", { ...training, phase: "retry" }, "retry"],
@@ -28,7 +28,7 @@ describe("the state table", () => {
   for (const [name, record, state] of rows) it(`${name}: ${state}`, () => expect(growState(record)).toBe(state));
 
   it("a first fire of an earlier run does not make a later run fired", () => {
-    expect(growState({ ...training, run: { run: 2, runs: 3 }, outcomes: [{ ...firstFire, run: 1, fired: false }] })).toBe("training");
+    expect(growState({ ...training, run: { run: 2, runs: 3, method: "basis-group-mean" }, outcomes: [{ ...firstFire, run: 1, fired: false }] })).toBe("training");
   });
 });
 
@@ -101,14 +101,14 @@ describe("the record", () => {
     let record: GrowRecord = { ...NO_RECORD, active: true };
     record = recordEvent(record, { type: "phase", phase: "loading", message: "Loading the training models · 3/14" });
     expect(record.phaseMessage).toBe("Loading the training models · 3/14");
-    record = recordEvent(record, { type: "run", run: 1, runs: 3, seed: 20273024 });
+    record = recordEvent(record, { type: "run", run: 1, runs: 3, seed: 20273024, method: "basis-group-mean" });
     record = recordEvent(record, { type: "phase", phase: "training", message: "Preparing the first training update…" });
-    expect([record.run, growState(record)]).toEqual([{ run: 1, runs: 3 }, "loading"]);
-    record = recordEvent(record, { type: "progress", progress: { completed: 25, trainingMs: 9875, readerChunks: 26 } as never });
+    expect([record.run, growState(record)]).toEqual([{ run: 1, runs: 3, method: "basis-group-mean" }, "loading"]);
+    record = recordEvent(record, { type: "progress", progress: { completed: 25, trainingMs: 9875, readerChunks: 26, methodLoss: 0.5 } as never });
     expect(growState(record)).toBe("training");
     record = recordEvent(record, { type: "reading", reading: { ...reading, band: "strongest", seed: 9317, tick: 200, rule: "training", completed: 25, elapsedMs: 0, readMs: 60 } });
-    expect([record.progress, record.reading]).toEqual([{ completed: 25, trainingMs: 9875, readerChunks: 26 }, reading]);
-    record = recordEvent(record, { type: "run", run: 2, runs: 3, seed: 20273025 });
+    expect([record.progress, record.reading]).toEqual([{ completed: 25, trainingMs: 9875, readerChunks: 26, methodLoss: 0.5 }, reading]);
+    record = recordEvent(record, { type: "run", run: 2, runs: 3, seed: 20273025, method: "basis-group-mean" });
     expect([record.progress, record.reading]).toEqual([null, null]);
   });
 
@@ -123,7 +123,7 @@ describe("the record", () => {
     const held = recordEvent(training, { type: "phase", phase: "retry", message: "" });
     expect(growState(held)).toBe("retry");
     expect(growState(recordEvent(held, { type: "phase", phase: "live", message: "" }))).toBe("done");
-    const next = recordEvent(recordEvent(held, { type: "run", run: 2, runs: 3, seed: 2 }), { type: "phase", phase: "training", message: "" });
+    const next = recordEvent(recordEvent(held, { type: "run", run: 2, runs: 3, seed: 2, method: "basis-group-mean" }), { type: "phase", phase: "training", message: "" });
     expect([growState(next), next.progress, next.reading]).toEqual(["training", null, null]);
   });
 });

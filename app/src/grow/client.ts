@@ -1,3 +1,4 @@
+import type { FigureLayer, FigureMethod } from "../materials/material-file";
 import type { MaterialRequest } from "../recipe";
 import type { ReleaseLocation } from "../synthesis/protocol";
 import type { ContinuationChange, ContinuationSource } from "./continuation";
@@ -11,9 +12,9 @@ export class GrowClient {
     this.worker.onmessage = ({ data }: MessageEvent<GrowEvent>) => onEvent(data);
     this.worker.onerror = (event) => onEvent({ type: "error", message: event.message });
   }
-  start(request: MaterialRequest, release: ReleaseLocation, kind: MaterialKind, batch: 1 | 4, stopAtFirstFire: boolean,
-    continuation?: { source: ContinuationSource; change: ContinuationChange }) {
-    this.send({ type: "start", request, release, kind, batch, stopAtFirstFire, ...(continuation ? { continuation } : {}) });
+  start(request: MaterialRequest, release: ReleaseLocation, kind: MaterialKind, method: FigureMethod, layers: FigureLayer[], batch: 1 | 4,
+    stopAtFirstFire: boolean, continuation?: { source: ContinuationSource; change: ContinuationChange }) {
+    this.send({ type: "start", request, release, kind, method, layers, batch, stopAtFirstFire, ...(continuation ? { continuation } : {}) });
   }
   stop() { this.send({ type: "stop" }); }
   resumeTraining() { this.send({ type: "resume-training" }); }

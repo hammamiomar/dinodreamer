@@ -1,14 +1,18 @@
-import { BrowserEngine, type BrowserFigure, type BrowserFigureGrid } from "dinodreamer-engine";
+import { BrowserEngine, type BrowserFigure, type BrowserFigureGrid, type BrowserFigureSet } from "dinodreamer-engine";
 import { initializeEngine } from "../app/engine-wasm";
 import { ENGINE_BUILD_NAME } from "../app/config";
 import { AssetLoader, blockPath, fetchModelRelease, type ModelRelease } from "../synthesis/assets";
 import { decodeReaderIndex, type ReaderChunk } from "../reader/assets";
 import { LOOK_CLOUDS_PATH, decodeLookSummary } from "../library/look-cloud";
-import type { FigureReading } from "../materials/material-file";
+import { STRONGEST_CLOUDS_PATH, readStrongestRows } from "../library/full-cloud";
+import { openLibrary } from "../library/library";
+import { methodNeedsSet, type FigureReading, type FigureTargetSet, type SetPicture } from "../materials/material-file";
 import {
-  CHECKPOINT_EVERY, HOLD_TICK, LIVE_SEED, READING_TICK, RESUME_UPDATES, afterRun, continuedInput, engineRequest, figureInput, figureMaterial,
-  fired, firstFire, firstFireCondition, plannedRuns, readPatches, strengthBand, type FigureInput, type KeptStage,
+  CHECKPOINT_EVERY, HOLD_TICK, LIVE_SEED, READING_TICK, RESUME_UPDATES, RUNS, afterRun, continuedInput, engineRequest, figureInput, figureMaterial,
+  fired, firstFire, firstFireCondition, plannedRuns, readPatches, strengthBand, type FigureInput, type FigureObjective, type KeptStage,
 } from "./figure-recipe";
+import { fetchSetPictures, resolveTargetSet, targetSetRecord } from "./target-set";
+import { keepRule } from "./train-method";
 import { coSelection, type CoSelectedColumns } from "./co-selection";
 import type { MaterialKind } from "./material-kind";
 import { adapterUnavailable, type Checkpoint, type GrowCommand, type GrowEvent, type GrowProgress, type LiveReading, type LiveRule } from "./protocol";
@@ -174,6 +178,8 @@ interface Session {
   training: BrowserFigure;
   input: FigureInput;
   run: number;
+  /** Whether the run keeps its first fire (keepRule): basis-group mean matching does, a set method does not. */
+  keepsFirstFire: boolean;
   /** Sum of complete update calls, over every Resume. */
   trainingMs: number;
   firstKept: boolean;
@@ -184,6 +190,13 @@ interface Session {
 /** How a stretch of training ended: at the run's target update, by the person's Stop, or at its first fire (`stopAtFirstFire`). */
 type TrainingEnd = "target" | "stop" | "first fire";
 
+/** How a set method trained, for the kept note: its loss, its layers and its set; nothing for basis-group mean matching. */
+function objectiveNote({ method, layers, set }: FigureObjective): string {
+  if (!set) return "";
+  const where = layers.length > 0 ? ` at ${layers.join(", ")}` : "";
+  return `; trained by ${method}${where} toward ${set.pictures.length} pictures of the group's strongest rows, the ${set.neighbourhood} tokens around each patch`;
+}
+
 /** A kept file from a rule and its tick-600 reading on the replay grid (null: the grid left the finite range). */
 async function material(input: FigureInput, run: number, stage: KeptStage, values: Float32Array, reading: LiveReading | null,
   pixels: Uint8ClampedArray, completed: number, trainingMs: number) {
@@ -193,6 +206,7 @@ async function material(input: FigureInput, run: number, stage: KeptStage, value
     side: 128, seed: reading.seed, tick: reading.tick,
     note: `${stage === "first fire" ? "First fire" : "Final rule"}: update ${completed} of run ${run} (training seed ${input.seed})`
       + (stage === "first fire" ? `, the first checkpoint whose rule ${firstFireCondition(input.kind)}` : "")
+      + objectiveNote(input.objective)
       + `; ${where}, the 8-bit picture untransformed; ${readPatches(input.kind)}; strength = mean u·c/m, u the training target's direction; wins: fewer than 32 of 16,384 blocks stronger.`
       + (fired(reading) ? "" : " Did not fire: wins below 90 %."),
   } : {
@@ -221,7 +235,8 @@ async function train(session: Session, live: BrowserFigureGrid, reader: ReaderLo
     const update = training.completed();
     const progress: GrowProgress = {
       run, completed: update, total: training.target(), batch: input.batch, trainingMs: session.trainingMs, updateMs,
-      elapsedMs: performance.now() - began, loss: result.loss, codeLoss: result.codeLoss, overflow: result.overflow,
+      elapsedMs: performance.now() - began, loss: result.loss, method: result.method, methodLoss: result.methodLoss, codeLoss: result.codeLoss,
+      overflow: result.overflow,
       stateMax: result.stateMax, pictureContrast: result.pictureContrast, learningRate: result.learningRate, readerChunks: reader.loaded,
       usedBytes: result.usedBytes, reservedBytes: result.reservedBytes,
     };
@@ -239,7 +254,7 @@ async function train(session: Session, live: BrowserFigureGrid, reader: ReaderLo
     if (update % CHECKPOINT_EVERY === 0 && update < training.target()) {
       await reader.finish();
       const point = await checkpoint(values, input, run, update, began);
-      if (point?.first && !session.firstKept) {
+      if (point?.first && session.keepsFirstFire && !session.firstKept) {
         session.firstKept = true;
         const file = await material(input, run, "first fire", values, point.reading, point.pixels, update, session.trainingMs);
         send({ type: "material", file, run, stage: "first fire", fired: true });
@@ -353,15 +368,43 @@ async function holdRun(session: Session, live: BrowserFigureGrid, reader: Reader
 /**
  * The trainer of one run: from the random initialization of the input's seed, or, for a continuation,
  * from the saved definition's rule with a fresh optimizer and pool, RESUME_UPDATES on when the
- * definition was saved at or past its last update.
+ * definition was saved at or past its last update. A set method trains on its prepared set.
  */
-function createTraining(input: FigureInput, command: Extract<GrowCommand, { type: "start" }>): BrowserFigure {
+function createTraining(input: FigureInput, command: Extract<GrowCommand, { type: "start" }>, set: BrowserFigureSet | null): BrowserFigure {
   const request = JSON.stringify(engineRequest(input));
-  if (!command.continuation) return engine!.create_figure(request);
+  if (!command.continuation) return set ? engine!.create_figure_on_set(request, set) : engine!.create_figure(request);
   const { source } = command.continuation;
-  const training = engine!.create_figure_continued(request, source.values, source.fromUpdate);
+  const training = set
+    ? engine!.create_figure_continued_on_set(request, set, source.values, source.fromUpdate)
+    : engine!.create_figure_continued(request, source.values, source.fromUpdate);
   if (training.completed() >= training.target()) training.extend(RESUME_UPDATES);
   return training;
+}
+
+/**
+ * A set method's target set (target-set.ts): the continued definition's own pictures, or the group's
+ * 33 strongest distinct public pictures; their previews fetched, a picture that cannot be fetched
+ * dropped, and the rest prepared by the engine in one DINO pass. The record names the pictures it
+ * prepared, in set order. The block's frame must be loaded.
+ */
+async function prepareTargetSet(input: FigureInput, saved: FigureTargetSet | null, location: { baseUrl: string; release: string }) {
+  phase("loading", "Finding the target set's pictures…");
+  const library = await openLibrary(location);
+  let pictures: SetPicture[];
+  if (saved) {
+    pictures = saved.pictures;
+  } else {
+    const strongest = await readStrongestRows(fetch, `${location.baseUrl}/${STRONGEST_CLOUDS_PATH}/${input.block}.bin`, input.block);
+    if (!strongest) throw new Error(`Basis group ${input.block} has no strongest rows to take a target set from.`);
+    pictures = resolveTargetSet(strongest.rows);
+  }
+  const fetched = await fetchSetPictures(pictures, (imageId) => library.previewUrl(imageId), fetch,
+    (answered) => phase("loading", `Fetching the target set's pictures · ${answered}/${pictures.length}`));
+  if (fetched.pictures.length === 0) throw new Error("None of the target set's pictures could be fetched.");
+  phase("loading", `Preparing the target set: ${fetched.pictures.length} pictures through DINO…`);
+  const patches = Uint32Array.from(fetched.pictures, (picture) => picture.patch);
+  const set = await engine!.prepare_figure_set(JSON.stringify(engineRequest(input)), fetched.pngs, patches);
+  return { set, record: targetSetRecord(fetched.pictures) };
 }
 
 /**
@@ -378,31 +421,43 @@ async function grow(command: Extract<GrowCommand, { type: "start" }>) {
     await assets.bytes(`${LOOK_CLOUDS_PATH}/summaries/${command.request.block}.json`))));
   if (summary.release !== release.release) throw new Error("The basis group summary belongs to a different release.");
   const dictionaryId = release.dictionary.replace(/^model\//, "").replace(/\/$/, "");
-  let input = figureInput(command.request, summary, dictionaryId, command.kind, command.batch);
-  send({ type: "input", anchor: input.anchor, medianNorm: input.medianNorm, direction: input.direction, batch: input.batch });
-  await loadModel(release, assets, input.block);
-  phase("loading", "Preparing the training grid…");
-  const index = decodeReaderIndex(JSON.parse(new TextDecoder().decode(await assets.bytes(`${release.dictionary}reader.json`))), release);
-  const reader = new ReaderLoad(index.files, assets);
   const continuation = command.continuation;
   if (continuation && continuation.source.dictionaryId !== dictionaryId) {
     throw new Error("This automaton definition belongs to another basis collection than this release's.");
   }
+  // A continuation trains toward what its definition trained toward; a new run toward the chosen method.
+  const chosen: FigureObjective = continuation?.source.objective ?? { method: command.method, layers: command.layers, set: null };
+  let input = figureInput(command.request, summary, dictionaryId, command.kind, command.batch, 1, { ...chosen, set: null });
+  send({ type: "input", anchor: input.anchor, medianNorm: input.medianNorm, direction: input.direction, batch: input.batch });
+  await loadModel(release, assets, input.block);
+  let set: BrowserFigureSet | null = null;
+  let objective: FigureObjective = input.objective;
+  if (methodNeedsSet(chosen.method)) {
+    const prepared = await prepareTargetSet(input, chosen.set, { baseUrl: command.release.baseUrl, release: release.release });
+    set = prepared.set;
+    objective = { ...input.objective, set: prepared.record };
+  }
+  phase("loading", "Preparing the training grid…");
+  const index = decodeReaderIndex(JSON.parse(new TextDecoder().decode(await assets.bytes(`${release.dictionary}reader.json`))), release);
+  const reader = new ReaderLoad(index.files, assets);
   const live = replayGrid(input.kind);
-  const runs = plannedRuns(continuation !== undefined);
+  const runs = plannedRuns(continuation !== undefined, objective.method);
+  const rule = keepRule(objective.method, continuation !== undefined, RUNS);
+  // A set method trains to the end (keepRule): it never stops at a first fire.
+  const stopAtFirstFire = command.stopAtFirstFire && rule.keepsFirstFire;
   let session: Session | null = null;
   try {
     for (let run = 1; run <= runs; run++) {
-      input = figureInput(command.request, summary, dictionaryId, command.kind, command.batch, run);
+      input = figureInput(command.request, summary, dictionaryId, command.kind, command.batch, run, objective);
       if (continuation) input = continuedInput(input, continuation.source, continuation.change);
-      send({ type: "run", run, runs, seed: input.seed });
+      send({ type: "run", run, runs, seed: input.seed, method: objective.method });
       phase("training", run === 1 ? "Preparing the first training update…" : "Training on this device");
       // A new run frees the run before it; cleared first, so the finally below never frees it twice.
       session?.training.free();
       session = null;
-      const training = createTraining(input, command);
-      session = { training, input, run, trainingMs: 0, firstKept: false, kept: null };
-      const end = await trainWithStops(session, live, reader, began, command.stopAtFirstFire);
+      const training = createTraining(input, command, set);
+      session = { training, input, run, keepsFirstFire: rule.keepsFirstFire, trainingMs: 0, firstKept: false, kept: null };
+      const end = await trainWithStops(session, live, reader, began, stopAtFirstFire);
       if (end === "first fire") {
         // The live grid already grows the first-fire rule; it starts again from the seed's start.
         live.restart(LIVE_SEED);
@@ -411,7 +466,7 @@ async function grow(command: Extract<GrowCommand, { type: "start" }>) {
       // A Stop at the target update has kept this rule already.
       await keepUnkept(session, live, reader, began);
       const reading = session.kept!.reading;
-      if (continuation || afterRun(run, session.firstKept || fired(reading)) !== "retry") break;
+      if (afterRun(run, runs, session.firstKept || fired(reading)) !== "retry") break;
       // The person chooses: the next seed, or this rule as the result, which holdRun grows.
       phase("retry", `Run ${run} did not meet the selection target (selection fraction ${Math.round((reading.winnerFraction ?? 0) * 100)} % at step ${READING_TICK}). `
         + `Restart from the next seed, or keep this automaton.`);
@@ -419,9 +474,10 @@ async function grow(command: Extract<GrowCommand, { type: "start" }>) {
       if (choice === "keep") break;
       live.restart(LIVE_SEED);
     }
-    await holdRun(session!, live, reader, began, command.stopAtFirstFire);
+    await holdRun(session!, live, reader, began, stopAtFirstFire);
   } finally {
     session?.training.free();
+    set?.free();
     live.free();
   }
 }
