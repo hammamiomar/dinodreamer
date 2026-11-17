@@ -140,6 +140,12 @@ export type GrowEvent =
    * which select the group. Readings feed the map too (train-run.ts). `readMs`: the reading's time.
    */
   | { type: "map"; patchCodes: Float32Array; selectedPatches: Uint8Array; tick: number; completed: number; readMs: number }
+  /**
+   * A set method's prepared set, once per run (new or continued): each token's code in the patchCodes space
+   * (N × 3, token n at [3n, 3n + 3), picture-major in set order) and each token's picture index in the set.
+   * A picture brings 9 tokens, or 4 or 6 where its 3 × 3 meets its window's edge. The live map's target.
+   */
+  | { type: "set"; codes: Float32Array; tokenPictures: Uint16Array }
   | { type: "material"; file: FigureMaterialFile; run: number; stage: KeptStage; fired: boolean }
   /** `deviceLost`: WebGPU lost the device, which on a device without room for the run means out of memory. */
   | { type: "error"; message: string; deviceLost?: boolean };

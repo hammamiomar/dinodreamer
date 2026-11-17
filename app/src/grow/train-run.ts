@@ -72,6 +72,15 @@ export interface LiveMap {
   completed: number;
 }
 
+/**
+ * A set method's target set as the live map draws it: each token's code in the patch codes' space (N × 3,
+ * token n at [3n, 3n + 3)) and its picture's index in the set. The worker sends it once the set is prepared.
+ */
+export interface TrainSetTokens {
+  codes: Float32Array;
+  tokenPictures: Uint16Array;
+}
+
 /** The live grid's latest picture: SIDE × SIDE RGBA bytes, one pixel per cell. */
 export interface LiveCells {
   pixels_N4: Uint8ClampedArray;
@@ -105,6 +114,8 @@ export interface TrainRun {
   subscribeLive(listener: () => void): () => void;
   /** The live map's latest reading, with its own listeners, as the frames have. */
   map(): LiveMap | null;
+  /** A set method's run's target set for the live map, kept and cleared with the map, heard by the map's listeners. */
+  setTokens(): TrainSetTokens | null;
   subscribeMap(listener: () => void): () => void;
   /** Starts a new run; a running one ends first. Files it kept stay kept. */
   start(request: MaterialRequest, settings: Omit<GrowSettings, "request">): void;
@@ -139,10 +150,14 @@ export function createTrainRun(dependencies: TrainRunDependencies): TrainRun {
   const listeners = new Set<() => void>();
   const liveListeners = new Set<() => void>();
   let map: LiveMap | null = null;
+  let setTokens: TrainSetTokens | null = null;
   const mapListeners = new Set<() => void>();
+  const notifyMap = () => {
+    for (const listener of mapListeners) listener();
+  };
   const setMap = (next: LiveMap | null) => {
     map = next;
-    for (const listener of mapListeners) listener();
+    notifyMap();
   };
 
   const update = (change: Partial<TrainRunState>) => {
@@ -187,6 +202,11 @@ export function createTrainRun(dependencies: TrainRunDependencies): TrainRun {
       setMap({ patchCodes, selectedPatches, tick, completed });
       return;
     }
+    if (event.type === "set") {
+      setTokens = { codes: event.codes, tokenPictures: event.tokenPictures };
+      notifyMap();
+      return;
+    }
     if (event.type === "reading") {
       const { patchCodes, selectedPatches, tick, completed } = event.reading;
       setMap({ patchCodes, selectedPatches, tick, completed });
@@ -220,6 +240,7 @@ export function createTrainRun(dependencies: TrainRunDependencies): TrainRun {
     sampledAt = -1;
     update({ record: NO_RECORD, settings: null, sampled: null, files: new Map(), keepFailure: null });
     notifyLive();
+    setTokens = null;
     setMap(null);
   };
 
@@ -235,6 +256,7 @@ export function createTrainRun(dependencies: TrainRunDependencies): TrainRun {
       return () => liveListeners.delete(listener);
     },
     map: () => map,
+    setTokens: () => setTokens,
     subscribeMap(listener) {
       mapListeners.add(listener);
       return () => mapListeners.delete(listener);
@@ -344,6 +366,11 @@ export function useTrainRun(): TrainRunState {
 /** The live map's latest reading (LiveMap), re-rendering with each; null before the first or with no run. */
 export function useTrainMap(): LiveMap | null {
   return useSyncExternalStore(trainRun.subscribeMap, trainRun.map);
+}
+
+/** A set method's run's target set for the live map (TrainSetTokens); null for basis-group mean and with no run. */
+export function useTrainSet(): TrainSetTokens | null {
+  return useSyncExternalStore(trainRun.subscribeMap, trainRun.setTokens);
 }
 
 /** The live grid's tick, re-rendering with each frame: for the line that counts the steps. */

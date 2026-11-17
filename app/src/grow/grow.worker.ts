@@ -501,6 +501,10 @@ async function grow(command: Extract<GrowCommand, { type: "start" }>) {
     if (!chosen.set || chosen.set.pictures.length === 0) throw new Error("A set method needs a target set of one or more pictures.");
     const prepared = await prepareTargetSet(input, chosen.set, { baseUrl: command.release.baseUrl, release: release.release });
     set = prepared.set;
+    // The live map's target: the set's tokens in the patches' code space.
+    const codes = set.codes();
+    const tokenPictures = set.token_pictures();
+    send({ type: "set", codes, tokenPictures }, [codes.buffer, tokenPictures.buffer]);
     objective = { ...input.objective, set: prepared.record };
   }
   phase("loading", "Preparing the training grid…");

@@ -68,7 +68,8 @@ export function recordEvent(record: GrowRecord, event: GrowEvent): GrowRecord {
     case "checkpoint":
     case "live":
     case "map":
-      // The input and the checkpoints serve the worker; the live pixels go to the canvas, the map's codes to the store's map.
+    case "set":
+      // The input and the checkpoints serve the worker; the live pixels go to the canvas, the map's and the set's codes to the store's map.
       return record;
   }
 }
