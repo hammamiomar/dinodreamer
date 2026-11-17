@@ -16,7 +16,7 @@ describe("the metadata table", () => {
     const rows = metadataRows(entry({ layout: FIGURE_PYRAMID_LAYOUT, start: "centre-disc", region: "centre-4x4", measurementDirection: "training target" }), 800);
     expect(rows.map((row) => [row.label, row.value])).toEqual([
       ["Grids", "coarse + fine"],
-      ["Start", "a circle of noise"],
+      ["Start", "central noise"],
       ["Asked for", "basis-group mean matching"],
       ["Reference patch", "Level 4"],
       ["Projection on the target", "1.14 m"],

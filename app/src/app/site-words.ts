@@ -1134,19 +1134,19 @@ export const SITE_WORDS = {
     methodsTitle: "What it is asked for",
     /** What a screen reader hears for the grid as a whole. {group} is the number. */
     gridName: "The automata of basis group {group}, by where they start and what they were asked for",
-    /** The rows' names: the state an automaton starts from. */
+    /** The rows' names: the state an automaton starts from. Noise and Central noise are Train's names for the same starts (grow/material-kind.ts), by Omar's choice of 17 November 2026. */
     starts: {
-      noise: "Noise everywhere",
-      circle: "A circle of noise",
-      "circle-on-noise": "A circle on faint noise",
+      noise: "Noise",
+      circle: "Central noise",
+      "circle-on-noise": "Central noise on faint noise",
       "circle-anywhere": "A circle placed anywhere",
       drawn: "A drawn start",
     },
     /** The same starts inside the frame's corner line, after nothing: lower case, short. */
     startsInLine: {
-      noise: "noise everywhere",
-      circle: "a circle of noise",
-      "circle-on-noise": "a circle on faint noise",
+      noise: "noise",
+      circle: "central noise",
+      "circle-on-noise": "central noise on faint noise",
       "circle-anywhere": "a circle placed anywhere",
       drawn: "a drawn start",
     },
