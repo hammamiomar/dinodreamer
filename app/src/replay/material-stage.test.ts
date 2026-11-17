@@ -39,6 +39,11 @@ describe("material stage wording", () => {
     expect(growVariationPath({ ...entry, gallery: { start: "noise", method: "token-distribution" } }))
       .toBe("/train?block=12002&rule=cell&start=noise&method=token-distribution");
     expect(growVariationPath({ ...entry, gallery: { start: "noise", method: "basis-group-mean-guided" } })).toBe("/train?block=12002&rule=cell&start=noise");
+    // A token method's depth comes from the loaded file's layers; the default depth is not named.
+    const tokens = { ...entry, gallery: { start: "noise", method: "token-mean" } } as const;
+    expect(growVariationPath(tokens, ["final"])).toBe("/train?block=12002&rule=cell&start=noise&method=token-mean&depth=final-layer");
+    expect(growVariationPath(tokens, ["block-3", "block-6", "block-9", "final"])).toBe("/train?block=12002&rule=cell&start=noise&method=token-mean");
+    expect(growVariationPath(tokens)).toBe("/train?block=12002&rule=cell&start=noise&method=token-mean");
     expect(growVariationPath({ ...entry, pixelsPerCell: 2 })).toBe("/train?block=12002&rule=cell&start=noise");
   });
 

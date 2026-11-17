@@ -163,6 +163,8 @@ export function MaterialStage({ entries, source = PUBLISHED_SOURCE, layout = "pa
   const [selectedId, setSelectedId] = useState(entries[0]?.id);
   const entry = entries.find((candidate) => candidate.id === selectedId) ?? entries[0];
   const [material, setMaterial] = useState<FigureMaterial | null>(null);
+  // A token method's layers, from the loaded file when it is this entry's: "Train a variation" keeps its depth.
+  const loadedLayers = material && entry && material.file.id === entry.materialId ? material.file.recipe.settings.layers : undefined;
   // The grid is chosen by its picture width, so a 2 px material shows at the size of the others.
   const [pictureSide, setPictureSide] = useState<128 | 256>(128);
   const pixelsPerCell = material ? figurePlayback(material.file).pixelsPerCell : 1;
@@ -444,7 +446,7 @@ export function MaterialStage({ entries, source = PUBLISHED_SOURCE, layout = "pa
               <span aria-hidden="true">·</span>
               <button type="button" className="stage-word" aria-expanded={panel === "options"} onClick={() => togglePanel("options")}>{INSTRUMENT_WORDS.options}</button>
             </p>
-            <Link className="button" to={growVariationPath(entry)}>{INSTRUMENT_WORDS.growVariation}</Link>
+            <Link className="button" to={growVariationPath(entry, loadedLayers)}>{INSTRUMENT_WORDS.growVariation}</Link>
           </div>
         </aside>
         {controls}
@@ -458,7 +460,7 @@ export function MaterialStage({ entries, source = PUBLISHED_SOURCE, layout = "pa
   return <section ref={stageElement} className="material-stage" aria-label={WORDS.name}>
     <header className="stage-head">
       <h2>{variationName(entry)}</h2>
-      <p>{readingLine(entry)} · {fill(WORDS.by, { credit: entry.credit || WORDS.anonymous })} · <Link to={growVariationPath(entry)}>{WORDS.growAnother}</Link>
+      <p>{readingLine(entry)} · {fill(WORDS.by, { credit: entry.credit || WORDS.anonymous })} · <Link to={growVariationPath(entry, loadedLayers)}>{WORDS.growAnother}</Link>
         {" · "}<Link to={continueTrainingPath(entry)}>{WORDS.continueTraining}</Link></p>
     </header>
     <div className="stage-body" data-single={entries.length === 1 || undefined}>

@@ -26,22 +26,32 @@ export interface SetCandidate {
 }
 
 /**
- * The set's pictures from candidate patches, by the research's rule: public pictures only; strongest
- * first by the norm of the code, ties in the given order (a stable sort, as the research's); one patch
- * for each distinct picture, its strongest; the first `count`. A pure function of the rows, so a
- * selection and the sample cloud take the same rule.
+ * The research's rule over candidate patches, as their positions in `candidates`, in set order: public
+ * pictures only; strongest first by the norm of the code, ties in the given order (a stable sort, as the
+ * research's); one patch for each distinct picture, its strongest; the first `count`. A pure function of
+ * the rows, so a selection, the sample cloud and Look's send (which keeps these patches) take one rule.
  */
-export function resolveTargetSet(candidates: readonly SetCandidate[], count = SET_PICTURES): SetPicture[] {
-  const strongestFirst = candidates.filter((candidate) => candidate.publicPreview).sort((a, b) => b.norm - a.norm);
-  const pictures: SetPicture[] = [];
+export function setChoice(candidates: readonly SetCandidate[], count = SET_PICTURES): number[] {
+  const strongestFirst = candidates.map((candidate, position) => ({ candidate, position }))
+    .filter(({ candidate }) => candidate.publicPreview)
+    .sort((a, b) => b.candidate.norm - a.candidate.norm);
+  const chosen: number[] = [];
   const taken = new Set<number>();
-  for (const candidate of strongestFirst) {
-    if (pictures.length === count) break;
+  for (const { candidate, position } of strongestFirst) {
+    if (chosen.length === count) break;
     if (taken.has(candidate.imageId)) continue;
     taken.add(candidate.imageId);
-    pictures.push({ imageId: candidate.imageId, patch: candidate.slot - PREFIX_SLOTS });
+    chosen.push(position);
   }
-  return pictures;
+  return chosen;
+}
+
+/** The set's pictures from candidate patches, by setChoice's rule, in set order. */
+export function resolveTargetSet(candidates: readonly SetCandidate[], count = SET_PICTURES): SetPicture[] {
+  return setChoice(candidates, count).map((position) => {
+    const { imageId, slot } = candidates[position]!;
+    return { imageId, patch: slot - PREFIX_SLOTS };
+  });
 }
 
 /**
