@@ -112,6 +112,22 @@ describe("the site's Train run (train-run.ts)", () => {
     expect(run.map()).toBeNull();
   });
 
+  it("keeps a set method's target set with the map, tells the map's listeners, and clears it with the run", () => {
+    const workers = fakeWorkers();
+    const run = createTrainRun({ createClient: workers.createClient, keep: async () => {}, release: { url: "", name: "test" } as never, runRecord: fakeRunRecord() });
+    const heard = vi.fn();
+    run.subscribeMap(heard);
+    run.start(request, choices);
+    expect(run.setTokens()).toBeNull();
+    const codes = new Float32Array(297 * 3).fill(0.25);
+    const tokenPictures = Uint16Array.from({ length: 297 }, (_, token) => Math.floor(token / 9));
+    workers.made[0]!.say({ type: "set", codes, tokenPictures });
+    expect(run.setTokens()).toEqual({ codes, tokenPictures });
+    expect(heard).toHaveBeenCalled();
+    run.end();
+    expect(run.setTokens()).toBeNull();
+  });
+
   it.each([1, 4] as const)("continues a saved batch-%i definition at its recorded batch", (savedBatch) => {
     const material = readFigureMaterial(JSON.parse(readFileSync(
       new URL("../../fixtures/materials/block-12002-figure-strongest-mean-seed-1.material.json", import.meta.url), "utf8",
