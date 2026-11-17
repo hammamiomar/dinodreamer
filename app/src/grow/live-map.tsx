@@ -20,8 +20,13 @@ import "./live-map.css";
 const TRAVEL_MS = 420;
 /** An arrow key turns the map as a drag of this many pixels does. */
 const KEY_TURN_PX = 24;
-/** Sizes in CSS pixels: a cloud row, a patch outside the scored region, a scored patch, a set member, the mean's ring, the target. */
-const SIZE = { row: 1.5, unscored: 2, scored: 3.5, member: 5, mean: 7, target: 11 } as const;
+/**
+ * Sizes in CSS pixels: a cloud row, a patch outside the scored region, a scored patch, a set member (smaller in
+ * a set of more than MANY_MEMBERS tokens, such as a default set's 297, so the set does not cover the cloud), the
+ * mean's ring, the target.
+ */
+const SIZE = { row: 1.5, unscored: 2, scored: 3.5, member: 5, manyMember: 3, mean: 7, target: 11 } as const;
+const MANY_MEMBERS = 40;
 const ARROWS: Record<string, readonly [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
 
 const WORDS = SITE_WORDS.grow.map;
@@ -103,9 +108,10 @@ export function LiveMap({ cloud, strength, target, comparison, shadow, patchCode
     context.strokeStyle = ink2;
     context.lineWidth = 1;
     if (target.length > 1) {
+      const size = target.length > MANY_MEMBERS ? SIZE.manyMember : SIZE.member;
       for (const member of target) {
         const at = place(member);
-        context.strokeRect(Math.round(at.x - SIZE.member / 2) + 0.5, Math.round(at.y - SIZE.member / 2) + 0.5, SIZE.member, SIZE.member);
+        context.strokeRect(Math.round(at.x - size / 2) + 0.5, Math.round(at.y - size / 2) + 0.5, size, size);
       }
     }
     const goal = place(targetMean);
