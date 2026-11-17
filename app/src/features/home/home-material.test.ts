@@ -21,10 +21,10 @@ describe("the home's material", () => {
 
 describe("the kind in words", () => {
   test("names the grids in Train's words, then the start", () => {
-    expect(kindWords(entry({}))).toBe("fine automaton, from noise");
-    expect(kindWords(entry({ start: "centre-disc" }))).toBe("fine automaton, from central noise");
-    expect(kindWords(entry({ layout: FIGURE_PYRAMID_LAYOUT, start: "centre-disc" }))).toBe("coarse + fine automaton, from central noise");
-    expect(kindWords(entry({ pixelsPerCell: 2 }))).toBe("fine automaton at 2 px per cell, from noise");
+    expect(kindWords(entry({}))).toBe("fine automaton, from a noise field");
+    expect(kindWords(entry({ start: "centre-disc" }))).toBe("fine automaton, from a noise disc");
+    expect(kindWords(entry({ layout: FIGURE_PYRAMID_LAYOUT, start: "centre-disc" }))).toBe("coarse + fine automaton, from a noise disc");
+    expect(kindWords(entry({ pixelsPerCell: 2 }))).toBe("fine automaton at 2 px per cell, from a noise field");
   });
 });
 

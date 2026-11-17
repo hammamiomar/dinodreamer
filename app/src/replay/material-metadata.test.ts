@@ -16,7 +16,7 @@ describe("the metadata table", () => {
     const rows = metadataRows(entry({ layout: FIGURE_PYRAMID_LAYOUT, start: "centre-disc", region: "centre-4x4", measurementDirection: "training target" }), 800);
     expect(rows.map((row) => [row.label, row.value])).toEqual([
       ["Grids", "coarse + fine"],
-      ["Start", "central noise"],
+      ["Start", "noise disc"],
       ["Asked for", "basis-group mean matching"],
       ["Reference patch", "Level 4"],
       ["Projection on the target", "1.14 m"],
@@ -37,6 +37,6 @@ describe("the metadata table", () => {
 
   test("says the place the entry carries: a start and a method the file's own fields cannot tell", () => {
     const rows = metadataRows(entry({ start: "centre-disc", gallery: { start: "circle-anywhere", method: "token-distribution" } }), 1000);
-    expect(rows.slice(1, 3).map((row) => row.value)).toEqual(["a circle placed anywhere", "token distribution matching"]);
+    expect(rows.slice(1, 3).map((row) => row.value)).toEqual(["noise disc placed anywhere", "token distribution matching"]);
   });
 });

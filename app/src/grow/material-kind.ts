@@ -21,7 +21,7 @@ export const START_RADIUS = 16;
 /** The seeded field's noise outside the disc, as a share of the start's range: the research recipe's quarter. */
 export const SEEDED_FIELD_AMPLITUDE = 0.25;
 /** Each start's word on the page, by kind; START_CHOICES offers the kinds Train trains today. */
-export const START_WORDS: Record<GrowStart, string> = { noise: "Noise", "centre-disc": "Central noise", "seeded-field": "Seeded field" };
+export const START_WORDS: Record<GrowStart, string> = { noise: "Noise field", "centre-disc": "Noise disc", "seeded-field": "Seeded field" };
 
 /** Rule choices and hints; the relative cost comes from a paired measurement of the two kinds. */
 export const RULE_CHOICES: readonly { value: GrowRule; label: string; hint: string }[] = [
@@ -29,8 +29,8 @@ export const RULE_CHOICES: readonly { value: GrowRule; label: string; hint: stri
   { value: "pyramid", label: "Coarse + fine", hint: "a coarse grid under the fine one: larger structure, about half again the time per update" },
 ];
 export const START_CHOICES: readonly { value: GrowStart; label: string; hint: string }[] = [
-  { value: "noise", label: "Noise", hint: "the automaton as a texture" },
-  { value: "centre-disc", label: "Central noise", hint: "a localized figure in its surroundings; it may dissolve later" },
+  { value: "noise", label: "Noise field", hint: "the automaton as a texture" },
+  { value: "centre-disc", label: "Noise disc", hint: "a localized figure in its surroundings; it may dissolve later" },
 ];
 
 /** Stored recipe names, one per kind: figure, figure-seeded, figure-pyramid, figure-pyramid-seeded, and the seeded field's own. */
@@ -66,7 +66,7 @@ export function readingRegion(kind: MaterialKind): "centre-4x4" | undefined {
   return kind.start === "noise" ? undefined : "centre-4x4";
 }
 
-/** "Coarse + fine · central noise", for the page. */
+/** "Coarse + fine · noise disc", for the page. */
 export function kindLabel(kind: MaterialKind): string {
   const rule = RULE_CHOICES.find((choice) => choice.value === kind.rule)!.label;
   return `${rule} · ${START_WORDS[kind.start].toLowerCase()}`;

@@ -111,9 +111,9 @@ export const SITE_WORDS = {
     /** Added after the grids for an automaton whose picture has 2 px per cell. */
     kindTwoPixels: " at 2 px per cell",
     /** An automaton started from noise in every cell. */
-    kindNoise: "from noise",
+    kindNoise: "from a noise field",
     /** An automaton started from central noise initialization. */
-    kindSeed: "from central noise",
+    kindSeed: "from a noise disc",
     /** The running automaton's name for a screen reader. {block} is the basis group's number. */
     canvasLabel: "Automaton of basis group {block}, running; draw on it to disturb it",
     /** The same canvas where the page gives no brush. */
@@ -731,7 +731,7 @@ export const SITE_WORDS = {
     /** A study's line in the list: {date}, {title} and {count} runs; its question under it. */
     studyLine: "{date} · {title} · {count} runs",
     /** The conditions: start, loss and rule. */
-    starts: { noise: "Noise", "centre-disc": "Centre disc", "seeded-field": "Seeded field" },
+    starts: { noise: "Noise field", "centre-disc": "Noise disc", "seeded-field": "Seeded field" },
     losses: { plain: "Plain", guided: "Guided", "plain-margin": "Plain + margin", other: "Other" },
     /** The patches the loss scores, and the run's other dials. */
     regions: { centre: "Centre 16 tokens", field: "Whole field" },
@@ -893,7 +893,7 @@ export const SITE_WORDS = {
     noAnchor: "This selection has no reference patch, so Train has nothing to aim at. Open the basis group's page, select its patches and press Send to Train: the page then names the reference patch and its response level.",
     /** The label over the first choice (Fine, Coarse + fine); each option's hint is in grow/material-kind.ts. */
     rule: "Grids",
-    /** The label over the second choice (Noise, Central noise). */
+    /** The label over the second choice (Noise field, Noise disc). */
     start: "Start",
     /** The check above the primary. The first accepted checkpoint: the first checkpoint whose cellular model meets the selection target at simulation step 600, and for a noise start again at step 2,000. */
     stopAtFirstFire: "Stop at the first accepted checkpoint",
@@ -1009,8 +1009,8 @@ export const SITE_WORDS = {
     /** An automaton's kind, in the head beside the basis group's number and on a tile's two lines: its grids, then the start. */
     ruleFine: "fine",
     ruleCoarseFine: "coarse + fine",
-    startNoise: "noise",
-    startSeeded: "central noise",
+    startNoise: "noise field",
+    startSeeded: "noise disc",
     startSeededField: "seeded field",
     /** After the grids on a tile, for an automaton at 2 px per cell: "fine · 2 px". */
     twoPixelsShort: "2 px",
@@ -1134,20 +1134,20 @@ export const SITE_WORDS = {
     methodsTitle: "What it is asked for",
     /** What a screen reader hears for the grid as a whole. {group} is the number. */
     gridName: "The automata of basis group {group}, by where they start and what they were asked for",
-    /** The rows' names: the state an automaton starts from. Noise and Central noise are Train's names for the same starts (grow/material-kind.ts), by Omar's choice of 17 November 2026. */
+    /** The rows' names: the state an automaton starts from. Noise field and Noise disc are Train's names for the same starts (grow/material-kind.ts), by Omar's choice of 17 November 2026. */
     starts: {
-      noise: "Noise",
-      circle: "Central noise",
-      "circle-on-noise": "Central noise on faint noise",
-      "circle-anywhere": "A circle placed anywhere",
+      noise: "Noise field",
+      circle: "Noise disc",
+      "circle-on-noise": "Noise disc on faint noise",
+      "circle-anywhere": "Noise disc placed anywhere",
       drawn: "A drawn start",
     },
     /** The same starts inside the frame's corner line, after nothing: lower case, short. */
     startsInLine: {
-      noise: "noise",
-      circle: "central noise",
-      "circle-on-noise": "central noise on faint noise",
-      "circle-anywhere": "a circle placed anywhere",
+      noise: "noise field",
+      circle: "noise disc",
+      "circle-on-noise": "noise disc on faint noise",
+      "circle-anywhere": "noise disc placed anywhere",
       drawn: "a drawn start",
     },
     /** The two bands over the columns: the space the comparison is made in. */
@@ -1185,7 +1185,7 @@ export const SITE_WORDS = {
     /** The "?" beside the grid's titles opens this explanation, a few short paragraphs. */
     gridExplainSubject: "the grid",
     gridExplanation: [
-      "A row is the state an automaton starts from: noise in every cell, or a circle of noise in the center, alone or on faint noise.",
+      "A row is the state an automaton starts from: a noise field, with noise in every cell, or a noise disc at the center, alone or on faint noise.",
       "A column is what its training asked for. Basis-group matching compares the three numbers a basis group reads from each patch. Token matching compares DINO's whole token, 768 numbers. Mean matching asks the image's patches to give the target on average. Distribution matching asks them to be spread like the group's strongest patches. A guide also holds units inside DINO at the levels they have on the group's real images, for the first part of training.",
       "Two trainings with the same row and column give different automata. Those are the tries of a cell.",
       "An empty square means that no automaton was trained that way for this basis group.",

@@ -17,7 +17,7 @@ export const REGROW_AT_TICK = 2000;
 /** The replay draws at most this many canvas pixels per cell (figure-replay.ts, checkScale). */
 const MOST_PIXELS_PER_CELL = 8;
 
-/** "fine automaton, from central noise": the grids in the Train page's words, then the start (site-words.ts, home.kind). */
+/** "fine automaton, from a noise disc": the grids in the Train page's words, then the start (site-words.ts, home.kind). */
 export function kindWords(entry: Pick<MaterialEntry, "layout" | "start" | "pixelsPerCell">): string {
   const words = SITE_WORDS.home;
   const rule = RULE_CHOICES.find((choice) => choice.value === (entry.layout === FIGURE_PYRAMID_LAYOUT ? "pyramid" : "cell"))!.label.toLowerCase();

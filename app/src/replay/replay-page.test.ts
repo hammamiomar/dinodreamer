@@ -30,7 +30,7 @@ describe("standalone replay page", () => {
     const html = replayPageHtml(seeded);
     expect(html).toContain('const playback = {"hiddenNoise":0,"startDisc":16,"startBackground":0,"pixelsPerCell":1};');
     expect(replayPageHtml(kept())).toContain('const playback = {"hiddenNoise":0,"startDisc":0,"startBackground":0,"pixelsPerCell":1};');
-    expect(materialLine(seeded)).toMatch(/^Basis group 2632 · one grid · central noise start · [\d,]+ optimizer updates$/);
+    expect(materialLine(seeded)).toMatch(/^Basis group 2632 · one grid · noise disc start · [\d,]+ optimizer updates$/);
     expect(materialLine(kept())).toMatch(/^Basis group 12002 · one grid · [\d,]+ optimizer updates$/);
     // The saved note is in the embedded definition, not on the page.
     expect(html).not.toContain('class="note"');

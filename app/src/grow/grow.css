@@ -555,7 +555,7 @@
     row-gap: calc(2 * var(--patch));
   }
 
-  /* The first option a little under half, the second the rest, so "Central noise" fits a 352 px column. */
+  /* The first option a little under half, the second the rest, so "Noise field" fits a 352 px column. */
   .grow-field .segmented {
     grid-template-columns: round(down, 45%, var(--patch)) minmax(0, 1fr);
   }
