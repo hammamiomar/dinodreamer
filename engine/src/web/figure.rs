@@ -184,6 +184,17 @@ impl BrowserEngine {
 
 #[wasm_bindgen]
 impl BrowserFigureSet {
+    /// Every set token's code, N × 3 values, picture-major in set order (token n at 3n..3n + 3): the
+    /// calibrated final-layer token projected on the group's frame, not divided by a gate, the space of
+    /// `figure_reading`'s `patchCodes` and of the group's map. Up to 9 tokens a picture, the 3 × 3 around
+    /// its patch; fewer where the window's edge cuts the 3 × 3 (`token_pictures`). For every set method.
+    pub fn codes(&self) -> Float32Array {
+        Float32Array::from(self.set.codes_NR.as_slice())
+    }
+    /// The picture of each token of `codes`: its index among the pictures given to `prepare_figure_set`.
+    pub fn token_pictures(&self) -> Uint16Array {
+        Uint16Array::from(self.set.pictures_N.as_slice())
+    }
     /// The prepared set as JSON: its method, basis group and pictures, and per compared layer its
     /// tokens, unit σ, median distance h and self-similarity E k(ŷ, ŷ') (`target_set`).
     pub fn summary(&self) -> String {
