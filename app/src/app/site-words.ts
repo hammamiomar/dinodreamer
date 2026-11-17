@@ -1182,12 +1182,13 @@ export const SITE_WORDS = {
     cellEmpty: "{start}, {method}: no automaton",
     /** Under a cell's picture when the cell holds more than one automaton. {count} is the number. */
     cellTries: "{count} tries",
-    /** The "?" beside the grid's titles opens this explanation, three short paragraphs. */
+    /** The "?" beside the grid's titles opens this explanation, a few short paragraphs. */
     gridExplainSubject: "the grid",
     gridExplanation: [
       "A row is the state an automaton starts from: noise in every cell, or a circle of noise in the center, alone or on faint noise.",
       "A column is what its training asked for. Basis-group matching compares the three numbers a basis group reads from each patch. Token matching compares DINO's whole token, 768 numbers. Mean matching asks the image's patches to give the target on average. Distribution matching asks them to be spread like the group's strongest patches. A guide also holds units inside DINO at the levels they have on the group's real images, for the first part of training.",
       "Two trainings with the same row and column give different automata. Those are the tries of a cell.",
+      "An empty square means that no automaton was trained that way for this basis group.",
     ],
 
     /** The line over the strip of a cell's tries: its title, then which one plays. {at} and {count} are numbers. */

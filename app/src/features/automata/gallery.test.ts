@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { GalleryMethod, GalleryStart } from "../gallery/gallery-place";
 import {
-  addressSearch, arrangeGroup, findGroups, neighboursOf, sortWall, arrangeGroups, automatonToPlay, axesOf, cellAt, cellBeside, COMMON_METHODS, COMMON_STARTS, groupOfAutomaton,
+  addressSearch, arrangeGroup, findGroups, neighboursOf, sortWall, arrangeGroups, automatonToPlay, axesOf, cellAt, cellBeside, COMMON_METHODS, COMMON_STARTS, groupOfAutomaton, methodBands,
   groupPath, pictureOfCell, pictureOfGroup, readAddress, shownCount, tryAfter, wallOrder, type GalleryAutomaton,
 } from "./gallery";
 
@@ -21,13 +21,21 @@ describe("a group's grid", () => {
     expect(axes.methods).toEqual(COMMON_METHODS);
   });
 
+  test("shows the mean and the distribution under both spaces, and the guide beside the basis-group mean", () => {
+    const bands = methodBands(axesOf([automaton("a", "noise", "basis-group-mean")]).methods);
+    expect(bands).toEqual([
+      { space: "basis-group", methods: ["basis-group-mean", "basis-group-mean-guided", "basis-group-distribution"] },
+      { space: "token", methods: ["token-mean", "token-distribution"] },
+    ]);
+  });
+
   test("gains a row or a column for a rare start or method only when the group has it, in the gallery's order", () => {
     const axes = axesOf([
       automaton("a", "circle-anywhere", "basis-group-distribution"),
-      automaton("b", "noise", "token-mean"),
+      automaton("b", "noise", "mean-distribution-mix"),
     ]);
     expect(axes.starts).toEqual(["noise", "circle", "circle-on-noise", "circle-anywhere"]);
-    expect(axes.methods).toEqual(["basis-group-mean", "basis-group-mean-guided", "basis-group-distribution", "token-mean", "token-distribution"]);
+    expect(axes.methods).toEqual([...COMMON_METHODS, "mean-distribution-mix"]);
   });
 
   test("files each automaton in the cell of its start and method, row by row, and lists no empty cell", () => {

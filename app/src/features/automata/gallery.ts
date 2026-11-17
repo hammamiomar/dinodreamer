@@ -54,15 +54,18 @@ export interface GalleryGroup<T extends GalleryAutomaton> {
 
 /**
  * The starts and the methods every group's grid has, whether the group holds an automaton there or
- * not: a reader learns one grid, and an empty cell says that nothing was grown that way. The research
- * grew these for most groups. A start or a method outside them is rare, so it takes a row or a
- * column only in a group that has it.
+ * not: a reader learns one grid, and an empty cell says that nothing was grown that way. The methods
+ * are the four the site names, the two spaces by the two comparisons, and the guide beside the mean
+ * it adds to. A grid with one comparison under a space reads as a column gone missing, so each space
+ * shows both, even where the research trained one of them for few groups. A start or a method
+ * outside these is rare, so it takes a row or a column only in a group that has it.
  */
 export const COMMON_STARTS: readonly GalleryStart[] = ["noise", "circle", "circle-on-noise"];
 export const COMMON_METHODS: readonly GalleryMethod[] = [
   "basis-group-mean",
   "basis-group-mean-guided",
   "basis-group-distribution",
+  "token-mean",
   "token-distribution",
 ];
 

@@ -288,10 +288,13 @@
   width: calc(var(--label) + var(--columns) * (var(--tile) + var(--gap)));
 }
 
-/* The pane holds the picture's size: by its width and the columns, by its height and the rows. */
+/*
+ * The pane holds the picture's size: by its width and the columns, by its height and the rows. Every
+ * column stays inside the pane, so a grid of six columns takes a smaller picture, 64 px at the least.
+ */
 @supports (width: round(down, 100px, 16px)) {
   .automata-grid table {
-    --tile: clamp(96px, round(down, (100cqw - var(--label)) / var(--columns) - var(--gap), 16px), 128px);
+    --tile: clamp(64px, round(down, (100cqw - var(--label)) / var(--columns) - var(--gap), 16px), 128px);
   }
 
   @media (min-width: 1200px) {
@@ -299,11 +302,12 @@
       /*
        * What the pane's height leaves for the rows: less the levels (their pictures, a quarter of
        * the width less the three gaps, and 40 for their names), the grid's titles and headings (92),
-       * the tries (120) and the gap between the levels and the grid (24). A picture is never under
-       * 96 px: in a short window the last row goes under the tries, and the pane scrolls to it.
+       * the tries (120) and the gap between the levels and the grid (24). The height never takes a
+       * picture under 96 px: in a short window the last row goes under the tries, and the pane
+       * scrolls to it.
        */
       --rows-room: calc(100cqh - min(192px, (100cqw - 48px) / 4) - 40px - 92px - 120px - 24px);
-      --tile: clamp(96px, round(down, min((100cqw - var(--label)) / var(--columns) - var(--gap), var(--rows-room) / var(--rows) - 28px), 16px), 128px);
+      --tile: clamp(64px, round(down, min((100cqw - var(--label)) / var(--columns) - var(--gap), max(96px, var(--rows-room) / var(--rows) - 28px)), 16px), 128px);
     }
   }
 }
@@ -340,12 +344,18 @@
   white-space: nowrap;
 }
 
-/* A column's word: two lines of room, standing on the pictures. */
+/*
+ * A column's word: two lines of room, standing on the pictures. It may reach half way into the gap
+ * after its column, and a word longer than that ("distribution" over a 64 px picture) breaks at a
+ * hyphen, so two columns' words never run together.
+ */
 .automata-grid thead tr:last-child th {
   height: 44px;
-  padding: 4px var(--gap) 8px 0;
+  padding: 4px calc(var(--gap) / 2) 8px 0;
   color: var(--ink-3);
   vertical-align: bottom;
+  -webkit-hyphens: auto;
+  hyphens: auto;
 }
 
 .automata-grid tbody th {
@@ -791,6 +801,12 @@
   .automata-grid[data-turned] .automata-cell-empty {
     height: auto;
     aspect-ratio: 1;
+  }
+
+  /* A method the group has no automaton for keeps its name and its empty places, one patch high. */
+  .automata-grid[data-turned] tr:not(:has(button)) .automata-cell-empty {
+    height: var(--patch);
+    aspect-ratio: auto;
   }
 
   .automata-tries-line {
