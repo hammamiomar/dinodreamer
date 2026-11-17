@@ -12,6 +12,7 @@ import {
   type GrowSettings, type KeepFailure, type TrainRunState,
 } from "./train-run";
 import { CoSelectedPictures } from "./co-selected-pictures";
+import { TrainMap } from "./train-map";
 import { TrainLoading } from "./train-loading";
 import { LIGHT_BATCH, RECIPE_BATCH, batchFallback, clearBatchFallback, presetBatch, type BatchSize } from "./batch-size";
 import { GrowStatus } from "./grow-status";
@@ -25,7 +26,7 @@ import { continuedKind, type ContinuationSource } from "./continuation";
 import { RULE_CHOICES, START_CHOICES, kindFromSearch, kindLabel, readingRegion, type MaterialKind } from "./material-kind";
 import { startStill } from "./start-still";
 import { setRefusal } from "./target-set";
-import { methodNeedsSet, methodReadsTokens, type FigureMethod, type FigureTargetSet } from "../materials/material-file";
+import { methodNeedsSet, methodReadsTokens, type FigureMethod, type FigureTargetSet, type SetPicture } from "../materials/material-file";
 import type { MaterialRequestOrigin } from "../app/material-request";
 import { FIGURE_UPDATES, RUNS } from "./figure-recipe";
 import {
@@ -36,6 +37,8 @@ import {
 // worker events to the controls and status shown in this layout.
 
 const WORDS = SITE_WORDS.grow;
+/** A run without a set: basis-group mean matching, or a continuation whose file records none. */
+const NO_PICTURES: readonly SetPicture[] = [];
 /** What the page shows while the site's run is another target's, or there is none: the start. */
 const NO_RUN: TrainRunState = { record: NO_RECORD, settings: null, files: new Map(), sampled: null, keepFailure: null, shownOnPage: false };
 
@@ -165,6 +168,28 @@ function ChoiceFaces({ kind, method, methodName, advanced, face, onFace }: {
   </div>;
 }
 
+/** The face the choices' place shows while a run trains: the live map, or the groups DINO sees. */
+type RunFace = "map" | "dino";
+
+/**
+ * The choices' place while a run trains: the live map, and under it the toggle to the groups DINO sees
+ * in its place, as the choices' faces are shown (ChoiceFaces). The toggle waits, hidden but holding its
+ * line, until the first reading gives DINO's groups, so nothing moves when it comes.
+ */
+function RunFaces({ face, onFace, map, dino }: { face: RunFace; onFace: (face: RunFace) => void; map: ReactNode; dino: ReactNode }) {
+  const shown = (name: RunFace) => ({ "data-shown": face === name || undefined, "aria-hidden": face !== name || undefined });
+  return <div className="grow-settings">
+    <div className="grow-faces">
+      <div className="grow-face" {...shown("map")}>{map}</div>
+      <div className="grow-face" id="grow-dino" {...shown("dino")}>{dino}</div>
+    </div>
+    <div className="grow-face-toggles" data-waiting={dino === null || undefined}>
+      <button type="button" className="grow-advanced-toggle label" aria-expanded={face === "dino"} aria-controls="grow-dino"
+        onClick={() => onFace(face === "dino" ? "map" : "dino")}>{WORDS.map.toggle}</button>
+    </div>
+  </div>;
+}
+
 /** The time line: before a run the estimate, during it the time left, after it the time it took. */
 function TimeLine({ time, template }: { time: GrowTime; template: string }) {
   const where = time.measured ? WORDS.onThisDevice : WORDS.onReference;
@@ -271,6 +296,10 @@ export function GrowPanel({ block, request, origin, continuation, method, onMeth
   const primary = primaryAction(state, changed);
   const open = choicesOpen(state);
   const coSelection = shownCoSelection(state, record);
+  // While a run trains, the choices' place shows the live map, or the groups DINO sees.
+  const [runFace, setRunFace] = useState<RunFace>("map");
+  const anchorCode = settings?.request.anchor?.code;
+  const runPictures = settings?.set?.pictures ?? settings?.continuation?.objective.set?.pictures ?? NO_PICTURES;
   const result = isHeld(state) ? resultOutcome(record) : undefined;
   const resultFile = result ? run.files.get(result.id) : undefined;
   // The frame and the status name what the frame shows: the run's kind while its worker plays it.
@@ -373,7 +402,11 @@ export function GrowPanel({ block, request, origin, continuation, method, onMeth
     </section>
     <aside className="grow-side" aria-label={WORDS.title}>
       {heading}
-      {coSelection ? <CoSelectedPictures coSelection={coSelection} region={readingRegion(shownKind)} />
+      {!open && settings && anchorCode
+        ? <RunFaces face={runFace} onFace={setRunFace}
+          map={<TrainMap block={settings.request.block} method={settings.method} anchorCode={anchorCode} pictures={runPictures}
+            points={settings.request.points} kind={settings.kind} live={ours} />}
+          dino={coSelection && <CoSelectedPictures coSelection={coSelection} region={readingRegion(shownKind)} />} />
         : <ChoiceFaces face={face} onFace={setFace} methodName={WORDS.methodToggle[runMethod]}
           kind={<KindChoices kind={runKind} open={open} ruleFixed={continuation !== null} onChange={setKind} />}
           method={<MethodChoices method={runMethod} depth={depth} open={open} fixedMethod={continuation !== null} onChange={onMethod} onDepth={onDepth} />}

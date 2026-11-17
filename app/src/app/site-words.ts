@@ -1067,6 +1067,23 @@ export const SITE_WORDS = {
     canvasLabel: "Automaton of basis group {block}, running: draw on it to damage it",
     /** The start's still picture, for a screen reader. */
     stillLabel: "The start of the automaton, before training",
+    /** The live map (live-map.tsx), in the choices' place while a run trains: the canvas's 64 patches as points among the group's patches. */
+    map: {
+      /** The label above it. */
+      heading: "The canvas in the group's space",
+      /** Its name for a screen reader. {block} is the basis group. */
+      label: "The canvas's 64 patches as points among the patches of basis group {block}; drag or use the arrow keys to rotate",
+      /** Under it for a mean method. {distance} is in m, the group's median selected response magnitude, with two decimals. */
+      meanLine: "The mean of the canvas's patches is {distance} m from the target.",
+      /** Under it for a distribution method. */
+      spreadLine: "Each point is a patch of the canvas. The squares are the set's patches.",
+      /** Under it before the run's first reading. */
+      waiting: "The canvas's patches appear here at the first reading.",
+      /** Added for a token method: the map shows a part of what the run compares. */
+      shadow: "The map shows each patch's three numbers for this group. The run compares all 768.",
+      /** The toggle under the map that shows the groups DINO sees in its place, and back. */
+      toggle: "What DINO sees",
+    },
   },
 
   playground: {

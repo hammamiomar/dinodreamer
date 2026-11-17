@@ -6,6 +6,7 @@
 // draws nothing new and costs nothing. Drag to rotate; the arrow keys rotate too.
 
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { SITE_WORDS, fill } from "../app/site-words";
 import { bandColours, bandIndex } from "../features/look/strength-bands";
 import { LOOK_ORBIT } from "../features/look/look-camera";
 import type { StrengthCuts } from "../recipe";
@@ -23,17 +24,7 @@ const KEY_TURN_PX = 24;
 const SIZE = { row: 1.5, unscored: 2, scored: 3.5, member: 5, mean: 7, target: 11 } as const;
 const ARROWS: Record<string, readonly [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
 
-/** The words of the map, until the page's layout takes it in (then SITE_WORDS.grow). */
-const WORDS = {
-  /** Under the map for a mean method. {distance} is in the group's median response magnitudes. */
-  meanLine: (distance: string) => `The mean of the canvas's patches is ${distance} m from the target.`,
-  /** Under the map for a distribution method. */
-  spreadLine: "Each point is a patch of the canvas. The squares are the set's patches.",
-  /** Under the map before the first reading. */
-  waiting: "The canvas's patches appear here at the first reading.",
-  /** Added for a token method: the map is a part of what is compared. */
-  shadow: "The map shows the group's three numbers of each patch. The comparison is made on all 768.",
-} as const;
+const WORDS = SITE_WORDS.grow.map;
 
 export interface LiveMapProps {
   /** The group's sample cloud: rows of three values, with each row's norm for the colour of its level. */
@@ -230,7 +221,8 @@ export function LiveMap({ cloud, strength, target, comparison, shadow, patchCode
     turn(direction[0] * KEY_TURN_PX, direction[1] * KEY_TURN_PX);
   };
 
-  const line = distance === null ? WORDS.waiting : comparison === "mean" ? WORDS.meanLine(distance.toFixed(2)) : WORDS.spreadLine;
+  let line: string = WORDS.waiting;
+  if (distance !== null) line = comparison === "mean" ? fill(WORDS.meanLine, { distance: distance.toFixed(2) }) : WORDS.spreadLine;
   return (
     <figure className="live-map">
       <canvas ref={canvas} className="live-map-canvas" role="img" aria-label={label} tabIndex={0}

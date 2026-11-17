@@ -423,6 +423,26 @@
   flex-wrap: wrap;
 }
 
+/* The run's toggle holds its line before the first reading, so nothing moves when it comes (grow-panel.tsx RunFaces). */
+.grow-face-toggles[data-waiting] {
+  visibility: hidden;
+}
+
+/*
+ * The live map in the choices' place while a run trains (train-map.tsx, live-map.tsx): the label, then
+ * the map's square of 13 patches at the left with its words beside it, so the place is about as tall as
+ * the choices and nothing under it moves when a run starts.
+ */
+.grow-map h2 {
+  margin: 0 0 var(--space-2);
+}
+
+.grow-map .live-map {
+  grid-template-columns: calc(13 * var(--patch)) minmax(0, 1fr);
+  column-gap: var(--patch);
+  align-items: end;
+}
+
 /* One label-sized line, a + or − after it. */
 .grow-advanced-toggle {
   justify-self: start;
@@ -622,6 +642,12 @@
   .grow-choices,
   .grow-settings {
     row-gap: calc(2 * var(--patch));
+  }
+
+  /* On a phone the map takes the column's width, its words under it. */
+  .grow-map .live-map {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: var(--space-2);
   }
 
   /* The first option a little under half, the second the rest, so "Central noise" fits a 352 px column. */
