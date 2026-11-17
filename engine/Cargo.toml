@@ -58,6 +58,10 @@ name = "target_set_check"
 name = "set_methods_timing"
 required-features = ["harness"]
 
+[[example]]
+name = "reading_step_study"
+required-features = ["harness"]
+
 [features]
 default = ["gpu"]
 gpu = ["burn/wgpu", "burn/extension", "dep:cubecl", "dep:burn-cubecl"]
