@@ -34,6 +34,39 @@ export function listenForLevelSwipe(deck: HTMLElement, select: (change: -1 | 1) 
     select(direction > 0 ? -1 : 1);
   }
 
+  let start: Touch | undefined;
+  function touchStart(event: TouchEvent) {
+    start = event.touches.length === 1 ? event.touches[0] : undefined;
+  }
+  function cancelTouch() { start = undefined; }
+  function touchEnd(event: TouchEvent) {
+    const first = start;
+    cancelTouch();
+    const last = event.changedTouches[0];
+    if (!first || !last || last.identifier !== first.identifier || event.touches.length > 0) return;
+    const dx = last.clientX - first.clientX;
+    const dy = last.clientY - first.clientY;
+    if (Math.abs(dx) < SWIPE_DISTANCE_PX || Math.abs(dx) <= Math.abs(dy)) return;
+    // A swipe changes level. A tap can still follow the group link.
+    event.preventDefault();
+    select(dx < 0 ? -1 : 1);
+  }
+  function arrow(event: KeyboardEvent) {
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    select(event.key === "ArrowRight" ? -1 : 1);
+  }
   deck.addEventListener("wheel", wheel, { passive: false });
-  return () => deck.removeEventListener("wheel", wheel);
+  deck.addEventListener("touchstart", touchStart, { passive: true });
+  deck.addEventListener("touchend", touchEnd, { passive: false });
+  deck.addEventListener("touchcancel", cancelTouch);
+  deck.addEventListener("keydown", arrow);
+  return () => {
+    deck.removeEventListener("wheel", wheel);
+    deck.removeEventListener("touchstart", touchStart);
+    deck.removeEventListener("touchend", touchEnd);
+    deck.removeEventListener("touchcancel", cancelTouch);
+    deck.removeEventListener("keydown", arrow);
+  };
 }

@@ -29,3 +29,33 @@ test("one horizontal swipe selects one level, including momentum, and a reverse 
   release();
   expect(wheel(1000, 80)).toBe(false);
 });
+
+test("a single-finger horizontal swipe changes level while taps, scrolling and pinches keep their defaults", () => {
+  const deck = new EventTarget();
+  const select = vi.fn();
+  const release = listenForLevelSwipe(deck as HTMLElement, select);
+  const first = { identifier: 1, clientX: 80, clientY: 20 };
+  const second = { ...first, identifier: 2 };
+  type Point = typeof first;
+  function touch(type: string, touches: Point[], changed: Point[] = []) {
+    const event = Object.assign(new Event(type, { cancelable: true }), { touches, changedTouches: changed });
+    deck.dispatchEvent(event);
+    return event.defaultPrevented;
+  }
+
+  touch("touchstart", [first]);
+  expect(touch("touchend", [], [first])).toBe(false);
+  touch("touchstart", [first]);
+  expect(touch("touchend", [], [{ ...first, clientY: 100 }])).toBe(false);
+  touch("touchstart", [first]);
+  touch("touchstart", [first, second]);
+  expect(touch("touchend", [second], [{ ...first, clientX: 10 }])).toBe(false);
+  expect(select).not.toHaveBeenCalled();
+
+  for (const x of [10, 140]) {
+    touch("touchstart", [first]);
+    expect(touch("touchend", [], [{ ...first, clientX: x }])).toBe(true);
+  }
+  expect(select.mock.calls).toEqual([[-1], [1]]);
+  release();
+});

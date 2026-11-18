@@ -1053,16 +1053,8 @@
  */
 .automata-table {
   --face: 192px;
-  /* The depth between two plates of a deck, and how far the deck the reader is on comes forward. At this
-     depth the deepest plate of a deck 800 px from the eye shows 25 px of itself, which the room over the
-     deck's words holds. */
+  /* At rest the edges of the plates show the four response levels. */
   --plate-depth: 12px;
-  --forward: 110px;
-  /* How the decks and plates move: easing out, with no overshoot, so the wall stays calm. */
-  --deck-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
-  --deck-move: 380ms;
-  /* How far each plate behind the front one stands out beside it: its edge, wide enough to click. */
-  --plate-step: 30px;
   display: grid;
   grid-template-columns: repeat(auto-fill, var(--face));
   justify-content: space-between;
@@ -1072,11 +1064,11 @@
   list-style: none;
   perspective: 1500px;
   perspective-origin: var(--eye-x, 50%) var(--eye-y, 320px);
-  /* One space for every deck, so a deck that has come forward stands in front of its neighbours. */
+  /* All resting decks share the same perspective origin. */
   transform-style: preserve-3d;
 }
 
-/* Reduced motion: no eye and no perspective; a deck's plates stay under its face until it comes forward. */
+/* The reduced-motion wall uses a flat projection. */
 .automata-table[data-still] {
   perspective: none;
 }
@@ -1097,7 +1089,6 @@
   gap: 26px;
   color: inherit;
   text-decoration: none;
-  transition: transform var(--deck-move) var(--deck-ease);
 }
 
 .automata-deck-link:focus-visible {
@@ -1125,26 +1116,19 @@
   background: color-mix(in srgb, var(--band) 26%, var(--black));
   box-shadow: inset 0 0 0 2px var(--band);
   transform: translateZ(calc(var(--depth) * var(--plate-depth) * -1));
-  transition: transform var(--deck-move) var(--deck-ease);
   pointer-events: none;
 }
 
-/* The level's name on the front plate of a forward deck, in its colour, at the plate's lower corner, on
-   black, so it never stands over a neighbouring deck's name. */
+/* The label occupies the existing gap below the photos and above the group name. */
 .automata-deck-plate-level {
+  display: none;
   position: absolute;
-  bottom: 0;
+  top: 100%;
   left: 0;
-  z-index: 2;
-  padding: 0 6px;
-  background: var(--black);
   color: var(--band);
   font-size: var(--s-1);
   line-height: 18px;
   white-space: nowrap;
-  opacity: 0;
-  transition: opacity 200ms;
-  pointer-events: none;
 }
 
 /* A live face first shows its seeded canvas. A still face uses the published picture. */
@@ -1173,6 +1157,7 @@
 }
 
 .automata-deck-words {
+  transition: opacity 240ms;
   display: grid;
   gap: 0;
   min-width: 0;
@@ -1212,51 +1197,55 @@
 
 .automata-table[data-forward] .automata-deck:not([data-forward]) .automata-deck-face::after,
 .automata-table[data-forward] .automata-deck:not([data-forward]) .automata-deck-plate::before {
+  opacity: 0.72;
+}
+
+.automata-table[data-forward] .automata-deck:not([data-forward]) .automata-deck-words {
   opacity: 0.5;
 }
 
-.automata-table[data-forward] .automata-deck:not([data-forward]) .automata-deck-link {
-  transform: translateZ(-24px);
+/* Fit a square face above four square patches. Every level uses the same row and click target. */
+.automata-deck-body[data-preview-layout] {
+  background: var(--black);
+  transform-style: flat;
+  touch-action: pan-y pinch-zoom;
 }
 
-/*
- * The deck the reader is on: it comes forward, and its plates slide out from under the face to the
- * side with the room. The level in front (the strongest, until the reader clicks another) lies whole
- * beside the face, at the face's own depth; each other level stands --plate-step further out and one
- * step deeper, so its edge, its photographs' edge and its colour show, and a click brings it forward.
- */
-.automata-deck[data-forward] .automata-deck-link {
-  transform: translateZ(var(--forward));
+.automata-deck-body[data-preview-layout] .automata-deck-face {
+  inset: 0 12.5% 25%;
 }
 
-.automata-deck[data-forward] .automata-deck-plate {
-  /* The plates of the deck the reader is on belong to it: the pointer on them keeps the deck forward. */
-  pointer-events: auto;
-  cursor: pointer;
-  transform: translate3d(calc((100% + 20px + var(--order) * var(--plate-step)) * var(--fan)), 0, calc(var(--order) * var(--plate-depth) * -1));
+.automata-deck-body[data-preview-layout] .automata-deck-plate {
+  inset: 75% 0 0;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: 1fr;
+  transform: none;
 }
 
-.automata-deck[data-forward] .automata-deck-plate[data-front] {
-  cursor: inherit;
+/* Reserve the face and row on touch screens before the first photograph arrives. */
+.automata-deck-body[data-preview-layout]:not(:has(> [data-preview])) .automata-deck-plate {
+  visibility: hidden;
 }
 
-.automata-deck[data-forward] .automata-deck-plate[data-front] .automata-deck-plate-level {
-  opacity: 1;
+.automata-deck-plate[data-preview] {
+  z-index: 1;
+}
+
+.automata-deck-plate[data-preview] .automata-deck-plate-level {
+  display: block;
 }
 
 .automata-deck[data-forward] .automata-deck-name {
   color: var(--ink);
 }
 
-.automata-deck-link:focus-visible .automata-deck-face {
+.automata-deck-link:focus-visible .automata-deck-body {
   outline: 2px solid var(--ink);
   outline-offset: 4px;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .automata-deck-link,
-  .automata-deck-plate,
-  .automata-deck-plate-level,
+  .automata-deck-words,
   .automata-deck-face::after,
   .automata-deck-plate::before {
     transition: none;

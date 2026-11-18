@@ -1,18 +1,8 @@
-// The wall: every basis group that holds an automaton, as a deck on a table. A deck's face is the
-// group's automaton, grown live when the deck comes into view (live-faces.ts). Under the face lie four
-// plates, the group's own patches by response level, the strongest on top: depth in a deck is depth
-// into the group. The table is drawn from one eye, the pointer (wall-eye.ts), so a deck away from it
-// shows the edges of its plates in the levels' colours.
-//
-// The deck the reader is on comes forward, and its plates slide out from under the face: the
-// strongest patches whole, beside the automaton, and the edges of the weaker levels behind them. The
-// pointer moving across a face disturbs its cells, and the rule heals them. A deck opens the group's
-// screen, where its face is the stage and its plates are the levels (wall-passage.ts); Back folds the
-// group into its deck again, at the place the wall was left.
-//
-// With reduced motion, or where the browser cannot grow an automaton, a face is its still.
+// Each deck shows its group's live automaton and four levels of reference patches.
+// On hover or focus, one level's four patches form a row inside the card. A touch screen
+// shows the row directly. Opening the deck carries the face and its plates to the group's stage.
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode, type RefObject } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode, type RefObject } from "react";
 import { flushSync } from "react-dom";
 import { Link, NavLink, useNavigation } from "react-router";
 import { fill, SITE_WORDS } from "../../app/site-words";
@@ -43,15 +33,14 @@ const STRONGEST: AtlasBand = 3;
 const PATCHES_PER_SIDE = 16;
 /** A face file can exceed 100 kB. Keep route transfers and visible posters ahead of the remaining reads. */
 const CONCURRENT_FACE_FILES = 2;
-/** The pointer may cross the room between two decks this long before the deck it left goes back down. */
-const LEAVE_MS = 180;
+/** Time to inspect the current row before hover advances to the next weaker level. */
+const LEVEL_READING_MS = 3000;
 /** A deck comes forward once the pointer has rested on it this long, so a pointer crossing the wall moves nothing. */
 const ENTER_MS = 140;
 /** A deck that changes place, when the wall is sorted or searched, glides there in this time. */
 const GLIDE_MS = 420;
 const GLIDE_EASING = "cubic-bezier(0.3, 0.9, 0.25, 1)";
 
-/** What a page gives the wall so that a face can grow: the automaton's definition, its grid and its seed. */
 /** A face's automaton and the replay its picture was read on: grid side, seed, and the step the face rests at. */
 export type LoadFace<T> = (automaton: T) => Promise<{ material: FigureMaterial; side: number; seed: number; tick: number }>;
 
@@ -143,49 +132,55 @@ function DeckFace<T extends GalleryAutomaton>({ automaton, loadFace, forward, vi
   );
 }
 
-/** The places of a forward deck's fanned plates: the level in front at 0, then the others, strongest first. */
-export function fanOrder(front: AtlasBand): Record<AtlasBand, number> {
-  const behind = [3, 2, 1, 0].filter((band) => band !== front) as AtlasBand[];
-  const order = { [front]: 0 } as Record<AtlasBand, number>;
-  behind.forEach((band, place) => { order[band] = place + 1; });
-  return order;
-}
-
-/**
- * The deck's four plates, the group's photographs by level, under the face. The four levels keep their
- * geometry while a visible deck waits for photos. When the deck comes forward the plates fan out beside
- * the face, the strongest level in front and the others behind it, each showing its edge in its colour.
- * A click on a plate behind brings its level to the front; a click on the front plate opens the group.
- */
-function DeckPlates({ block, wanted, carried, forward, deck }: {
-  block: number; wanted: boolean; carried: boolean; forward: boolean; deck: RefObject<HTMLLIElement | null>;
+/** The four plates share one row during a preview. Only its selected level is visible. */
+function DeckPlates({ block, wanted, carried, preview, advance, deck, levelDescription }: {
+  block: number;
+  wanted: boolean;
+  carried: boolean;
+  preview: boolean;
+  advance: boolean;
+  deck: RefObject<HTMLLIElement | null>;
+  levelDescription: string;
 }) {
   const library = useLibrary();
   const slots = useWallPhotos(library, block, wanted);
-  const [front, setFront] = useState<AtlasBand>(STRONGEST);
+  const available = LEVELS_DEEPEST_FIRST.filter(band => slots?.[band].some(slot => slot.kind === "picture"));
+  const levels = useRef(available);
+  levels.current = available;
+  const [selection, setSelection] = useState<{ band: AtlasBand; manual: boolean } | null>(null);
+  const front = selection?.band ?? available.at(-1) ?? STRONGEST;
+  const nextWeaker = available[available.indexOf(front) - 1];
+  const showing = preview && available.length > 0;
+
   useEffect(() => {
-    if (!forward) {
-      setFront(STRONGEST);
+    if (!showing) {
+      setSelection(null);
       return;
     }
-    if (deck.current) return listenForLevelSwipe(deck.current, change => {
-      setFront(level => Math.max(0, Math.min(STRONGEST, level + change)) as AtlasBand);
+    if (!deck.current) return;
+    return listenForLevelSwipe(deck.current, change => {
+      setSelection(previous => {
+        const bands = levels.current;
+        const index = previous ? bands.indexOf(previous.band) : bands.length - 1;
+        const band = bands[Math.max(0, Math.min(bands.length - 1, index + change))];
+        return band === undefined ? previous : { band, manual: true };
+      });
     });
-  }, [deck, forward]);
-  const order = fanOrder(front);
+  }, [deck, showing]);
+
+  useEffect(() => {
+    if (!showing || !advance || selection?.manual || nextWeaker === undefined) return;
+    const timer = window.setTimeout(() => {
+      setSelection(previous => previous?.manual ? previous : { band: nextWeaker, manual: false });
+    }, LEVEL_READING_MS);
+    return () => window.clearTimeout(timer);
+  }, [showing, advance, front, nextWeaker, selection?.manual]);
   return (
     <>
       {LEVELS_DEEPEST_FIRST.map((band) => (
         <span key={band} className="automata-deck-plate" data-front={band === front || undefined}
-          title={forward && band !== front ? ATLAS_TEXT.bands[band] : undefined}
-          onClick={(event) => {
-            if (!forward || band === front) return;
-            // A level behind comes to the front; the deck's link does not open.
-            event.preventDefault();
-            event.stopPropagation();
-            setFront(band);
-          }}
-          style={{ "--depth": STRONGEST - band + 1, "--order": order[band], "--band": BAND_COLOURS[band], viewTransitionName: carried ? levelPassage(band) : undefined } as CSSProperties}>
+          data-preview={(showing && band === front) || undefined}
+          style={{ "--depth": STRONGEST - band + 1, "--band": BAND_COLOURS[band], viewTransitionName: carried ? levelPassage(band) : undefined } as CSSProperties}>
           {(slots?.[band] ?? []).map((slot, position) => {
             if (slot.kind === "tile") return <span key={position} className="automata-level-picture automata-level-tile" />;
             const patch = slot.picture.slot - PATCH_SLOT_OFFSET;
@@ -196,14 +191,14 @@ function DeckPlates({ block, wanted, carried, forward, deck }: {
               </span>
             );
           })}
-          <span className="automata-deck-plate-level" aria-hidden="true">{ATLAS_TEXT.bands[band]}</span>
+          <span className="automata-deck-plate-level" id={showing && band === front ? levelDescription : undefined}>{ATLAS_TEXT.bands[band]}</span>
         </span>
       ))}
     </>
   );
 }
 
-function Deck<T extends GalleryAutomaton>({ group, name, mark, loadFace, forward, fan, carried, visible, retained, readFile, photosReady, onFileSettled, wallHidden, onLook, onLeave, onOpen }: {
+function Deck<T extends GalleryAutomaton>({ group, name, mark, loadFace, forward, touchPreview, advance, carried, visible, retained, readFile, photosReady, onFileSettled, wallHidden, onLook, onLeave, onFocus, onOpen }: {
   group: GalleryGroup<T>;
   name: string | null;
   /** The owner's view: in the count's place, how many of the group's automata a visitor sees. */
@@ -211,8 +206,8 @@ function Deck<T extends GalleryAutomaton>({ group, name, mark, loadFace, forward
   loadFace?: LoadFace<T>;
   /** The reader is on this deck: it comes forward and its plates slide out. */
   forward: boolean;
-  /** The side the plates slide out to: 1 to the right, -1 to the left, where the wall has the room. */
-  fan: 1 | -1;
+  touchPreview: boolean;
+  advance: boolean;
   carried: boolean;
   visible: boolean;
   retained: boolean;
@@ -220,24 +215,26 @@ function Deck<T extends GalleryAutomaton>({ group, name, mark, loadFace, forward
   photosReady: boolean;
   onFileSettled: (url: string) => void;
   wallHidden: boolean;
-  /** The reader is on the deck: by the keyboard `now`, by the pointer after it has rested (ENTER_MS). */
-  onLook: (deck: HTMLElement, now: boolean) => void;
+  /** A pointer entering the deck starts the short hover delay. */
+  onLook: () => void;
+  onFocus: (focused: boolean) => void;
   onLeave: () => void;
   onOpen: () => void;
 }) {
   const self = useRef<HTMLLIElement>(null);
+  const levelDescription = useId();
   const picture = pictureOfGroup(group);
   const count = shownCount(group.automata);
   return (
-    // The pointer's entry and exit belong to the whole deck: a pointer that arrives quickly can land on the
-    // list item around the link before the link itself, and the deck must still come forward.
-    <li ref={self} className="automata-deck" data-group={group.group} data-forward={forward || undefined} style={{ "--fan": fan } as CSSProperties}
-      onPointerEnter={(event) => { if (event.pointerType === "mouse" && self.current) onLook(self.current, false); }} onPointerLeave={onLeave}>
+    // A pointer can land on the list item around the link. Both belong to this preview.
+    <li ref={self} className="automata-deck" data-group={group.group} data-forward={forward || undefined}
+      onPointerEnter={(event) => { if (event.pointerType === "mouse") onLook(); }} onPointerLeave={onLeave}>
       <Link className="automata-deck-link" to={{ search: addressSearch({ group: group.group, automaton: null }) }} state={FROM_WALL} viewTransition
+        aria-describedby={forward || touchPreview ? levelDescription : undefined}
         aria-label={fill(WORDS.cardName, { group: group.group, name: name ?? "" }).trim()} onClick={onOpen}
-        onFocus={() => { if (self.current) onLook(self.current, true); }} onBlur={onLeave}>
-        <span className="automata-deck-body">
-          <DeckPlates deck={self} block={group.group} wanted={visible && photosReady} carried={carried} forward={forward} />
+        onFocus={() => onFocus(true)} onBlur={() => onFocus(false)}>
+        <span className="automata-deck-body" data-preview-layout={touchPreview || forward || undefined}>
+          <DeckPlates deck={self} levelDescription={levelDescription} block={group.group} wanted={visible && photosReady} carried={carried} preview={visible && (forward || touchPreview)} advance={advance} />
           {picture && <DeckFace key={loadFace ? picture.pictureUrl : `poster-${picture.pictureUrl}`} visible={visible} retained={retained} readFile={readFile} onFileSettled={onFileSettled} automaton={picture} loadFace={loadFace} forward={forward} wallHidden={wallHidden} carried={carried} />}
         </span>
         <span className="automata-deck-words">
@@ -299,6 +296,7 @@ export function GroupWall<T extends GalleryAutomaton>({ groups, names, status, a
   const name = (group: number) => nameOf(names, group);
   const ordered = findGroups(sortWall(groups, sort, name), words, name);
   const still = useMediaMatch("(prefers-reduced-motion: reduce)");
+  const touchPreview = useMediaMatch("(hover: none)");
   const table = useRef<HTMLOListElement>(null);
   const order = ordered.map(group => group.group).join(" ");
   const departing = useNavigation().state !== "idle";
@@ -316,31 +314,35 @@ export function GroupWall<T extends GalleryAutomaton>({ groups, names, status, a
   const deferred = new Set(missingFiles.slice(CONCURRENT_FACE_FILES).map(group => group.group));
   useWallEye(table, !still && !departing, admitting);
   useDecksGlide(table, order, still);
-  const [forward, setForward] = useState<{ group: number; fan: 1 | -1 } | null>(null);
-  // Rendering again after a deck is marked as the one that opens puts the passage's names on it before the page changes.
+  const [hovered, setHovered] = useState<number | null>(null);
+  const [focused, setFocused] = useState<number | null>(null);
+  const forward = admitting ? hovered ?? focused : null;
+  // Apply transition names before following the link.
   const [, setMarked] = useState(0);
-  const leaving = useRef(0);
   const entering = useRef(0);
-  useEffect(() => () => { window.clearTimeout(leaving.current); window.clearTimeout(entering.current); }, []);
-  useEffect(() => { if (hidden) setForward(null); }, [hidden]);
+  useEffect(() => () => window.clearTimeout(entering.current), []);
+  useEffect(() => {
+    if (hidden) {
+      window.clearTimeout(entering.current);
+      setHovered(null);
+      setFocused(null);
+    }
+  }, [hidden]);
 
-  const look = (group: number, deck: HTMLElement, now: boolean) => {
-    window.clearTimeout(leaving.current);
+  const look = (group: number) => {
     window.clearTimeout(entering.current);
-    const come = () => {
-      const wall = table.current?.getBoundingClientRect();
-      const box = deck.getBoundingClientRect();
-      const fan = wall && box.left + box.width / 2 > wall.left + wall.width / 2 ? -1 : 1;
-      setForward((before) => (before?.group === group ? before : { group, fan }));
-    };
-    // A deck already forward stays; another waits until the pointer has rested on it.
-    if (now || forward?.group === group) come();
-    else entering.current = window.setTimeout(come, ENTER_MS);
+    entering.current = window.setTimeout(() => setHovered(group), ENTER_MS);
   };
   const leave = (group: number) => {
     window.clearTimeout(entering.current);
-    window.clearTimeout(leaving.current);
-    leaving.current = window.setTimeout(() => setForward((before) => (before?.group === group ? null : before)), LEAVE_MS);
+    setHovered(previous => previous === group ? null : previous);
+  };
+  const focus = (group: number | null) => {
+    if (group !== null) {
+      window.clearTimeout(entering.current);
+      setHovered(null);
+    }
+    setFocused(group);
   };
   const open = (group: number) => {
     rememberOpened(group);
@@ -375,10 +377,10 @@ export function GroupWall<T extends GalleryAutomaton>({ groups, names, status, a
       <ol ref={table} className="automata-table" data-forward={forward !== null || undefined} data-still={still || undefined}>
         {ordered.map((group) => (
           <Deck key={group.group} group={group} name={nameOf(names, group.group)} mark={markOf?.(group)} loadFace={still ? undefined : loadFace}
-            forward={admitting && forward?.group === group.group} fan={forward?.group === group.group ? forward.fan : 1}
+            forward={forward === group.group} touchPreview={touchPreview} advance={!still && !touchPreview && hovered === group.group}
             visible={admitting && visible.has(group.group)} retained={visible.has(group.group) || recent.includes(group.group)} readFile={!deferred.has(group.group)} photosReady={missingFiles.length === 0} onFileSettled={onFileSettled}
             carried={carried === group.group} wallHidden={!admitting}
-            onLook={(deck, now) => look(group.group, deck, now)} onLeave={() => leave(group.group)} onOpen={() => open(group.group)} />
+            onLook={() => look(group.group)} onLeave={() => leave(group.group)} onFocus={active => focus(active ? group.group : null)} onOpen={() => open(group.group)} />
         ))}
       </ol>
       {ordered.length > 0 && (
