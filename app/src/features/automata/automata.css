@@ -1058,7 +1058,7 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, var(--face));
   justify-content: space-between;
-  gap: 64px 48px;
+  gap: 24px 48px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -1085,10 +1085,25 @@
 }
 
 .automata-deck-link {
+  position: relative;
   display: grid;
-  gap: 26px;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "face" "caption" "photos";
   color: inherit;
   text-decoration: none;
+}
+
+/* Keep space for four square photos and their level label before a preview opens. */
+.automata-deck-link::after {
+  content: "";
+  aspect-ratio: 4;
+  pointer-events: none;
+}
+
+.automata-deck-link::after,
+.automata-deck-link[data-preview-layout] > .automata-deck-plate {
+  grid-area: photos;
+  margin-block: 4px 18px;
 }
 
 .automata-deck-link:focus-visible {
@@ -1096,6 +1111,7 @@
 }
 
 .automata-deck-body {
+  grid-area: face;
   position: relative;
   display: block;
   aspect-ratio: 1;
@@ -1110,6 +1126,7 @@
 
 /* A plate: the level's four pictures, two by two, with the level's colour around it, which is what its edge shows. */
 .automata-deck-plate {
+  grid-area: face;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   grid-template-rows: repeat(2, minmax(0, 1fr));
@@ -1119,7 +1136,7 @@
   pointer-events: none;
 }
 
-/* The label occupies the existing gap below the photos and above the group name. */
+/* The label sits directly under its four photos. */
 .automata-deck-plate-level {
   display: none;
   position: absolute;
@@ -1157,6 +1174,8 @@
 }
 
 .automata-deck-words {
+  grid-area: caption;
+  margin-top: 26px;
   transition: opacity 240ms;
   display: grid;
   gap: 0;
@@ -1204,26 +1223,19 @@
   opacity: 0.5;
 }
 
-/* Fit a square face above four square patches. Every level uses the same row and click target. */
-.automata-deck-body[data-preview-layout] {
-  background: var(--black);
-  transform-style: flat;
+/* Only the reference plates move between the face and the photo row. */
+.automata-deck-link[data-preview-layout] {
   touch-action: pan-y pinch-zoom;
 }
 
-.automata-deck-body[data-preview-layout] .automata-deck-face {
-  inset: 0 12.5% 25%;
-}
-
-.automata-deck-body[data-preview-layout] .automata-deck-plate {
-  inset: 75% 0 0;
+.automata-deck-link[data-preview-layout] > .automata-deck-plate {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   grid-template-rows: 1fr;
   transform: none;
 }
 
-/* Reserve the face and row on touch screens before the first photograph arrives. */
-.automata-deck-body[data-preview-layout]:not(:has(> [data-preview])) .automata-deck-plate {
+/* The row stays empty while its photographs load. */
+.automata-deck-link[data-preview-layout]:not(:has(> [data-preview])) > .automata-deck-plate {
   visibility: hidden;
 }
 
@@ -1242,6 +1254,17 @@
 .automata-deck-link:focus-visible .automata-deck-body {
   outline: 2px solid var(--ink);
   outline-offset: 4px;
+}
+
+/* Touch screens always show the photo row immediately below the face. */
+@media (hover: none) {
+  .automata-deck-link {
+    grid-template-areas: "face" "photos" "caption";
+  }
+
+  .automata-deck-words {
+    margin-top: 4px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1310,7 +1333,7 @@
 
   .automata-table {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 40px 24px;
+    gap: 24px;
     perspective: 900px;
   }
 }

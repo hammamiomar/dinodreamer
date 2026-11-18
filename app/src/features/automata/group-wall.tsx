@@ -230,11 +230,12 @@ function Deck<T extends GalleryAutomaton>({ group, name, mark, loadFace, forward
     <li ref={self} className="automata-deck" data-group={group.group} data-forward={forward || undefined}
       onPointerEnter={(event) => { if (event.pointerType === "mouse") onLook(); }} onPointerLeave={onLeave}>
       <Link className="automata-deck-link" to={{ search: addressSearch({ group: group.group, automaton: null }) }} state={FROM_WALL} viewTransition
+        data-preview-layout={touchPreview || forward || undefined}
         aria-describedby={forward || touchPreview ? levelDescription : undefined}
         aria-label={fill(WORDS.cardName, { group: group.group, name: name ?? "" }).trim()} onClick={onOpen}
         onFocus={() => onFocus(true)} onBlur={() => onFocus(false)}>
-        <span className="automata-deck-body" data-preview-layout={touchPreview || forward || undefined}>
-          <DeckPlates deck={self} levelDescription={levelDescription} block={group.group} wanted={visible && photosReady} carried={carried} preview={visible && (forward || touchPreview)} advance={advance} />
+        <DeckPlates deck={self} levelDescription={levelDescription} block={group.group} wanted={visible && photosReady} carried={carried} preview={visible && (forward || touchPreview)} advance={advance} />
+        <span className="automata-deck-body">
           {picture && <DeckFace key={loadFace ? picture.pictureUrl : `poster-${picture.pictureUrl}`} visible={visible} retained={retained} readFile={readFile} onFileSettled={onFileSettled} automaton={picture} loadFace={loadFace} forward={forward} wallHidden={wallHidden} carried={carried} />}
         </span>
         <span className="automata-deck-words">
