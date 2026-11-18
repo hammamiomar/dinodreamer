@@ -62,7 +62,7 @@ describe.skipIf(!process.env.MATERIAL_AUDIT)("published material artifacts", () 
     for (const name of seeded) {
       const { file } = readFigureMaterial(read(name), "monet-dtd-seed9-20261004-pass-003");
       expect(file.start).toEqual({ kind: "centre-disc", radius: 16 });
-      expect(figurePlayback(file)).toEqual({ hiddenNoise: 0, startDisc: 16, pixelsPerCell: 1 });
+      expect(figurePlayback(file)).toEqual({ hiddenNoise: 0, startDisc: 16, startBackground: 0, pixelsPerCell: 1 });
       expect([file.reading.side, file.reading.tick, file.reading.region]).toEqual([128, 600, "centre-4x4"]);
       expect(file.recipe.settings.runFolder).toMatch(/^research\/2026-10-22-optimizer-schedule\/out\/stage-5\/pool-64-seeded-centre\//);
       expect(file.recipe.settings.trainerSha256).toBe("5c10352e424989e1f423b8fa05745127e922ae3b98ab4410fea79225da516bdf");
@@ -82,7 +82,7 @@ describe.skipIf(!process.env.MATERIAL_AUDIT)("published material artifacts", () 
     for (const name of coarse) {
       const { file } = readFigureMaterial(read(name), "monet-dtd-seed9-20261004-pass-003");
       expect(fired(file.reading)).toBe(true);
-      expect(figurePlayback(file)).toEqual({ hiddenNoise: 0, startDisc: 0, pixelsPerCell: 2 });
+      expect(figurePlayback(file)).toEqual({ hiddenNoise: 0, startDisc: 0, startBackground: 0, pixelsPerCell: 2 });
       expect([file.reading.side, readingPictureSide(file), file.reading.region]).toEqual([64, 128, undefined]);
       expect(replayGridSides(file)).toEqual([64, 128]);
       expect(canonicalFigureFile(file)).toEqual(file);
@@ -134,7 +134,7 @@ describe.skipIf(!process.env.MATERIAL_AUDIT)("published material artifacts", () 
     expect(seededPyramid).toHaveLength(29);
     for (const file of seededPyramid) {
       expect(file.rule.layout).toBe("figure-pyramid-16-96-torus-v1");
-      expect(figurePlayback(file)).toEqual({ hiddenNoise: 0, startDisc: 16, pixelsPerCell: 1 });
+      expect(figurePlayback(file)).toEqual({ hiddenNoise: 0, startDisc: 16, startBackground: 0, pixelsPerCell: 1 });
       expect(file.reading.region).toBe("centre-4x4");
     }
   });
