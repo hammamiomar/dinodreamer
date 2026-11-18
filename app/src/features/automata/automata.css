@@ -66,12 +66,62 @@
   gap: var(--patch);
 }
 
+/* The group number spans both rows. Its name and the current selection share the adjacent column. */
+.automata-stage-heading {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: var(--space-4);
+  align-items: end;
+  width: 100%;
+  padding-bottom: var(--space-2);
+}
+
 .automata-title {
   display: flex;
   align-items: last baseline;
   gap: var(--space-6);
   min-width: 0;
   margin: 0;
+}
+
+.automata-stage-heading .automata-title {
+  display: grid;
+  grid-area: 1 / 1 / 3 / -1;
+  grid-template: subgrid / subgrid;
+  align-items: end;
+  gap: inherit;
+}
+
+.automata-stage-heading .display {
+  grid-row: 1 / 3;
+  line-height: 1;
+}
+
+.automata-stage-heading .automata-title > :nth-child(2) {
+  grid-area: 1 / 2;
+  padding-bottom: 0;
+}
+
+.automata-selection {
+  grid-area: 2 / 2;
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--s0);
+  line-height: 20px;
+}
+
+.automata-selection span {
+  line-height: inherit;
+}
+
+.automata-selection-method {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.automata-selection-try {
+  white-space: nowrap;
 }
 
 .automata-title a {
@@ -106,6 +156,16 @@
 }
 
 @media (min-width: 1200px) {
+  /* The two-pane stage must fit a five-digit number, a two-line name and its selection below the links. */
+  .automata-stage-heading .display {
+    font-size: 80px;
+  }
+
+  .automata-stage-heading .automata-name {
+    font-size: 22px;
+    line-height: 24px;
+  }
+
   .automata-group {
     --cells: 512px;
     /* At least a 512 frame's width, so the bar and the step's line stay one line each under a smaller frame. */
@@ -408,12 +468,13 @@
   white-space: nowrap;
 }
 
-/* Nothing was grown this way for the group: the cell's outline alone. */
+/* Keep the comparison grid aligned when a combination has no automaton. */
 .automata-cell-empty {
-  display: block;
+  display: grid;
+  place-items: center;
   width: var(--tile);
   height: var(--tile);
-  border: 1px solid var(--line);
+  color: var(--ink-2);
   cursor: default;
 }
 
@@ -596,9 +657,26 @@
     min-height: var(--touch-target);
   }
 
-  .automata-title {
+  .automata-stage-heading {
+    grid-template-columns: minmax(0, 1fr) 32ch;
+    align-items: center;
+    gap: 4px;
+    font-size: 14px;
+    padding: 0;
+  }
+
+  .automata-stage-heading .automata-title {
+    display: flex;
+    grid-area: 1 / 1;
+    flex-wrap: wrap;
     align-items: baseline;
-    gap: var(--space-3);
+    gap: 0 4px;
+  }
+
+  .automata-selection {
+    grid-area: 1 / 2;
+    font-size: 14px;
+    line-height: 16px;
   }
 
   .automata-title .display {
@@ -877,6 +955,42 @@
   padding: var(--m) 0;
 }
 
+/* The last row occupies the wall's existing bottom module, above the site's publication credits. */
+.automata-wall:has(> .automata-wall-navigation) {
+  padding-bottom: 0;
+}
+
+.automata-wall-navigation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--space-6);
+  min-height: var(--m);
+  font-size: var(--s0);
+}
+
+.automata-wall-navigation a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-target);
+  color: var(--ink-2);
+  text-decoration: none;
+}
+
+.automata-wall-navigation a:is(:hover, :focus-visible, .active, .pending) {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+@media (max-width: 640px) {
+  .automata-wall-navigation {
+    justify-content: space-between;
+    gap: 0 var(--space-2);
+    font-size: var(--s-1);
+  }
+}
+
 /* The heading and the way to the saved automata on one line, as the Index's; the sentence under them. */
 .automata-wall-head {
   display: grid;
@@ -939,11 +1053,10 @@
  */
 .automata-table {
   --face: 192px;
-  /* The depth between two plates of a deck, and how far the deck the reader is on comes forward. At this
+  /* The depth between two plates of a deck. At this
      depth the deepest plate of a deck 800 px from the eye shows 25 px of itself, which the room over the
      deck's words holds. */
   --plate-depth: 12px;
-  --forward: 210px;
   /* A spring: past its end by a seventh, then back. Where linear() is unknown the curve after it is used. */
   --deck-spring: cubic-bezier(0.2, 1.25, 0.35, 1);
   display: grid;
@@ -955,7 +1068,7 @@
   list-style: none;
   perspective: 1500px;
   perspective-origin: var(--eye-x, 50%) var(--eye-y, 320px);
-  /* One space for every deck, so a deck that has come forward stands in front of its neighbours. */
+  /* Share the perspective origin across all decks. */
   transform-style: preserve-3d;
 }
 
@@ -965,7 +1078,7 @@
   }
 }
 
-/* Reduced motion: no eye and no perspective; a deck's plates stay under its face until it comes forward. */
+/* The reduced-motion wall keeps the same preview and a flat projection. */
 .automata-table[data-still] {
   perspective: none;
 }
@@ -1090,26 +1203,31 @@
   transform: translateZ(-40px);
 }
 
-/*
- * The deck the reader is on: it comes forward, and its plates slide out from under the face to the
- * side with the room. The strongest level lies whole beside the face, at the face's own depth; each
- * weaker level stands 18 px further out and one step deeper, so its edge and its colour show.
- */
-.automata-deck[data-forward] .automata-deck-link {
-  transform: translateZ(var(--forward));
+/* Once a patch arrives, the face and the four strongest patches share this deck's square.
+   The other levels remain underneath the strongest plate. The caption and link keep their positions. */
+.automata-deck[data-forward] .automata-deck-body:has([data-preview]) {
+  overflow: clip;
+  background: var(--black);
+  transform-style: flat;
 }
 
-.automata-deck[data-forward] .automata-deck-plate {
-  /* The plates of the deck the reader is on belong to it: the pointer on them keeps the deck forward. */
-  pointer-events: auto;
-  transform: translate3d(calc((100% + 20px + (var(--depth) - 1) * 18px) * var(--fan)), 0, calc((var(--depth) - 1) * var(--plate-depth) * -1));
+.automata-deck[data-forward] .automata-deck-body:has([data-preview]) .automata-deck-face {
+  inset: 0 12.5% 25%;
+}
+
+.automata-deck[data-forward] .automata-deck-body:has([data-preview]) .automata-deck-plate {
+  inset: 75% 0 0;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: 1fr;
+  transform: none;
+  transition: none;
 }
 
 .automata-deck[data-forward] .automata-deck-name {
   color: var(--ink);
 }
 
-.automata-deck-link:focus-visible .automata-deck-face {
+.automata-deck-link:focus-visible .automata-deck-body {
   outline: 2px solid var(--ink);
   outline-offset: 4px;
 }
@@ -1151,6 +1269,17 @@
   ::view-transition-old(*),
   ::view-transition-new(*) {
     animation: none !important;
+  }
+}
+
+/* At narrow phone widths the selection takes its own full row directly below the group title. */
+@media (max-width: 389px) {
+  .automata-stage-heading {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .automata-selection {
+    grid-area: 2 / 1;
   }
 }
 

@@ -14,7 +14,7 @@ import { useBasisGroupNames } from "./basis-group-names";
 import {
   addressSearch, arrangeGroups, automatonToPlay, groupOfAutomaton, neighboursOf, readAddress, SAVED_GROUP, type GalleryAutomaton, type GalleryGroup,
 } from "./gallery";
-import { frameWordsOf, GroupScreen } from "./group-screen";
+import { gridNoteOf, GroupScreen } from "./group-screen";
 import { GroupWall, type LoadFace } from "./group-wall";
 import { automatonOfEntry, type PublishedAutomaton } from "./published-automata";
 import { SavedScreen, useSavedAutomata } from "./saved-automata";
@@ -96,7 +96,7 @@ function PublishedGallery({ groups, names, status }: { groups: GalleryGroup<Publ
       </GroupWall>
       {open && (
         <GroupScreen group={group} name={nameOf(names, group.group)} neighbours={neighboursOf(groups, group.group)} playing={playing} onChoose={choose}
-          stage={<MaterialStage entries={[playing.automaton.entry]} source={PUBLISHED_SOURCE} layout="instrument" frameWords={frameWordsOf(playing.automaton)} />}>
+          stage={<MaterialStage entries={[playing.automaton.entry]} source={PUBLISHED_SOURCE} layout="instrument" gridNote={gridNoteOf(playing.automaton)} />}>
           {panel}
         </GroupScreen>
       )}

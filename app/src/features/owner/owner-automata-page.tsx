@@ -17,7 +17,7 @@ import { useLoaded } from "../../ui/use-loaded";
 import { refreshBasisGroupNames, useBasisGroupNames } from "../automata/basis-group-names";
 import { useChoose, useOpenGroup } from "../automata/automata-page";
 import { arrangeGroups, neighboursOf, shownCount, type GalleryCell, type GalleryGroup } from "../automata/gallery";
-import { frameWordsOf, GroupScreen } from "../automata/group-screen";
+import { gridNoteOf, GroupScreen } from "../automata/group-screen";
 import { GroupWall } from "../automata/group-wall";
 import { nameOf } from "../gallery/basis-groups";
 import { fetchPublishedMaterial, materialFileUrl } from "../gallery/material-gallery";
@@ -253,12 +253,11 @@ function OwnerStage({ automaton, actions, notice }: { automaton: OwnerAutomaton;
     keepable: () => false,
   }), [privateFile, automaton.pictureUrl]);
   const played: MaterialEntry | null = entry ?? (privateFile.status === "ready" ? privateFile.value.entry : null);
-  const frameWords = frameWordsOf(automaton);
   if (played === null) {
     return (
       <section className="material-stage owner-stage-waiting" data-layout="instrument">
         <div className="stage-fit">
-          <MaterialFrame label={frameWords.label}>
+          <MaterialFrame>
             <img className="owner-stage-still" src={automaton.pictureUrl} alt="" />
           </MaterialFrame>
         </div>
@@ -266,7 +265,7 @@ function OwnerStage({ automaton, actions, notice }: { automaton: OwnerAutomaton;
       </section>
     );
   }
-  return <MaterialStage entries={[played]} source={source} layout="instrument" frameWords={frameWords} ownerActions={actions} notice={notice} />;
+  return <MaterialStage entries={[played]} source={source} layout="instrument" gridNote={gridNoteOf(automaton)} ownerActions={actions} notice={notice} />;
 }
 
 /**

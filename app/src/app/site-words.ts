@@ -1048,6 +1048,9 @@ export const SITE_WORDS = {
   automata: {
     /** The wall's heading, on /automata. */
     wallTitle: "The automata of each basis group",
+    /** The navigation following the last deck uses the header’s destination names. */
+    wallNavigation: "Site navigation at the end of the Automata wall",
+    homeLink: "Home",
     /** The wall's find field: its name for a screen reader, and what it shows while empty. */
     find: "Find a basis group by its name or number",
     findPlaceholder: "Name or number",
@@ -1079,8 +1082,17 @@ export const SITE_WORDS = {
     previousGroup: "Previous",
     nextGroup: "Next",
 
-    /** The frame's upper corner on a group's stage: where the automaton starts, then what it was asked for. */
-    making: "{start} · {method}",
+    /** Beside the group title: the selected start, training method and try in this grid cell. */
+    stageTry: "Try {at}/{count}",
+    stageMethods: {
+      "basis-group-mean": "basis-group mean",
+      "basis-group-mean-guided": "guided basis-group mean",
+      "basis-group-distribution": "basis-group distribution",
+      "token-mean": "token mean",
+      "token-distribution": "token distribution",
+      "mean-distribution-mix": "mean/distribution mix",
+      "unit-activation": "one DINO unit",
+    },
     /** The frame's lower corner: the automaton's grids, then the grid's size. {side} is the cells along a side. */
     gridsFine: "fine · {side} × {side} cells",
     gridsCoarseFine: "coarse + fine · {side} × {side} cells",
@@ -1104,7 +1116,7 @@ export const SITE_WORDS = {
       "circle-anywhere": "Noise disc placed anywhere",
       drawn: "A drawn start",
     },
-    /** The same starts inside the frame's corner line, after nothing: lower case, short. */
+    /** The start as it appears inside a sentence or a material record. */
     startsInLine: {
       noise: "noise field",
       circle: "noise disc",
@@ -1128,7 +1140,7 @@ export const SITE_WORDS = {
       "mean-distribution-mix": "mean and distribution",
       "unit-activation": "one DINO unit",
     },
-    /** A method's full name, in the frame's corner line and for a screen reader. */
+    /** A method's full name for the grid cell's accessible label. */
     methods: {
       "basis-group-mean": "basis-group mean matching",
       "basis-group-mean-guided": "basis-group mean matching with a guide",
@@ -1142,6 +1154,7 @@ export const SITE_WORDS = {
     cellName: "{start}, {method}: {count}",
     /** An empty cell's name for a screen reader: nothing was grown that way for this group. */
     cellEmpty: "{start}, {method}: no automaton",
+    cellEmptyMark: "—",
     /** Under a cell's picture when the cell holds more than one automaton. {count} is the number. */
     cellTries: "{count} tries",
     /** The "?" beside the grid's titles opens this explanation, a few short paragraphs. */
@@ -1150,7 +1163,7 @@ export const SITE_WORDS = {
       "A row is the state an automaton starts from: a noise field, with noise in every cell, or a noise disc at the center, alone or on faint noise.",
       "A column is what its training asked for. Basis-group matching compares the three numbers a basis group reads from each patch. Token matching compares DINO's whole token, 768 numbers. Mean matching asks the image's patches to give the target on average. Distribution matching asks them to be spread like the group's strongest patches. A guide also holds units inside DINO at the levels they have on the group's real images, for the first part of training.",
       "Two trainings with the same row and column give different automata. Those are the tries of a cell.",
-      "An empty square means that no automaton was trained that way for this basis group.",
+      "A dash means that no automaton was trained that way for this basis group.",
     ],
 
     /** The line over the strip of a cell's tries: its title, then which one plays. {at} and {count} are numbers. */
