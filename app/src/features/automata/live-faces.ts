@@ -202,7 +202,7 @@ export function openLiveFace(canvas: HTMLCanvasElement, material: FigureMaterial
     },
     hurry() { queued?.hurry(); },
     redraw() {
-      if (loop && replay) void loop.hold(async () => {}).catch(() => {});
+      loop?.redraw();
     },
     close() {
       closing.abort(new DOMException("The face was closed.", "AbortError"));
