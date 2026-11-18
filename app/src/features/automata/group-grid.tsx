@@ -25,7 +25,11 @@ function Cell<T extends GalleryAutomaton>({ place, cell, playing, onChoose, capt
 }) {
   const names = { start: WORDS.starts[place.start], method: WORDS.methods[place.method] };
   if (cell === null) {
-    return <span className="automata-cell automata-cell-empty" role="img" aria-label={fill(WORDS.cellEmpty, names)} />;
+    return (
+      <span className="automata-cell automata-cell-empty" role="img" aria-label={fill(WORDS.cellEmpty, names)}>
+        <span aria-hidden="true">{WORDS.cellEmptyMark}</span>
+      </span>
+    );
   }
   const here = samePlace(playing.place, place);
   const shown = here ? playing : pictureOfCell(cell);

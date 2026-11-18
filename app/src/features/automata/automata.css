@@ -408,12 +408,13 @@
   white-space: nowrap;
 }
 
-/* Nothing was grown this way for the group: the cell's outline alone. */
+/* Keep the comparison grid aligned when a combination has no automaton. */
 .automata-cell-empty {
-  display: block;
+  display: grid;
+  place-items: center;
   width: var(--tile);
   height: var(--tile);
-  border: 1px solid var(--line);
+  color: var(--ink-2);
   cursor: default;
 }
 
