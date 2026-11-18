@@ -6,8 +6,9 @@
 //! on COARSE_SIDE cells; the fine rule then reads its own 64 perceptions and the new coarse state,
 //! upsampled on the torus, as 80 inputs.
 use super::{
-    CELLS, CHANNELS, COARSE_CELLS, COARSE_SIDE, FIRE_RATE, FigureRequest, OVERFLOW_WEIGHT, PATCHES, POOL, Plan, RuleKind, SIDE,
-    Start, UpdateCount, damage_disc, learning_rate, mean_code_loss, overflow, picture, region_mean_codes, upsample_torus,
+    CELLS, CHANNELS, COARSE_CELLS, COARSE_SIDE, FIRE_RATE, FigureRequest, Layer, Method, OVERFLOW_WEIGHT, PATCHES, POOL, Plan, RuleKind,
+    SIDE, Start, UpdateCount, damage_disc, learning_rate, mean_code_loss, overflow, picture, region_features, region_mean_codes,
+    target_set::{SetLoss, TargetSet}, upsample_torus,
 };
 use crate::{
     profiling,
@@ -407,13 +408,135 @@ fn picture_contrast(pictures_BCHW: Tensor<4>) -> Tensor<1> {
     (pictures_BCHW.square().mean().reshape([1]) - mean.clone() * mean).clamp_min(0.0).sqrt()
 }
 
-/// Native codes [V, T, R] of 128 px pictures.
-fn native_codes(encoder: &Dino, calibration: &Calibration, frame_RD: &Tensor<2>, pictures_VCHW: Tensor<4>) -> Tensor<3> {
+/// One read DINO pass over the views: the native tokens [V, T, D] of the patches, their codes
+/// [V, T, R] and the intermediate tokens of the request's blocks, each [V, T, D].
+struct ViewReading {
+    native_VTD: Tensor<3>,
+    codes_VTR: Tensor<3>,
+    intermediate_VTD: Vec<Tensor<3>>,
+}
+
+fn read_views(encoder: &Dino, calibration: &Calibration, frame_RD: &Tensor<2>, pictures_VCHW: Tensor<4>, blocks: &[usize]) -> ViewReading {
     let views = pictures_VCHW.dims()[0];
-    let native_VTD = encoder
-        .forward(pictures_VCHW)
-        .slice([0..views, PREFIX..PREFIX + PATCHES, 0..768]);
-    frozen_linear(calibration.tokens(native_VTD), frame_RD.clone())
+    let readout = encoder.readout(pictures_VCHW, blocks);
+    let native_VTD = readout.native_BTD.slice([0..views, PREFIX..PREFIX + PATCHES, 0..768]);
+    let codes_VTR = frozen_linear(calibration.tokens(native_VTD.clone()), frame_RD.clone());
+    ViewReading { native_VTD, codes_VTR, intermediate_VTD: readout.intermediate_BPD }
+}
+
+/// The canvas features of each compared layer, [M, D] (`region_features`): the codes for
+/// basis-group distribution, the final or an intermediate layer's tokens for a token method.
+fn compared_features(request: &FigureRequest, reading: &ViewReading, blocks: &[usize]) -> Vec<Tensor<2>> {
+    request.compared_layers().into_iter().map(|layer| match (request.method, layer) {
+        (Method::BasisGroupDistribution, _) => region_features(reading.codes_VTR.clone(), request.start),
+        (_, Layer::Final) => region_features(reading.native_VTD.clone(), request.start),
+        (_, Layer::Block(block)) => {
+            let position = blocks.iter().position(|&read| read == block).expect("every block layer is read");
+            region_features(reading.intermediate_VTD[position].clone(), request.start)
+        }
+    }).collect()
+}
+
+/// A set method's loss on one displayed picture [1, 3, 128, 128]: the training's terms with the picture
+/// in place of the eight views, so the scored patches of the start give M = 16 or 64 canvas tokens.
+/// Decision 12 of the brief reads the final rule on the live grid at a ladder of ticks and keeps the
+/// tick with the lowest value. One DINO pass at the method's layers and one readback: 22 to 25 ms
+/// natively on an M1 Max (17 November 2026).
+pub async fn own_loss(
+    encoder: &Dino,
+    calibration: &Calibration,
+    frame_DR: &Tensor<2>,
+    request: &FigureRequest,
+    target: &TargetSet,
+    picture_1CHW: Tensor<4>,
+) -> Result<f32, String> {
+    request.validate()?;
+    target.serves(request)?;
+    let blocks = request.intermediate_blocks();
+    let reading = read_views(encoder, calibration, &frame_DR.clone().transpose(), picture_1CHW, &blocks);
+    let loss = target.loss(compared_features(request, &reading, &blocks)).value;
+    let values = loss.into_data_async().await.map_err(|e| e.to_string())?.try_to_vec::<f32>().map_err(|e| e.to_string())?;
+    values.first().copied().filter(|value| value.is_finite()).ok_or_else(|| "The picture's loss is not finite".into())
+}
+
+/// One compared layer's terms after an update: its value and, for a distribution method, the
+/// kernel means E k(x̂, x̂') (`kernelXx`) and E k(x̂, ŷ) (`kernelXy`) of `target_set`.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LayerLoss {
+    pub layer: Layer,
+    pub value: f32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kernel_xx: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kernel_xy: Option<f32>,
+}
+
+/// One update's readings, read back from the device in one transfer (`FigureGradient::metrics`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct FigureReadings {
+    /// The method's loss plus 10 × overflow: what the update descends.
+    pub loss: f32,
+    /// mean_v ‖mean_{t∈P} c_vt − k‖² / m²; under the other methods a reading only.
+    pub code_loss: f32,
+    /// The method's own loss: the code loss, or a set method's mean over its layers.
+    pub method_loss: f32,
+    pub overflow: f32,
+    pub state_max: f32,
+    pub picture_contrast: f32,
+    /// A set method's compared layers; empty for basis-group mean.
+    pub layers: Vec<LayerLoss>,
+    /// mean_{t∈P} c_vt for every view, [V × 3].
+    pub mean_codes: Vec<f32>,
+}
+
+/// One update's terms on the device, before they are read back.
+struct UpdateTerms {
+    loss: Tensor<1>,
+    code_loss: Tensor<1>,
+    overflow: Tensor<1>,
+    state_max: Tensor<1>,
+    picture_contrast: Tensor<1>,
+    set_loss: Option<SetLoss>,
+    mean_codes_VR: Tensor<2>,
+}
+
+impl FigureReadings {
+    /// The update's terms as one tensor, without gradient tracking, in `decode`'s order.
+    fn gather(terms: UpdateTerms) -> Tensor<1> {
+        let method_loss = terms.set_loss.as_ref().map_or(terms.code_loss.clone(), |set_loss| set_loss.value.clone());
+        let mut values = vec![terms.loss, terms.code_loss, terms.overflow, terms.state_max, terms.picture_contrast, method_loss];
+        for layer in terms.set_loss.iter().flat_map(|set_loss| &set_loss.layers) {
+            values.push(layer.value.clone());
+            values.extend(layer.kernel_means.iter().flatten().cloned());
+        }
+        values.push(terms.mean_codes_VR.flatten(0, 1));
+        Tensor::cat(values.into_iter().map(|value| value.inner()).collect(), 0)
+    }
+
+    /// The values of `metrics` in their order: loss, code loss, overflow, largest |state|, picture
+    /// contrast, the method's loss, then per compared layer its value (and its two kernel means for
+    /// a distribution method), then the V × 3 mean codes.
+    pub fn decode(values: &[f32], request: &FigureRequest) -> Self {
+        let distribution = request.method.compares_distributions();
+        let mut next = 6;
+        let layers = request.compared_layers().into_iter().map(|layer| {
+            let value = values[next];
+            let (kernel_xx, kernel_xy) = if distribution { (Some(values[next + 1]), Some(values[next + 2])) } else { (None, None) };
+            next += if distribution { 3 } else { 1 };
+            LayerLoss { layer, value, kernel_xx, kernel_xy }
+        }).collect();
+        Self {
+            loss: values[0],
+            code_loss: values[1],
+            overflow: values[2],
+            state_max: values[3],
+            picture_contrast: values[4],
+            method_loss: values[5],
+            layers,
+            mean_codes: values[next..].to_vec(),
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -422,9 +545,16 @@ pub struct FigureUpdate {
     /// Completed optimizer updates, including this one.
     pub completed: u32,
     pub learning_rate: f64,
+    pub method: Method,
+    /// The method's loss plus 10 × overflow.
     pub loss: f32,
-    /// mean_v ‖mean_{t∈P} c_vt − k‖² / m²
+    /// The method's own loss (equal to `code_loss` for basis-group mean).
+    pub method_loss: f32,
+    /// mean_v ‖mean_{t∈P} c_vt − k‖² / m²; under the other methods a reading only.
     pub code_loss: f32,
+    /// A set method's compared layers; empty for basis-group mean.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub layers: Vec<LayerLoss>,
     pub overflow: f32,
     pub state_max: f32,
     /// Standard deviation of the B training pictures over channels and pixels (`rgb_std` in
@@ -437,11 +567,10 @@ pub struct FigureUpdate {
 }
 
 /// One update's normalized parameter gradients, before Adam. `grown` holds the B grown states;
-/// `metrics` the loss terms, the largest |state| and the V mean codes.
+/// `metrics` the readings in `FigureReadings::decode`'s order.
 pub struct FigureGradient {
     pub normalized: Vec<Tensor<4>>,
     pub grown: Cells,
-    /// Loss, code loss, overflow, largest |state|, picture contrast, then the V × 3 mean codes.
     pub metrics: Tensor<1>,
     pub plan: Plan,
 }
@@ -449,6 +578,8 @@ pub struct FigureGradient {
 pub struct FigureTraining {
     pub rule: FigureRule,
     pub request: FigureRequest,
+    /// The set a set method compares with; None for basis-group mean.
+    target: Option<TargetSet>,
     adam: Adam,
     /// Completed optimizer updates and the target. Adam keeps its own bias corrections.
     updates: UpdateCount,
@@ -458,14 +589,26 @@ pub struct FigureTraining {
     device: Device,
 }
 
+/// The request is valid and a set method has a set prepared for it.
+fn checked(request: &FigureRequest, target: &Option<TargetSet>) -> Result<(), String> {
+    request.validate()?;
+    match target {
+        Some(target) => target.serves(request),
+        None if request.method.needs_set() => Err("A set method needs its prepared target set".into()),
+        None => Ok(()),
+    }
+}
+
 impl FigureTraining {
-    pub fn new(request: FigureRequest, frame_DR: Tensor<2>, device: Device) -> Result<Self, String> {
-        request.validate()?;
+    /// `target` is the set a set method compares with (`TargetSet::prepare`); None for basis-group mean.
+    pub fn new(request: FigureRequest, target: Option<TargetSet>, frame_DR: Tensor<2>, device: Device) -> Result<Self, String> {
+        checked(&request, &target)?;
         let rule = FigureRule::randomly_initialized(request.rule, request.seed, &device);
         let adam = Adam::new(&rule.parameters);
         Ok(Self {
             rule,
             request,
+            target,
             adam,
             updates: UpdateCount::default(),
             pool: vec![None; POOL],
@@ -478,13 +621,21 @@ impl FigureTraining {
     /// its rule's values, a fresh Adam, a fresh pool from the request's start, and the update count
     /// from the file, so the plan, firing and learning rate go on from `from_update` with the
     /// request's seed. The request may name another reference patch or start than the file's.
-    pub fn continued(request: FigureRequest, values: &[f32], from_update: u32, frame_DR: Tensor<2>, device: Device) -> Result<Self, String> {
-        request.validate()?;
+    pub fn continued(
+        request: FigureRequest,
+        target: Option<TargetSet>,
+        values: &[f32],
+        from_update: u32,
+        frame_DR: Tensor<2>,
+        device: Device,
+    ) -> Result<Self, String> {
+        checked(&request, &target)?;
         let rule = FigureRule::load(request.rule, values, &device)?;
         let adam = Adam::new(&rule.parameters);
         Ok(Self {
             rule,
             request,
+            target,
             adam,
             updates: UpdateCount::continued(from_update),
             pool: vec![None; POOL],
@@ -596,25 +747,26 @@ impl FigureTraining {
                 0,
             )
         });
-        let codes_VTR = profiling::broad("reader forward", || native_codes(encoder, calibration, &self.frame_RD, views_VCHW));
-        let (mean_codes_VR, code_loss, excess, loss) = profiling::broad("objective", || {
-            let mean_codes_VR = region_mean_codes(codes_VTR, start);
+        let blocks = self.request.intermediate_blocks();
+        let reading = profiling::broad("reader forward", || read_views(encoder, calibration, &self.frame_RD, views_VCHW, &blocks));
+        let (mean_codes_VR, code_loss, set_loss, excess, loss) = profiling::broad("objective", || {
+            let mean_codes_VR = region_mean_codes(reading.codes_VTR.clone(), start);
             let code_loss = mean_code_loss(mean_codes_VR.clone(), code, median_norm);
+            let set_loss = self.target.as_ref().map(|target| target.loss(compared_features(&self.request, &reading, &blocks)));
+            let method_loss = set_loss.as_ref().map_or(code_loss.clone(), |set_loss| set_loss.value.clone());
             let excess = overflow(&leaf.tensors());
-            let loss = code_loss.clone() + excess.clone() * OVERFLOW_WEIGHT;
-            (mean_codes_VR, code_loss, excess, loss)
+            let loss = method_loss + excess.clone() * OVERFLOW_WEIGHT;
+            (mean_codes_VR, code_loss, set_loss, excess, loss)
         });
-        let metrics = Tensor::cat(
-            vec![
-                loss.clone().inner(),
-                code_loss.inner(),
-                excess.inner(),
-                grown.largest(),
-                picture_contrast(pictures_BCHW.clone().inner()),
-                mean_codes_VR.inner().flatten(0, 1),
-            ],
-            0,
-        );
+        let metrics = FigureReadings::gather(UpdateTerms {
+            loss: loss.clone(),
+            code_loss,
+            overflow: excess,
+            state_max: grown.largest(),
+            picture_contrast: picture_contrast(pictures_BCHW.clone().inner()),
+            set_loss,
+            mean_codes_VR,
+        });
 
         let mut derivatives = profiling::broad("reader, view and display backward", || loss.backward());
         let upstream = Cells {
@@ -635,6 +787,7 @@ impl FigureTraining {
         })
     }
 
+
     /// Adam on the normalized gradients at this update's rate; the grown states return to the pool.
     pub async fn apply(&mut self, gradient: FigureGradient) -> Result<FigureUpdate, String> {
         let FigureGradient { normalized, grown, metrics, plan } = gradient;
@@ -653,15 +806,19 @@ impl FigureTraining {
         if values.iter().any(|value| !value.is_finite()) {
             return Err("Figure training became non-finite".into());
         }
+        let readings = FigureReadings::decode(&values, &self.request);
         Ok(FigureUpdate {
             completed: self.updates.completed,
             learning_rate: self.adam.learning_rate,
-            loss: values[0],
-            code_loss: values[1],
-            overflow: values[2],
-            state_max: values[3],
-            picture_contrast: values[4],
-            mean_codes: values[5..].to_vec(),
+            method: self.request.method,
+            loss: readings.loss,
+            method_loss: readings.method_loss,
+            code_loss: readings.code_loss,
+            layers: readings.layers,
+            overflow: readings.overflow,
+            state_max: readings.state_max,
+            picture_contrast: readings.picture_contrast,
+            mean_codes: readings.mean_codes,
             plan,
         })
     }

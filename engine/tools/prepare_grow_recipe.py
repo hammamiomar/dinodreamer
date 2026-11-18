@@ -15,13 +15,23 @@ definition's rule, update and training seed start the record in place of the ran
 The pyramid's state is a packed tensor: channels 0-15 the fine grid, 16-19 the coarse grid
 pixel-shuffled by 2. The engine keeps the coarse grid as its own [B*64*64, 16] tensor; the record converts.
 
+The method is `--method`. Basis-group mean matching is the loss above. The three other methods
+compare the canvas with a target set (`--set`, a set file of `export_target_set.py`: the windows as
+raw pixels and the patch of each). Their loss is the given-set tool's own `Objective`
+(research/given-set/givenset/objective.py) on tokens from its own `Reader`, with the trainer's
+dial at 1: token mean (`point`), basis-group distribution (`projection-mmd`) and token
+distribution (`mmd`). `--layers` names the token methods' layers ("block-3", ..., "final").
+The basis-group mean loss is recorded beside them as a reading.
+
 Run on CPU in the research environment. The archive and sweep trainer are imported
 read-only and checked by SHA-256. Fixtures above 1 MB store each update in a separate
 JSON file beside the main fixture. No numerical values are omitted.
 
 Usage: python engine/tools/prepare_grow_recipe.py --research <checkout> --dino-source <source> --dino-weights <checkpoint> --bundle <bundle> --input <block.json> --strength <study> --sweep <study> --output <fixture.json>
+  [--method token-distribution --layers block-3,block-6,block-9,final --given-set <research/given-set> --set <set.json>]
 
-Axes: B grids, C = 16 state channels, H = W = 128, V = 2B views, T = 64 patches, R = 3.
+Axes: B grids, C = 16 state channels, H = W = 128, V = 2B views, T = 64 patches, R = 3,
+P set pictures, N set tokens, M = V x scored patches canvas tokens, D = 768.
 """
 
 from __future__ import annotations
@@ -40,9 +50,23 @@ import numpy as np
 import torch
 
 ARCHIVE_SHA256 = "5c10352e424989e1f423b8fa05745127e922ae3b98ab4410fea79225da516bdf"
-# The sweep trainer and pyramid rule as of stage 6 (research commit ee76d84a).
-TRAINER_SHA256 = "2abcf6a8b3020e1199a320e696367e92dd77adb3cf3b45d627c5838ba1a47e88"
+# The sweep trainer and pyramid rule as of stage 6 (research commit ee76d84a). The second trainer
+# (research commit abdb8f33, the given-set tool's) only adds the seeded-field starts; noise and the
+# centre disc are unchanged.
+TRAINER_SHA256 = (
+    "2abcf6a8b3020e1199a320e696367e92dd77adb3cf3b45d627c5838ba1a47e88",
+    "b540d6914c9591e808451b468e1389a26b8979ebc2497895256c9e9b741b709f",
+)
 PYRAMID_SHA256 = "86434dfec7918a064a82078aa147e7a9c10202f161b7bf93af85856e4d2d2766"
+# The research's objective kind of each method (research/given-set/README.md, "The four methods").
+METHOD_KINDS = {
+    "basis-group-mean": "plain",
+    "token-mean": "point",
+    "basis-group-distribution": "projection-mmd",
+    "token-distribution": "mmd",
+}
+WINDOW_SIDE = 128
+SET_SCALE = "128"  # the aligned window meets the 128 px canvas (the given-set tool's scale rule)
 
 # engine/src/grow/draws.rs and engine/src/grow/figure.rs
 NOISE, FIRE = 0x6E6F6973, 0x66697265
@@ -228,19 +252,19 @@ def grow_and_read(kind: Kind, rule, dino, model, request, frame_DR, direction_R,
     }
 
 
-def first_gradient(kind: Kind, original, dino, model, request, code_R, median_norm, seed, batch, values, update, dtype) -> torch.Tensor:
+def first_gradient(kind: Kind, original, dino, seed, batch, values, update, dtype, method_loss) -> torch.Tensor:
     """The normalized gradient [P] of the record's first update in `dtype`, from its draws and the starting `values`.
-    DINO runs in `dtype` too, called as `native_tokens` calls it; float64 converts the model in place.
-    `dtype` is also the default while it runs, so the views' sampling grid has it too."""
+    DINO runs in `dtype` too; float64 converts the model in place. `method_loss(views_V3HW, dtype)` is the
+    method's loss term on the views. `dtype` is also the default while it runs, so the views' sampling grid has it too."""
     default = torch.get_default_dtype()
     torch.set_default_dtype(dtype)
     try:
-        return _first_gradient(kind, original, dino, model, request, code_R, median_norm, seed, batch, values, update, dtype)
+        return _first_gradient(kind, original, dino, seed, batch, values, update, dtype, method_loss)
     finally:
         torch.set_default_dtype(default)
 
 
-def _first_gradient(kind: Kind, original, dino, model, request, code_R, median_norm, seed, batch, values, update, dtype) -> torch.Tensor:
+def _first_gradient(kind: Kind, original, dino, seed, batch, values, update, dtype, method_loss) -> torch.Tensor:
     rule = kind.new_rule().to(dtype)
     initial = torch.from_numpy(np.array(values, dtype=np.float32)).to(dtype)
     with torch.no_grad():
@@ -258,20 +282,142 @@ def _first_gradient(kind: Kind, original, dino, model, request, code_R, median_n
         state_BCHW = kind.step(rule, state_BCHW, fine_fire.at(step), coarse_fire.at(step))
     views_V3HW = distill(original, original.eight_bit(kind.picture(rule, state_BCHW)), drawn["views"])
     dino.model.to(dtype)
-    normalized_V3HW = (views_V3HW - dino.mean_1C11.to(dtype)) / dino.std_1C11.to(dtype)
-    native_VTD = dino.model.get_intermediate_layers(normalized_V3HW, n=(11,), reshape=False, return_class_token=True,
-                                                    return_extra_tokens=True, norm=True)[0][0]
-    codes_VTR = (model.scale.to(dtype) * (native_VTD - model.mean_D.to(dtype))) @ request.frame_DR.to(dtype)
-    codes_VTR = codes_VTR[:, kind.patches]
-    loss = ((codes_VTR.mean(1) - code_R.to(dtype)).square().sum(-1).mean() / median_norm**2
-            + OVERFLOW_WEIGHT * (state_BCHW - state_BCHW.clamp(-1.0, 1.0)).abs().mean())
+    loss = method_loss(views_V3HW, dtype) + OVERFLOW_WEIGHT * (state_BCHW - state_BCHW.clamp(-1.0, 1.0)).abs().mean()
     loss.backward()
     return torch.cat([parameter.grad.flatten() / (parameter.grad.norm() + 1e-8) for parameter in rule.parameters()])
 
 
-def checked_import(folder: Path, name: str, sha256: str):
-    if hashlib.sha256((folder / f"{name}.py").read_bytes()).hexdigest() != sha256:
-        raise SystemExit(f"{folder / name}.py is not the expected source (SHA-256 {sha256[:8]}...)")
+def basis_group_mean_loss(kind: Kind, dino, model, request, code_R, median_norm):
+    """mean_v ||mean_{t in P} c_vt - k||^2 / m^2 in any float type, from DINO called as `native_tokens` calls it."""
+    def loss(views_V3HW: torch.Tensor, dtype: torch.dtype) -> torch.Tensor:
+        normalized_V3HW = (views_V3HW - dino.mean_1C11.to(dtype)) / dino.std_1C11.to(dtype)
+        native_VTD = dino.model.get_intermediate_layers(normalized_V3HW, n=(11,), reshape=False, return_class_token=True,
+                                                        return_extra_tokens=True, norm=True)[0][0]
+        codes_VTR = (model.scale.to(dtype) * (native_VTD - model.mean_D.to(dtype))) @ request.frame_DR.to(dtype)
+        codes_VTR = codes_VTR[:, kind.patches]
+        return (codes_VTR.mean(1) - code_R.to(dtype)).square().sum(-1).mean() / median_norm**2
+    return loss
+
+
+def load_target_set(path: Path) -> tuple[torch.Tensor, list[int], dict]:
+    """A set file of export_target_set.py: the windows [P, 3, 128, 128] as uint8, cut from its sheet (row-major,
+    `columns` windows a row), and the dot of each window, its patch on the window's 8 x 8 grid."""
+    from PIL import Image
+
+    record = json.loads(path.read_text())
+    sheet_HW3 = np.asarray(Image.open(path.with_name(record["sheet"])).convert("RGB"), np.uint8)
+    windows = []
+    for index in range(len(record["pictures"])):
+        row, column = divmod(index, record["columns"])
+        windows.append(sheet_HW3[row * WINDOW_SIDE:(row + 1) * WINDOW_SIDE, column * WINDOW_SIDE:(column + 1) * WINDOW_SIDE])
+    windows_P3HW = torch.from_numpy(np.stack(windows)).permute(0, 3, 1, 2).contiguous()
+    return windows_P3HW, [int(picture["dot"]) for picture in record["pictures"]], record
+
+
+class AnyFloatReadout:
+    """The given-set Reader's DINO in any float type. DinoReadout._normalized_rgb accepts float32 only; this
+    normalizes with the same mean and standard deviation in the input's type, for the float64 floor."""
+
+    def __init__(self, dino):
+        self.model, self.mean_1C11, self.std_1C11 = dino.model, dino.mean_1C11, dino.std_1C11
+
+    def _normalized_rgb(self, rgb_BCHW: torch.Tensor) -> torch.Tensor:
+        return (rgb_BCHW - self.mean_1C11.to(rgb_BCHW.dtype)) / self.std_1C11.to(rgb_BCHW.dtype)
+
+
+class SetMethod:
+    """Token mean, basis-group distribution or token distribution: the given-set tool's Objective on the 3 x 3
+    tokens of the set's windows, read with its Reader, as `given_set.build` and `recipe.Trainer` do at scale 128.
+    The set is read in `dtype` (float32, or float64 for the floor)."""
+
+    def __init__(self, method: str, layers: tuple[str, ...], givenset, reader, block: int, windows_P3HW, dots, seed: int, dtype):
+        self.givenset, self.reader, self.dtype = givenset, reader, dtype
+        self.kind = METHOD_KINDS[method]
+        self.layers = layers
+        config = givenset.objective.ObjectiveConfig(kind=self.kind, layers=layers)
+        frame_DR = reader.model.frames_GDR[block].detach()
+        projector = None
+        if self.kind == "projection-mmd":  # recipe.Trainer's projector_for; the cast is a no-op in float32
+            projector = lambda tokens: reader.calibrated(tokens) @ frame_DR.to(tokens.dtype)  # noqa: E731
+        self.frame_DR = frame_DR
+        self.read_layers = tuple(dict.fromkeys((*layers, givenset.reader.FINAL)))  # recipe.Trainer.layers
+        self.set_tokens = self.read_set(windows_P3HW, dots)
+        given = types.SimpleNamespace(tokens={SET_SCALE: self.set_tokens})
+        self.objective = givenset.objective.Objective(config, given, SET_SCALE, seed, projector)
+
+    def read_set(self, windows_P3HW, dots) -> dict[str, torch.Tensor]:
+        """Per layer [N, D]: the 3 x 3 tokens around each window's dot, picture by picture (given_set.build)."""
+        library, given_set = self.givenset.library, self.givenset.given_set
+        tokens = {layer: [] for layer in self.layers}
+        with torch.no_grad():
+            for window_3HW, dot in zip(windows_P3HW, dots):
+                pixels_HWC = window_3HW.permute(1, 2, 0).numpy()
+                if self.dtype == torch.float32:
+                    rgb_13HW = given_set.tensor_of(pixels_HWC, "cpu")
+                else:
+                    rgb_13HW = torch.from_numpy(pixels_HWC.copy()).permute(2, 0, 1)[None].to(self.dtype) / 255
+                reading = self.reader.read(rgb_13HW, self.layers)
+                kept = library.neighbourhood_patches(dot, "3x3", library.WINDOW_PATCHES)
+                for layer in self.layers:
+                    tokens[layer].append(reading.tokens[layer][0, kept])
+        return {layer: torch.cat(values) for layer, values in tokens.items()}
+
+    def value(self, views_V3HW: torch.Tensor, patches) -> tuple[torch.Tensor, dict, torch.Tensor]:
+        """The set loss over the layers, its terms, and the scored final tokens [V, T, D] (recipe.Trainer.step)."""
+        reading = self.reader.read(views_V3HW, self.read_layers)
+        region = {layer: tokens[:, patches] for layer, tokens in reading.tokens.items()}
+        value, terms = self.objective.value(region)
+        return value, terms, region[self.givenset.reader.FINAL]
+
+    def layer_terms(self, terms: dict) -> list[dict]:
+        """Per layer, in the request's order: the layer's value and, for a distribution, the kernel means xx and xy."""
+        if self.kind == "point":
+            return [{"layer": layer, "value": terms[f"point_{layer}"]} for layer in self.layers]
+        return [{"layer": layer, "value": terms[f"mmd_{layer}"], "xx": terms[f"mmd_xx_{layer}"], "xy": terms[f"mmd_xy_{layer}"]}
+                for layer in self.layers]
+
+    def record(self) -> dict:
+        """The prepared set per layer: what the engine's preparation must reproduce. The standardized features are
+        recorded whole up to 4,096 values, else every 257th."""
+        layers = []
+        for layer, prepared in self.objective.prepared.items():
+            features = prepared.set_ND.detach().flatten().numpy()
+            step = 1 if features.size <= 4096 else 257
+            layers.append({
+                "layer": layer,
+                "tokens": int(prepared.set_ND.shape[0]),
+                "width": int(prepared.set_ND.shape[1]),
+                "mean": encode(prepared.mean_D.detach().numpy()),
+                "rms": float(prepared.rms),
+                "medianDistance": float(prepared.median_distance),
+                "widths": prepared.widths.tolist(),
+                "yy": float(prepared.yy),
+                "standardizedStep": step,
+                "standardized": encode(features[::step]),
+            })
+        return {"layers": layers}
+
+
+def research_set_check(given_set_root: Path, set_file: dict, tokens: dict[str, torch.Tensor]) -> dict | None:
+    """Relative RMS, per layer, of the oracle's set tokens against the research's own saved set at scale 128, when
+    the set file names one and it is on disk: the same windows read by the same Reader must give the same tokens."""
+    name = set_file.get("provenance", {}).get("researchSet")
+    path = given_set_root / "out" / "sets" / f"{name}.pt"
+    if not name or not path.exists():
+        return None
+    saved = torch.load(path, map_location="cpu", weights_only=False)["tokens"][SET_SCALE]
+    return {layer: float((value - saved[layer]).norm() / saved[layer].norm()) for layer, value in tokens.items()}
+
+
+def given_set_provenance(root: Path) -> dict:
+    files = ("objective.py", "reader.py", "given_set.py", "library.py", "recipe.py")
+    return {name: hashlib.sha256((root / "givenset" / name).read_bytes()).hexdigest() for name in files}
+
+
+def checked_import(folder: Path, name: str, accepted: str | tuple[str, ...]):
+    accepted = (accepted,) if isinstance(accepted, str) else accepted
+    if hashlib.sha256((folder / f"{name}.py").read_bytes()).hexdigest() not in accepted:
+        raise SystemExit(f"{folder / name}.py is not an expected source (SHA-256 {', '.join(value[:8] for value in accepted)}...)")
     return __import__(name)
 
 
@@ -318,7 +464,18 @@ def main() -> None:
     parser.add_argument("--dino-source", type=Path, required=True, help="DINOv3 source checkout")
     parser.add_argument("--dino-weights", type=Path, required=True, help="DINOv3 checkpoint")
     parser.add_argument("--bundle", type=Path, required=True, help="BSF bundle containing bsf.py and its weights")
+    parser.add_argument("--method", default="basis-group-mean", choices=tuple(METHOD_KINDS))
+    parser.add_argument("--layers", default="", help="the token methods' layers, comma-separated: block-3, block-6, block-9, final")
+    parser.add_argument("--given-set", type=Path, help="the given-set tool (research/given-set), for the set methods")
+    parser.add_argument("--set", type=Path, help="a set file of export_target_set.py, for the set methods")
     args = parser.parse_args()
+    set_method_chosen = args.method != "basis-group-mean"
+    if set_method_chosen != bool(args.given_set and args.set):
+        raise SystemExit("--given-set and --set go with a set method, and only with one")
+    token_method = args.method in ("token-mean", "token-distribution")
+    if token_method != bool(args.layers):
+        raise SystemExit("--layers goes with a token method, and only with one")
+    layers = tuple(args.layers.split(",")) if token_method else (("final",) if set_method_chosen else ())
     first = 0
     continued_from = None
     if args.continue_from:
@@ -363,6 +520,19 @@ def main() -> None:
     dino = original.load_dinov3(args.dino_source, args.dino_weights, device)
     model = original.bsf.load_bundle(args.bundle, device)
     request = e9.load_request(payload, model, device)
+    set_method = None
+    if set_method_chosen:
+        sys.path.insert(0, str(args.given_set.resolve()))
+        import givenset.given_set  # noqa: E402  (givenset.paths puts the studies on sys.path; the modules above are reused)
+        import givenset.library  # noqa: E402
+        import givenset.objective  # noqa: E402
+        import givenset.reader  # noqa: E402
+
+        reader = givenset.reader.Reader("cpu", dino=dino, model=model)
+        windows_P3HW, dots, set_file = load_target_set(args.set)
+        if set_file["block"] != block:
+            raise SystemExit(f"{args.set.name} is a set of basis group {set_file['block']}, not {block}")
+        set_method = SetMethod(args.method, layers, givenset, reader, block, windows_P3HW, dots, args.seed, torch.float32)
     loaded = time.perf_counter()
 
     rule = kind.new_rule()
@@ -413,11 +583,20 @@ def main() -> None:
             state_BCHW = kind.step(rule, state_BCHW, fine_fire.at(step), coarse_fire.at(step))
         rgb_B3HW = original.eight_bit(kind.picture(rule, state_BCHW))
         views_V3HW = distill(original, rgb_B3HW, drawn["views"])
-        terms = original.block_terms(dino, model, request, views_V3HW, gate=False, margin=0.1)
-        codes_VTR = terms["codes"][:, kind.patches]
-        code_loss = strength.mean_code_loss(codes_VTR, code_R.to(codes_VTR), median_norm**2).mean()
+        layer_terms = None
+        if set_method is None:
+            terms = original.block_terms(dino, model, request, views_V3HW, gate=False, margin=0.1)
+            codes_VTR = terms["codes"][:, kind.patches]
+            code_loss = strength.mean_code_loss(codes_VTR, code_R.to(codes_VTR), median_norm**2).mean()
+            method_loss = code_loss
+        else:
+            method_loss, objective_terms, final_VTD = set_method.value(views_V3HW, kind.patches)
+            layer_terms = set_method.layer_terms(objective_terms)
+            # recipe.Trainer.plain_loss: the basis-group mean loss on the same tokens, a reading here.
+            codes_VTR = reader.calibrated(final_VTD) @ set_method.frame_DR
+            code_loss = strength.mean_code_loss(codes_VTR, code_R.to(codes_VTR), median_norm**2).mean()
         overflow = (state_BCHW - state_BCHW.clamp(-1.0, 1.0)).abs().mean()
-        loss = code_loss + OVERFLOW_WEIGHT * overflow
+        loss = method_loss + OVERFLOW_WEIGHT * overflow
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
         for parameter in rule.parameters():
@@ -430,10 +609,11 @@ def main() -> None:
         grown_norm = float(np.sqrt(np.square(fine.astype(np.float64)).sum()
                                    + (np.square(coarse.astype(np.float64)).sum() if coarse is not None else 0.0)))
         mean_codes = codes_VTR.detach().mean(1).flatten().tolist()
+        method_record = {} if set_method is None else {"methodLoss": float(method_loss.detach()), "layerTerms": layer_terms}
         if before is not None:
             lockstep.append({
                 "update": update, "plan": drawn, **before, "loss": float(loss.detach()), "codeLoss": float(code_loss.detach()),
-                "overflow": float(overflow.detach()), "meanCodes": mean_codes,
+                **method_record, "overflow": float(overflow.detach()), "meanCodes": mean_codes,
                 **encoded_states(state_BCHW, "grownSample"), "gradients": encode(gradients),
             })
         records.append({
@@ -442,6 +622,7 @@ def main() -> None:
             "learningRate": lr,
             "loss": float(loss.detach()),
             "codeLoss": float(code_loss.detach()),
+            **method_record,
             "overflow": float(overflow.detach()),
             "stateMax": float(state_BCHW.detach().abs().max()),
             "meanCodes": mean_codes,
@@ -453,7 +634,7 @@ def main() -> None:
             "gradients": encode(gradients),
             "values": encode(rule_values(rule)),
         })
-        print(json.dumps({key: records[-1][key] for key in ("update", "loss", "codeLoss", "overflow", "stateMax")}), flush=True)
+        print(json.dumps({key: records[-1].get(key) for key in ("update", "loss", "methodLoss", "codeLoss", "overflow", "stateMax")}), flush=True)
 
     # Readouts of the live grid: the last trained rule, then any saved rules of the same kind,
     # whose winner fractions are far from zero.
@@ -471,18 +652,40 @@ def main() -> None:
               flush=True)
     # The reference's own float32 error at update 0: the normalized gradient in float32 against
     # float64 on the same draws. The parity gate on the engine's gradient is three times this floor.
-    gradient_32 = first_gradient(kind, original, dino, model, request, code_R, median_norm, args.seed, args.batch, starting, first, torch.float32)
-    gradient_64 = first_gradient(kind, original, dino, model, request, code_R, median_norm, args.seed, args.batch, starting, first, torch.float64)
+    if set_method is None:
+        loss_32 = loss_64 = basis_group_mean_loss(kind, dino, model, request, code_R, median_norm)
+    else:
+        def loss_32(views_V3HW, dtype):
+            return set_method.value(views_V3HW, kind.patches)[0]
+
+        def loss_64(views_V3HW, dtype):
+            # DINO is float64 by now: the set is read again in float64, so the floor covers its preparation too.
+            reader_64 = givenset.reader.Reader("cpu", dino=AnyFloatReadout(dino), model=model)
+            method_64 = SetMethod(args.method, layers, givenset, reader_64, block, windows_P3HW, dots, args.seed, dtype)
+            return method_64.value(views_V3HW, kind.patches)[0]
+    gradient_32 = first_gradient(kind, original, dino, args.seed, args.batch, starting, first, torch.float32, loss_32)
+    gradient_64 = first_gradient(kind, original, dino, args.seed, args.batch, starting, first, torch.float64, loss_64)
     gradient_floor = float((gradient_32.double() - gradient_64).norm() / gradient_64.norm())
     recorded_0 = torch.from_numpy(np.frombuffer(base64.b64decode(records[0]["gradients"]), dtype="<f4").astype(np.float64))
     print(json.dumps({"gradientFloor": gradient_floor,
                       "recordVsFloat64": float((recorded_0 - gradient_64).norm() / gradient_64.norm())}), flush=True)
+    set_record = None
+    if set_method is not None:
+        set_record = {
+            "file": args.set.name,
+            "sha256": hashlib.sha256(args.set.read_bytes()).hexdigest(),
+            "sheetSha256": hashlib.sha256(args.set.with_name(set_file["sheet"]).read_bytes()).hexdigest(),
+            **set_method.record(),
+            "researchSetCheck": research_set_check(args.given_set, set_file, set_method.set_tokens),
+        }
     fixture = {
-        "format": 2,
+        "format": 3,
         "purpose": "Figure-recipe parity: the archived trainer and the optimizer-schedule study's trainer driven by the engine's PCG draws "
-                   "(tools/prepare_grow_recipe.py).",
+                   "(tools/prepare_grow_recipe.py); the set methods with the given-set tool's Objective and Reader.",
         "request": {"block": block, "code": selected["code"], "medianNorm": median_norm, "seed": args.seed,
-                    "batch": args.batch, "rule": args.rule, "start": args.start},
+                    "batch": args.batch, "rule": args.rule, "start": args.start, "method": args.method,
+                    **({"layers": list(layers)} if token_method else {})},
+        **({"set": set_record} if set_record else {}),
         "direction": payload["request"]["u1"],
         "initialValues": encode(starting),
         # A continued record: the saved definition it starts from, and its first update.
@@ -494,7 +697,8 @@ def main() -> None:
         "readings": readings,
         "provenance": {
             "archiveSha256": ARCHIVE_SHA256,
-            "trainerSha256": TRAINER_SHA256,
+            "trainerSha256": hashlib.sha256((args.sweep / "trainer.py").read_bytes()).hexdigest(),
+            **({"givenSet": given_set_provenance(args.given_set)} if set_method is not None else {}),
             "pyramidSha256": PYRAMID_SHA256,
             "inputSha256": hashlib.sha256(args.input.read_bytes()).hexdigest(),
             "strengthSha256": hashlib.sha256((args.strength / "strength.py").read_bytes()).hexdigest(),

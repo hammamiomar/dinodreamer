@@ -29,12 +29,9 @@ const PHONE_VIEWS = [
 /** The state the wall's links carry, so "All basis groups" can return to the wall at the place it was left. */
 export const FROM_WALL = { fromWall: true } as const;
 
-/** The frame's two corner lines for an automaton: how it was made, and its grids with the grid's size. */
-export function frameWordsOf(automaton: GalleryAutomaton): { label: string; note: (side: number) => string } {
-  return {
-    label: fill(WORDS.making, { start: WORDS.startsInLine[automaton.place.start], method: WORDS.methods[automaton.place.method] }),
-    note: (side) => fill(automaton.grids === "fine" ? WORDS.gridsFine : WORDS.gridsCoarseFine, { side }),
-  };
+/** The lower corner of the stage identifies its grids and their size. */
+export function gridNoteOf(automaton: GalleryAutomaton): (side: number) => string {
+  return side => fill(automaton.grids === "fine" ? WORDS.gridsFine : WORDS.gridsCoarseFine, { side });
 }
 
 /** The line above the number: back to the wall, and the neighbouring groups in the wall's order. */
@@ -74,6 +71,8 @@ export function GroupScreen<T extends GalleryAutomaton>({ group, name, neighbour
   /** The basis group panel's outlet. */
   children?: ReactNode;
 }) {
+  const { automaton, cell } = playing;
+  const position = cell.tries.findIndex(attempt => attempt.id === automaton.id) + 1;
   const phone = useMediaMatch(PHONE);
   const [phoneView, setPhoneView] = useState<PhoneView>("gallery");
   // The wall folds this group into its deck when the reader goes back (wall-passage.ts).
@@ -83,10 +82,19 @@ export function GroupScreen<T extends GalleryAutomaton>({ group, name, neighbour
       <section className="automata-stage" aria-label={String(group.group)}>
         <header className="automata-head">
           <GroupWays neighbours={neighbours} />
-          <h1 className="automata-title">
-            <span className="display"><BasisGroupLink block={group.group} /></span>
-            {nameField ?? (name !== null && <span className="automata-name heading">{name}</span>)}
-          </h1>
+          <div className="automata-stage-heading">
+            <h1 className="automata-title">
+              <span className="display"><BasisGroupLink block={group.group} /></span>
+              {nameField ?? (name !== null && <span className="automata-name heading">{name}</span>)}
+            </h1>
+            <p className="automata-selection">
+              <span>{WORDS.starts[automaton.place.start]}</span>{" "}
+              <span className="automata-selection-method">
+                <span>{WORDS.stageMethods[automaton.place.method]}</span>{" "}
+                <span className="automata-selection-try">{fill(WORDS.stageTry, { at: position, count: cell.tries.length })}</span>
+              </span>
+            </p>
+          </div>
         </header>
         {stage}
       </section>
@@ -99,7 +107,7 @@ export function GroupScreen<T extends GalleryAutomaton>({ group, name, neighbour
         {paneHead}
         <GroupLevels block={group.group} />
         <GroupGrid group={group} playing={playing.automaton} turned={phone} onChoose={onChoose} cellCaption={cellCaption} />
-        <TriesStrip cell={playing.cell} playing={playing.automaton} onChoose={onChoose} />
+        <TriesStrip cell={cell} playing={automaton} position={position} onChoose={onChoose} />
       </div>
       {children}
     </main>

@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { LookSummary } from "../library/look-cloud";
 import type { MaterialAnchor, MaterialRequest } from "../recipe";
-import { canonicalFigureFile, readFigureMaterial } from "../materials/material-file";
+import { canonicalFigureFile, lossKindOf, methodOfFile, readFigureMaterial, type FigureLayer } from "../materials/material-file";
 import {
-  FIGURE_SEED, NO_ANCHOR_ERROR, RUNS, afterRun, continuedInput, engineRequest, figureInput, figureMaterial, fired, firstFire, firstFireCondition, runSeed,
-  strengthBand,
+  FIGURE_SEED, NO_ANCHOR_ERROR, RUNS, afterRun, continuedInput, engineRequest, figureInput, figureMaterial, fired, firstFire, firstFireCondition,
+  figureMaterialId, plannedRuns, READING_LADDER, READING_TICK, readingStep, runSeed, strengthBand,
 } from "./figure-recipe";
 import { readoutText } from "./live-readout";
+import { targetSetKey } from "./target-set";
 import { continuationSource } from "./continuation";
 import { DEFAULT_KIND, kindFromSearch, recipeName, type MaterialKind } from "./material-kind";
 import type { LiveReading } from "./protocol";
@@ -44,6 +45,7 @@ describe("Grow's request contract", () => {
     const input = figureInput(request(), summary, "monet-dtd-seed9-20261004-pass-003", DEFAULT_KIND);
     expect(engineRequest(input)).toEqual({
       block: 12002, code: anchor.code, medianNorm: 5.719563, seed: FIGURE_SEED + 12002, batch: 4, rule: "cell", start: "noise",
+      method: "basis-group-mean",
     });
     expect(Math.hypot(...input.direction)).toBeCloseTo(1, 12);
   });
@@ -166,11 +168,13 @@ describe("the four kinds", () => {
 describe("retry on the outcome", () => {
   it("keeps a run that fires and tries the next seed otherwise, at most three runs", () => {
     expect(RUNS).toBe(3);
-    expect(afterRun(1, true)).toBe("fired");
-    expect(afterRun(1, false)).toBe("retry");
-    expect(afterRun(2, false)).toBe("retry");
-    expect(afterRun(3, false)).toBe("stop");
-    expect(afterRun(3, true)).toBe("fired");
+    expect(afterRun(1, RUNS, true)).toBe("fired");
+    expect(afterRun(1, RUNS, false)).toBe("retry");
+    expect(afterRun(2, RUNS, false)).toBe("retry");
+    expect(afterRun(3, RUNS, false)).toBe("stop");
+    expect(afterRun(3, RUNS, true)).toBe("fired");
+    // A set method's one run is never followed by another seed.
+    expect(afterRun(1, 1, false)).toBe("stop");
     expect(fired({ winnerFraction: 0.9 })).toBe(true);
     expect(fired({ winnerFraction: 0.89 })).toBe(false);
     expect(fired({ winnerFraction: null })).toBe(false);
@@ -207,6 +211,108 @@ describe("retry on the outcome", () => {
   });
 });
 
+describe("a set method's run and kept file", () => {
+  const set = {
+    source: "sample-strongest" as const, neighbourhood: "3x3" as const,
+    pictures: [{ imageId: 3536804379159069, patch: 69 }, { imageId: 12, patch: 255 }],
+  };
+  const objective = { method: "token-distribution" as const, layers: ["block-3", "block-6", "block-9", "final"] as FigureLayer[], set };
+  const finalFile = (input: ReturnType<typeof figureInput>) => figureMaterial(input, {
+    run: 1, stage: "final", values: new Float32Array(7776), updates: 1000, trainingMs: 1, engine: "bundled",
+    preview: "data:image/png;base64,iVBORw0KGgo=",
+    reading: { status: "measured", strength: 0.4, winnerFraction: 0.2, side: 128, seed: 9317, tick: 600, note: "test" },
+  });
+
+  it("asks the engine for its method and layers; basis-group distribution for no layers", () => {
+    const input = figureInput(request(), summary, "dictionary", DEFAULT_KIND, 4, 1, objective);
+    expect(engineRequest(input)).toMatchObject({ method: "token-distribution", layers: ["block-3", "block-6", "block-9", "final"] });
+    const codes = figureInput(request(), summary, "dictionary", DEFAULT_KIND, 4, 1, { method: "basis-group-distribution", layers: [], set });
+    expect(engineRequest(codes).method).toBe("basis-group-distribution");
+    expect("layers" in engineRequest(codes)).toBe(false);
+  });
+
+  it("trains one run, and its file records the method, the layers and the set, through the canonical file and a continuation", () => {
+    expect([plannedRuns(false, "token-distribution"), plannedRuns(false), plannedRuns(true)]).toEqual([1, RUNS, 1]);
+    const input = figureInput(request(), summary, "dictionary", DEFAULT_KIND, 4, 1, objective);
+    const file = finalFile(input);
+    expect(file.name).toBe("Block 12002 · strongest anchor · Fine · noise · token distribution matching · final · 1,000 updates · did not fire");
+    expect(file.id).toContain("grow-figure-token-distribution-four-layers-sample-12002-");
+    expect(file.id).not.toBe(finalFile(figureInput(request(), summary, "dictionary", DEFAULT_KIND)).id);
+    expect(file.recipe.settings).toMatchObject({ method: "token-distribution", layers: objective.layers, set, objective: "mmd", runs: 1 });
+    const canonical = canonicalFigureFile(readFigureMaterial(JSON.parse(JSON.stringify(file))).file);
+    expect(canonical.recipe.settings).toMatchObject({ method: "token-distribution", layers: objective.layers, set });
+    expect(lossKindOf(canonical)).toBe("other");
+    expect(methodOfFile(canonical)).toBe("token-distribution");
+    expect(continuationSource(readFigureMaterial(canonical)).objective).toEqual(objective);
+  });
+
+  it("names in the id what changes the automaton: the method, a token method's depth and the set", () => {
+    const id = (objective: Parameters<typeof figureInput>[6]) => figureMaterialId(figureInput(request(), summary, "dictionary", DEFAULT_KIND, 4, 1, objective), 1000, "final");
+    const selection = (pictures: { imageId: number; patch: number }[]) => ({ source: "selection" as const, neighbourhood: "3x3" as const, pictures });
+    const a = selection([{ imageId: 3536804379159069, patch: 69 }, { imageId: 12, patch: 255 }]);
+    const b = selection([{ imageId: 3536804379159069, patch: 69 }, { imageId: 13, patch: 0 }]);
+    // Basis-group mean keeps its ids as before.
+    expect(id(undefined)).toBe(`grow-figure-12002-3536804379159069-74-seed-${FIGURE_SEED + 12002}-batch-4-update-1000-final`);
+    const fourLayers = id({ method: "token-mean", layers: ["block-3", "block-6", "block-9", "final"], set: a });
+    const finalLayer = id({ method: "token-mean", layers: ["final"], set: a });
+    expect(fourLayers).toMatch(/^grow-figure-token-mean-four-layers-selection-[0-9a-f]{8}-12002-/);
+    expect(finalLayer).toMatch(/^grow-figure-token-mean-final-layer-selection-[0-9a-f]{8}-12002-/);
+    expect(id({ method: "token-mean", layers: ["final"], set: b })).not.toBe(finalLayer);
+    expect(id({ method: "token-mean", layers: ["final"], set: selection([...a.pictures]) })).toBe(finalLayer);
+    expect(id({ method: "token-mean", layers: ["final"], set: { ...a, source: "sample-strongest" } })).toMatch(/^grow-figure-token-mean-final-layer-sample-12002-/);
+    expect(id({ method: "basis-group-distribution", layers: [], set: a })).toMatch(/^grow-figure-basis-group-distribution-selection-[0-9a-f]{8}-12002-/);
+  });
+
+  it("fingerprints a selection by its pictures in set order", () => {
+    const pictures = [{ imageId: 3536804379159069, patch: 69 }, { imageId: 12, patch: 255 }];
+    const key = targetSetKey({ source: "selection", neighbourhood: "3x3", pictures });
+    expect(key).toMatch(/^selection-[0-9a-f]{8}$/);
+    expect(targetSetKey({ source: "selection", neighbourhood: "3x3", pictures: [...pictures].reverse() })).not.toBe(key);
+    expect(targetSetKey({ source: "sample-strongest", neighbourhood: "3x3", pictures })).toBe("sample");
+  });
+
+  it("refuses to keep a set method's file without its set", () => {
+    const input = figureInput(request(), summary, "dictionary", DEFAULT_KIND, 4, 1, { ...objective, set: null });
+    expect(() => finalFile(input)).toThrow("target set");
+  });
+
+  it("records basis-group mean matching as before, with its method named", () => {
+    const file = finalFile(figureInput(request(), summary, "dictionary", DEFAULT_KIND));
+    expect(file.recipe.settings).toMatchObject({ method: "basis-group-mean", objective: "mean-code" });
+    expect(file.recipe.settings).not.toHaveProperty("set");
+    expect(lossKindOf(file)).toBe("plain");
+    expect(continuationSource(readFigureMaterial(file)).objective).toEqual({ method: "basis-group-mean", layers: [], set: null });
+  });
+});
+
+describe("a set method's reading step (decision 12)", () => {
+  it("reads at ten steps from 100 to 2,000; basis-group mean stays at 600", () => {
+    expect(READING_LADDER).toEqual([100, 150, 200, 300, 400, 600, 800, 1000, 1500, 2000]);
+    expect(READING_TICK).toBe(600);
+  });
+
+  it("takes the step of the lowest own loss, the earlier one on a tie, and skips a loss that is not finite", () => {
+    expect(readingStep([{ tick: 100, loss: 0.3 }, { tick: 150, loss: 0.1 }, { tick: 200, loss: 0.2 }])).toBe(150);
+    expect(readingStep([{ tick: 100, loss: 0.1 }, { tick: 150, loss: 0.1 }])).toBe(100);
+    expect(readingStep([{ tick: 100, loss: Number.NaN }, { tick: 150, loss: 0.4 }])).toBe(150);
+    expect(readingStep([])).toBeNull();
+  });
+
+  it("records the steps read and their own losses in the kept file", () => {
+    const set = { source: "sample-strongest" as const, neighbourhood: "3x3" as const, pictures: [{ imageId: 12, patch: 0 }, { imageId: 13, patch: 1 }] };
+    const input = figureInput(request(), summary, "dictionary", DEFAULT_KIND, 4, 1, { method: "token-distribution", layers: ["final"], set });
+    const ladder = [{ tick: 100, loss: 0.3 }, { tick: 150, loss: 0.1 }];
+    const file = figureMaterial(input, {
+      run: 1, stage: "final", values: new Float32Array(7776), updates: 1000, trainingMs: 1, engine: "bundled", ladder,
+      preview: "data:image/png;base64,iVBORw0KGgo=",
+      reading: { status: "measured", strength: 0.4, winnerFraction: 0.2, side: 128, seed: 9317, tick: 150, note: "test" },
+    });
+    const canonical = canonicalFigureFile(readFigureMaterial(JSON.parse(JSON.stringify(file))).file);
+    expect(canonical.recipe.settings).toMatchObject({ readingLadder: [100, 150], readingLosses: [0.3, 0.1] });
+    expect(canonical.reading.tick).toBe(150);
+  });
+});
+
 describe("first fire", () => {
   it("is a checkpoint that fires at tick 600 and still fires at tick 2,000, for the noise kinds", () => {
     for (const rule of ["cell", "pyramid"] as const) {
@@ -233,7 +339,7 @@ describe("first fire", () => {
 
 describe("live readout", () => {
   const reading = (winnerFraction: number, completed: number): LiveReading => ({
-    strength: 2.3137, band: "strongly", winnerFraction, seed: 9317, tick: completed * 8, rule: "training", completed,
+    patchCodes: new Float32Array(192), strength: 2.3137, band: "strongly", winnerFraction, seed: 9317, tick: completed * 8, rule: "training", completed,
     elapsedMs: completed * 300, readMs: 40, selectedPatches: new Uint8Array(64), coSelection: { readPatches: 64, top: [], requested: { group: 12002, rank: 1, patches: 63, positionSum: 63 } },
   });
 

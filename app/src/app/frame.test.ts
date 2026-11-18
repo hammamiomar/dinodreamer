@@ -10,7 +10,7 @@ describe("the Experimental link", () => {
 
 describe("the frame's two page rules", () => {
   test("the screens that fit the window have no footer, with a basis group's panel over them too: the Canvas, the owner's Automata view, Train, and How it works", () => {
-    for (const path of ["/create", "/create/basis/12002", "/admin/materials", "/train", "/train/basis/12002", "/how", "/how/basis/4009"]) {
+    for (const path of ["/create", "/create/basis/12002", "/train", "/train/basis/12002", "/how", "/how/basis/4009"]) {
       expect(fitsTheWindow(path)).toBe(true);
     }
     for (const path of ["/", "/index", "/basis/12002", "/growth", "/howl"]) expect(fitsTheWindow(path)).toBe(false);

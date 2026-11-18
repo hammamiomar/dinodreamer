@@ -1,4 +1,4 @@
-import { Link, NavLink, Outlet, ScrollRestoration, useLocation, useNavigation, useRouteError } from "react-router";
+import { NavLink, Outlet, ScrollRestoration, useLocation, useNavigation, useRouteError } from "react-router";
 import type { Location } from "react-router";
 import { useEffect, useRef, useState } from "react";
 import { explorePath } from "../features/atlas/atlas-position";
@@ -19,13 +19,12 @@ const NAVIGATION_WORDS = { menu: "Menu", name: "Site navigation" };
 
 export function Frame() {
   const navigation = useNavigation();
-  const slow = useSlowLoading(navigation.state === "loading");
   const location = useLocation();
   return (
     <EditorSessionProvider>
       {/* Every page bends as the window scrolls; one that does not scroll stays flat, its progress 0 (ground/lattice.ts). */}
       <Ground bends pathname={location.pathname} />
-      <FrameLayout busy={slow}>
+      <FrameLayout busy={navigation.state !== "idle"}>
         <Outlet />
         {!fitsTheWindow(location.pathname, location.search) && <SiteFooter />}
         {/* The site owns Train's scale, both here and in a panel's floating slot. */}
@@ -53,23 +52,6 @@ function EngineStartRecovery() {
   return null;
 }
 
-/** Delay the loading indicator so short navigations do not flash it. */
-const SLOW_LOADING_MS = 1000;
-
-/** True once `loading` has lasted SLOW_LOADING_MS; false again as soon as it ends. */
-function useSlowLoading(loading: boolean): boolean {
-  const [slow, setSlow] = useState(false);
-  useEffect(() => {
-    if (!loading) {
-      setSlow(false);
-      return;
-    }
-    const timer = setTimeout(() => setSlow(true), SLOW_LOADING_MS);
-    return () => clearTimeout(timer);
-  }, [loading]);
-  return loading && slow;
-}
-
 /**
  * Screens laid out to fit the window have no footer after them: the Canvas, with its block panel
  * over it, the Playground and its owner mode, where only the shelf scrolls and its last line is the
@@ -80,7 +62,7 @@ export function fitsTheWindow(pathname: string, search = ""): boolean {
   const under = (screen: string) => pathname === screen || pathname.startsWith(`${screen}/`);
   // Automata fits the window while a basis group's screen is open; its wall of groups is a page that scrolls. So does the owner's view of it.
   if (under("/automata") || under("/admin/automata")) return opensGroup(new URLSearchParams(search));
-  return ["/create", "/admin/materials", "/train", "/how"].some(under);
+  return ["/create", "/train", "/how"].some(under);
 }
 
 /** The Experimental link marks its page: the Painter's page and the Painter with its panels. */
@@ -192,11 +174,8 @@ function useEntranceInView(home: boolean, site: RefObject<HTMLElement | null>): 
 }
 
 /**
- * The page under the header. While a navigation is slow (`busy`), the square mark of the
- * current link, or of the link being opened, blinks slowly: it takes no room, so nothing
- * moves, and the page under it keeps what it shows until the next one is ready
- * (styles.css). A screen reader hears "Loading". The footer's top is kept on the 64 px module,
- * whatever height the page above it has (ui/module-snap.ts).
+ * The header marks the destination as soon as navigation starts. A screen reader hears "Loading".
+ * The footer stays on the 64 px module (ui/module-snap.ts).
  */
 function FrameLayout({ busy, children }: { busy: boolean; children: ReactNode }) {
   const site = useRef<HTMLDivElement>(null);
@@ -238,8 +217,9 @@ function FrameLayout({ busy, children }: { busy: boolean; children: ReactNode })
           {NAVIGATION_WORDS.menu}
         </button>
         <nav id="site-navigation" className="frame-nav" aria-label={NAVIGATION_WORDS.name}
-          data-open={menuOpen || undefined} onClick={(event) => {
-            if (event.target instanceof Element && event.target.closest("a")) setMenuOpen(false);
+          data-open={menuOpen || undefined} onClick={event => {
+            const link = event.target instanceof Element && event.target.closest("a");
+            if (link && link.href === window.location.href) setMenuOpen(false);
           }}>
           {/*
             Index (/index) returns to the position the visitor left (order, filters, page), or opens the first page.
@@ -254,11 +234,11 @@ function FrameLayout({ busy, children }: { busy: boolean; children: ReactNode })
             <span className="frame-nav-short">{SITE_WORDS.header.howShortForm}</span>
           </NavLink>
           {/* The experiment's one page, the Painter's, which also stands for the Painter itself (/create). Under
-              832 px the link shows three squares (styles.css); its name stays the word. */}
-          <Link to="/canvas" className={experimentalPage(pathname) ? "active" : undefined} aria-label={SITE_WORDS.header.experimental}>
+              832 px the link shows its short form (styles.css); its name stays the word. */}
+          <NavLink to="/canvas" className={({ isPending }) => [experimentalPage(pathname) && "active", isPending && "pending"].filter(Boolean).join(" ")} aria-label={SITE_WORDS.header.experimental}>
             <span className="frame-nav-full">{SITE_WORDS.header.experimental}</span>
-            <span className="frame-nav-short frame-nav-squares" aria-hidden="true"><i /><i /><i /></span>
-          </Link>
+            <span className="frame-nav-short" aria-hidden="true">{SITE_WORDS.header.experimentalShortForm}</span>
+          </NavLink>
         </nav>
         <span className="visually-hidden" aria-live="polite">
           {busy ? SITE_WORDS.frame.loading : ""}

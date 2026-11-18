@@ -24,6 +24,8 @@ export const SITE_WORDS = {
      * and this word stays its name for a screen reader.
      */
     experimental: "Experimental",
+    /** Its short form in the header under 832 px, as "How" is How it works's. */
+    experimentalShortForm: "Lab",
   },
 
   frame: {
@@ -111,9 +113,9 @@ export const SITE_WORDS = {
     /** Added after the grids for an automaton whose picture has 2 px per cell. */
     kindTwoPixels: " at 2 px per cell",
     /** An automaton started from noise in every cell. */
-    kindNoise: "from noise",
+    kindNoise: "from a noise field",
     /** An automaton started from central noise initialization. */
-    kindSeed: "from central noise",
+    kindSeed: "from a noise disc",
     /** The running automaton's name for a screen reader. {block} is the basis group's number. */
     canvasLabel: "Automaton of basis group {block}, running; draw on it to disturb it",
     /** The same canvas where the page gives no brush. */
@@ -653,168 +655,13 @@ export const SITE_WORDS = {
   },
 
   owner: {
-    // The owner mode of the Playground (/admin/materials, features/owner/): the Playground's stage and
-    // shelf with the owner's actions.
-    /** The bar over the page: its name, and the link to the owner page (/admin). */
-    heading: "Automata · owner view",
-    ownerPage: "Owner page",
-    /** The owner block's counts, two lines under its name. The numbers change in place after an action. */
-    countsShown: "{shown} shown · {hidden} hidden",
-    countsPending: "{pending} pending · {featured} featured",
-    /** In place of the stage and the shelf while the automata load, and when the owner API fails. {message} is the error. */
-    loading: "Loading the automata…",
-    failed: "The owner API refused or failed: {message}. Open the owner page first to sign in.",
-    /** The {message} above when the API gave no reason of its own. {status} is its HTTP status. */
+    // The owner API's client (features/owner/owner-materials.ts): its refusals, for the owner's Automata page.
+    /** When the owner API refuses a request without its own words. {status} is the HTTP status. */
     apiAnswered: "the owner API answered {status}",
-    /** The {message} above when the list names a hidden automaton without the time it was hidden. */
+    /** When the answer lists a hidden automaton without the time it was hidden. */
     noHidingTime: "A hidden automaton has no hiding time",
-    /** The {message} above when the list names a pending submission without its title, credit, time, basis group or file id. */
+    /** When the answer lists a pending submission without one of its fields. */
     badPending: "A pending submission lacks one of its fields",
-    /** Under the bar when some pending files could not be read; those submissions are left out of Pending review. */
-    pendingUnread: "{count} pending submissions could not be read: {message}",
-    /** The shelf's first group: the submissions awaiting approval. */
-    pendingGroup: "Pending review",
-    /** A tile's marks, on its label line. */
-    markHidden: "Hidden",
-    markFeatured: "Featured",
-    markPending: "Pending",
-    markPurged: "Purged",
-    markApproved: "Approved",
-    markRejected: "Rejected",
-    /** The owner's actions at the stage head, for the automaton on the stage; their group's name for a screen reader. */
-    actionsName: "Owner actions",
-    hide: "Hide",
-    restore: "Restore",
-    feature: "Feature",
-    unfeature: "Unfeature",
-    approve: "Approve",
-    /** Purge and Reject ask once more in place: the action again, Keep it, and the warning under them. */
-    purge: "Purge…",
-    reject: "Reject…",
-    purgeForGood: "Purge for good",
-    rejectForGood: "Reject for good",
-    keepIt: "Keep it",
-    purgeWarning: "Purge deletes the automaton definition, its poster and its index entry. You cannot undo this.",
-    rejectWarning: "Reject deletes the submission. You cannot undo this.",
-    /** Under the actions for a featured automaton: where featuring puts it. */
-    featuredPlace: "In the home's pool and the Featured group",
-    /** Beside the stage's bar after an action on the automaton on the stage. */
-    hidden: "Hidden. It keeps its place here.",
-    restored: "Restored.",
-    featured: "Featured.",
-    unfeatured: "No longer featured.",
-    approved: "Approved and published.",
-    purged: "Purged. It stays here, greyed, until the page is reloaded.",
-    rejected: "Rejected. It stays here, greyed, until the page is reloaded.",
-    /** Beside the bar when an action failed. {action} is its word, {message} the Worker's reason. */
-    actionFailed: "{action} failed: {message}",
-  },
-
-  research: {
-    // The owner's research page (/admin/research, features/research/): every research run the
-    // research repository published, by basis group and condition. Owner only; never public.
-    heading: "Research",
-    /** Under the heading. {runs}, {studies} and {groups} are counts; {made} the export's time and {commit} its research commit. */
-    counts: "{runs} runs · {studies} studies · {groups} basis groups",
-    madeFrom: "Exported {made} from research commit {commit}",
-    loading: "Loading the research runs…",
-    failed: "The research runs could not be read: {message}. Open the owner page first to sign in.",
-    /** When the private bucket has no run index yet. */
-    nothingYet: "No research runs are published yet. Publish an export with: pnpm run research publish <folder>",
-    /** The filters over every view; an empty filter keeps everything. */
-    studiesLabel: "Studies",
-    tagsLabel: "Tags",
-    outcomesLabel: "Outcome",
-    clearFilter: "Clear",
-    /** {shown} runs of {runs} pass the filter. */
-    filtered: "{shown} of {runs} runs shown",
-    /** A study's line in the list: {date}, {title} and {count} runs; its question under it. */
-    studyLine: "{date} · {title} · {count} runs",
-    /** The conditions: start, loss and rule. */
-    starts: { noise: "Noise", "centre-disc": "Centre disc", "seeded-field": "Seeded field" },
-    losses: { plain: "Plain", guided: "Guided", "plain-margin": "Plain + margin", other: "Other" },
-    /** The patches the loss scores, and the run's other dials. */
-    regions: { centre: "Centre 16 tokens", field: "Whole field" },
-    lossRegion: "Loss scores",
-    request: "Request",
-    machine: "Machine",
-    rules: { cell: "Fine", pyramid: "Coarse + fine" },
-    /** The outcome classes, with their marks. */
-    outcomes: { holds: "Holds at 4,000", fired: "Fired", "never-fired": "Never fired" },
-    /** The overview's first column, and a cell's line: {fired} of {runs} fired. */
-    groupColumn: "Basis group",
-    cellCount: "{fired}/{runs}",
-    /** A cell's name for a screen reader: {group}, {condition}, {runs}, {fired}. */
-    cellName: "Basis group {group}, {condition}: {runs} runs, {fired} fired",
-    /** The group view. */
-    allGroups: "All basis groups",
-    groupHeading: "Basis group {group}",
-    /** The row and the view of the runs without a basis group. */
-    noGroup: "No basis group",
-    noRunsHere: "No runs",
-    /** A card's lines: the seed and the update the run first fired at. */
-    cardSeed: "seed {seed}",
-    cardFired: "fired at {update}",
-    cardNeverFired: "never fired",
-    /** The run view's sections. */
-    backToGroup: "Basis group {group}",
-    dials: "Settings",
-    outcome: "Outcome",
-    reading: "Reading",
-    stills: "Stills",
-    stillAt: "Tick {tick}",
-    provenance: "Provenance",
-    /** The settings table's rows. */
-    study: "Study",
-    start: "Start",
-    loss: "Loss",
-    rule: "Rule",
-    seed: "Seed",
-    schedule: "Schedule",
-    scheduleValue: "{updates} updates, pool {pool}",
-    discValue: "radius {radius} cells",
-    fieldValue: "radius {radius} cells on {amplitude} × noise",
-    /** A guided loss's settings, each shown only when the run uses it; {units} is the DINO units the guide acts on, last. */
-    guide: {
-      ratio: "ratio {value}",
-      weightCap: "weight cap {value}",
-      releaseFraction: "release fraction {value}",
-      releaseAtUpdate: "held to update {value}",
-      releaseFloor: "release floor {value}",
-      reEngages: "re-engages",
-      reEngagesAt: "re-engages above {value} of its first loss",
-      staysReleased: "stays released",
-      zFloor: "z floor {value}",
-      units: "on {units}",
-    },
-    /** The outcome table's rows. */
-    releasedAt: "Released at update",
-    requestLoss: "Request loss",
-    centreSelected: "Centre tokens selected",
-    centreValue: "{count} of {of}",
-    naturalRoute: "Natural route kept",
-    guideLossAtRelease: "Guide loss at release",
-    guideLossEnd: "Guide loss at the end",
-    firesAt: "First fired at update",
-    holds: "Holds at tick 4,000",
-    yes: "yes",
-    no: "no",
-    notMeasured: "—",
-    materialSha256: "Definition SHA-256",
-    /** Promote: the run as a pending automaton, published only by Approve on the materials page. */
-    promote: "Promote",
-    promoteTitle: "Public title",
-    promoteHint: "Promote makes this run a pending automaton. It is public only after Approve on the materials page.",
-    promoting: "Promoting…",
-    promoted: "Pending as {id}. Approve it on the materials page.",
-    promoteFailed: "Promote failed: {message}",
-    materialsPage: "Materials page",
-    /** The run's place on the site, from the owner's materials list. */
-    onSitePending: "Pending review",
-    onSiteShown: "Published",
-    onSiteHidden: "Hidden",
-    unknownRun: "No research run {id} is published.",
-    unknownGroup: "No research runs train basis group {group}.",
   },
 
   publish: {
@@ -893,10 +740,76 @@ export const SITE_WORDS = {
     noAnchor: "This selection has no reference patch, so Train has nothing to aim at. Open the basis group's page, select its patches and press Send to Train: the page then names the reference patch and its response level.",
     /** The label over the first choice (Fine, Coarse + fine); each option's hint is in grow/material-kind.ts. */
     rule: "Grids",
-    /** The label over the second choice (Noise, Central noise). */
+    /** The label over the second choice (Noise field, Noise disc). */
     start: "Start",
+    /** The label over the third choice: the space training compares in (grow/train-method.ts). */
+    space: "Space",
+    /** Its two options: the 3 numbers a basis group reads from a token, or DINO's 768 numbers for a patch. */
+    spaces: { "basis-group": "Basis group", token: "Token" },
+    /** The label over the fourth choice: what training compares, the average or the spread. */
+    comparison: "Comparison",
+    /** Its two options. */
+    comparisons: { mean: "Mean", distribution: "Distribution" },
+    /**
+     * Under the two choices, the method they make: its fixed name (automata.methods) and what it asks of the
+     * canvas. "The set" is the basis group's 33 strongest pictures, with the 3 × 3 patches around each marked patch.
+     */
+    methodHints: {
+      "basis-group-mean": "the average of the basis group's 3 numbers over the picture, toward the marked patch",
+      "token-mean": "the average of DINO's tokens over the picture, toward the average of the set",
+      "basis-group-distribution": "the basis group's 3 numbers spread over the picture as they spread over the set",
+      "token-distribution": "DINO's tokens spread over the picture as they spread over the set",
+    },
+    /** The label over the token methods' depth: which of DINO's layers they compare (grow/train-method.ts). Shown only for the Token space. */
+    depth: "Depth",
+    /** Its two options: blocks 3, 6 and 9 and the final layer, averaged; or the final layer alone. */
+    depths: { "four-layers": "Four layers", "final-layer": "Final layer" },
+    /** Why the space and the comparison cannot change when Train continues a definition. */
+    continuedMethod: "A continued automaton keeps its method.",
+    /** In place of the stop check for the methods that compare with the set: they train every update and keep the last cellular model. One line. */
+    trainsToEnd: "Trains all {updates} updates; keeps the last model.",
+    /** Added after the update counter for the methods that compare with the set: the loss the update descends, {loss} with 4 significant digits. */
+    methodLoss: "loss {loss}",
+    /** Status, first line, after a run of a method that compares with the set: its final cellular model is saved, whatever its selection. */
+    finalSaved: "Optimizer update {update} · the final cellular model is saved, read at step {tick}",
     /** The check above the primary. The first accepted checkpoint: the first checkpoint whose cellular model meets the selection target at simulation step 600, and for a noise start again at step 2,000. */
     stopAtFirstFire: "Stop at the first accepted checkpoint",
+    /**
+     * The toggle under the two choices that shows the method's two choices in their place (grow-panel.tsx
+     * ChoiceFaces): the chosen method, short, so the closed toggle says which it is. One line beside Advanced.
+     */
+    methodToggle: {
+      "basis-group-mean": "Basis-group mean",
+      "token-mean": "Token mean",
+      "basis-group-distribution": "Basis-group distribution",
+      "token-distribution": "Token distribution",
+    },
+    /**
+     * In place of the marked patch's sentence for the methods that compare with the set, beside the set's pictures,
+     * which show the 3 × 3 patches around each picture's strongest patch. {count} is the number of pictures (33, fewer
+     * when some could not be read). At most four lines beside the pictures.
+     */
+    towardSet: "Trains toward this group's {count} strongest pictures.",
+    /** The same when the visitor sent a selection from the group's page: the set is its strongest pictures, one patch each. */
+    towardSelection: "Trains toward the {count} strongest pictures of your selection.",
+    /** The same when the selection holds fewer than 33 pictures (decision 15): Train uses all of them, and says how many. */
+    towardWholeSelection: "Your selection holds {count} pictures. Train uses all {count}, one patch each.",
+    /** For a distribution method and a selection of one picture (decision 15): Train is off. */
+    setOnePicture: "One picture is not a distribution. Select more pictures on the group's page, or choose Mean.",
+    /** Under the set's sentence when the selection is Level 1 or Level 2 only (decision 15). */
+    weakSet: "A weak level tends to grow what surrounds the group's subject, not the subject.",
+    /** In place of the pictures when the visitor's selection holds no library picture with a public preview (only their own picture's patches). */
+    setEmpty: "Your selection has no library picture to train toward. Select patches of library pictures on the group's page, then send them to Train.",
+    /** Under it, in the response level's place: what each picture brings to the set. */
+    setPatches: "3 × 3 patches each",
+    /** Under that, in the place of "Pick another patch": the basis group's page, where its strongest pictures show large. */
+    setLink: "See the group's pictures",
+    /** The same for a continued automaton of such a method: {update} is the optimizer update it was saved at. */
+    continuingSet: "Continues this automaton from update {update}, toward the {count} pictures it trained toward.",
+    /** The pictures' name for a screen reader. */
+    setPictures: "The {count} pictures of the set",
+    /** In place of the pictures while they load. */
+    setLoading: "Finding the strongest pictures of basis group {block}.",
     /** The closed section under the two choices, for settings most people never change (grow-panel.tsx). */
     advanced: "Advanced",
     /** Its one setting: the grids grown per optimizer update. */
@@ -905,6 +818,8 @@ export const SITE_WORDS = {
     batchRecipe: "The recipe: four grids per update. Needs 1.5 to 1.8 GB of GPU memory.",
     /** Under it, for batch size 1: 0.8 to 0.9 GB, and 0.29 to 0.31 of the time per update, in the same measurements. */
     batchLight: "Half the memory and a third of the time of 4. It may meet the selection target less often.",
+    /** The same for the methods that compare with the set (Omar's decision 8, 17 November 2026): the research ran them at 4 only. */
+    batchLightSet: "Half the memory and a third of the time of 4. The research has no reference for this method at 1.",
     /** Why a continuation's batch size cannot change. */
     continuedBatch: "A continued automaton keeps its batch size.",
     /** In place of the hint when Train fell back to batch size 1 because a run at 4 took the page down. */
@@ -951,6 +866,13 @@ export const SITE_WORDS = {
     kept: "Saved",
     /** Status while the models load. */
     loading: "Loading the models on this device.",
+    /**
+     * Status, first line, while a run starts and the model downloads: {file} of {files} model files, {received} of
+     * {total} megabytes. Stop stands beside it, on the page and in the corner tray.
+     */
+    startupDownload: "Downloading the model · {received} of {total} MB",
+    /** Status, second line, while a run starts: the page does not hold the visitor. */
+    startupNote: "The first start downloads the model to this device. You can read other pages meanwhile; the corner keeps the run.",
     /** Status, first line, while training: the update counter. {update} is the optimizer update. */
     update: "Optimizer update {update}",
     /** Status, first line, after Stop: the held update. */
@@ -961,8 +883,11 @@ export const SITE_WORDS = {
     firstFire: "first accepted checkpoint at update {update}",
     /** Added after the update counter while the final cellular model runs to simulation step 600 to be measured. */
     finishing: "measuring the final cellular model",
-    /** Status, first line, after a run whose automaton met the selection target (the Saved mark is lit). {update} is the optimizer update of the saved model. */
-    fired: "Optimizer update {update} · selection target met at simulation step 600",
+    /**
+     * Status, first line, after a run whose automaton met the selection target (the Saved mark is lit). {update} is the optimizer
+     * update of the saved model, {tick} the step it was read at: 600, or for the set methods the step of their lowest own loss.
+     */
+    fired: "Optimizer update {update} · selection target met at simulation step {tick}",
     /** Status, first line, after three runs that did not meet the selection target. {runs} is the number of runs. */
     noneFired: "None of the {runs} runs met the selection target. The last cellular model is saved.",
     /** Status, first line, after the person keeps a run that did not meet the selection target, with runs still to try. */
@@ -977,10 +902,16 @@ export const SITE_WORDS = {
     coSelectedHint: "DINO sees 32 basis groups on each of the picture's {patches} patches; these are the ones it sees most often. The run meets its target when {group} is among them on {needed} patches or more.",
     /** The same for central noise initialization, which is measured on the central 4 × 4 patches only. */
     coSelectedHintCentre: "DINO sees 32 basis groups on each of the central {patches} patches; these are the ones it sees most often. The run meets its target when {group} is among them on {needed} patches or more.",
+    /** The same two for a run that compares with a set, which has no selection target. */
+    coSelectedHintSet: "DINO sees 32 basis groups on each of the picture's {patches} patches; these are the ones it sees most often.",
+    coSelectedHintSetCentre: "DINO sees 32 basis groups on each of the central {patches} patches; these are the ones it sees most often.",
     /** The measurement, second line: the selection fraction as a count of the read patches, and the count the selection target needs. The projection on the target is in the saved automaton's note, not here. */
     reading: "DINO sees {group} on {selected} of the {patches} patches. The target is {needed} patches.",
     /** The same for central noise initialization, which is measured on the central 4 × 4 patches only. */
     readingCentre: "DINO sees {group} on {selected} of the central {patches} patches. The target is {needed} patches.",
+    /** The measurement of a run that compares with a set: the count alone, since such a run has no selection target. */
+    readingSet: "DINO sees {group} on {selected} of the {patches} patches.",
+    readingSetCentre: "DINO sees {group} on {selected} of the central {patches} patches.",
     /** Added to the measurement on the second line while training goes on after the first accepted checkpoint. */
     trainingOn: "training on",
     /** A time under a minute and a half, in the time line: "40 s". */
@@ -996,6 +927,39 @@ export const SITE_WORDS = {
     canvasLabel: "Automaton of basis group {block}, running: draw on it to damage it",
     /** The start's still picture, for a screen reader. */
     stillLabel: "The start of the automaton, before training",
+    /**
+     * The reading step's choice (step-choices.tsx), a strip under the cells after a run that compares with a
+     * set: the automaton's picture at each step it was read at, the kept step marked; a click keeps it at another.
+     */
+    step: {
+      /** The strip's name for a screen reader. */
+      label: "Reading step",
+      /** Under the pictures while the kept step is the one of the lowest loss. */
+      lowest: "The automaton is read at step {step}, where its own loss is lowest.",
+      /** After the person chose another step. {lowest} is the step of the lowest loss. */
+      chosen: "The automaton is read at step {step}. Its own loss is lowest at step {lowest}.",
+      /** Once the automaton is sent to the gallery, its step cannot change. */
+      closed: "The automaton is read at step {step}. The step is fixed once it is sent to the gallery.",
+      /** One picture's name for a screen reader. {loss} has four significant digits. */
+      picture: "Step {step}, own loss {loss}",
+    },
+    /** The live map (live-map.tsx), in the choices' place while a run trains: the canvas's 64 patches as points among the group's patches. */
+    map: {
+      /** The label above it. */
+      heading: "The canvas in the group's space",
+      /** Its name for a screen reader. {block} is the basis group. */
+      label: "The canvas's 64 patches as points among the patches of basis group {block}; drag or use the arrow keys to rotate",
+      /** Under it for a mean method. {distance} is in m, the group's median selected response magnitude, with two decimals. */
+      meanLine: "The mean of the canvas's patches is {distance} m from the target.",
+      /** Under it for a distribution method. */
+      spreadLine: "Each point is a patch of the canvas. The squares are the set's patches.",
+      /** Under it before the run's first reading. */
+      waiting: "The canvas's patches appear here at the first reading.",
+      /** Added for a token method: the map shows a part of what the run compares. */
+      shadow: "The map shows each patch's three numbers for this group. The run compares all 768.",
+      /** The toggle under the map that shows the groups DINO sees in its place, and back. */
+      toggle: "What DINO sees",
+    },
   },
 
   playground: {
@@ -1009,8 +973,8 @@ export const SITE_WORDS = {
     /** An automaton's kind, in the head beside the basis group's number and on a tile's two lines: its grids, then the start. */
     ruleFine: "fine",
     ruleCoarseFine: "coarse + fine",
-    startNoise: "noise",
-    startSeeded: "central noise",
+    startNoise: "noise field",
+    startSeeded: "noise disc",
     startSeededField: "seeded field",
     /** After the grids on a tile, for an automaton at 2 px per cell: "fine · 2 px". */
     twoPixelsShort: "2 px",
@@ -1086,6 +1050,9 @@ export const SITE_WORDS = {
   automata: {
     /** The wall's heading, on /automata. */
     wallTitle: "The automata of each basis group",
+    /** The navigation following the last deck uses the header’s destination names. */
+    wallNavigation: "Site navigation at the end of the Automata wall",
+    homeLink: "Home",
     /** The wall's find field: its name for a screen reader, and what it shows while empty. */
     find: "Find a basis group by its name or number",
     findPlaceholder: "Name or number",
@@ -1117,8 +1084,17 @@ export const SITE_WORDS = {
     previousGroup: "Previous",
     nextGroup: "Next",
 
-    /** The frame's upper corner on a group's stage: where the automaton starts, then what it was asked for. */
-    making: "{start} · {method}",
+    /** Beside the group title: the selected start, training method and try in this grid cell. */
+    stageTry: "Try {at}/{count}",
+    stageMethods: {
+      "basis-group-mean": "basis-group mean",
+      "basis-group-mean-guided": "guided basis-group mean",
+      "basis-group-distribution": "basis-group distribution",
+      "token-mean": "token mean",
+      "token-distribution": "token distribution",
+      "mean-distribution-mix": "mean/distribution mix",
+      "unit-activation": "one DINO unit",
+    },
     /** The frame's lower corner: the automaton's grids, then the grid's size. {side} is the cells along a side. */
     gridsFine: "fine · {side} × {side} cells",
     gridsCoarseFine: "coarse + fine · {side} × {side} cells",
@@ -1134,20 +1110,20 @@ export const SITE_WORDS = {
     methodsTitle: "What it is asked for",
     /** What a screen reader hears for the grid as a whole. {group} is the number. */
     gridName: "The automata of basis group {group}, by where they start and what they were asked for",
-    /** The rows' names: the state an automaton starts from. */
+    /** The rows' names: the state an automaton starts from. Noise field and Noise disc are Train's names for the same starts (grow/material-kind.ts), by Omar's choice of 17 November 2026. */
     starts: {
-      noise: "Noise everywhere",
-      circle: "A circle of noise",
-      "circle-on-noise": "A circle on faint noise",
-      "circle-anywhere": "A circle placed anywhere",
+      noise: "Noise field",
+      circle: "Noise disc",
+      "circle-on-noise": "Noise disc on faint noise",
+      "circle-anywhere": "Noise disc placed anywhere",
       drawn: "A drawn start",
     },
-    /** The same starts inside the frame's corner line, after nothing: lower case, short. */
+    /** The start as it appears inside a sentence or a material record. */
     startsInLine: {
-      noise: "noise everywhere",
-      circle: "a circle of noise",
-      "circle-on-noise": "a circle on faint noise",
-      "circle-anywhere": "a circle placed anywhere",
+      noise: "noise field",
+      circle: "noise disc",
+      "circle-on-noise": "noise disc on faint noise",
+      "circle-anywhere": "noise disc placed anywhere",
       drawn: "a drawn start",
     },
     /** The two bands over the columns: the space the comparison is made in. */
@@ -1166,7 +1142,7 @@ export const SITE_WORDS = {
       "mean-distribution-mix": "mean and distribution",
       "unit-activation": "one DINO unit",
     },
-    /** A method's full name, in the frame's corner line and for a screen reader. */
+    /** A method's full name for the grid cell's accessible label. */
     methods: {
       "basis-group-mean": "basis-group mean matching",
       "basis-group-mean-guided": "basis-group mean matching with a guide",
@@ -1180,15 +1156,16 @@ export const SITE_WORDS = {
     cellName: "{start}, {method}: {count}",
     /** An empty cell's name for a screen reader: nothing was grown that way for this group. */
     cellEmpty: "{start}, {method}: no automaton",
+    cellEmptyMark: "—",
     /** Under a cell's picture when the cell holds more than one automaton. {count} is the number. */
     cellTries: "{count} tries",
     /** The "?" beside the grid's titles opens this explanation, a few short paragraphs. */
     gridExplainSubject: "the grid",
     gridExplanation: [
-      "A row is the state an automaton starts from: noise in every cell, or a circle of noise in the center, alone or on faint noise.",
+      "A row is the state an automaton starts from: a noise field, with noise in every cell, or a noise disc at the center, alone or on faint noise.",
       "A column is what its training asked for. Basis-group matching compares the three numbers a basis group reads from each patch. Token matching compares DINO's whole token, 768 numbers. Mean matching asks the image's patches to give the target on average. Distribution matching asks them to be spread like the group's strongest patches. A guide also holds units inside DINO at the levels they have on the group's real images, for the first part of training.",
       "Two trainings with the same row and column give different automata. Those are the tries of a cell.",
-      "An empty square means that no automaton was trained that way for this basis group.",
+      "A dash means that no automaton was trained that way for this basis group.",
     ],
 
     /** The line over the strip of a cell's tries: its title, then which one plays. {at} and {count} are numbers. */

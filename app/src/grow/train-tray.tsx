@@ -14,16 +14,23 @@ import { SelectionMap } from "./selection-map";
 import { statusFirstLine } from "./grow-status";
 import { growState, hasFired, isHeld, resultOutcome, stopAction, type GrowState } from "./grow-view";
 import { SIDE, trainRun, trayShown, useLiveCells, useTrainRun, type GrowSettings } from "./train-run";
+import { DEFAULT_DEPTH, DEFAULT_METHOD } from "./train-method";
+import { methodReadsTokens } from "../materials/material-file";
 import "./train-tray.css";
 
 const WORDS = SITE_WORDS.grow;
 /** Phone width: the tray is a sheet across the window and starts folded, as the editor's dock. */
 const NARROW_WINDOW = "(max-width: 700px)";
 
-/** The Train page of the run: its definition's address for a continuation, else its basis group's. */
+/**
+ * The Train page of the run: its definition's address for a continuation, else its basis group's, with
+ * its method and depth when they are not the defaults, so the page names the run's target from the start.
+ */
 export function trainPath(settings: GrowSettings): string {
   if (settings.continuation) return `/train?continue=${encodeURIComponent(settings.continuation.id)}`;
-  return `/train?block=${settings.request.block}`;
+  const method = settings.method === DEFAULT_METHOD ? "" : `&method=${settings.method}`;
+  const depth = methodReadsTokens(settings.method) && settings.depth !== DEFAULT_DEPTH ? `&depth=${settings.depth}` : "";
+  return `/train?block=${settings.request.block}${method}${depth}`;
 }
 
 /**
@@ -65,7 +72,7 @@ export function TrainTray() {
   const sampled = fired && run.sampled ? ({ "--sampled": run.sampled } as CSSProperties) : undefined;
   const back = trainPath(settings);
   // The way back aims Train at the run's target again: the page shows the run only for its own target.
-  const restore = () => setRequest(settings.request, settings.picture);
+  const restore = () => setRequest(settings.request, settings.picture, settings.origin);
   const element = (
     <aside className="train-tray" data-folded={folded || undefined} data-sheet={narrow || undefined} aria-label={WORDS.trayName}>
       <button type="button" className="train-tray-tab" aria-expanded={!folded} aria-controls={bodyId} onClick={() => setChoice(folded ? "open" : "folded")}>

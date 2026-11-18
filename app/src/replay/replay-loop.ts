@@ -14,6 +14,15 @@ export function speedLabel(speed: number): string {
 export interface ReplayLoopOptions {
   /** Ticks per drawn frame: 1 to 64, or 1/2 and 1/4, which hold each tick for 2 and 4 frames. */
   speed: number;
+  /**
+   * Ticks per second instead of per frame: each frame steps by the time that has passed since the last,
+   * so every screen shows the same pace, whatever its frame rate. A frame counts for at most 100 ms, so a
+   * hitch or a hidden tab is not made up in one jump; a frame steps at most 64 ticks. Absent: `speed`.
+   */
+  stepsPerSecond?: number;
+  /** For a changing pace, use this function instead of stepsPerSecond. It gives the absolute tick
+   * after the specified playback time. A pause holds the clock and a reseed starts it at zero. */
+  tickAtTime?: (seconds: number) => number;
   playing: boolean;
   /** Called after every drawn frame with the replay's tick. */
   onFrame?: (tick: number) => void;
@@ -26,6 +35,8 @@ export interface ReplayLoop {
   readonly speed: number;
   play(): void;
   pause(): void;
+  /** Present the current cells again, including while paused. */
+  redraw(): void;
   setSpeed(speed: number): void;
   /** Grow again from this seed's noise at tick 0. */
   reseed(seed: number): void;
@@ -59,6 +70,14 @@ export function startReplayLoop(replay: FigureReplay, options: ReplayLoopOptions
   let framesOnTick = 0;
   let pendingSeed: number | undefined;
   const pendingDamage: [number, number, number][] = [];
+  // In steps per second: when the last frame ran, and the part of a tick that time has owed since.
+  const MOST_FRAME_MS = 100;
+  const MOST_TICKS_PER_FRAME = 64;
+  const rate = options.stepsPerSecond;
+  if (rate !== undefined && !(rate > 0 && Number.isFinite(rate))) throw new Error("Steps per second must be a positive number.");
+  let lastFrameAt = performance.now();
+  let secondsPlayed = 0;
+  let owed = 0;
   const checkSpeed = (value: number) => {
     const held = value === 0.5 || value === 0.25;
     if (!held && !(Number.isInteger(value) && value >= 1 && value <= 64)) throw new Error("Speed is 1/4, 1/2 or 1–64 simulation steps per frame.");
@@ -67,61 +86,104 @@ export function startReplayLoop(replay: FigureReplay, options: ReplayLoopOptions
   checkSpeed(speed);
 
   const frame = async () => {
+    let redraw = dirty;
+    dirty = false;
     if (pendingSeed !== undefined) {
       replay.reseed(pendingSeed);
       pendingSeed = undefined;
+      if (options.tickAtTime) {
+        secondsPlayed = 0;
+        lastFrameAt = performance.now();
+      }
       // A reset starts a new hold, so tick 0 shows for its full 1/speed frames like any other tick.
       framesOnTick = 0;
-      dirty = true;
+      redraw = true;
     }
     if (pendingDamage.length) {
       const discs = pendingDamage.splice(0).map(([x, y, radius]) => ({ x, y, radius }));
       await replay.stamp(discs);
-      dirty = true;
+      redraw = true;
     }
-    if (playing && speed >= 1) await replay.advance(speed);
+    if (playing && (options.tickAtTime || rate !== undefined)) {
+      const now = performance.now();
+      const seconds = Math.min(Math.max(now - lastFrameAt, 0), MOST_FRAME_MS) / 1000;
+      lastFrameAt = now;
+      let ticks: number;
+      if (options.tickAtTime) {
+        secondsPlayed += seconds;
+        const target = Math.floor(options.tickAtTime(secondsPlayed));
+        ticks = Math.min(Math.max(0, target - replay.tick), MOST_TICKS_PER_FRAME);
+      } else {
+        owed += seconds * rate!;
+        ticks = Math.min(Math.floor(owed), MOST_TICKS_PER_FRAME);
+        owed -= ticks;
+      }
+      if (ticks > 0) await replay.advance(ticks);
+      else if (redraw) await replay.present();
+      else return;
+    } else if (playing && speed >= 1) await replay.advance(speed);
     else if (playing && ++framesOnTick >= 1 / speed) {
       framesOnTick = 0;
       await replay.advance(1);
-    } else if (dirty) await replay.present();
+    } else if (redraw) await replay.present();
     else return;
-    dirty = false;
     if (!stopped) options.onFrame?.(replay.tick);
   };
   let inFlight: Promise<void> = Promise.resolve();
-  const loop = () => {
-    if (stopped) return;
-    if (holds > 0) { schedule(loop); return; }
-    inFlight = frame().catch((error: unknown) => {
-      // A frame that was in flight when the loop stopped may find its replay closed; that is not news.
-      if (stopped) return;
-      playing = false;
-      options.onError?.(error);
-    }).finally(() => { if (!stopped) schedule(loop); });
-  };
-  schedule(loop);
+  let scheduled = false;
+  let drawing = false;
+  const needsFrame = () => playing || dirty || pendingSeed !== undefined || pendingDamage.length > 0;
+  function wake() {
+    if (stopped || scheduled || drawing || holds > 0 || !needsFrame()) return;
+    scheduled = true;
+    schedule(() => {
+      scheduled = false;
+      if (stopped || holds > 0 || !needsFrame()) return;
+      drawing = true;
+      inFlight = frame().catch((error: unknown) => {
+        if (stopped) return;
+        playing = false;
+        options.onError?.(error);
+      }).finally(() => {
+        drawing = false;
+        wake();
+      });
+    });
+  }
+  wake();
 
   return {
     get playing() { return playing; },
     get speed() { return speed; },
-    play() { playing = true; },
+    play() {
+      // The time it was paused is not owed.
+      if (!playing) { lastFrameAt = performance.now(); owed = 0; }
+      playing = true;
+      wake();
+    },
     pause() { playing = false; },
+    redraw() { dirty = true; wake(); },
     setSpeed(value) {
-      speed = checkSpeed(value);
+      if (speed === checkSpeed(value)) return;
+      speed = value;
       framesOnTick = 0;
+      if (!playing) dirty = true;
+      wake();
     },
     reseed(seed) {
       if (!Number.isInteger(seed) || seed < 0 || seed > 0xffffffff) throw new Error("Seed must be an unsigned 32-bit integer.");
       pendingSeed = seed;
       pendingDamage.length = 0;
+      wake();
     },
-    damage(x, y, radius) { pendingDamage.push([x, y, radius]); },
+    damage(x, y, radius) { pendingDamage.push([x, y, radius]); wake(); },
     stroke(x0, y0, x1, y1, radius) {
       const spacing = Math.max(radius / 4, 1);
       const steps = Math.ceil(Math.hypot(x1 - x0, y1 - y0) / spacing);
       for (let step = 1; step <= steps; step++) {
         pendingDamage.push([x0 + (x1 - x0) * step / steps, y0 + (y1 - y0) * step / steps, radius]);
       }
+      wake();
     },
     async hold(work) {
       holds++;
@@ -131,7 +193,7 @@ export function startReplayLoop(replay: FigureReplay, options: ReplayLoopOptions
       });
       heldWork = result.then(() => {}, () => {});
       try { return await result; }
-      finally { holds--; dirty = true; }
+      finally { holds--; dirty = true; wake(); }
     },
     stop() { stopped = true; },
   };

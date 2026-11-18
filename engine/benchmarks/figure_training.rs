@@ -84,7 +84,7 @@ impl BrowserEngine {
             .ok_or_else(|| error("Load the selected dictionary frame first"))?
             .clone();
         Ok(HarnessFigure {
-            training: FigureTraining::new(request, frame_DR, self.device.clone()).map_err(error)?,
+            training: FigureTraining::new(request, None, frame_DR, self.device.clone()).map_err(error)?,
         })
     }
 

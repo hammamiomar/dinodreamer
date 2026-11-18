@@ -119,6 +119,26 @@ describe("material review", () => {
     expect((await worker.fetch(new Request(`https://app.test/api/materials/${id}/rule.wgsl`), env)).status).toBe(404);
   });
 
+  it("accepts a set method's file from Train, keeps its method, layers and set, and files it in its method's column", async () => {
+    const { env, submissions, library } = testEnv();
+    const trained = JSON.parse(text(firedName));
+    const set = { source: "selection", neighbourhood: "3x3", pictures: [{ imageId: 3536804379159069, patch: 69 }, { imageId: 12, patch: 255 }] };
+    trained.recipe.settings = { ...trained.recipe.settings, method: "token-distribution", layers: ["block-3", "block-6", "block-9", "final"], set };
+    const submitted = await submitMaterial(env, { material: JSON.stringify(trained) });
+    expect(submitted.status).toBe(201);
+    const entry = await approveMaterial(submissions, library, submitted.body.id!, new Date("2026-11-17T03:00:00Z"));
+    expect(entry.gallery).toEqual({ start: "noise", method: "token-distribution" });
+    expect(entry).not.toHaveProperty("loss");
+    const stored = JSON.parse(new TextDecoder().decode(library.objects.get(materialKey(entry.id, "material.json"))!.body));
+    expect(stored.recipe.settings).toMatchObject({ method: "token-distribution", layers: ["block-3", "block-6", "block-9", "final"], set });
+    const listed = (await (await worker.fetch(new Request("https://app.test/api/materials"), env)).json()) as unknown;
+    expect(readMaterialIndex(listed).entries[0]!.gallery?.method).toBe("token-distribution");
+    // A set method's file without its set is refused at the boundary.
+    const unset = { ...trained, recipe: { ...trained.recipe, settings: { ...trained.recipe.settings, set: undefined } } };
+    const refused = await submitMaterial(env, { material: JSON.stringify(unset) });
+    expect([refused.status, refused.body.error]).toEqual([400, expect.stringMatching(/target set/)]);
+  });
+
   it("seeds project entries, marks those that did not fire, and hides, restores and purges them", async () => {
     const { env, submissions, library } = testEnv();
     const now = new Date("2026-10-23T03:00:00Z");
@@ -368,22 +388,21 @@ describe("owner page materials", () => {
     expect((await post("/admin/api/materials/hide", { id: "../index" })).status).toBe(400);
   });
 
-  it("answers /admin/materials and its basis group panels with the app's page, for the owner only", async () => {
+  it("sends the earlier materials page and its panels to the owner's Automata page, for the owner only", async () => {
     const { ownerRequest } = await import("../src/admin.ts");
     const fixture = testEnv();
-    const owner = await ownerRequest(new Request(`${ORIGIN}/admin/materials`), { ...fixture.env, ADMIN_LOCAL_OWNER: "yes" }, "<html></html>", neverFetch);
-    expect(await owner.text()).toBe("<!doctype html>");
-    expect([owner.headers.get("cache-control"), owner.headers.get("content-security-policy")]).toEqual(["no-store", "frame-ancestors 'none'"]);
-    expect(fixture.assetRequests).toEqual(["/"]);
+    for (const path of ["/admin/materials", "/admin/materials/basis/12002"]) {
+      const owner = await ownerRequest(new Request(`${ORIGIN}${path}`), { ...fixture.env, ADMIN_LOCAL_OWNER: "yes" }, "<html></html>", neverFetch);
+      expect([path, owner.status, owner.headers.get("location")]).toEqual([path, 302, `${ORIGIN}/admin/automata`]);
+    }
     const stranger = await ownerRequest(new Request(`${ORIGIN}/admin/materials`), fixture.env, "<html></html>", neverFetch);
     expect(stranger.status).toBe(403);
+    // The owner's Automata page and its panels are the app's page.
+    const page = await ownerRequest(new Request(`${ORIGIN}/admin/automata/basis/12002`), { ...fixture.env, ADMIN_LOCAL_OWNER: "yes" }, "<html></html>", neverFetch);
+    expect([page.status, await page.text()]).toEqual([200, "<!doctype html>"]);
+    expect([page.headers.get("cache-control"), page.headers.get("content-security-policy")]).toEqual(["no-store", "frame-ancestors 'none'"]);
+    expect((await ownerRequest(new Request(`${ORIGIN}/admin/automata/basis/twelve`), { ...fixture.env, ADMIN_LOCAL_OWNER: "yes" }, "<html></html>", neverFetch)).status).toBe(404);
     expect(fixture.assetRequests).toEqual(["/"]);
-    // A basis group's panel over the view (the app's route /admin/materials/basis/:id) loads the same page.
-    const panel = await ownerRequest(new Request(`${ORIGIN}/admin/materials/basis/12002`), { ...fixture.env, ADMIN_LOCAL_OWNER: "yes" }, "<html></html>", neverFetch);
-    expect([panel.status, await panel.text()]).toEqual([200, "<!doctype html>"]);
-    const other = await ownerRequest(new Request(`${ORIGIN}/admin/materials/basis/twelve`), { ...fixture.env, ADMIN_LOCAL_OWNER: "yes" }, "<html></html>", neverFetch);
-    expect(other.status).toBe(404);
-    expect(fixture.assetRequests).toEqual(["/", "/"]);
   });
 });
 

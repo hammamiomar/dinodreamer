@@ -13,14 +13,14 @@ function entry(changes: Partial<MaterialEntry>): MaterialEntry {
 
 describe("a material's words", () => {
   test("a tile names the grids over the start, each short enough for 128 px", () => {
-    expect(tileName(entry({}))).toEqual({ rule: "fine", start: "noise" });
-    expect(tileName(entry({ layout: FIGURE_PYRAMID_LAYOUT, start: "centre-disc" }))).toEqual({ rule: "coarse + fine", start: "central noise" });
-    expect(tileName(entry({ pixelsPerCell: 2 }))).toEqual({ rule: "fine · 2 px", start: "noise" });
+    expect(tileName(entry({}))).toEqual({ rule: "fine", start: "noise field" });
+    expect(tileName(entry({ layout: FIGURE_PYRAMID_LAYOUT, start: "centre-disc" }))).toEqual({ rule: "coarse + fine", start: "noise disc" });
+    expect(tileName(entry({ pixelsPerCell: 2 }))).toEqual({ rule: "fine · 2 px", start: "noise field" });
   });
 
   test("the head says the kind on one line", () => {
-    expect(kindLine(entry({ layout: FIGURE_PYRAMID_LAYOUT }))).toBe("coarse + fine · noise");
-    expect(kindLine(entry({ pixelsPerCell: 2, start: "centre-disc" }))).toBe("fine · 2 px per cell · central noise");
+    expect(kindLine(entry({ layout: FIGURE_PYRAMID_LAYOUT }))).toBe("coarse + fine · noise field");
+    expect(kindLine(entry({ pixelsPerCell: 2, start: "centre-disc" }))).toBe("fine · 2 px per cell · noise disc");
   });
 
   test("under a tile: the stored value in m it reached, met or not; the dimming tells a missed target", () => {
@@ -57,7 +57,7 @@ describe("the choices' line", () => {
   test("has a rule, a start and a family row, Any first, the response categories as the Index names them", () => {
     const [rule, start, family] = choiceRows(["local", "unknown"]);
     expect(rule.options.map((option) => option.value)).toEqual(["all", "cell", "pyramid"]);
-    expect(start.options.map((option) => option.label)).toEqual(["Any", "noise", "central noise"]);
+    expect(start.options.map((option) => option.label)).toEqual(["Any", "noise field", "noise disc"]);
     expect(family.options.map((option) => option.label)).toEqual(["Any", "Own-token", "Unmeasured"]);
   });
 

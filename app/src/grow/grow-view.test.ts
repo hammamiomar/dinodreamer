@@ -2,22 +2,22 @@ import { describe, expect, it } from "vitest";
 import type { FigureMaterialFile } from "../materials/material-file";
 import {
   NO_RECORD, choicesOpen, markSaved, recordEvent, growState, hasFired, keptMark, primaryAction, resultOutcome, resumeUpdates,
-  shownCoSelection, stopAction,
+  shownCoSelection, stepChoiceOpen, stopAction,
   type GrowOutcome, type GrowRecord, type GrowState,
 } from "./grow-view";
 
-const progress = { completed: 300, total: 1000, trainingMs: 120000, readerChunks: 32 };
+const progress = { completed: 300, total: 1000, trainingMs: 120000, readerChunks: 32, methodLoss: 0.012 };
 const reading = { strength: 1.58, winnerFraction: 1, selectedPatches: new Uint8Array(64).fill(1), coSelection: { readPatches: 64, top: [], requested: { group: 12002, rank: 1, patches: 64, positionSum: 64 } } };
-const firstFire: GrowOutcome = { id: "first", run: 1, stage: "first fire", fired: true, saved: true, updates: 250 };
-const finalFired: GrowOutcome = { id: "final", run: 1, stage: "final", fired: true, saved: true, updates: 1000 };
-const training: GrowRecord = { ...NO_RECORD, active: true, phase: "training", run: { run: 1, runs: 3 }, progress, reading };
+const firstFire: GrowOutcome = { id: "first", run: 1, stage: "first fire", fired: true, saved: true, updates: 250, tick: 600 };
+const finalFired: GrowOutcome = { id: "final", run: 1, stage: "final", fired: true, saved: true, updates: 1000, tick: 600 };
+const training: GrowRecord = { ...NO_RECORD, active: true, phase: "training", run: { run: 1, runs: 3, method: "basis-group-mean" }, progress, reading };
 
 describe("the state table", () => {
   const rows: [string, GrowRecord, GrowState][] = [
     ["nothing started", NO_RECORD, "idle"],
     ["the worker loads the model", { ...NO_RECORD, active: true, phase: "loading" }, "loading"],
     ["updates arrive", training, "training"],
-    ["the next seed starts, before its first update", { ...training, run: { run: 2, runs: 3 }, progress: null, reading: null }, "training"],
+    ["the next seed starts, before its first update", { ...training, run: { run: 2, runs: 3, method: "basis-group-mean" }, progress: null, reading: null }, "training"],
     ["the run's first fire is kept and training goes on", { ...training, outcomes: [firstFire] }, "fired"],
     ["the final rule grows to tick 600 after a first fire", { ...training, phase: "finishing", outcomes: [firstFire] }, "fired"],
     ["a run's last update did not meet the target and its rule grows while the person decides", { ...training, phase: "retry" }, "retry"],
@@ -28,7 +28,7 @@ describe("the state table", () => {
   for (const [name, record, state] of rows) it(`${name}: ${state}`, () => expect(growState(record)).toBe(state));
 
   it("a first fire of an earlier run does not make a later run fired", () => {
-    expect(growState({ ...training, run: { run: 2, runs: 3 }, outcomes: [{ ...firstFire, run: 1, fired: false }] })).toBe("training");
+    expect(growState({ ...training, run: { run: 2, runs: 3, method: "basis-group-mean" }, outcomes: [{ ...firstFire, run: 1, fired: false }] })).toBe("training");
   });
 });
 
@@ -95,26 +95,38 @@ describe("what each state shows", () => {
 
 
 describe("the record", () => {
-  const file = (id: string, updates: number) => ({ id, training: { seed: 1, updates } }) as unknown as FigureMaterialFile;
+  const file = (id: string, updates: number) => ({ id, training: { seed: 1, updates }, reading: { tick: 600 } }) as unknown as FigureMaterialFile;
 
   it("follows a run: a new run without progress, then progress and readings", () => {
     let record: GrowRecord = { ...NO_RECORD, active: true };
     record = recordEvent(record, { type: "phase", phase: "loading", message: "Loading the training models · 3/14" });
     expect(record.phaseMessage).toBe("Loading the training models · 3/14");
-    record = recordEvent(record, { type: "run", run: 1, runs: 3, seed: 20273024 });
+    record = recordEvent(record, { type: "run", run: 1, runs: 3, seed: 20273024, method: "basis-group-mean" });
     record = recordEvent(record, { type: "phase", phase: "training", message: "Preparing the first training update…" });
-    expect([record.run, growState(record)]).toEqual([{ run: 1, runs: 3 }, "loading"]);
-    record = recordEvent(record, { type: "progress", progress: { completed: 25, trainingMs: 9875, readerChunks: 26 } as never });
+    expect([record.run, growState(record)]).toEqual([{ run: 1, runs: 3, method: "basis-group-mean" }, "loading"]);
+    record = recordEvent(record, { type: "progress", progress: { completed: 25, trainingMs: 9875, readerChunks: 26, methodLoss: 0.5 } as never });
     expect(growState(record)).toBe("training");
-    record = recordEvent(record, { type: "reading", reading: { ...reading, band: "strongest", seed: 9317, tick: 200, rule: "training", completed: 25, elapsedMs: 0, readMs: 60 } });
-    expect([record.progress, record.reading]).toEqual([{ completed: 25, trainingMs: 9875, readerChunks: 26 }, reading]);
-    record = recordEvent(record, { type: "run", run: 2, runs: 3, seed: 20273025 });
+    record = recordEvent(record, { type: "reading", reading: { ...reading, patchCodes: new Float32Array(192), band: "strongest", seed: 9317, tick: 200, rule: "training", completed: 25, elapsedMs: 0, readMs: 60 } });
+    expect([record.progress, record.reading]).toEqual([{ completed: 25, trainingMs: 9875, readerChunks: 26, methodLoss: 0.5 }, reading]);
+    record = recordEvent(record, { type: "run", run: 2, runs: 3, seed: 20273025, method: "basis-group-mean" });
     expect([record.progress, record.reading]).toEqual([null, null]);
+  });
+
+  it("replaces the outcome of a file kept again under its id, as a set method kept at another step", () => {
+    const at = (tick: number) => ({ id: "final", training: { seed: 1, updates: 1000 }, reading: { tick } }) as unknown as FigureMaterialFile;
+    let record = recordEvent(training, { type: "material", file: at(150), run: 1, stage: "final", fired: false });
+    record = markSaved(record, "final");
+    record = recordEvent(record, { type: "material", file: at(300), run: 1, stage: "final", fired: false });
+    expect(record.outcomes).toEqual([{ id: "final", run: 1, stage: "final", fired: false, saved: false, updates: 1000, tick: 300 }]);
+  });
+
+  it("opens a step choice only while the kept file is not sent to the gallery", () => {
+    expect([stepChoiceOpen("idle"), stepChoiceOpen("awaiting"), stepChoiceOpen("published")]).toEqual([true, false, false]);
   });
 
   it("keeps each file unsaved until Keep has saved it", () => {
     let record = recordEvent(training, { type: "material", file: file("first", 250), run: 1, stage: "first fire", fired: true });
-    expect(record.outcomes).toEqual([{ id: "first", run: 1, stage: "first fire", fired: true, saved: false, updates: 250 }]);
+    expect(record.outcomes).toEqual([{ id: "first", run: 1, stage: "first fire", fired: true, saved: false, updates: 250, tick: 600 }]);
     record = markSaved(record, "first");
     expect(record.outcomes[0]!.saved).toBe(true);
   });
@@ -123,7 +135,7 @@ describe("the record", () => {
     const held = recordEvent(training, { type: "phase", phase: "retry", message: "" });
     expect(growState(held)).toBe("retry");
     expect(growState(recordEvent(held, { type: "phase", phase: "live", message: "" }))).toBe("done");
-    const next = recordEvent(recordEvent(held, { type: "run", run: 2, runs: 3, seed: 2 }), { type: "phase", phase: "training", message: "" });
+    const next = recordEvent(recordEvent(held, { type: "run", run: 2, runs: 3, seed: 2, method: "basis-group-mean" }), { type: "phase", phase: "training", message: "" });
     expect([growState(next), next.progress, next.reading]).toEqual(["training", null, null]);
   });
 });

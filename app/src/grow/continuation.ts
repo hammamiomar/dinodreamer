@@ -1,5 +1,6 @@
 import type { MaterialAnchor, MaterialRequest } from "../recipe";
-import { FIGURE_PYRAMID_LAYOUT, type FigureMaterial } from "../materials/material-file";
+import { FIGURE_PYRAMID_LAYOUT, methodOfFile, type FigureMaterial, type FigureMaterialFile } from "../materials/material-file";
+import { MEAN_OBJECTIVE, type FigureObjective } from "./figure-recipe";
 import type { GrowRule, GrowStart, MaterialKind } from "./material-kind";
 
 // A saved or published automaton definition trains on from its own rule, with a fresh optimizer and a fresh pool grown from its start, its
@@ -24,6 +25,13 @@ export interface ContinuationSource {
   batch: 1 | 4;
   anchor: MaterialAnchor;
   preview: string;
+  /**
+   * What it trained toward: its method, layers and target set as its file records them, so the
+   * continued run compares with the same set even after the library changes. A file without a method
+   * trained by basis-group mean matching, or is a research run whose set it does not record: it
+   * continues by basis-group mean matching.
+   */
+  objective: FigureObjective;
 }
 
 /** What a continuation changed from its source, as its files record it (`continuedChange`). */
@@ -52,7 +60,15 @@ export function continuationSource(material: FigureMaterial): ContinuationSource
     batch,
     anchor: file.anchor,
     preview: file.preview,
+    objective: continuedObjective(file),
   };
+}
+
+function continuedObjective(file: FigureMaterialFile): FigureObjective {
+  const method = methodOfFile(file);
+  if (method === null) return MEAN_OBJECTIVE;
+  const { layers, set } = file.recipe.settings;
+  return { method, layers: [...layers ?? []], set: set ?? null };
 }
 
 /** The training target the definition was trained toward: its own reference patch, the default of a continuation. */

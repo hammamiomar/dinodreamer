@@ -45,11 +45,18 @@ function GroupPicture({ group }: { group: number }) {
  * with its unit. The counts per group are not shown: the order says it, and
  * the status line gives the requested group's. Every line of words is 16 px.
  */
-export function CoSelectedPictures({ coSelection, region }: { coSelection: CoSelection; region: ReadRegion }) {
+export function CoSelectedPictures({ coSelection, region, selectionTarget }: {
+  coSelection: CoSelection;
+  region: ReadRegion;
+  /** Whether the run aims at a count of selecting patches: basis-group mean matching does, a run that compares with a set does not. */
+  selectionTarget: boolean;
+}) {
   const { readPatches, top, requested } = coSelection;
   const others = top.filter((entry) => entry.group !== requested.group).slice(0, PICTURES_SHOWN - 1);
   const cards = [{ group: requested.group, seen: requested.patches > 0, requested: true }, ...others.map((entry) => ({ group: entry.group, seen: true, requested: false }))];
-  const hint = region ? WORDS.coSelectedHintCentre : WORDS.coSelectedHint;
+  let hint: string;
+  if (selectionTarget) hint = region ? WORDS.coSelectedHintCentre : WORDS.coSelectedHint;
+  else hint = region ? WORDS.coSelectedHintSetCentre : WORDS.coSelectedHintSet;
   return <section className="grow-co-selected" aria-labelledby="grow-co-selected-title">
     <h2 id="grow-co-selected-title" className="label">{WORDS.coSelected}</h2>
     <p className="grow-hint">{fill(hint, { group: requested.group, needed: neededPatches(readPatches), patches: readPatches })}</p>

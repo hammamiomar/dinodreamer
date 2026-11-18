@@ -1,0 +1,196 @@
+{
+ "format": 1,
+ "purpose": "A target set as raw pixels: the 128 px windows of a given-set tool's saved set (tools/export_target_set.py).",
+ "block": 12002,
+ "neighbourhood": "3x3",
+ "sheet": "target-set-12002-pole-3x3.png",
+ "columns": 11,
+ "pictures": [
+  {
+   "source": 7628548583792350,
+   "patch": 148,
+   "dot": 36
+  },
+  {
+   "source": 4593153146949799,
+   "patch": 156,
+   "dot": 36
+  },
+  {
+   "source": 491726184787302,
+   "patch": 85,
+   "dot": 36
+  },
+  {
+   "source": 6924497542752737,
+   "patch": 102,
+   "dot": 36
+  },
+  {
+   "source": 6651863801368650,
+   "patch": 81,
+   "dot": 33
+  },
+  {
+   "source": 8947054877582226,
+   "patch": 149,
+   "dot": 36
+  },
+  {
+   "source": 1157182134308635,
+   "patch": 131,
+   "dot": 35
+  },
+  {
+   "source": 882537695423971,
+   "patch": 81,
+   "dot": 33
+  },
+  {
+   "source": 3980556290942138,
+   "patch": 179,
+   "dot": 35
+  },
+  {
+   "source": 3536804379159069,
+   "patch": 69,
+   "dot": 36
+  },
+  {
+   "source": 5400157812368955,
+   "patch": 60,
+   "dot": 28
+  },
+  {
+   "source": 1260428798824437,
+   "patch": 165,
+   "dot": 36
+  },
+  {
+   "source": 1538217250002542,
+   "patch": 108,
+   "dot": 36
+  },
+  {
+   "source": 1610860776733653,
+   "patch": 166,
+   "dot": 36
+  },
+  {
+   "source": 1534910811320554,
+   "patch": 34,
+   "dot": 18
+  },
+  {
+   "source": 5310828459978606,
+   "patch": 53,
+   "dot": 28
+  },
+  {
+   "source": 3860089912577413,
+   "patch": 37,
+   "dot": 20
+  },
+  {
+   "source": 8656807231145988,
+   "patch": 121,
+   "dot": 36
+  },
+  {
+   "source": 3047152269769767,
+   "patch": 86,
+   "dot": 36
+  },
+  {
+   "source": 3845591477855359,
+   "patch": 157,
+   "dot": 37
+  },
+  {
+   "source": 4746640004540295,
+   "patch": 92,
+   "dot": 36
+  },
+  {
+   "source": 3139839565818892,
+   "patch": 121,
+   "dot": 36
+  },
+  {
+   "source": 1221602826829676,
+   "patch": 116,
+   "dot": 36
+  },
+  {
+   "source": 6139379570651318,
+   "patch": 101,
+   "dot": 36
+  },
+  {
+   "source": 4655520650522128,
+   "patch": 181,
+   "dot": 36
+  },
+  {
+   "source": 2064293699975535,
+   "patch": 36,
+   "dot": 20
+  },
+  {
+   "source": 5505459981981486,
+   "patch": 190,
+   "dot": 38
+  },
+  {
+   "source": 3047084322254604,
+   "patch": 134,
+   "dot": 36
+  },
+  {
+   "source": 2494608988585013,
+   "patch": 116,
+   "dot": 36
+  },
+  {
+   "source": 7444481230265663,
+   "patch": 84,
+   "dot": 36
+  },
+  {
+   "source": 3253176752748503,
+   "patch": 132,
+   "dot": 36
+  },
+  {
+   "source": 8357547477067836,
+   "patch": 116,
+   "dot": 36
+  },
+  {
+   "source": 557960266571943,
+   "patch": 142,
+   "dot": 38
+  }
+ ],
+ "provenance": {
+  "researchSet": "block-12002-pole-3x3",
+  "researchSetSha256": "d7a2c14de1942c65b6d68a7015f2c0b0f72d15ca145d6e5f966f53bc3bfafee3",
+  "selection": {
+   "block": 12002,
+   "level": "pole",
+   "pictures": 33,
+   "source": "sample",
+   "draw_seed": 0,
+   "kind": "band"
+  },
+  "cloudCheck": {
+   "median_relative_norm_error": 0.0020360155392868187,
+   "worst_relative_norm_error": 0.015009811887246049,
+   "worst_cosine": 0.9999874830245972
+  },
+  "tokens": {
+   "128": 297,
+   "256": 297
+  }
+ }
+}

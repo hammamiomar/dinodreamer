@@ -29,7 +29,7 @@ export type Choose = (entry: MaterialEntry, picture: HTMLElement) => void;
 /**
  * A short word at the right of a tile's label: what the owner did with the material, in the owner
  * mode (features/owner/), which supplies the word. The label has room for two marks, one on each of
- * its two lines, of up to 8 characters each (owner-mode.ts gives a state and Featured at most). The
+ * its two lines, of up to 8 characters each (a state and Featured at most). The
  * public Playground shows none.
  */
 export interface TileMark {

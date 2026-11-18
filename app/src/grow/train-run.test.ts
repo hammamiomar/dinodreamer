@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { targetSetRecord } from "./target-set";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { MaterialAnchor, MaterialRequest } from "../recipe";
 import { NO_RECORD } from "./grow-view";
@@ -12,7 +13,10 @@ const anchor: MaterialAnchor = {
   source: "library", imageId: 7, slot: 40, code: [1, 2, 3], band: "strongest", norm: 2, strength: { ring: 1, cuts: [1.2, 1.5, 1.8], maximum: 3 },
 };
 const request: MaterialRequest = { block: 12002, points: [], anchor };
-const choices = { kind: { rule: "cell", start: "noise" }, stopAtFirstFire: false, continuation: null, picture: null, batch: 4 } as const;
+const choices = {
+  kind: { rule: "cell", start: "noise" }, method: "basis-group-mean", depth: "four-layers", set: null, origin: "visitor",
+  stopAtFirstFire: false, continuation: null, picture: null, batch: 4,
+} as const;
 /** The tab's record of a run, as calls. */
 function fakeRunRecord() {
   const calls: string[] = [];
@@ -36,6 +40,7 @@ function fakeWorkers() {
       resumeTraining: () => { calls.push("resume-training"); },
       restart: () => { calls.push("restart"); },
       keep: () => { calls.push("keep"); },
+      keepAtStep: (step: number) => { calls.push(`keep at ${step}`); },
       brush: () => { calls.push("brush"); },
       dispose: () => { calls.push("dispose"); },
     };
@@ -46,7 +51,7 @@ function fakeWorkers() {
 function store() {
   const workers = fakeWorkers();
   const runRecord = fakeRunRecord();
-  const run = createTrainRun({ createClient: workers.createClient, keep: async () => {}, release: { url: "", name: "test" } as never, runRecord });
+  const run = createTrainRun({ createClient: workers.createClient, keep: async () => {}, release: { url: "", name: "test" } as never, runRecord, sentMaterialIds: () => new Set() });
   return { run, workers, runRecord };
 }
 
@@ -57,6 +62,100 @@ afterEach(() => {
 });
 
 describe("the site's Train run (train-run.ts)", () => {
+  it("sends the worker a set method's layers at its depth and the set the page resolved; a continuation brings its own", () => {
+    const workers = fakeWorkers();
+    const start = vi.fn<TrainRunClient["start"]>();
+    const run = createTrainRun({
+      createClient: (onEvent) => ({ ...workers.createClient(onEvent), start }),
+      keep: async () => {}, release: { url: "", name: "test" } as never, runRecord: fakeRunRecord(), sentMaterialIds: () => new Set(),
+    });
+    const set = targetSetRecord("selection", [{ imageId: 7, patch: 35 }]);
+    run.start(request, { ...choices, method: "token-mean", depth: "final-layer", set });
+    expect(start.mock.lastCall?.[0]).toMatchObject({ method: "token-mean", layers: ["final"], set });
+    run.start(request, { ...choices, method: "token-distribution", set });
+    expect(start.mock.lastCall?.[0].layers).toEqual(["block-3", "block-6", "block-9", "final"]);
+    run.start(request, { ...choices, method: "basis-group-distribution", depth: "final-layer", set });
+    expect(start.mock.lastCall?.[0].layers).toEqual([]);
+  });
+
+  it("starts another run for another depth of a token method or another set, not for a basis-group method's depth", () => {
+    const set = targetSetRecord("selection", [{ imageId: 7, patch: 35 }]);
+    const held = { ...choices, request, method: "token-mean" as const, set };
+    expect(changedFromRun(held, { ...held, depth: "final-layer" })).toBe(true);
+    expect(changedFromRun(held, { ...held, set: targetSetRecord("sample-strongest", set.pictures) })).toBe(true);
+    expect(changedFromRun(held, { ...held })).toBe(false);
+    const codes = { ...held, method: "basis-group-distribution" as const };
+    expect(changedFromRun(codes, { ...codes, depth: "final-layer" })).toBe(false);
+  });
+
+  it("keeps the live map's latest reading from map events and readings, with its own listeners, and clears it with the run", () => {
+    const workers = fakeWorkers();
+    const run = createTrainRun({ createClient: workers.createClient, keep: async () => {}, release: { url: "", name: "test" } as never, runRecord: fakeRunRecord(), sentMaterialIds: () => new Set() });
+    const heard = vi.fn();
+    const changes = vi.fn();
+    run.subscribeMap(heard);
+    run.subscribe(changes);
+    run.start(request, choices);
+    changes.mockClear();
+    const patchCodes = new Float32Array(192).fill(0.5);
+    const selectedPatches = new Uint8Array(64).fill(1);
+    workers.made[0]!.say({ type: "map", patchCodes, selectedPatches, tick: 96, completed: 12, readMs: 30 });
+    expect(run.map()).toEqual({ patchCodes, selectedPatches, tick: 96, completed: 12 });
+    expect(heard).toHaveBeenCalled();
+    // A map event changes no record, so the views that read the record do not render again.
+    expect(changes).not.toHaveBeenCalled();
+    workers.made[0]!.say({ type: "reading", reading: {
+      patchCodes, selectedPatches, strength: 1, band: "strongly", winnerFraction: 1, tick: 160, seed: 9317, rule: "training", completed: 20,
+      elapsedMs: 0, readMs: 30, coSelection: { readPatches: 64, top: [], requested: { group: 12002, rank: 1, patches: 64, positionSum: 64 } },
+    } });
+    expect(run.map()?.tick).toBe(160);
+    run.end();
+    expect(run.map()).toBeNull();
+  });
+
+  it("keeps a held set-method run's ladder, sends a step choice only when it can change the kept file, and drops the ladder when training resumes", () => {
+    const workers = fakeWorkers();
+    let sent = new Set<string>();
+    const run = createTrainRun({
+      createClient: workers.createClient, keep: async () => {}, release: { url: "", name: "test" } as never, runRecord: fakeRunRecord(),
+      sentMaterialIds: () => sent,
+    });
+    run.start(request, { ...choices, method: "token-distribution" });
+    const worker = workers.made[0]!;
+    run.keepAtStep(300);
+    expect(worker.calls).toEqual(["start"]); // no ladder yet
+    const ladder = { steps: [100, 150, 300].map((tick) => ({ tick, loss: tick / 1000, picture: `data:image/png;base64,${tick}` })), kept: 150 };
+    worker.say({ type: "ladder", ladder });
+    worker.say({ type: "material", file: { id: "kept", training: { seed: 1, updates: 1000 }, reading: { tick: 150 } } as never, run: 1, stage: "final", fired: false });
+    expect(run.state().ladder).toEqual(ladder);
+    run.keepAtStep(150); // the kept step already
+    run.keepAtStep(600); // not a step of this ladder
+    expect(worker.calls).toEqual(["start"]);
+    run.keepAtStep(300);
+    expect(worker.calls).toEqual(["start", "keep at 300"]);
+    sent = new Set(["kept"]);
+    run.keepAtStep(100); // sent to the gallery: the step is closed
+    expect(worker.calls).toEqual(["start", "keep at 300"]);
+    worker.say({ type: "phase", phase: "training", message: "" });
+    expect(run.state().ladder).toBeNull();
+  });
+
+  it("keeps a set method's target set with the map, tells the map's listeners, and clears it with the run", () => {
+    const workers = fakeWorkers();
+    const run = createTrainRun({ createClient: workers.createClient, keep: async () => {}, release: { url: "", name: "test" } as never, runRecord: fakeRunRecord(), sentMaterialIds: () => new Set() });
+    const heard = vi.fn();
+    run.subscribeMap(heard);
+    run.start(request, choices);
+    expect(run.setTokens()).toBeNull();
+    const codes = new Float32Array(297 * 3).fill(0.25);
+    const tokenPictures = Uint16Array.from({ length: 297 }, (_, token) => Math.floor(token / 9));
+    workers.made[0]!.say({ type: "set", codes, tokenPictures });
+    expect(run.setTokens()).toEqual({ codes, tokenPictures });
+    expect(heard).toHaveBeenCalled();
+    run.end();
+    expect(run.setTokens()).toBeNull();
+  });
+
   it.each([1, 4] as const)("continues a saved batch-%i definition at its recorded batch", (savedBatch) => {
     const material = readFigureMaterial(JSON.parse(readFileSync(
       new URL("../../fixtures/materials/block-12002-figure-strongest-mean-seed-1.material.json", import.meta.url), "utf8",
@@ -70,11 +169,12 @@ describe("the site's Train run (train-run.ts)", () => {
       keep: async () => {},
       release: { url: "", name: "test" } as never,
       runRecord: fakeRunRecord(),
+      sentMaterialIds: () => new Set(),
     });
     run.start(request, { ...choices, batch: chosenBatch });
-    expect(start.mock.lastCall?.[3]).toBe(chosenBatch);
+    expect(start.mock.lastCall?.[0].batch).toBe(chosenBatch);
     run.start(request, { ...choices, batch: chosenBatch, continuation: source });
-    expect(start.mock.lastCall?.[3]).toBe(savedBatch);
+    expect(start.mock.lastCall?.[0].batch).toBe(savedBatch);
     expect(run.state().settings?.batch).toBe(savedBatch);
   });
 
@@ -111,8 +211,8 @@ describe("the site's Train run (train-run.ts)", () => {
     expect(workers.made[0]!.calls).toEqual(["start"]);
     expect(run.state().settings).toMatchObject({ request, kind: choices.kind, stopAtFirstFire: false });
     expect(run.state().record.active).toBe(true);
-    workers.made[0]!.say({ type: "run", run: 1, runs: 3, seed: 1 });
-    expect(run.state().record.run).toEqual({ run: 1, runs: 3 });
+    workers.made[0]!.say({ type: "run", run: 1, runs: 3, seed: 1, method: "basis-group-mean" });
+    expect(run.state().record.run).toEqual({ run: 1, runs: 3, method: "basis-group-mean" });
     expect(changes).toHaveBeenCalled();
   });
 
@@ -150,7 +250,7 @@ describe("the site's Train run (train-run.ts)", () => {
     run.start({ ...request, block: 9759 }, choices);
     expect(workers.made[0]!.calls).toEqual(["start", "dispose"]);
     expect(run.state().settings?.request.block).toBe(9759);
-    workers.made[0]!.say({ type: "run", run: 2, runs: 3, seed: 2 });
+    workers.made[0]!.say({ type: "run", run: 2, runs: 3, seed: 2, method: "basis-group-mean" });
     expect(run.state().record.run).toBeNull();
     run.end();
     expect(workers.made[1]!.calls.at(-1)).toBe("dispose");
@@ -168,7 +268,7 @@ describe("the site's Train run (train-run.ts)", () => {
   it("reports a worker construction failure instead of remaining active", () => {
     const run = createTrainRun({
       createClient: () => { throw new Error("Worker blocked"); },
-      keep: async () => {}, release: { url: "", name: "test" } as never, runRecord: fakeRunRecord(),
+      keep: async () => {}, release: { url: "", name: "test" } as never, runRecord: fakeRunRecord(), sentMaterialIds: () => new Set(),
     });
     expect(() => run.start(request, choices)).not.toThrow();
     expect(run.state().record).toMatchObject({ active: false, failure: "Error: Worker blocked" });
@@ -178,7 +278,7 @@ describe("the site's Train run (train-run.ts)", () => {
     const workers = fakeWorkers();
     let finish!: () => void;
     const keep = () => new Promise<void>((resolve, reject) => { finish = result === "resolve" ? resolve : () => reject(new Error("quota")); });
-    const run = createTrainRun({ createClient: workers.createClient, keep, release: { url: "", name: "test" } as never, runRecord: fakeRunRecord() });
+    const run = createTrainRun({ createClient: workers.createClient, keep, release: { url: "", name: "test" } as never, runRecord: fakeRunRecord(), sentMaterialIds: () => new Set() });
     const file = JSON.parse(readFileSync(new URL("../../fixtures/materials/block-12002-figure-strongest-mean-seed-1.material.json", import.meta.url), "utf8"));
     run.start(request, choices);
     workers.made[0].say({ type: "material", file, run: 1, stage: "final", fired: true });

@@ -1,0 +1,37 @@
+/* The live map (live-map.tsx): a square the size its place gives it, and one line of words under it. */
+.live-map {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+}
+
+.live-map-canvas {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  cursor: grab;
+  /* The map takes a drag as a rotation, on a phone too. */
+  touch-action: none;
+}
+
+.live-map-canvas:active {
+  cursor: grabbing;
+}
+
+.live-map-canvas:focus-visible {
+  outline: 1px solid var(--ink);
+  outline-offset: 3px;
+}
+
+.live-map-line {
+  display: grid;
+  gap: 2px;
+  font-size: var(--s-1);
+  line-height: 16px;
+  color: var(--ink-2);
+}
+
+.live-map-shadow {
+  color: var(--ink-3);
+}

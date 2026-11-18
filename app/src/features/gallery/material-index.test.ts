@@ -25,6 +25,35 @@ describe("an entry from a file", () => {
   });
 });
 
+describe("an entry from a set method's file", () => {
+  const set = { source: "selection", neighbourhood: "3x3", pictures: [{ imageId: 3536804379159069, patch: 69 }] };
+  const trained = (method: string, extra: Record<string, unknown> = {}, start?: FigureMaterialFile["start"]): FigureMaterialFile => ({
+    ...FILE, ...(start ? { start } : {}),
+    recipe: { ...FILE.recipe, settings: { ...FILE.recipe.settings, method, set, ...extra } as FigureMaterialFile["recipe"]["settings"] },
+  });
+
+  it("files it in its method's column and never names the request's loss", () => {
+    const entry = materialEntry("tokens", trained("token-distribution", { layers: ["block-3", "final"] }), LABEL, AT);
+    expect(entry.gallery).toEqual({ start: "noise", method: "token-distribution" });
+    expect(entry).not.toHaveProperty("loss");
+    expect(placeOf(entry)).toEqual({ start: "noise", method: "token-distribution" });
+    const disc = materialEntry("codes", trained("basis-group-distribution", {}, { kind: "centre-disc", radius: 16 }), LABEL, AT);
+    expect(placeOf(disc)).toEqual({ start: "circle", method: "basis-group-distribution" });
+    expect(placeOf(materialEntry("mean", trained("token-mean", { layers: ["final"] }), LABEL, AT)).method).toBe("token-mean");
+  });
+
+  it("passes the index's check, and an app that reads the place first finds the same column", () => {
+    const entry = materialEntry("tokens", trained("token-distribution", { layers: ["final"] }), LABEL, AT);
+    const read = readMaterialIndex(JSON.parse(JSON.stringify({ entries: [entry] }))).entries[0]!;
+    expect(placeOf(read)).toEqual({ start: "noise", method: "token-distribution" });
+  });
+
+  it("files basis-group mean matching with its method named as before: by its loss, without a place", () => {
+    const entry = materialEntry("mean", { ...FILE, recipe: { ...FILE.recipe, settings: { ...FILE.recipe.settings, method: "basis-group-mean" } } }, LABEL, AT);
+    expect([entry.loss, entry.gallery, placeOf(entry).method]).toEqual(["plain", undefined, "basis-group-mean"]);
+  });
+});
+
 describe("the index's two featured levels and older entries", () => {
   const entry = materialEntry("one", FILE, LABEL, AT);
 

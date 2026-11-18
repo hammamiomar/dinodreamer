@@ -9,13 +9,20 @@ import { useEffect, useState } from "react";
 import { readFigureMaterial, type FigureMaterial, type FigureMaterialFile } from "../../materials/material-file";
 import { useLoaded, type Loaded } from "../../ui/use-loaded";
 import { refusal } from "./gallery-api";
-import { EMPTY_MATERIAL_INDEX, readMaterialIndex, type MaterialFileName, type MaterialIndex } from "./material-index";
+import { EMPTY_MATERIAL_INDEX, readMaterialIndex, type MaterialEntry, type MaterialFileName, type MaterialIndex } from "./material-index";
 
 type Fetch = typeof fetch;
 export { MATERIAL_SUBMISSION_LIMITS } from "./submission-label";
 
-export function materialFileUrl(id: string, file: MaterialFileName): string {
-  return `/api/materials/${encodeURIComponent(id)}/${file}`;
+/**
+ * The address of a published automaton's file or poster. `step` is the entry's reading step, when the
+ * caller has the entry: these objects are served as immutable, and a research automaton read again at
+ * another step keeps its id (gallery/src/research.ts), so the step in the address makes its new file a
+ * new address for a browser that holds the old one. The server ignores it.
+ */
+export function materialFileUrl(id: string, file: MaterialFileName, step?: number): string {
+  const address = `/api/materials/${encodeURIComponent(id)}/${file}`;
+  return step === undefined ? address : `${address}?step=${step}`;
 }
 
 export async function fetchMaterialIndex(fetcher: Fetch = fetch): Promise<MaterialIndex> {
@@ -27,25 +34,29 @@ export async function fetchMaterialIndex(fetcher: Fetch = fetch): Promise<Materi
 
 const publishedFiles = new Map<string, Promise<FigureMaterial>>();
 
-/** Published definitions are immutable. Share a load between playback and older index labels. */
-export function fetchPublishedMaterial(id: string, fetcher: Fetch = fetch): Promise<FigureMaterial> {
-  const cached = fetcher === fetch ? publishedFiles.get(id) : undefined;
+/**
+ * Readers of the same published file share its load. A new reading step selects a different file.
+ */
+export function fetchPublishedMaterial(id: string, fetcher: Fetch = fetch, step?: number): Promise<FigureMaterial> {
+  const url = materialFileUrl(id, "material.json", step);
+  const cached = fetcher === fetch ? publishedFiles.get(url) : undefined;
   if (cached) return cached;
   const loading = (async () => {
-    const response = await fetcher(materialFileUrl(id, "material.json"));
+    const response = await fetcher(url);
     if (!response.ok) throw new Error(`Automaton ${id} answered ${response.status}.`);
     return readFigureMaterial(await response.json());
   })();
   if (fetcher === fetch) {
-    publishedFiles.set(id, loading);
-    void loading.catch(() => publishedFiles.delete(id));
+    publishedFiles.set(url, loading);
+    void loading.catch(() => publishedFiles.delete(url));
   }
   return loading;
 }
 
-/** A published material's file, loaded once per id; null asks for none (a still shows the poster alone). */
-export function usePublishedMaterial(id: string | null): Loaded<FigureMaterial> {
-  return useLoaded(id, () => (id === null ? null : fetchPublishedMaterial(id)));
+/** Load the indexed version for playback. A still view passes null. */
+export function usePublishedMaterial(entry: Pick<MaterialEntry, "id" | "tick"> | null): Loaded<FigureMaterial> {
+  const url = entry && materialFileUrl(entry.id, "material.json", entry.tick);
+  return useLoaded(url, () => entry && fetchPublishedMaterial(entry.id, fetch, entry.tick));
 }
 
 export async function submitMaterial(file: FigureMaterialFile, label: { title: string; credit: string }, turnstileToken: string | null,

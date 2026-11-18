@@ -6,7 +6,7 @@ export function materialLine(file: FigureMaterialFile): string {
     `Basis group ${file.block}`,
     file.rule.layout === FIGURE_PYRAMID_LAYOUT ? "coarse + fine grids" : "one grid",
   ];
-  if (file.start?.kind === "centre-disc") parts.push("central noise start");
+  if (file.start?.kind === "centre-disc") parts.push("noise disc start");
   parts.push(`${file.training.updates.toLocaleString("en-US")} optimizer updates`);
   return parts.join(" \u00b7 ");
 }

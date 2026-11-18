@@ -1,30 +1,19 @@
-// The wall's living faces. A deck's face is its automaton, grown in the browser when the deck comes into
-// view: from noise, quickly until its image has emerged, then slowly until the tick its published
-// picture was read at, and there it rests. A face at rest costs nothing. The pointer moving across a
-// face stamps the brush on its cells, and the face runs again until the rule has had time to heal them.
-//
-// Every face shares one GPU device, and only a few emerge at once: a window shows fifteen decks, and
-// the growth is the part worth watching, so they take their turns.
+// Each visible face runs its own published rule from the seed to the reading step.
+// Faces share a device. Opening a replay takes a turn. Growth follows one rate regardless
+// of the reading step or display refresh rate, and a face at rest schedules no frames.
 
 import { figurePlayback, type FigureMaterial } from "../../materials/material-file";
 import { createFigureReplay, type FigureReplay } from "../../replay/figure-replay";
 import { FIGURE_SHADERS } from "../../replay/figure-shaders";
 import { startReplayLoop, type ReplayLoop } from "../../replay/replay-loop";
 
-/** Faces that emerge from noise at the same time. Each steps EMERGE_SPEED ticks a frame while it does. */
-const MOST_EMERGING = 6;
-/** Ticks per frame from noise until EMERGED_TICK, about a third of a second: the image is there. */
-const EMERGE_SPEED = 8;
-const EMERGED_TICK = 160;
-/** Then ticks per frame until the face rests at RESTING_TICK, the tick a published picture is read at. */
-const SETTLE_SPEED = 2;
-const RESTING_TICK = 600;
-/** After the pointer's last stamp a face runs this long, at one tick a frame, so the rule heals it in sight. */
-const HEAL_MS = 4000;
-/** The brush the pointer carries across a face, in cells of a 128-cell grid: under half the stage's brush. */
-const WAKE_RADIUS = 5;
-/** A face is drawn at whole device pixels per cell, at most the replay's eight. */
+/** Limit concurrent shader and buffer setup. Release the turn as soon as the seed is on the canvas. */
+const MAX_OPENING_FACES = 2;
+/** One simulation tick per 60 Hz frame, including while a face heals after a stroke. */
+const STEPS_PER_SECOND = 60;
 const MOST_PIXELS_PER_CELL = 8;
+const WAKE_RADIUS = 5;
+const HEAL_MS = 4000;
 
 let sharedDevice: Promise<GPUDevice> | null = null;
 
@@ -44,23 +33,30 @@ function deviceForFaces(): Promise<GPUDevice> {
   return request;
 }
 
-let emerging = 0;
+let openingFaces = 0;
 const waiting: (() => void)[] = [];
 
 /**
- * A turn to emerge: `turn` resolves when fewer than MOST_EMERGING faces are emerging, first come first
+ * A turn to open: `turn` resolves when a setup slot is free, first come first
  * served. `hurry` takes the turn at once, past the others: the face the reader is on does not wait.
  */
-function turnToEmerge(signal: AbortSignal): { turn: Promise<void>; hurry: () => void } {
+function turnToOpen(signal: AbortSignal): { turn: Promise<void>; hurry: () => void } {
   let hurry = () => {};
   const turn = new Promise<void>((resolve, reject) => {
+    const cancel = () => {
+      const index = waiting.indexOf(start);
+      if (index >= 0) waiting.splice(index, 1);
+      reject(signal.reason);
+    };
     const start = () => {
+      signal.removeEventListener("abort", cancel);
       if (signal.aborted) { reject(signal.reason); return; }
-      emerging += 1;
+      openingFaces += 1;
       resolve();
     };
-    if (emerging < MOST_EMERGING) { start(); return; }
+    if (openingFaces < MAX_OPENING_FACES) { start(); return; }
     waiting.push(start);
+    signal.addEventListener("abort", cancel, { once: true });
     hurry = () => {
       const place = waiting.indexOf(start);
       if (place < 0) return;
@@ -72,9 +68,9 @@ function turnToEmerge(signal: AbortSignal): { turn: Promise<void>; hurry: () => 
 }
 
 function endOfTurn(): void {
-  emerging -= 1;
+  openingFaces -= 1;
   // A face that gave up while it waited takes no turn: the next in line is asked instead.
-  while (emerging < MOST_EMERGING && waiting.length > 0) waiting.shift()!();
+  while (openingFaces < MAX_OPENING_FACES && waiting.length > 0) waiting.shift()!();
 }
 
 export interface LiveFace {
@@ -94,7 +90,7 @@ export interface LiveFace {
  * `onShown` is called at the first drawn frame and `onFailed` when the browser cannot grow it; after
  * `close` neither is called.
  */
-export function openLiveFace(canvas: HTMLCanvasElement, material: FigureMaterial, grid: { side: number; seed: number },
+export function openLiveFace(canvas: HTMLCanvasElement, material: FigureMaterial, grid: { side: number; seed: number; tick: number },
   events: { onShown: () => void; onFailed: (error: unknown) => void }): LiveFace {
   const closing = new AbortController();
   let replay: FigureReplay | null = null;
@@ -109,60 +105,76 @@ export function openLiveFace(canvas: HTMLCanvasElement, material: FigureMaterial
     hasTurn = false;
     endOfTurn();
   };
-  const growing = () => replay !== null && replay.tick < RESTING_TICK;
+  const growing = () => replay !== null && replay.tick < grid.tick;
   const run = () => {
     if (!loop) return;
-    if (inView && (growing() || performance.now() < healUntil)) loop.play();
+    if (shown && inView && (growing() || performance.now() < healUntil)) loop.play();
     else loop.pause();
   };
-  const onFrame = (tick: number) => {
+  const onFrame = () => {
     if (!shown) { shown = true; events.onShown(); }
-    if (tick >= EMERGED_TICK) giveTurnBack();
-    if (!loop) return;
-    if (tick < EMERGED_TICK) loop.setSpeed(EMERGE_SPEED);
-    else if (tick < RESTING_TICK) loop.setSpeed(SETTLE_SPEED);
-    else {
-      loop.setSpeed(1);
-      if (performance.now() >= healUntil) loop.pause();
-    }
+    giveTurnBack();
+    run();
   };
 
-  const queued = turnToEmerge(closing.signal);
-  (async () => {
-    await queued.turn;
-    hasTurn = true;
-    const device = await deviceForFaces();
-    const box = canvas.getBoundingClientRect();
-    const scale = Math.min(MOST_PIXELS_PER_CELL, Math.max(1, Math.round((box.width * (window.devicePixelRatio || 1)) / grid.side)));
-    const created = await createFigureReplay(
-      { canvas, device, side: grid.side, seed: grid.seed, scale, ...figurePlayback(material.file), signal: closing.signal },
-      { values: material.values, fireRate: material.file.rule.fireRate },
-      FIGURE_SHADERS,
-    );
-    if (closing.signal.aborted) { created.dispose(); return; }
-    replay = created;
-    loop = startReplayLoop(created, { speed: EMERGE_SPEED, playing: inView, onFrame, onError: (error) => { giveTurnBack(); if (!closing.signal.aborted) events.onFailed(error); } });
-  })().catch((error: unknown) => {
-    giveTurnBack();
-    if (!closing.signal.aborted) events.onFailed(error);
-  });
+  let opening = false;
+  let queued: ReturnType<typeof turnToOpen> | undefined;
+  async function openReplay() {
+    if (opening || loop || !inView || closing.signal.aborted) return;
+    opening = true;
+    queued = turnToOpen(closing.signal);
+    try {
+      await queued.turn;
+      hasTurn = true;
+      // Visibility can change while waiting. An offscreen face tries again when it returns.
+      if (!inView || closing.signal.aborted) { giveTurnBack(); return; }
+      const device = await deviceForFaces();
+      if (!inView || closing.signal.aborted) { giveTurnBack(); return; }
+      const box = canvas.getBoundingClientRect();
+      const scale = Math.min(MOST_PIXELS_PER_CELL, Math.max(1, Math.round((box.width * (window.devicePixelRatio || 1)) / grid.side)));
+      const created = await createFigureReplay(
+        { canvas, device, side: grid.side, seed: grid.seed, scale, ...figurePlayback(material.file), signal: closing.signal },
+        { values: material.values, fireRate: material.file.rule.fireRate },
+        FIGURE_SHADERS,
+      );
+      if (closing.signal.aborted) { created.dispose(); return; }
+      replay = created;
+      loop = startReplayLoop(created, {
+        speed: 1, playing: false, onFrame,
+        // Draw the seed first, then advance on the same clock through growth and brush recovery.
+        tickAtTime(seconds) {
+          const tick = seconds * STEPS_PER_SECOND;
+          return created.tick < grid.tick ? Math.min(tick, grid.tick) : tick;
+        },
+        onError: error => { giveTurnBack(); if (!closing.signal.aborted) events.onFailed(error); },
+      });
+    } catch (error) {
+      giveTurnBack();
+      if (!closing.signal.aborted) events.onFailed(error);
+    } finally {
+      queued = undefined;
+      opening = false;
+    }
+  }
+  void openReplay();
 
   return {
     setInView(next) {
       inView = next;
-      // A face that left the window while it emerged lets the next one start; it keeps what it has grown.
-      if (!next) giveTurnBack();
+      // An offscreen face releases its setup slot and keeps its current cells.
+      if (next) void openReplay();
+      else giveTurnBack();
       run();
     },
     stroke(from, to) {
-      if (!loop || !replay || replay.tick < EMERGED_TICK) return;
+      if (!loop || !replay || replay.tick === 0) return;
       loop.stroke(from.x, from.y, to.x, to.y, (WAKE_RADIUS * grid.side) / 128);
       healUntil = performance.now() + HEAL_MS;
       run();
     },
-    hurry: queued.hurry,
+    hurry() { queued?.hurry(); },
     redraw() {
-      if (loop && replay) void loop.hold(async () => {}).catch(() => {});
+      loop?.redraw();
     },
     close() {
       closing.abort(new DOMException("The face was closed.", "AbortError"));

@@ -18,8 +18,8 @@ import type { MaterialAnchor } from "../../recipe";
 import "./basis-group-panel.css";
 
 /** The pages a basis group panel opens over. */
-export type PanelHome = "/index" | "/automata" | "/admin/automata" | "/admin/materials" | "/train" | "/picture" | "/how" | "/create";
-const PANEL_HOMES: readonly PanelHome[] = ["/index", "/automata", "/admin/automata", "/admin/materials", "/train", "/picture", "/how", "/create"];
+export type PanelHome = "/index" | "/automata" | "/admin/automata" | "/train" | "/picture" | "/how" | "/create";
+const PANEL_HOMES: readonly PanelHome[] = ["/index", "/automata", "/admin/automata", "/train", "/picture", "/how", "/create"];
 
 /** The history state of a panel opened from its page: closing it goes back to that entry. */
 export const PANEL_OPENED = { basisGroupPanel: true } as const;

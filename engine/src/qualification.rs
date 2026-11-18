@@ -215,7 +215,7 @@ fn legacy_objective(engine: &mut Engine, code: &CodeSpec, center: bool) -> Resul
 
 /// One code term's raw value, averaged over views: the legacy `loss` fixtures.
 fn legacy_loss(engine: &Engine, objective: &Objective, tokens_BTD: Tensor<3>) -> Tensor<1> {
-    let readout = crate::encoder::Readout { native_BTD: tokens_BTD, appearance_BPD: Vec::new() };
+    let readout = crate::encoder::Readout { native_BTD: tokens_BTD, intermediate_BPD: Vec::new() };
     let views = readout.native_BTD.dims()[0];
     let assigned = objective.assign(&[]);
     let zero_views_VCHW = Tensor::zeros([views, 3, 1, 1], &engine.device);

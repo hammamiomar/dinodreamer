@@ -233,12 +233,11 @@ select {
   letter-spacing: -0.02em;
 }
 
+/* A label: small, in the page's quiet ink, in the case it is written in; no capitals, no tracking. */
 .label {
   font-size: var(--s-1);
   font-weight: 500;
   line-height: var(--lh-1);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
   color: var(--ink-3);
 }
 
@@ -251,8 +250,6 @@ select {
   font-size: var(--s-1);
   font-weight: 500;
   line-height: var(--lh-1);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 
 .band.barely,
@@ -353,16 +350,18 @@ select {
   pointer-events: none;
 }
 
-/* The wordmark stands 40 px from the first word: this 28 px gap and that link's 12 px mark room (below). */
+/* The wordmark stands 40 px from the first word. The header is solid: the lattice does not run under it. */
 .frame-header {
   position: relative;
+  z-index: 2;
   display: flex;
   grid-column: full;
   align-items: center;
-  gap: 28px;
+  gap: 40px;
   height: var(--top);
   padding: 0 var(--edge-end) 0 var(--edge);
   border-bottom: 1px solid var(--line);
+  background: var(--black);
 }
 
 /*
@@ -376,9 +375,7 @@ select {
   right: 0;
   left: 0;
   z-index: 3;
-  background: var(--black);
 }
-
 .site[data-home][data-entrance] .frame-header {
   transform: translateY(-100%);
 }
@@ -412,27 +409,23 @@ select {
 }
 
 /*
- * Each entry keeps room for the square mark on its inline-start side (--nav-mark-room: the 6 px
- * square and 6 px of air), so the current page's square sits inside its link and the keyboard ring
- * wraps the square and the word together. With the 20 px gaps the words
- * stand 32 px apart, and a ring (7 px out) keeps 25 px from the next word.
+ * The links stand the header's full height, so the current page's mark, a line on the header's own lower
+ * rule under its word, belongs to the header's structure: no square, no badge. The words stand 32 px
+ * apart, and a keyboard ring (7 px out) keeps 25 px from the next word.
  */
 .frame-nav {
-  --nav-mark-room: 12px;
   display: flex;
   align-self: stretch;
-  align-items: center;
-  gap: 20px;
+  align-items: stretch;
+  gap: 32px;
   font-size: var(--s0);
-}
-
-.frame-nav > a {
-  padding-inline-start: var(--nav-mark-room);
 }
 
 /* A link never wraps: the header is one line, and a name too long for it shows as overflow, not as two lines. */
 .frame-nav a {
   position: relative;
+  display: flex;
+  align-items: center;
   color: var(--ink-2);
   text-decoration: none;
   white-space: nowrap;
@@ -446,50 +439,36 @@ select {
   color: var(--ink);
 }
 
-/* The square mark of the current page's link, in the link's mark room, so no link moves. */
-.frame-nav a.active::before {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 0;
-  width: 6px;
-  height: 6px;
-  margin-top: -3px;
-  background: currentColor;
-}
-
-/*
- * A navigation slower than a second (frame.tsx): the current page's mark, or the mark of the
- * link being opened, blinks slowly. It sits in the mark room, so nothing on the page moves; a fast
- * load shows nothing. With reduced motion the mark is hollow instead.
- */
+/* The current page's line: its word's width, on the header's lower rule. */
+.frame-nav a.active::before,
 .frame-header[data-busy] .frame-nav a.pending::before {
   content: "";
   position: absolute;
-  top: 50%;
+  right: 0;
+  bottom: -1px;
   left: 0;
-  width: 6px;
-  height: 6px;
-  margin-top: -3px;
+  height: 2px;
   background: currentColor;
 }
 
+/* A link the reader chose shows its line at once, while its page loads; it pulses until the page is there. */
+.frame-header[data-busy] .wordmark.pending {
+  color: var(--ink-2);
+}
+
+.frame-header[data-busy] .frame-nav a.pending {
+  color: var(--ink);
+}
+
 @media (prefers-reduced-motion: no-preference) {
-  .frame-header[data-busy] .frame-nav a:is(.active, .pending)::before {
-    animation: frame-busy 1.6s steps(1, end) infinite;
+  .frame-header[data-busy] .frame-nav a.pending::before {
+    animation: frame-busy 1.6s ease-in-out infinite;
   }
 
   @keyframes frame-busy {
     50% {
-      opacity: 0;
+      opacity: 0.25;
     }
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .frame-header[data-busy] .frame-nav a:is(.active, .pending)::before {
-    background: none;
-    border: 1px solid currentColor;
   }
 }
 
@@ -515,15 +494,6 @@ select {
   margin-top: calc(-0.5lh - 7px);
   border: 1px solid var(--ink);
   pointer-events: none;
-}
-
-/* A link that shows no square: its ring starts 6 px before its word, not before the empty mark room. */
-.frame-nav > a:not(.active):focus-visible::after {
-  left: calc(var(--nav-mark-room) - 7px);
-}
-
-.frame-header[data-busy] .frame-nav > a.pending:focus-visible::after {
-  left: -7px;
 }
 
 /* A page's sides are the band's; it keeps its own space above and below. */
@@ -607,8 +577,6 @@ select {
   background: none;
   color: var(--ink);
   font: 500 var(--s-1) / var(--lh-1) var(--mono);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
   text-decoration: none;
   cursor: pointer;
   touch-action: manipulation;
@@ -626,7 +594,7 @@ select {
   color: var(--danger);
 }
 
-/* A chip: a plain tracked word that toggles; pressed, it is white with its outline. */
+/* A chip: a plain word that toggles; pressed, it is white with its outline. */
 .chip {
   display: inline-flex;
   align-items: center;
@@ -638,7 +606,6 @@ select {
   background: none;
   color: var(--ink-2);
   font: 500 var(--s-1) / var(--lh-1) var(--mono);
-  letter-spacing: 0.08em;
   white-space: nowrap;
   text-decoration: none;
   cursor: pointer;
@@ -658,8 +625,9 @@ select {
 }
 
 /*
- * A choice (ui/segmented.tsx): the options in a row on a line, a square mark before each, filled
- * before the chosen one. As wide as its options: a column flex parent would otherwise stretch it.
+ * A choice (ui/segmented.tsx): the options in a row on a line. The chosen one stands in full ink with a
+ * 2 px line under its word on the row's rule, as the header marks the current page; the others are
+ * muted. As wide as its options: a column flex parent would otherwise stretch it.
  */
 .segmented {
   display: inline-flex;
@@ -676,7 +644,7 @@ select {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  padding: 0 0 0 16px;
+  padding: 0;
   border: 0;
   background: none;
   color: var(--ink-2);
@@ -687,15 +655,15 @@ select {
   touch-action: manipulation;
 }
 
+/* The line under the chosen word, on the row's rule: 8 px of the row's padding and its 1 px rule below the button. */
 .segmented > button::before {
   content: "";
   position: absolute;
-  top: 50%;
+  right: 0;
+  bottom: -9px;
   left: 0;
-  width: 8px;
-  height: 8px;
-  margin-top: -4px;
-  border: 1px solid var(--line-2);
+  height: 2px;
+  background: transparent;
 }
 
 .segmented > button[aria-checked="true"] {
@@ -703,7 +671,6 @@ select {
 }
 
 .segmented > button[aria-checked="true"]::before {
-  border-color: var(--ink);
   background: var(--ink);
 }
 
@@ -899,15 +866,18 @@ select {
   width: 100%;
 }
 
+/* The select's mark: a small down chevron, the ordinary sign that a list opens. */
 .select::after {
   content: "";
   position: absolute;
   top: 50%;
-  right: 12px;
+  right: 14px;
   width: 6px;
   height: 6px;
-  margin-top: -3px;
-  background: var(--ink-2);
+  margin-top: -5px;
+  border-right: 1px solid var(--ink-2);
+  border-bottom: 1px solid var(--ink-2);
+  transform: rotate(45deg);
   pointer-events: none;
 }
 
@@ -1043,7 +1013,7 @@ input[type="color"]::-moz-color-swatch {
   }
 
   .segmented > button[aria-checked="false"]:not([aria-disabled="true"]):hover::before {
-    border-color: var(--ink);
+    background: var(--line-2);
   }
 
   .chip:hover:not(:disabled, [aria-disabled="true"]),
@@ -1058,9 +1028,9 @@ input[type="color"]::-moz-color-swatch {
     color: var(--black);
   }
 
-  /* A chosen option that acts again when chosen again (Random) shows its mark hollow on hover. */
+  /* A chosen option that acts again when chosen again (Random) shows its line dimmed on hover. */
   .segmented > button[aria-checked="true"][data-repeatable]:hover::before {
-    background: none;
+    background: var(--ink-2);
   }
 
   input[type="checkbox"]:hover:not(:disabled, :checked),
@@ -1176,7 +1146,7 @@ html {
 }
 
 /*
- * Below 832 px, use the short How label and square Experimental mark. The full text needs
+ * Below 832 px, use the short How and Experimental labels. The full text needs
  * about 781 px including gaps and padding; this threshold leaves room for a scrollbar and
  * aligns to the 16 px grid. Below 640 px, the menu shows the full destination names.
  */
@@ -1189,22 +1159,6 @@ html {
     display: inline;
   }
 
-  /* The Experimental link's three squares, in place of its word (frame.tsx), a little clear of the word before; filled on its page. */
-  .frame-nav-short.frame-nav-squares {
-    display: flex;
-    gap: 4px;
-    margin-inline-start: 4px;
-  }
-
-  .frame-nav-squares i {
-    width: 4px;
-    height: 4px;
-    border: 1px solid currentColor;
-  }
-
-  .frame-nav a.active .frame-nav-squares i {
-    background: currentColor;
-  }
 }
 
 /* Phone navigation uses a disclosure so every destination keeps its full name and touch target. */
@@ -1258,9 +1212,11 @@ html {
     gap: 0;
   }
 
+  /* A link is as wide as its word, so the current page's line stands under the word, not across the menu. */
   .frame-nav > a {
     display: flex;
     align-items: center;
+    justify-self: start;
     min-height: 44px;
   }
 

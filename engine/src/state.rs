@@ -6,7 +6,7 @@
 use crate::{
     appearance::ReferenceCache,
     assets::decode_preview,
-    encoder::Dino,
+    encoder::{APPEARANCE_LAYERS, Dino},
     image::{Canvas, GRID, JITTER_RADIUS, Jitter, Resample, SIZE, Zoom, gaussian_coefficients},
     objective::{Calibration, Objective, ObjectiveSpec, ProbeSpec, Probes, load_frame},
     optimizer::{Adam, LEARNING_RATE},
@@ -224,8 +224,8 @@ impl Engine {
     pub async fn encode_reference(&mut self, image_id: u64, png: &[u8]) -> Result<(), String> {
         let rgb_CHW = decode_preview(png).map_err(|error| error.to_string())?;
         let image_1CHW = Tensor::from_data(TensorData::new(rgb_CHW, [1, 3, SIZE, SIZE]), &self.device);
-        let readout = self.encoder.readout(image_1CHW, true);
-        let readout_LTD = read_values(Tensor::cat(readout.appearance_BPD, 0)).await?;
+        let readout = self.encoder.readout(image_1CHW, &APPEARANCE_LAYERS);
+        let readout_LTD = read_values(Tensor::cat(readout.intermediate_BPD, 0)).await?;
         if readout_LTD.iter().any(|value| !value.is_finite()) {
             return Err(format!("Reference {image_id} produced non-finite features"));
         }
@@ -400,9 +400,10 @@ impl Engine {
     pub(crate) fn evaluate(&self, views_BCHW: Tensor<4>, profile: &mut StepProfile) -> (Option<Tensor<2>>, Option<Tensor<2>>) {
         let appearance = self.objective.needs_appearance();
         let readout = profile.record("encoder_forward", || {
-            self.encoder.readout(views_BCHW.clone(), appearance)
+            let intermediate: &[usize] = if appearance { &APPEARANCE_LAYERS } else { &[] };
+            self.encoder.readout(views_BCHW.clone(), intermediate)
         });
-        let assigned = profile.record("ranking", || self.objective.assign(&readout.appearance_BPD));
+        let assigned = profile.record("ranking", || self.objective.assign(&readout.intermediate_BPD));
         profile.record("objective", || {
             let raws_NB = (!self.objective.is_empty())
                 .then(|| self.objective.raws(&views_BCHW, &readout, &assigned, &self.calibration));

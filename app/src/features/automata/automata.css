@@ -66,12 +66,62 @@
   gap: var(--patch);
 }
 
+/* The group number spans both rows. Its name and the current selection share the adjacent column. */
+.automata-stage-heading {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: var(--space-4);
+  align-items: end;
+  width: 100%;
+  padding-bottom: var(--space-2);
+}
+
 .automata-title {
   display: flex;
   align-items: last baseline;
   gap: var(--space-6);
   min-width: 0;
   margin: 0;
+}
+
+.automata-stage-heading .automata-title {
+  display: grid;
+  grid-area: 1 / 1 / 3 / -1;
+  grid-template: subgrid / subgrid;
+  align-items: end;
+  gap: inherit;
+}
+
+.automata-stage-heading .display {
+  grid-row: 1 / 3;
+  line-height: 1;
+}
+
+.automata-stage-heading .automata-title > :nth-child(2) {
+  grid-area: 1 / 2;
+  padding-bottom: 0;
+}
+
+.automata-selection {
+  grid-area: 2 / 2;
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--s0);
+  line-height: 20px;
+}
+
+.automata-selection span {
+  line-height: inherit;
+}
+
+.automata-selection-method {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.automata-selection-try {
+  white-space: nowrap;
 }
 
 .automata-title a {
@@ -106,6 +156,16 @@
 }
 
 @media (min-width: 1200px) {
+  /* The two-pane stage must fit a five-digit number, a two-line name and its selection below the links. */
+  .automata-stage-heading .display {
+    font-size: 80px;
+  }
+
+  .automata-stage-heading .automata-name {
+    font-size: 22px;
+    line-height: 24px;
+  }
+
   .automata-group {
     --cells: 512px;
     /* At least a 512 frame's width, so the bar and the step's line stay one line each under a smaller frame. */
@@ -222,8 +282,6 @@
 .automata-level-name b {
   color: var(--band);
   font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 
 .automata-level-name span {
@@ -408,12 +466,13 @@
   white-space: nowrap;
 }
 
-/* Nothing was grown this way for the group: the cell's outline alone. */
+/* Keep the comparison grid aligned when a combination has no automaton. */
 .automata-cell-empty {
-  display: block;
+  display: grid;
+  place-items: center;
   width: var(--tile);
   height: var(--tile);
-  border: 1px solid var(--line);
+  color: var(--ink-2);
   cursor: default;
 }
 
@@ -596,9 +655,26 @@
     min-height: var(--touch-target);
   }
 
-  .automata-title {
+  .automata-stage-heading {
+    grid-template-columns: minmax(0, 1fr) 32ch;
+    align-items: center;
+    gap: 4px;
+    font-size: 14px;
+    padding: 0;
+  }
+
+  .automata-stage-heading .automata-title {
+    display: flex;
+    grid-area: 1 / 1;
+    flex-wrap: wrap;
     align-items: baseline;
-    gap: var(--space-3);
+    gap: 0 4px;
+  }
+
+  .automata-selection {
+    grid-area: 1 / 2;
+    font-size: 14px;
+    line-height: 16px;
   }
 
   .automata-title .display {
@@ -877,6 +953,42 @@
   padding: var(--m) 0;
 }
 
+/* The last row occupies the wall's existing bottom module, above the site's publication credits. */
+.automata-wall:has(> .automata-wall-navigation) {
+  padding-bottom: 0;
+}
+
+.automata-wall-navigation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--space-6);
+  min-height: var(--m);
+  font-size: var(--s0);
+}
+
+.automata-wall-navigation a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-target);
+  color: var(--ink-2);
+  text-decoration: none;
+}
+
+.automata-wall-navigation a:is(:hover, :focus-visible, .active, .pending) {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+@media (max-width: 640px) {
+  .automata-wall-navigation {
+    justify-content: space-between;
+    gap: 0 var(--space-2);
+    font-size: var(--s-1);
+  }
+}
+
 /* The heading and the way to the saved automata on one line, as the Index's; the sentence under them. */
 .automata-wall-head {
   display: grid;
@@ -939,33 +1051,22 @@
  */
 .automata-table {
   --face: 192px;
-  /* The depth between two plates of a deck, and how far the deck the reader is on comes forward. At this
-     depth the deepest plate of a deck 800 px from the eye shows 25 px of itself, which the room over the
-     deck's words holds. */
+  /* At rest the edges of the plates show the four response levels. */
   --plate-depth: 12px;
-  --forward: 210px;
-  /* A spring: past its end by a seventh, then back. Where linear() is unknown the curve after it is used. */
-  --deck-spring: cubic-bezier(0.2, 1.25, 0.35, 1);
   display: grid;
   grid-template-columns: repeat(auto-fill, var(--face));
   justify-content: space-between;
-  gap: 64px 48px;
+  gap: 24px 48px;
   margin: 0;
   padding: 0;
   list-style: none;
   perspective: 1500px;
   perspective-origin: var(--eye-x, 50%) var(--eye-y, 320px);
-  /* One space for every deck, so a deck that has come forward stands in front of its neighbours. */
+  /* All resting decks share the same perspective origin. */
   transform-style: preserve-3d;
 }
 
-@supports (transition-timing-function: linear(0, 1)) {
-  .automata-table {
-    --deck-spring: linear(0, 0.006, 0.025 2.8%, 0.101 6.1%, 0.539 18.9%, 0.721 25.3%, 0.849 31.5%, 0.937 38.1%, 0.968 41.8%, 0.991 45.7%, 1.006 50.1%, 1.015 55%, 1.017 63.9%, 1.001 85.9%, 1);
-  }
-}
-
-/* Reduced motion: no eye and no perspective; a deck's plates stay under its face until it comes forward. */
+/* The reduced-motion wall uses a flat projection. */
 .automata-table[data-still] {
   perspective: none;
 }
@@ -982,11 +1083,25 @@
 }
 
 .automata-deck-link {
+  position: relative;
   display: grid;
-  gap: 26px;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "face" "caption" "photos";
   color: inherit;
   text-decoration: none;
-  transition: transform 520ms var(--deck-spring);
+}
+
+/* Keep space for four square photos and their level label before a preview opens. */
+.automata-deck-link::after {
+  content: "";
+  aspect-ratio: 4;
+  pointer-events: none;
+}
+
+.automata-deck-link::after,
+.automata-deck-link[data-preview-layout] > .automata-deck-plate {
+  grid-area: photos;
+  margin-block: 4px 18px;
 }
 
 .automata-deck-link:focus-visible {
@@ -994,6 +1109,7 @@
 }
 
 .automata-deck-body {
+  grid-area: face;
   position: relative;
   display: block;
   aspect-ratio: 1;
@@ -1008,19 +1124,31 @@
 
 /* A plate: the level's four pictures, two by two, with the level's colour around it, which is what its edge shows. */
 .automata-deck-plate {
+  grid-area: face;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   grid-template-rows: repeat(2, minmax(0, 1fr));
   background: color-mix(in srgb, var(--band) 26%, var(--black));
   box-shadow: inset 0 0 0 2px var(--band);
   transform: translateZ(calc(var(--depth) * var(--plate-depth) * -1));
-  transition: transform 520ms var(--deck-spring);
   pointer-events: none;
 }
 
-/* The face: a line around the black while the automaton waits for its turn to grow. */
+/* The label sits directly under its four photos. */
+.automata-deck-plate-level {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  color: var(--band);
+  font-size: var(--s-1);
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+/* A live face first shows its seeded canvas. A still face uses the published picture. */
 .automata-deck-face {
-  background: var(--black);
+  background: color-mix(in srgb, var(--ink-3) 40%, var(--black));
   box-shadow: inset 0 0 0 1px var(--line);
 }
 
@@ -1031,6 +1159,8 @@
 
 .automata-deck-face > canvas,
 .automata-deck-face > img {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
   height: 100%;
@@ -1042,6 +1172,9 @@
 }
 
 .automata-deck-words {
+  grid-area: caption;
+  margin-top: 26px;
+  transition: opacity 240ms;
   display: grid;
   gap: 0;
   min-width: 0;
@@ -1081,40 +1214,59 @@
 
 .automata-table[data-forward] .automata-deck:not([data-forward]) .automata-deck-face::after,
 .automata-table[data-forward] .automata-deck:not([data-forward]) .automata-deck-plate::before {
+  opacity: 0.72;
+}
+
+.automata-table[data-forward] .automata-deck:not([data-forward]) .automata-deck-words {
   opacity: 0.5;
 }
 
-.automata-table[data-forward] .automata-deck:not([data-forward]) .automata-deck-link {
-  transform: translateZ(-40px);
+/* Only the reference plates move between the face and the photo row. */
+.automata-deck-link[data-preview-layout] {
+  touch-action: pan-y pinch-zoom;
 }
 
-/*
- * The deck the reader is on: it comes forward, and its plates slide out from under the face to the
- * side with the room. The strongest level lies whole beside the face, at the face's own depth; each
- * weaker level stands 18 px further out and one step deeper, so its edge and its colour show.
- */
-.automata-deck[data-forward] .automata-deck-link {
-  transform: translateZ(var(--forward));
+.automata-deck-link[data-preview-layout] > .automata-deck-plate {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: 1fr;
+  transform: none;
 }
 
-.automata-deck[data-forward] .automata-deck-plate {
-  /* The plates of the deck the reader is on belong to it: the pointer on them keeps the deck forward. */
-  pointer-events: auto;
-  transform: translate3d(calc((100% + 20px + (var(--depth) - 1) * 18px) * var(--fan)), 0, calc((var(--depth) - 1) * var(--plate-depth) * -1));
+/* The row stays empty while its photographs load. */
+.automata-deck-link[data-preview-layout]:not(:has(> [data-preview])) > .automata-deck-plate {
+  visibility: hidden;
+}
+
+.automata-deck-plate[data-preview] {
+  z-index: 1;
+}
+
+.automata-deck-plate[data-preview] .automata-deck-plate-level {
+  display: block;
 }
 
 .automata-deck[data-forward] .automata-deck-name {
   color: var(--ink);
 }
 
-.automata-deck-link:focus-visible .automata-deck-face {
+.automata-deck-link:focus-visible .automata-deck-body {
   outline: 2px solid var(--ink);
   outline-offset: 4px;
 }
 
+/* Touch screens always show the photo row immediately below the face. */
+@media (hover: none) {
+  .automata-deck-link {
+    grid-template-areas: "face" "photos" "caption";
+  }
+
+  .automata-deck-words {
+    margin-top: 4px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .automata-deck-link,
-  .automata-deck-plate,
+  .automata-deck-words,
   .automata-deck-face::after,
   .automata-deck-plate::before {
     transition: none;
@@ -1152,6 +1304,17 @@
   }
 }
 
+/* At narrow phone widths the selection takes its own full row directly below the group title. */
+@media (max-width: 389px) {
+  .automata-stage-heading {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .automata-selection {
+    grid-area: 2 / 1;
+  }
+}
+
 /* A phone: two decks to a row; the eye is the middle of the window, so a deck shows its plates as it passes. */
 @media (max-width: 640px) {
   .automata-wall {
@@ -1168,7 +1331,7 @@
 
   .automata-table {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 40px 24px;
+    gap: 24px;
     perspective: 900px;
   }
 }

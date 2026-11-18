@@ -8,13 +8,14 @@ import { downloadBlob } from "../ui/files";
 import { MaterialFrame } from "../ui/material-frame";
 import { Segmented } from "../ui/segmented";
 import {
-  changedFromRun, drawCells, sameTarget, SIDE, trainRun, useLiveCells, useTrainRun, useTrainTick,
+  changedFromRun, drawCells, sameTarget, SIDE, trainRun, useLiveCells, useTrainLadder, useTrainRun, useTrainTick,
   type GrowSettings, type KeepFailure, type TrainRunState,
 } from "./train-run";
 import { CoSelectedPictures } from "./co-selected-pictures";
-import { TrainLoading } from "./train-loading";
+import { TrainMap } from "./train-map";
+import { KeptStepChoices } from "./step-choices";
 import { LIGHT_BATCH, RECIPE_BATCH, batchFallback, clearBatchFallback, presetBatch, type BatchSize } from "./batch-size";
-import { GrowStatus } from "./grow-status";
+import { GrowStatus, reloadHelps } from "./grow-status";
 import { durationText, timeBefore, timeLeft, timeTaken, type GrowTime } from "./grow-time";
 import {
   choicesOpen, growState, hasFired, isHeld, NO_RECORD, primaryAction, resultOutcome, resumeUpdates, shownCoSelection, stopAction,
@@ -24,13 +25,20 @@ import { BRUSH, strokeStamps } from "./live-brush";
 import { continuedKind, type ContinuationSource } from "./continuation";
 import { RULE_CHOICES, START_CHOICES, kindFromSearch, kindLabel, readingRegion, type MaterialKind } from "./material-kind";
 import { startStill } from "./start-still";
+import { setRefusal } from "./target-set";
+import { methodNeedsSet, methodReadsTokens, type FigureMethod, type FigureTargetSet } from "../materials/material-file";
+import type { MaterialRequestOrigin } from "../app/material-request";
+import { FIGURE_UPDATES, RUNS } from "./figure-recipe";
+import {
+  TOKEN_DEPTHS, TRAIN_COMPARISONS, TRAIN_SPACES, comparisonOf, keepRule, methodOf, spaceOf, type TokenDepth, type TrainComparison, type TrainSpace,
+} from "./train-method";
 
 // The page shows the site's persistent run only when its target matches. grow-view.ts maps
 // worker events to the controls and status shown in this layout.
 
 const WORDS = SITE_WORDS.grow;
 /** What the page shows while the site's run is another target's, or there is none: the start. */
-const NO_RUN: TrainRunState = { record: NO_RECORD, settings: null, files: new Map(), sampled: null, keepFailure: null, shownOnPage: false };
+const NO_RUN: TrainRunState = { record: NO_RECORD, settings: null, files: new Map(), sampled: null, keepFailure: null, shownOnPage: false, ladder: null };
 
 /** The primary as a button: inverted for the actions that start training, outlined for Stop. */
 const PRIMARY_BUTTON = {
@@ -74,11 +82,48 @@ function KindChoices({ kind, open, ruleFixed, onChange }: {
   </div>;
 }
 
-const BATCH_HINT: Record<BatchSize, string> = { 4: WORDS.batchRecipe, 1: WORDS.batchLight };
+/**
+ * The method: one choice of space and one of comparison, and under them the method they make, by its
+ * name. Fixed while a run trains or waits; a continuation keeps its definition's method (`fixedMethod`).
+ */
+function MethodChoices({ method, depth, open, fixedMethod, onChange, onDepth }: {
+  method: FigureMethod; depth: TokenDepth; open: boolean; fixedMethod: boolean;
+  onChange: (method: FigureMethod) => void; onDepth: (depth: TokenDepth) => void;
+}) {
+  const fixed = { unavailable: !open, reason: open ? undefined : WORDS.stop };
+  const choice = fixedMethod ? { unavailable: true, reason: WORDS.continuedMethod } : fixed;
+  const space = spaceOf(method);
+  const comparison = comparisonOf(method);
+  return <div className="grow-choices">
+    <div className="grow-field grow-space">
+      <span className="label">{WORDS.space}</span>
+      <Segmented<TrainSpace> label={WORDS.space} value={space} onChange={(value) => onChange(methodOf(value, comparison))}
+        segments={TRAIN_SPACES.map((value) => ({ value, label: WORDS.spaces[value], ...choice }))} />
+    </div>
+    <div className="grow-field grow-comparison">
+      <span className="label">{WORDS.comparison}</span>
+      <Segmented<TrainComparison> label={WORDS.comparison} value={comparison} onChange={(value) => onChange(methodOf(space, value))}
+        segments={TRAIN_COMPARISONS.map((value) => ({ value, label: WORDS.comparisons[value], ...choice }))} />
+      <p className="grow-hint">{hintSentence(`${SITE_WORDS.automata.methods[method]}: ${WORDS.methodHints[method]}`)}</p>
+    </div>
+    {/* The depth is a token method's alone; its room stays when the space is the basis group, so nothing moves. */}
+    <div className="grow-field grow-depth" data-absent={!methodReadsTokens(method) || undefined} aria-hidden={!methodReadsTokens(method) || undefined}>
+      <span className="label">{WORDS.depth}</span>
+      <Segmented<TokenDepth> label={WORDS.depth} value={depth} onChange={onDepth}
+        segments={TOKEN_DEPTHS.map((value) => ({ value, label: WORDS.depths[value], ...choice }))} />
+    </div>
+  </div>;
+}
+
+/** The batch size's hint: at 1, a set method's says the research has no reference for it (Omar's decision 8). */
+function batchHint(batch: BatchSize, method: FigureMethod): string {
+  if (batch === RECIPE_BATCH) return WORDS.batchRecipe;
+  return methodNeedsSet(method) ? WORDS.batchLightSet : WORDS.batchLight;
+}
 
 /** Advanced's settings: the batch size. `note` replaces the hint after a fallback; `fixed` is why it cannot change now. */
-function AdvancedChoices({ batch, fixed, note, onBatch }: {
-  batch: BatchSize; fixed: string | undefined; note: string | null; onBatch: (batch: BatchSize) => void;
+function AdvancedChoices({ batch, method, fixed, note, onBatch }: {
+  batch: BatchSize; method: FigureMethod; fixed: string | undefined; note: string | null; onBatch: (batch: BatchSize) => void;
 }) {
   const choice = { unavailable: fixed !== undefined, reason: fixed };
   return <div className="grow-choices">
@@ -86,26 +131,60 @@ function AdvancedChoices({ batch, fixed, note, onBatch }: {
       <span className="label">{WORDS.batchSize}</span>
       <Segmented label={WORDS.batchSize} value={String(batch) as "1" | "4"} onChange={(value) => onBatch(value === "1" ? LIGHT_BATCH : RECIPE_BATCH)}
         segments={[{ value: "1", label: "1", ...choice }, { value: "4", label: "4", ...choice }]} />
-      <p className="grow-hint">{note ?? BATCH_HINT[batch]}</p>
+      <p className="grow-hint">{note ?? batchHint(batch, method)}</p>
     </div>
   </div>;
 }
 
+/** The face the choices' box shows: the kind choices, the method, or Advanced's settings. */
+type ChoiceFace = "kind" | "method" | "advanced";
+
 /**
- * The choices' box and the Advanced line under it. The box holds two faces in one place, the kind
- * choices and Advanced's settings, and shows one at a time; it is as tall as the taller face, so
- * opening Advanced moves nothing on the page. The faces cross-fade (grow.css).
+ * The choices' box and the line of toggles under it. The box holds three faces in one place, the kind
+ * choices, the method and Advanced's settings, and shows one at a time; it is as tall as the tallest
+ * face, so opening one moves nothing on the page. A toggle opens its face, or closes it back to the
+ * kind choices. The faces cross-fade (grow.css).
  */
-function ChoiceFaces({ choices, advanced, advancedOpen, onAdvanced }: {
-  choices: ReactNode; advanced: ReactNode; advancedOpen: boolean; onAdvanced: (open: boolean) => void;
+function ChoiceFaces({ kind, method, methodName, advanced, face, onFace }: {
+  kind: ReactNode; method: ReactNode; methodName: string; advanced: ReactNode; face: ChoiceFace; onFace: (face: ChoiceFace) => void;
 }) {
+  const shown = (name: ChoiceFace) => ({ "data-shown": face === name || undefined, "aria-hidden": face !== name || undefined });
+  const toggle = (name: Exclude<ChoiceFace, "kind">, words: string) => (
+    <button type="button" className="grow-advanced-toggle label" aria-expanded={face === name} aria-controls={`grow-${name}`}
+      onClick={() => onFace(face === name ? "kind" : name)}>{words}</button>
+  );
   return <div className="grow-settings">
     <div className="grow-faces">
-      <div className="grow-face" data-shown={!advancedOpen || undefined} aria-hidden={advancedOpen || undefined}>{choices}</div>
-      <div className="grow-face" id="grow-advanced" data-shown={advancedOpen || undefined} aria-hidden={!advancedOpen || undefined}>{advanced}</div>
+      <div className="grow-face" {...shown("kind")}>{kind}</div>
+      <div className="grow-face" id="grow-method" {...shown("method")}>{method}</div>
+      <div className="grow-face" id="grow-advanced" {...shown("advanced")}>{advanced}</div>
     </div>
-    <button type="button" className="grow-advanced-toggle label" aria-expanded={advancedOpen} aria-controls="grow-advanced"
-      onClick={() => onAdvanced(!advancedOpen)}>{WORDS.advanced}</button>
+    <div className="grow-face-toggles">
+      {toggle("method", methodName)}
+      {toggle("advanced", WORDS.advanced)}
+    </div>
+  </div>;
+}
+
+/** The face the choices' place shows while a run trains: the live map, or the groups DINO sees. */
+type RunFace = "map" | "dino";
+
+/**
+ * The choices' place while a run trains: the live map, and under it the toggle to the groups DINO sees
+ * in its place, as the choices' faces are shown (ChoiceFaces). The toggle waits, hidden but holding its
+ * line, until the first reading gives DINO's groups, so nothing moves when it comes.
+ */
+function RunFaces({ face, onFace, map, dino }: { face: RunFace; onFace: (face: RunFace) => void; map: ReactNode; dino: ReactNode }) {
+  const shown = (name: RunFace) => ({ "data-shown": face === name || undefined, "aria-hidden": face !== name || undefined });
+  return <div className="grow-settings">
+    <div className="grow-faces">
+      <div className="grow-face" {...shown("map")}>{map}</div>
+      <div className="grow-face" id="grow-dino" {...shown("dino")}>{dino}</div>
+    </div>
+    <div className="grow-face-toggles" data-waiting={dino === null || undefined}>
+      <button type="button" className="grow-advanced-toggle label" aria-expanded={face === "dino"} aria-controls="grow-dino"
+        onClick={() => onFace(face === "dino" ? "map" : "dino")}>{WORDS.map.toggle}</button>
+    </div>
   </div>;
 }
 
@@ -120,7 +199,7 @@ function TimeLine({ time, template }: { time: GrowTime; template: string }) {
 
 /** Which time the line shows, by state: the run's own while it runs or after, the chosen kind's before. */
 function growTime(record: GrowRecord, settings: GrowSettings | null,
-  chosen: Pick<GrowSettings, "kind" | "stopAtFirstFire" | "continuation" | "batch">, primary: ReturnType<typeof primaryAction>): { time: GrowTime; template: string } {
+  chosen: Pick<GrowSettings, "kind" | "method" | "stopAtFirstFire" | "continuation" | "batch">, primary: ReturnType<typeof primaryAction>): { time: GrowTime; template: string } {
   if ((primary === "open" || primary === "restart") && record.progress) return { time: timeTaken(record.progress, settings?.continuation?.fromUpdate ?? 0), template: WORDS.timeTaken };
   if ((primary === "stop" || primary === "resume") && settings && record.progress) {
     return { time: timeLeft(settings.kind, settings.stopAtFirstFire, record.progress, settings.continuation?.fromUpdate ?? 0, settings.batch), template: WORDS.timeLeft };
@@ -129,12 +208,22 @@ function growTime(record: GrowRecord, settings: GrowSettings | null,
   return { time: timeBefore(before.kind, before.stopAtFirstFire, before.continuation?.fromUpdate ?? 0, before.batch), template: WORDS.timeBefore };
 }
 
-export function GrowPanel({ block, request, continuation, heading }: {
+export function GrowPanel({ block, request, origin, continuation, method, onMethod, depth, onDepth, set, heading }: {
   /** The block the page is about, before its request has loaded. */
   block: number | null;
   request: MaterialRequest | null;
+  /** Who chose the request's points (material-request.tsx); a run records it, so the way back restores it. */
+  origin: MaterialRequestOrigin;
+  /** A token method's depth, owned by the page with the method. */
+  depth: TokenDepth;
+  onDepth: (depth: TokenDepth) => void;
+  /** A set method's target set as the page resolved and shows it (target-set.ts); null while it loads or for another method. */
+  set: FigureTargetSet | null;
   /** The saved definition the page continues (/train?continue=), or null for a new automaton. */
   continuation: ContinuationSource | null;
+  /** The chosen method: the page owns it, since it decides what the heading says the run trains toward. */
+  method: FigureMethod;
+  onMethod: (method: FigureMethod) => void;
   /** The display and the occurrence, from the page. */
   heading: ReactNode;
 }) {
@@ -163,6 +252,10 @@ export function GrowPanel({ block, request, continuation, heading }: {
     if (!settings || adopted.current === settings) return;
     adopted.current = settings;
     setKind(settings.kind);
+    if (!settings.continuation) {
+      onMethod(settings.method);
+      onDepth(settings.depth);
+    }
     setStopAtFirstFire(settings.stopAtFirstFire);
   }, [settings]);
   // While the page shows the run, the corner tray need not.
@@ -172,6 +265,9 @@ export function GrowPanel({ block, request, continuation, heading }: {
     return () => trainRun.showOnPage(false);
   }, [ours]);
   const runKind = continuation ? continuedKind(continuation, kind) : kind;
+  // A continuation trains by its definition's method.
+  const runMethod = continuation ? continuation.objective.method : method;
+  const rule = keepRule(runMethod, continuation !== null, RUNS);
   // A held run (stopped, or ended with its live grid) trains on at its own batch size. A continuation
   // keeps its definition's. Otherwise the person's choice, or the preset.
   const held = settings !== null && record.active;
@@ -179,24 +275,41 @@ export function GrowPanel({ block, request, continuation, heading }: {
   // After a run at 4 took the page or the device down, the preset is 1, and the hint says why.
   const fallback = !continuation && !held && chosenBatch === null && runBatch === LIGHT_BATCH ? batchFallback() : null;
   const fallbackNote = fallback ? (fallback.reason === "reload" ? WORDS.fallbackReload : WORDS.fallbackDevice) : null;
-  const [advancedOpen, setAdvancedOpen] = useState(fallbackNote !== null);
+  // A batch fallback opens Advanced, whose hint says why.
+  const [face, setFace] = useState<ChoiceFace>(() => fallbackNote !== null ? "advanced" : "kind");
   useEffect(() => {
-    if (fallbackNote) setAdvancedOpen(true);
+    if (fallbackNote) setFace("advanced");
   }, [fallbackNote]);
+  // After a run that compares with a set, the steps it was read at stand under the cells (step-choices.tsx).
+  const siteLadder = useTrainLadder();
+  const ladder = ours ? siteLadder : null;
   const chooseBatch = (batch: BatchSize) => {
     clearBatchFallback();
     setChosenBatch(batch);
   };
-  const chosen = { kind: runKind, stopAtFirstFire, continuation, batch: runBatch };
+  // A set method trains to the end: the stop check does not apply (keepRule).
+  // A continuation prepares its definition's own set in the worker, so it carries none.
+  const runSet = continuation || !methodNeedsSet(runMethod) ? null : set;
+  const chosen = {
+    kind: runKind, method: runMethod, depth, set: runSet, origin, stopAtFirstFire: stopAtFirstFire && rule.keepsFirstFire, continuation, batch: runBatch,
+  };
   const changed = settings !== null && changedFromRun(settings, chosen);
   const primary = primaryAction(state, changed);
   const open = choicesOpen(state);
   const coSelection = shownCoSelection(state, record);
+  // While a run trains, the choices' place shows the live map, or the groups DINO sees.
+  const [runFace, setRunFace] = useState<RunFace>("map");
+  const anchorCode = settings?.request.anchor?.code;
   const result = isHeld(state) ? resultOutcome(record) : undefined;
   const resultFile = result ? run.files.get(result.id) : undefined;
   // The frame and the status name what the frame shows: the run's kind while its worker plays it.
   const shownKind = settings && record.active ? settings.kind : runKind;
-  const ready = request?.anchor !== undefined && request.mode !== "plant";
+  const shownMethod = settings && record.active ? settings.method : runMethod;
+  // A result is offered to publish when it met the selection target, or, for a set method, always (keepRule).
+  const publishable = result !== undefined && (result.fired || !keepRule(shownMethod, settings?.continuation != null, RUNS).publishesOnlyFired);
+  // A set method trains once its set has one or more pictures; a continuation brings its own.
+  const setReady = continuation !== null || !methodNeedsSet(runMethod) || (runSet !== null && setRefusal(runMethod, runSet) === null);
+  const ready = request?.anchor !== undefined && request.mode !== "plant" && setReady;
   const time = growTime(record, settings, chosen, primary);
 
   // The live grid while the run is this page's; without one, the start of the chosen kind as a still.
@@ -248,9 +361,14 @@ export function GrowPanel({ block, request, continuation, heading }: {
   // The run's line under the time: the check before and while a run trains; after a run, Publish and
   // Train more; after a run that did not meet the target, Keep beside the primary Restart.
   let runLine: ReactNode;
-  if (primary === "open" || primary === "resume") {
+  if (state === "failed" && reloadHelps(record.failure)) {
+    // No GPU right after a run took the page down: a reload gives the page one again (the status says so).
     runLine = <div className="grow-publish">
-      {resultFile && result?.fired && <PublishMaterial key={resultFile.id} file={resultFile} />}
+      <button type="button" className="button" onClick={() => location.reload()}>{WORDS.reload}</button>
+    </div>;
+  } else if (primary === "open" || primary === "resume") {
+    runLine = <div className="grow-publish">
+      {resultFile && publishable && <PublishMaterial key={resultFile.id} file={resultFile} />}
       {/* After Stop, Resume is the primary; after a run's end, a word here, since opening the result is the likelier step. */}
       {primary === "open" && record.progress && <button type="button" className="button" onClick={trainRun.resumeTraining}>
         {fill(WORDS.trainFurther, { updates: resumeUpdates(record.progress).toLocaleString("en-US") })}
@@ -260,6 +378,8 @@ export function GrowPanel({ block, request, continuation, heading }: {
     runLine = <div className="grow-publish">
       <button type="button" className="button" onClick={trainRun.keep}>{WORDS.keepRun}</button>
     </div>;
+  } else if (!rule.keepsFirstFire) {
+    runLine = <p className="grow-stop-check grow-run-note">{fill(WORDS.trainsToEnd, { updates: FIGURE_UPDATES.toLocaleString("en-US") })}</p>;
   } else {
     runLine = <label className="grow-stop-check">
       <input type="checkbox" checked={stopAtFirstFire} disabled={!open} onChange={(event) => setStopAtFirstFire(event.target.checked)} />
@@ -283,22 +403,25 @@ export function GrowPanel({ block, request, continuation, heading }: {
           }}
           onPointerMove={damage} onPointerUp={() => { last.current = null; }} onPointerCancel={() => { last.current = null; }} />
       </MaterialFrame>
+      {ladder && <KeptStepChoices ladder={ladder} file={resultFile} onKeep={trainRun.keepAtStep} />}
       <GrowStatus state={state} record={record} kind={shownKind} block={settings?.request.block ?? block} keepFailure={run.keepFailure} onDownload={download} />
     </section>
     <aside className="grow-side" aria-label={WORDS.title}>
       {heading}
-      {coSelection ? <CoSelectedPictures coSelection={coSelection} region={readingRegion(shownKind)} />
-        : <ChoiceFaces advancedOpen={advancedOpen} onAdvanced={setAdvancedOpen}
-          choices={<KindChoices kind={runKind} open={open} ruleFixed={continuation !== null} onChange={setKind} />}
-          advanced={<AdvancedChoices batch={!open && settings ? settings.batch : runBatch} note={fallbackNote}
+      {!open && settings && anchorCode
+        ? <RunFaces face={runFace} onFace={setRunFace}
+          map={<TrainMap block={settings.request.block} method={settings.method} anchorCode={anchorCode} kind={settings.kind} live={ours} />}
+          dino={coSelection && <CoSelectedPictures coSelection={coSelection} region={readingRegion(shownKind)} selectionTarget={!methodNeedsSet(settings.method)} />} />
+        : <ChoiceFaces face={face} onFace={setFace} methodName={WORDS.methodToggle[runMethod]}
+          kind={<KindChoices kind={runKind} open={open} ruleFixed={continuation !== null} onChange={setKind} />}
+          method={<MethodChoices method={runMethod} depth={depth} open={open} fixedMethod={continuation !== null} onChange={onMethod} onDepth={onDepth} />}
+          advanced={<AdvancedChoices batch={!open && settings ? settings.batch : runBatch} method={runMethod} note={fallbackNote}
             fixed={continuation ? WORDS.continuedBatch : open ? undefined : WORDS.stop} onBatch={chooseBatch} />} />}
       <TimeLine time={time.time} template={time.template} />
       {runLine}
     </aside>
     {/* The primary: in the foot row beside the status, or at the bottom of a phone's screen. */}
     <div className="grow-go">{goControl}</div>
-    {(state === "loading" || (state === "failed" && record.progress === null))
-      && <TrainLoading message={record.phaseMessage} failure={record.failure} onStop={trainRun.end} />}
     {/* Expose save completion for browser checks. */}
     {record.outcomes.map((outcome) => <span key={outcome.id} hidden className="grow-panel-outcome"
       data-fired={outcome.fired} data-stage={outcome.stage} data-saved={outcome.saved} />)}

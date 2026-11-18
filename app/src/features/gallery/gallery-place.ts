@@ -49,15 +49,15 @@ export function samePlace(a: GalleryPlace, b: GalleryPlace): boolean {
 }
 
 /**
- * The place of an automaton whose record names none: a rule grown in the browser, or an entry from
- * before the field. Its file's start gives the start, and its loss gives the method: the browser
- * trains by basis-group mean matching, and the research conversions of that time did too, with or
- * without the guide.
+ * The place of an automaton grown in the browser, or of an entry from before the field. Its file's
+ * start gives the start. The method its file records (`settings.method`) gives the method; a file
+ * without one was trained by basis-group mean matching, as the research conversions of that time
+ * were, with or without the guide, which its loss says.
  */
-export function placeFromFile(start: "noise" | "centre-disc" | "seeded-field", loss: "plain" | "guided"): GalleryPlace {
+export function placeFromFile(start: "noise" | "centre-disc" | "seeded-field", loss: "plain" | "guided", method?: GalleryMethod): GalleryPlace {
   const startOf = { noise: "noise", "centre-disc": "circle", "seeded-field": "circle-on-noise" } as const;
   return {
     start: startOf[start],
-    method: loss === "guided" ? "basis-group-mean-guided" : "basis-group-mean",
+    method: method ?? (loss === "guided" ? "basis-group-mean-guided" : "basis-group-mean"),
   };
 }

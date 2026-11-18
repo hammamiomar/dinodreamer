@@ -127,8 +127,8 @@ export interface MaterialSource {
   keepable: (entry: MaterialEntry) => boolean;
 }
 export const PUBLISHED_SOURCE: MaterialSource = {
-  load: (entry) => fetchPublishedMaterial(entry.id),
-  poster: (entry) => materialFileUrl(entry.id, "poster.png"),
+  load: (entry) => fetchPublishedMaterial(entry.id, fetch, entry.tick),
+  poster: (entry) => materialFileUrl(entry.id, "poster.png", entry.tick),
   keepable: () => true,
 };
 
@@ -145,15 +145,12 @@ export type StageLayout = "page" | "instrument";
  * owner's view), the stage has no thumbnails. The Playground's Yours group plays the visitor's own
  * kept materials through its own `source`.
  */
-export function MaterialStage({ entries, source = PUBLISHED_SOURCE, layout = "page", ownerActions, notice, frameWords }: {
+export function MaterialStage({ entries, source = PUBLISHED_SOURCE, layout = "page", ownerActions, notice, gridNote }: {
   entries: MaterialEntry[];
   source?: MaterialSource;
   layout?: StageLayout;
-  /**
-   * The frame's two corner lines, from a page that says them its own way (the Automata page: how the
-   * automaton was made, and its grids). `note` takes the cells along a side, which Options can change.
-   */
-  frameWords?: { label: ReactNode; note: (side: number) => ReactNode };
+  /** The lower frame label for the selected grid size, in cells per side. */
+  gridNote?: (side: number) => ReactNode;
   /** The instrument's owner actions (the owner mode, features/owner/): a block in the readouts column, over Export and Options. */
   ownerActions?: ReactNode;
   /** The page's line under the bar (the owner mode's result of an action), on its own line beside the stage's message; null for none yet. */
@@ -163,6 +160,8 @@ export function MaterialStage({ entries, source = PUBLISHED_SOURCE, layout = "pa
   const [selectedId, setSelectedId] = useState(entries[0]?.id);
   const entry = entries.find((candidate) => candidate.id === selectedId) ?? entries[0];
   const [material, setMaterial] = useState<FigureMaterial | null>(null);
+  // A token method's layers, from the loaded file when it is this entry's: "Train a variation" keeps its depth.
+  const loadedLayers = material && entry && material.file.id === entry.materialId ? material.file.recipe.settings.layers : undefined;
   // The grid is chosen by its picture width, so a 2 px material shows at the size of the others.
   const [pictureSide, setPictureSide] = useState<128 | 256>(128);
   const pixelsPerCell = material ? figurePlayback(material.file).pixelsPerCell : 1;
@@ -410,8 +409,8 @@ export function MaterialStage({ entries, source = PUBLISHED_SOURCE, layout = "pa
   // The instrument's page names the block over the frame, so its corner does not.
   const framed = <div className="stage-fit" ref={fitBox}>
     <MaterialFrame patches={side / CELLS_PER_PATCH}
-      label={frameWords?.label ?? (instrument ? undefined : fill(WORDS.frameLabel, { block: entry.block, kind: kindWords(entry) }))}
-      note={frameWords?.note(side) ?? fill(WORDS.frameGrid, { side })}>
+      label={instrument ? undefined : fill(WORDS.frameLabel, { block: entry.block, kind: kindWords(entry) })}
+      note={gridNote?.(side) ?? fill(WORDS.frameGrid, { side })}>
       <div className="stage-canvas"
         onPointerEnter={() => { hovering.current = true; }} onPointerLeave={() => { hovering.current = false; setRing(null); }}
         ref={view}>
@@ -444,7 +443,7 @@ export function MaterialStage({ entries, source = PUBLISHED_SOURCE, layout = "pa
               <span aria-hidden="true">·</span>
               <button type="button" className="stage-word" aria-expanded={panel === "options"} onClick={() => togglePanel("options")}>{INSTRUMENT_WORDS.options}</button>
             </p>
-            <Link className="button" to={growVariationPath(entry)}>{INSTRUMENT_WORDS.growVariation}</Link>
+            <Link className="button" to={growVariationPath(entry, loadedLayers)}>{INSTRUMENT_WORDS.growVariation}</Link>
           </div>
         </aside>
         {controls}
@@ -458,7 +457,7 @@ export function MaterialStage({ entries, source = PUBLISHED_SOURCE, layout = "pa
   return <section ref={stageElement} className="material-stage" aria-label={WORDS.name}>
     <header className="stage-head">
       <h2>{variationName(entry)}</h2>
-      <p>{readingLine(entry)} · {fill(WORDS.by, { credit: entry.credit || WORDS.anonymous })} · <Link to={growVariationPath(entry)}>{WORDS.growAnother}</Link>
+      <p>{readingLine(entry)} · {fill(WORDS.by, { credit: entry.credit || WORDS.anonymous })} · <Link to={growVariationPath(entry, loadedLayers)}>{WORDS.growAnother}</Link>
         {" · "}<Link to={continueTrainingPath(entry)}>{WORDS.continueTraining}</Link></p>
     </header>
     <div className="stage-body" data-single={entries.length === 1 || undefined}>

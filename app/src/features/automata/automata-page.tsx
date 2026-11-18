@@ -14,7 +14,7 @@ import { useBasisGroupNames } from "./basis-group-names";
 import {
   addressSearch, arrangeGroups, automatonToPlay, groupOfAutomaton, neighboursOf, readAddress, SAVED_GROUP, type GalleryAutomaton, type GalleryGroup,
 } from "./gallery";
-import { frameWordsOf, GroupScreen } from "./group-screen";
+import { gridNoteOf, GroupScreen } from "./group-screen";
 import { GroupWall, type LoadFace } from "./group-wall";
 import { automatonOfEntry, type PublishedAutomaton } from "./published-automata";
 import { SavedScreen, useSavedAutomata } from "./saved-automata";
@@ -47,16 +47,17 @@ export function useChoose(): (automaton: GalleryAutomaton) => void {
 
 /** A published automaton's definition for the wall's face: its file, with the grid and the seed of its published reading. */
 const loadPublishedFace: LoadFace<PublishedAutomaton> = async (automaton) => ({
-  material: await fetchPublishedMaterial(automaton.entry.id),
+  material: await fetchPublishedMaterial(automaton.entry.id, fetch, automaton.entry.tick),
   side: automaton.entry.side,
   seed: automaton.entry.seed,
+  tick: automaton.entry.tick,
 });
 
 export function AutomataPage() {
   const index = useMaterialIndex();
   const names = useBasisGroupNames();
   const groups = useMemo(
-    () => arrangeGroups(index.index.entries.map((entry) => automatonOfEntry(entry, materialFileUrl(entry.id, "poster.png")))),
+    () => arrangeGroups(index.index.entries.map((entry) => automatonOfEntry(entry, materialFileUrl(entry.id, "poster.png", entry.tick)))),
     [index.index.entries],
   );
   const status = index.status === "loading" ? WORDS.loading
@@ -72,7 +73,7 @@ function PublishedGallery({ groups, names, status }: { groups: GalleryGroup<Publ
   // The basis group panel over this page opens the playing automaton's group on its reference patch.
   const entry = playing?.automaton.entry ?? null;
   const panelOutlet = useMemo<BasisGroupPanelOutlet>(() => ({
-    referencePatch: async (block) => (entry !== null && entry.block === block ? (await fetchPublishedMaterial(entry.id)).file.anchor : null),
+    referencePatch: async (block) => (entry !== null && entry.block === block ? (await fetchPublishedMaterial(entry.id, fetch, entry.tick)).file.anchor : null),
   }), [entry]);
   const panel: ReactNode = <Outlet context={panelOutlet} />;
 
@@ -80,7 +81,7 @@ function PublishedGallery({ groups, names, status }: { groups: GalleryGroup<Publ
   const namesSaved = address.automaton !== null && saved.automata.some((each) => each.entry.id === address.automaton);
   if (address.group === SAVED_GROUP || (group === null && namesSaved)) return <SavedScreen saved={saved} />;
 
-  // The wall stays under an open group, not displayed: its faces keep what they have grown, and Back finds them so.
+  // Keep the wall mounted under the group, so Back restores its sort, filter and scroll position.
   const open = group !== null && playing !== null;
   const missing = typeof address.group === "number" && status === null ? fill(WORDS.unknownGroup, { group: address.group }) : status;
   const savedWay = (
@@ -95,7 +96,7 @@ function PublishedGallery({ groups, names, status }: { groups: GalleryGroup<Publ
       </GroupWall>
       {open && (
         <GroupScreen group={group} name={nameOf(names, group.group)} neighbours={neighboursOf(groups, group.group)} playing={playing} onChoose={choose}
-          stage={<MaterialStage entries={[playing.automaton.entry]} source={PUBLISHED_SOURCE} layout="instrument" frameWords={frameWordsOf(playing.automaton)} />}>
+          stage={<MaterialStage entries={[playing.automaton.entry]} source={PUBLISHED_SOURCE} layout="instrument" gridNote={gridNoteOf(playing.automaton)} />}>
           {panel}
         </GroupScreen>
       )}

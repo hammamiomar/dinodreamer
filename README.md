@@ -17,7 +17,9 @@ does not change. What you make stays on your device unless you publish it.
 
 - **Index**: the 16,384 basis groups, each shown on pictures where it is selected.
 - **Inspect**: one basis group: its responses in 3D, its levels, its pictures and its automata.
-- **Train**: train an automaton on your device toward a reference patch of a basis group.
+- **Train**: train an automaton on your device for a basis group, by one of four methods: basis-group
+  mean matching toward a reference patch, or token mean, basis-group distribution or token distribution
+  matching toward the group's 33 strongest pictures.
 - **Automata**: every basis group that has automata. A group's screen shows the group's own patches by response
   level beside its automata, which are arranged by where they start and what their training asked for. The automata
   saved on your device have their own screen.

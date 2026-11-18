@@ -197,6 +197,44 @@ describe("asset loader", () => {
     await loader.open();
     expect(await loader.bytes("block.safetensors")).toEqual(new Uint8Array([7]));
   });
+  /** A response whose body arrives in these chunks. */
+  const chunked = (chunks: number[][]) => new Response(new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const chunk of chunks) controller.enqueue(new Uint8Array(chunk));
+      controller.close();
+    },
+  }));
+
+  test("tells the bytes received as a download arrives, then checks the whole file", async () => {
+    vi.stubGlobal("caches", { open: async () => Promise.reject(new Error("blocked")) });
+    vi.stubGlobal("fetch", async () => chunked([[1, 2], [3], [4, 5, 6]]));
+    const loader = new AssetLoader("http://localhost/");
+    await loader.open();
+    const heard: number[] = [];
+    expect(await loader.bytes({ path: "f.bin", bytes: 6 }, (received) => heard.push(received))).toEqual(new Uint8Array([1, 2, 3, 4, 5, 6]));
+    expect(heard).toEqual([2, 3, 6]);
+  });
+
+  test("refuses a download longer than the release lists as it arrives, and a shorter one at its end", async () => {
+    vi.stubGlobal("caches", { open: async () => Promise.reject(new Error("blocked")) });
+    vi.stubGlobal("fetch", async () => chunked([[1, 2], [3, 4], [5]]));
+    const loader = new AssetLoader("http://localhost/");
+    await loader.open();
+    const heard: number[] = [];
+    await expect(loader.bytes({ path: "f.bin", bytes: 3 }, (received) => heard.push(received))).rejects.toThrow("longer than the release lists");
+    expect(heard).toEqual([2]);
+    await expect(loader.bytes({ path: "f.bin", bytes: 8 }, () => {})).rejects.toThrow("incomplete");
+  });
+
+  test("tells a cached copy's whole length at once", async () => {
+    cacheWith(new Response(new Uint8Array([1, 2, 3, 4])));
+    vi.stubGlobal("fetch", vi.fn());
+    const loader = new AssetLoader("http://localhost/base");
+    await loader.open();
+    const heard: number[] = [];
+    await loader.bytes({ path: "model/x.safetensors", bytes: 4 }, (received) => heard.push(received));
+    expect(heard).toEqual([4]);
+  });
 });
 
 
