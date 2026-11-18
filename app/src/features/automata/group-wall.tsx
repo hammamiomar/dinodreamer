@@ -32,6 +32,7 @@ import { useWallViewport } from "./wall-viewport";
 import { useWallPhotos } from "./wall-photos";
 import { FROM_WALL } from "./group-screen";
 import { openLiveFace, type LiveFace } from "./live-faces";
+import { listenForLevelSwipe } from "./deck-level-swipe";
 import { useWallEye } from "./wall-eye";
 import { levelPassage, openedLast, rememberOpened, STAGE_PASSAGE } from "./wall-passage";
 
@@ -156,13 +157,21 @@ export function fanOrder(front: AtlasBand): Record<AtlasBand, number> {
  * the face, the strongest level in front and the others behind it, each showing its edge in its colour.
  * A click on a plate behind brings its level to the front; a click on the front plate opens the group.
  */
-function DeckPlates({ block, wanted, carried, forward }: {
-  block: number; wanted: boolean; carried: boolean; forward: boolean;
+function DeckPlates({ block, wanted, carried, forward, deck }: {
+  block: number; wanted: boolean; carried: boolean; forward: boolean; deck: RefObject<HTMLLIElement | null>;
 }) {
   const library = useLibrary();
   const slots = useWallPhotos(library, block, wanted);
   const [front, setFront] = useState<AtlasBand>(STRONGEST);
-  useEffect(() => { if (!forward) setFront(STRONGEST); }, [forward]);
+  useEffect(() => {
+    if (!forward) {
+      setFront(STRONGEST);
+      return;
+    }
+    if (deck.current) return listenForLevelSwipe(deck.current, change => {
+      setFront(level => Math.max(0, Math.min(STRONGEST, level + change)) as AtlasBand);
+    });
+  }, [deck, forward]);
   const order = fanOrder(front);
   return (
     <>
@@ -228,7 +237,7 @@ function Deck<T extends GalleryAutomaton>({ group, name, mark, loadFace, forward
         aria-label={fill(WORDS.cardName, { group: group.group, name: name ?? "" }).trim()} onClick={onOpen}
         onFocus={() => { if (self.current) onLook(self.current, true); }} onBlur={onLeave}>
         <span className="automata-deck-body">
-          <DeckPlates block={group.group} wanted={visible && photosReady} carried={carried} forward={forward} />
+          <DeckPlates deck={self} block={group.group} wanted={visible && photosReady} carried={carried} forward={forward} />
           {picture && <DeckFace key={loadFace ? picture.pictureUrl : `poster-${picture.pictureUrl}`} visible={visible} retained={retained} readFile={readFile} onFileSettled={onFileSettled} automaton={picture} loadFace={loadFace} forward={forward} wallHidden={wallHidden} carried={carried} />}
         </span>
         <span className="automata-deck-words">
