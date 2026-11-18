@@ -87,7 +87,7 @@ async function checkGalleryApi(): Promise<void> {
   const entries = Array.isArray(index.entries) ? index.entries : null;
   check(gallery.ok && entries !== null, `GET /api/gallery answered ${gallery.status} without an entries list`);
   const outside = await submitWithoutToken(recipeWithBlock(16384));
-  check(outside.status === 400 && /outside the basis collection/.test(outside.body.error ?? ""), `block 16384 was not refused: ${outside.status} ${JSON.stringify(outside.body)}`);
+  check(outside.status === 400 && (outside.body.error ?? "").includes("outside the basis collection"), `block 16384 was not refused: ${outside.status} ${JSON.stringify(outside.body)}`);
   // The form rules pass, so only Turnstile can refuse it. A Worker without TURNSTILE_SECRET refuses every
   // submission with 503 ("submissions are closed"), the block-16384 check above included.
   const tokenless = await submitWithoutToken(recipeWithBlock(6));

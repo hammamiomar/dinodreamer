@@ -52,7 +52,7 @@ export function createStarredStore(storage: () => Storage | undefined, onStorage
 
   const read = (): number[] => {
     if (held !== null) return held;
-    let text: string | null = null;
+    let text: string | null;
     try {
       text = storage()?.getItem(KEY) ?? null;
     } catch {

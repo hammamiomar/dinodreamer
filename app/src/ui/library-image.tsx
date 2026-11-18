@@ -58,7 +58,7 @@ export function attemptAfterReload(attempt: ImageAttempt, reloadedSource: string
  * browser's only request carries an Origin. A failed load reloads the URL once and loads again in
  * a new element; the caller's onError runs only when that load fails too.
  */
-export const LibraryImage = forwardRef<HTMLImageElement, LibraryImageProps>(function LibraryImage({ src, onError, onLoad, ...attributes }, ref) {
+export const LibraryImage = forwardRef<HTMLImageElement, LibraryImageProps>(function LibraryImage({ src, alt, onError, onLoad, ...attributes }, ref) {
   const [settledSource, setSettledSource] = useState<string | null>(null);
   const [attempt, setAttempt] = useState<ImageAttempt>({ src, reloaded: false });
   // A new src starts a new attempt (React's pattern for state that follows a prop).
@@ -71,6 +71,7 @@ export const LibraryImage = forwardRef<HTMLImageElement, LibraryImageProps>(func
       crossOrigin="anonymous"
       ref={ref}
       {...attributes}
+      alt={alt}
       data-library-loading={settledSource !== src || undefined}
       onLoad={(event) => { setSettledSource(src); onLoad?.(event); }}
       src={src}

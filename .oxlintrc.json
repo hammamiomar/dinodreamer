@@ -1,0 +1,1055 @@
+{
+  "$schema": "./ci/node_modules/oxlint/configuration_schema.json",
+  "plugins": [
+    "typescript",
+    "unicorn",
+    "oxc",
+    "import",
+    "react",
+    "react-perf",
+    "jsx-a11y",
+    "jsdoc",
+    "node",
+    "promise",
+    "vitest"
+  ],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "pedantic": "error",
+    "perf": "error",
+    "restriction": "error",
+    "style": "error",
+    "nursery": "error"
+  },
+  "options": {
+    "typeAware": true
+  },
+  "ignorePatterns": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/.wrangler/**",
+    "engine/pkg*/**",
+    "engine/target/**",
+    "engine/vendor/**",
+    "engine/dist-harness/**",
+    "local/**"
+  ],
+  "env": {
+    "browser": true,
+    "node": true,
+    "worker": true,
+    "es2024": true
+  },
+  "rules": {
+    "eslint/eqeqeq": ["error", "always", {"null": "ignore"}],
+    "jsx-a11y/label-has-associated-control": ["error", {"controlComponents": ["NumberInput"]}],
+    "typescript/no-invalid-void-type": ["error", {"allowInGenericTypeArguments": true}],
+    "typescript/switch-exhaustiveness-check": ["error", {"considerDefaultExhaustiveForUnions": true}],
+    "vitest/valid-expect": ["error", {"maxArgs": 2}],
+    "react/jsx-filename-extension": ["error", {"extensions": [".jsx", ".tsx"]}],
+    // Migration affects 296 files. Comments should not begin with a lowercase letter.
+    "eslint/capitalized-comments": "off",
+    // Migration affects 350 files. Expected { after 'if' condition.
+    "eslint/curly": "off",
+    // Migration affects 421 files. Expected a function expression.
+    "eslint/func-style": "off",
+    // Migration affects 197 files. Identifier name is too short (< 2).
+    "eslint/id-length": "off",
+    // Migration affects 59 files. Variable 'scale' should be initialized on declaration.
+    "eslint/init-declarations": "off",
+    // Migration affects 143 files. The function has too many lines (55). Maximum allowed is 50.
+    "eslint/max-lines-per-function": "off",
+    // Migration affects 82 files. Function 'save' has too many parameters (5). Maximum allowed is 3.
+    "eslint/max-params": "off",
+    // Migration affects 211 files. function has too many statements (11). Maximum allowed is 10.
+    "eslint/max-statements": "off",
+    // Some steps must finish in order or use bounded memory.
+    "eslint/no-await-in-loop": "off",
+    // The command line tools and test reports write to the terminal.
+    "eslint/no-console": "off",
+    // Migration affects 37 files. Unexpected use of `continue` statement.
+    "eslint/no-continue": "off",
+    // The instruments, layout and numerical assertions use domain constants directly.
+    "eslint/no-magic-numbers": "off",
+    // Index loops use the increment operator.
+    "eslint/no-plusplus": "off",
+    // Migration affects 40 files. 'event' is already declared in the upper scope.
+    "eslint/no-shadow": "off",
+    // The code uses conditional expressions for simple value choices.
+    "eslint/no-ternary": "off",
+    // Optional browser and protocol fields use undefined.
+    "eslint/no-undefined": "off",
+    // Separate declarations attach a name and type to each value.
+    "eslint/one-var": "off",
+    // Migration affects 78 files. Use Array destructuring.
+    "eslint/prefer-destructuring": "off",
+    // Migration affects 30 files. Capture group should be named.
+    "eslint/prefer-named-capture-group": "off",
+    // Migration affects 15 files. Unexpected string concatenation.
+    "eslint/prefer-template": "off",
+    // Migration affects 50 files. Async function has no `await` expression.
+    "eslint/require-await": "off",
+    // Migration affects 100 files. Use the 'u' flag.
+    "eslint/require-unicode-regexp": "off",
+    // Migration affects 397 files. Expected 'Multiple' syntax before 'Single' syntax.
+    "eslint/sort-imports": "off",
+    // Records follow the file or protocol's field order.
+    "eslint/sort-keys": "off",
+    // Migration affects 231 files. Prefer using a top-level type-only import instead of inline type specifiers.
+    "import/consistent-type-specifier-style": "off",
+    // An exported declaration stays beside its implementation.
+    "import/exports-last": "off",
+    // Modules export declarations where they are defined.
+    "import/group-exports": "off",
+    // Migration affects 47 files. File has too many dependencies (15). Maximum allowed is 10.
+    "import/max-dependencies": "off",
+    // Some tools require a default export for their configuration.
+    "import/no-default-export": "off",
+    // The public modules expose named operations and types.
+    "import/no-named-export": "off",
+    // Migration affects 70 files. Do not import Node.js builtin module `node:crypto`.
+    "import/no-nodejs-modules": "off",
+    // The repository uses relative imports across package boundaries.
+    "import/no-relative-parent-imports": "off",
+    // Migration affects 333 files. Missing JSDoc `@param` declaration for function parameters.
+    "jsdoc/require-param": "off",
+    // Migration affects 351 files. Missing JSDoc `@returns` declaration for function.
+    "jsdoc/require-returns": "off",
+    // Migration affects 15 files. Disallowed usage of `process.env`.
+    "node/no-process-env": "off",
+    // Migration affects 46 files. Unexpected sync method: 'mkdirSync'.
+    "node/no-sync": "off",
+    // Migration affects 31 files. Top-level `await` prevents this module from being loaded with `require(esm)`.
+    "node/no-top-level-await": "off",
+    // The application makes asynchronous I/O explicit with async and await.
+    "oxc/no-async-await": "off",
+    // Migration affects 9 files. Spreading to modify object properties in `map` calls is inefficient.
+    "oxc/no-map-spread": "off",
+    // Migration affects 200 files. Optional chaining is not allowed.
+    "oxc/no-optional-chaining": "off",
+    // Migration affects 172 files. object spread property are not allowed. .
+    "oxc/no-rest-spread-properties": "off",
+    // Migration affects 36 files. Avoid creating new promises.
+    "promise/avoid-new": "off",
+    // The TypeScript projects use the automatic JSX runtime.
+    "react/react-in-jsx-scope": "off",
+    // Local helpers rely on TypeScript return inference.
+    "typescript/explicit-function-return-type": "off",
+    // Migration affects 154 files. Returning a void expression from an arrow function shorthand is forbidden.
+    "typescript/no-confusing-void-expression": "off",
+    // Some array indices and DOM nodes are guaranteed by the enclosing operation.
+    "typescript/no-non-null-assertion": "off",
+    // Migration affects 121 files. This assertion is unnecessary since it does not change the type of the expression.
+    "typescript/no-unnecessary-type-assertion": "off",
+    // Migration affects 25 files. Unsafe argument of type error typed assigned to a parameter of type string | null.
+    "typescript/no-unsafe-argument": "off",
+    // Boundary readers inspect untyped external JSON. Converting all readers requires independent validation changes.
+    "typescript/no-unsafe-assignment": "off",
+    // Migration affects 18 files. Unsafe call of a(n) `any` typed value.
+    "typescript/no-unsafe-call": "off",
+    // Migration affects 35 files. Unsafe member access .context on an `any` value.
+    "typescript/no-unsafe-member-access": "off",
+    // Migration affects 20 files. Unsafe return of a value of type `any`.
+    "typescript/no-unsafe-return": "off",
+    // Migration affects 149 files. Unsafe type assertion: type 'Request' is more narrow than the original type.
+    "typescript/no-unsafe-type-assertion": "off",
+    // Numerical buffers, stateful browser handles and mutating operations use mutable types.
+    "typescript/prefer-readonly-parameter-types": "off",
+    // Migration affects 73 files. Functions that return promises must be async.
+    "typescript/promise-function-async": "off",
+    // Some async implementations and test doubles satisfy a promise-returning interface directly.
+    "typescript/require-await": "off",
+    // Optional objects, strings and numbers use JavaScript truth tests.
+    "typescript/strict-boolean-expressions": "off",
+    // Migration affects 42 files. Value returned in a context where a void return is expected.
+    "typescript/strict-void-return": "off",
+    // Migration affects 59 files. Function `encode` does not capture any variables from its parent scope.
+    "unicorn/consistent-function-scoping": "off",
+    // Migration affects 20 files. Use `.length > 0` when checking length is not zero.
+    "unicorn/explicit-length-check": "off",
+    // Migration affects 27 files. Use default import for module `node:path`.
+    "unicorn/import-style": "off",
+    // Migration affects 49 files. Call is nested too deeply. Maximum allowed is 3.
+    "unicorn/max-nested-calls": "off",
+    // Migration affects 52 files. Use `Array#toSorted()` instead of `Array#sort()`.
+    "unicorn/no-array-sort": "off",
+    // Migration affects 41 files. Do not access a member directly from an await expression.
+    "unicorn/no-await-expression-member": "off",
+    // DOM APIs and existing data formats distinguish null from absent values.
+    "unicorn/no-null": "off",
+    // Migration affects 94 files. Invalid group length in numeric value.
+    "unicorn/numeric-separators-style": "off",
+    // Migration affects 17 files. Prefer `codePointAt` over `charCodeAt`.
+    "unicorn/prefer-code-point": "off",
+    // Migration affects 16 files. Prefer `String#replaceAll()` over `String#replace()` when using a regex with the global flag.
+    "unicorn/prefer-string-replace-all": "off",
+    // Migration affects 38 files. Require setup and teardown code to be within a hook.
+    "vitest/require-hook": "off",
+  },
+  "overrides": [
+    {
+      "files": ["**/*.test.*"],
+      "rules": {
+        // Migration affects 5 files. Use `structuredClone(…)` to create a deep clone.
+        "unicorn/prefer-structured-clone": "off",
+        // Migration affects 54 files. Enforce `test` and `it` usage conventions.
+        "vitest/consistent-test-it": "off",
+        // Migration affects 64 files. Enforces a maximum number assertion calls in a test body.
+        "vitest/max-expects": "off",
+        // Migration affects 5 files. Unexpected conditional expect.
+        "vitest/no-conditional-expect": "off",
+        // Migration affects 56 files. Avoid having conditionals in tests.
+        "vitest/no-conditional-in-test": "off",
+        // Browser integration tests and engine harness tests use the Node test runner.
+        "vitest/no-import-node-test": "off",
+        // Migration affects 10 files. Missing padding before it block.
+        "vitest/padding-around-test-blocks": "off",
+        // Migration affects 10 files. The use of `toBeCalledTimes(1)` and `toHaveBeenCalledTimes(1)` is discouraged.
+        "vitest/prefer-called-once": "off",
+        // Migration affects 6 files. Use `toBeCalledTimes(1)` or `toHaveBeenCalledTimes(1)` instead of `toBeCalledOnce()` or `toHaveBeenCalledOnce()`.
+        "vitest/prefer-called-times": "off",
+        // Migration affects 17 files. Title description can not have the same content as a imported function name.
+        "vitest/prefer-describe-function-title": "off",
+        // Synchronous tests already fail directly on a missing or failed assertion where their contract requires one.
+        "vitest/prefer-expect-assertions": "off",
+        // Migration affects 22 files. Prefer `await expect(...).resolves` over `expect(await ...)` syntax.
+        "vitest/prefer-expect-resolves": "off",
+        // Migration affects 4 files. Mocked modules must be dynamic imported.
+        "vitest/prefer-import-in-mock": "off",
+        // Migration affects 11 files. Enforce lowercase test names.
+        "vitest/prefer-lowercase-title": "off",
+        // Migration affects 127 files. Suggest using `toStrictEqual()`.
+        "vitest/prefer-strict-equal": "off",
+        // Migration affects 52 files. Use `toBeFalsy` instead.
+        "vitest/prefer-to-be-falsy": "off",
+        // Migration affects 68 files. Use `toBeTruthy` instead.
+        "vitest/prefer-to-be-truthy": "off",
+        // Migration affects 6 files. Suggest using `toHaveLength()`.
+        "vitest/prefer-to-have-length": "off",
+        // Migration affects 24 files. Missing type parameters on mock function call.
+        "vitest/require-mock-type-parameters": "off",
+        // Migration affects 171 files. Test is missing a timeout.
+        "vitest/require-test-timeout": "off",
+        // Migration affects 8 files. Require a message for "toThrow".
+        "vitest/require-to-throw-message": "off",
+      }
+    },
+    {
+      "files": ["app/*", "app/src/**", "engine/**"],
+      "rules": {
+        // Migration affects 16 files. Unexpected comment inline with code.
+        "eslint/no-inline-comments": "off",
+        // Migration affects 9 files. Promise-returning function provided to attribute where a void return was expected.
+        "typescript/no-misused-promises": "off",
+      }
+    },
+    {
+      "files": ["app/fixtures/make-provenance.mjs", "app/src/grow/batch-size.ts", "app/src/grow/grow-panel.tsx"],
+      "rules": {
+        // Migration affects 3 files. Do not use `null` comparisons without type-checking operators.
+        "eslint/no-eq-null": "off",
+      }
+    },
+    {
+      "files": ["app/src/**"],
+      "rules": {
+        // Migration affects 5 files. File has too many classes (2). Maximum allowed is 1.
+        "eslint/max-classes-per-file": "off",
+        // Migration affects 4 files. Unexpected function expression.
+        "eslint/prefer-arrow-callback": "off",
+        // Migration affects 6 files. Dependency cycle detected.
+        "import/no-cycle": "off",
+        // Migration affects 6 files. Module '../../recipe' is imported more than once in this file.
+        "import/no-duplicates": "off",
+        // Migration affects 57 files. Imported module should be assigned.
+        "import/no-unassigned-import": "off",
+        // These pointer handlers include delegated events. Verify each keyboard path before changing the controls.
+        "jsx-a11y/click-events-have-key-events": "off",
+        // Migration affects 13 files. Non-interactive elements should not be assigned mouse or keyboard event listeners.
+        "jsx-a11y/no-noninteractive-element-interactions": "off",
+        // Migration affects 6 files. Static HTML elements with event handlers require a role.
+        "jsx-a11y/no-static-element-interactions": "off",
+        // Migration affects 36 files. Prefer `output` over `role` attribute `status`.
+        "jsx-a11y/prefer-tag-over-role": "off",
+        // Migration affects 31 files. Each then() should return a value or throw.
+        "promise/always-return": "off",
+        // Migration affects 22 files. Expected `catch` or `return`.
+        "promise/catch-or-return": "off",
+        // Migration affects 9 files. React Hook useMemo has a missing dependency: 'query'.
+        "react-hooks/exhaustive-deps": "off",
+        // Migration affects 8 files. JSX attribute values should not contain other JSX.
+        "react-perf/jsx-no-jsx-as-prop": "off",
+        // Migration affects 15 files. JSX attribute values should not contain Arrays created in the same scope.
+        "react-perf/jsx-no-new-array-as-prop": "off",
+        // Migration affects 55 files. JSX attribute values should not contain objects created in the same scope.
+        "react-perf/jsx-no-new-object-as-prop": "off",
+        // Adding dependencies can restart an active replay or request. Review the affected lifecycles separately.
+        "react/exhaustive-effect-dependencies": "off",
+        // Migration affects 27 files. Prop "className" is forbidden on Components.
+        "react/forbid-component-props": "off",
+        // Migration affects 8 files. Invalid handler name: run.
+        "react/jsx-handler-names": "off",
+        // Migration affects 70 files. JSX nesting depth of 3 exceeds the configured maximum of 2.
+        "react/jsx-max-depth": "off",
+        // Migration affects 9 files. Prop spreading is forbidden.
+        "react/jsx-props-no-spreading": "off",
+        // Migration affects 19 files. Usage of Array index in keys is not allowed.
+        "react/no-array-index-key": "off",
+        // Migration affects 6 files. Do not use a function expression as default prop value. Use a stable reference instead.
+        "react/no-object-type-as-default-prop": "off",
+        // These views keep the latest event or replay settings in a ref. Rewriting their lifecycles needs interaction tests.
+        "react/refs": "off",
+        // Migration affects 11 files. React rule suppression prevents optimization.
+        "react/rule-suppression": "off",
+        // The components synchronize browser or worker state on a lifecycle change.
+        "react/set-state-in-effect": "off",
+        // Migration affects 9 files. (BuildHIR::lowerStatement) Handle TryStatement with a finalizer ('finally') clause.
+        "react/todo": "off",
+        // Migration affects 6 files. Array type using 'Array<T>' is forbidden. Use 'T[]' instead.
+        "typescript/array-type": "off",
+        // Migration affects 6 files. Using the spread operator on class instances will lose their class prototype.
+        "typescript/no-misused-spread": "off",
+        // Migration affects 8 files. Expected the Promise rejection reason to be an Error.
+        "typescript/prefer-promise-reject-errors": "off",
+        // Migration affects 6 files. Use uppercase characters for the value of the escape sequence.
+        "unicorn/escape-case": "off",
+        // Migration affects 18 files. Do not use `new Array(singleArgument)`.
+        "unicorn/no-new-array": "off",
+        // Migration affects 5 files. Prefer `Math.trunc(Number(text))`.
+        "unicorn/prefer-number-coercion": "off",
+      }
+    },
+    {
+      "files": ["app/src/**", "app/tests/**"],
+      "rules": {
+        // Migration affects 10 files. Do not use chained assignment.
+        "eslint/no-multi-assign": "off",
+        // Migration affects 77 files. JSX attribute values should not contain functions created in the same scope.
+        "react-perf/jsx-no-new-function-as-prop": "off",
+        // Migration affects 14 files. `button` elements must have an explicit `type` attribute.
+        "react/button-has-type": "off",
+        // Migration affects 7 files. useState call is not destructured into value + setter pair.
+        "react/hook-use-state": "off",
+        // Migration affects 34 files. Disallow literal text as JSX children.
+        "react/jsx-no-literals": "off",
+        // Migration affects 60 files. Declare only one React component per file. Found: Ground.
+        "react/no-multi-comp": "off",
+        // Migration affects 54 files. Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
+        "react/only-export-components": "off",
+      }
+    },
+    {
+      "files": ["app/src/**", "app/tests/**", "ci/**", "engine/**"],
+      "rules": {
+        // Existing fire-and-forget UI work needs per-call cancellation and error review.
+        "typescript/no-floating-promises": "off",
+        // Migration affects 46 files. Do not use `Array#forEach`.
+        "unicorn/no-array-for-each": "off",
+        // Existing reductions compute totals or accumulate typed results.
+        "unicorn/no-array-reduce": "off",
+      }
+    },
+    {
+      "files": ["app/src/**", "app/tests/**", "engine/**"],
+      "rules": {
+        // Migration affects 6 files. Promise constructor parameters must be named to match `^_?resolve$`.
+        "promise/param-names": "off",
+        // Migration affects 31 files. Avoid referencing unbound methods which may cause unintentional scoping of `this`.
+        "typescript/unbound-method": "off",
+        // Migration affects 38 files. Prefer `globalThis` over environment-specific global aliases like `window`, `self`, and `global`.
+        "unicorn/prefer-global-this": "off",
+        // Migration affects 10 files. Prefer throwing a `TypeError` over a generic `Error` after a type checking if-statement.
+        "unicorn/prefer-type-error": "off",
+      }
+    },
+    {
+      "files": ["app/src/**", "app/tests/**", "engine/**", "gallery/*"],
+      "rules": {
+        // Migration affects 34 files. Unexpected empty function `nothing`.
+        "eslint/no-empty-function": "off",
+        // Migration affects 30 files. Do not nest ternary expressions.
+        "eslint/no-nested-ternary": "off",
+        // Migration affects 30 files. Unexpected nested ternary expression without parentheses.
+        "unicorn/no-nested-ternary": "off",
+      }
+    },
+    {
+      "files": ["app/src/**", "app/tests/**", "engine/**", "gallery/src/**"],
+      "rules": {
+        // Migration affects 29 files. function `AtlasPage` has a complexity of 25. Maximum allowed is 20.
+        "eslint/complexity": "off",
+        // Migration affects 75 files. Prefer default export on a file with single export.
+        "import/prefer-default-export": "off",
+      }
+    },
+    {
+      "files": ["app/src/**", "app/tests/**", "gallery/*", "gallery/src/**"],
+      "rules": {
+        // Migration affects 31 files. Avoid passing a function reference directly to iterator methods.
+        "unicorn/no-array-callback-reference": "off",
+      }
+    },
+    {
+      "files": ["app/src/**", "app/tests/**", "gallery/test/**"],
+      "rules": {
+        // Vitest globals are disabled. Test modules import their assertions explicitly.
+        "vitest/no-importing-vitest-globals": "off",
+      }
+    },
+    {
+      "files": ["app/src/**", "ci/**"],
+      "rules": {
+        // Migration affects 8 files. Prefer using nullish coalescing operator (`??=`) instead of an assignment expression, as it is simpler to read.
+        "typescript/prefer-nullish-coalescing": "off",
+      }
+    },
+    {
+      "files": ["app/src/**", "ci/**", "engine/**", "gallery/src/**"],
+      "rules": {
+        // Migration affects 8 files. Expected method `addVideoChunk` to have this.
+        "eslint/class-methods-use-this": "off",
+      }
+    },
+    {
+      "files": ["app/src/**", "ci/**", "gallery/*"],
+      "rules": {
+        // Migration affects 5 files. Require 'compare' argument.
+        "typescript/require-array-sort-compare": "off",
+      }
+    },
+    {
+      "files": ["app/src/**", "engine/**"],
+      "rules": {
+        // Migration affects 10 files. Require `default` cases in `switch` statements.
+        "eslint/default-case": "off",
+        // Migration affects 5 files. Function declared in a loop contains unsafe references to variable(s).
+        "eslint/no-loop-func": "off",
+        // Migration affects 32 files. Prefer `async`/`await` to the callback pattern.
+        "promise/prefer-await-to-callbacks": "off",
+        // Migration affects 58 files. Prefer await to then()/catch()/finally().
+        "promise/prefer-await-to-then": "off",
+        // Migration affects 47 files. Async function 'creationInput' expected a return value.
+        "typescript/consistent-return": "off",
+        // Migration affects 5 files. Member 'worker' is never reassigned.
+        "typescript/prefer-readonly": "off",
+        // Migration affects 25 files. Do not use useless `undefined`.
+        "unicorn/no-useless-undefined": "off",
+        // Migration affects 17 files. Prefer `addEventListener()` over their `on`-function counterparts.
+        "unicorn/prefer-add-event-listener": "off",
+        // Migration affects 4 files. Prefer `find` over filtering and accessing the first result.
+        "unicorn/prefer-array-find": "off",
+        // Migration affects 14 files. Prefer `.at()` over `[index]`.
+        "unicorn/prefer-at": "off",
+        // Migration affects 10 files. Use `Number.parseInt` instead of the global `parseInt`.
+        "unicorn/prefer-number-properties": "off",
+        // Migration affects 5 files. Remove the `./` prefix from the relative URL.
+        "unicorn/relative-url-style": "off",
+        // Migration affects 4 files. Missing the `targetOrigin` argument.
+        "unicorn/require-post-message-target-origin": "off",
+        // Migration affects 13 files. Missing braces in case clause.
+        "unicorn/switch-case-braces": "off",
+      }
+    },
+    {
+      "files": ["app/src/**", "engine/**", "gallery/*"],
+      "rules": {
+        // Migration affects 4 files. 'openingFaces' is not modified in this loop.
+        "eslint/no-unmodified-loop-condition": "off",
+      }
+    },
+    {
+      "files": ["app/src/**", "engine/**", "gallery/*", "gallery/src/**"],
+      "rules": {
+        // Migration affects 14 files. Return statement should not be used in Promise executor.
+        "eslint/no-promise-executor-return": "off",
+        // Migration affects 119 files. 'pngOf' was used before it was defined.
+        "eslint/no-use-before-define": "off",
+        // Migration affects 48 files. Use a property signature instead of a method signature.
+        "typescript/method-signature-style": "off",
+        // Migration affects 62 files. Unnecessary conditional, value is always truthy.
+        "typescript/no-unnecessary-condition": "off",
+        // Migration affects 16 files. Prefer `=== -1` over `< 0` to check non-existence.
+        "unicorn/consistent-existence-index-check": "off",
+      }
+    },
+    {
+      "files": ["app/src/**", "engine/**", "gallery/src/**"],
+      "rules": {
+        // Migration affects 6 files. Prefer using `Response.json(…)` over `JSON.stringify()`.
+        "unicorn/prefer-response-static-json": "off",
+      }
+    },
+    {
+      "files": ["app/src/**", "engine/**", "gallery/src/**", "gallery/test/**"],
+      "rules": {
+        // Migration affects 55 files. File has too many lines (1326).
+        "eslint/max-lines": "off",
+        // Migration affects 21 files. Missing accessibility modifier on method definition constructor.
+        "typescript/explicit-member-accessibility": "off",
+        // Migration affects 130 files. Missing return type on function.
+        "typescript/explicit-module-boundary-types": "off",
+      }
+    },
+    {
+      "files": ["app/src/**", "engine/**", "gallery/test/**"],
+      "rules": {
+        // Migration affects 58 files. 'react' import is duplicated.
+        "eslint/no-duplicate-imports": "off",
+        // Migration affects 46 files. Unexpected `void` operator.
+        "eslint/no-void": "off",
+        // Migration affects 26 files. Prefer the spread operator (`...`) over array.concat().
+        "unicorn/prefer-spread": "off",
+      }
+    },
+    {
+      "files": ["app/src/**", "gallery/*"],
+      "rules": {
+        // The code operates on masks, binary file formats and integer seeds.
+        "eslint/no-bitwise": "off",
+        // Migration affects 25 files. Prefer `catch` to `then(a, b)` or `then(null, b)`.
+        "promise/prefer-catch": "off",
+      }
+    },
+    {
+      "files": ["app/src/**", "gallery/*", "gallery/src/**"],
+      "rules": {
+        // Migration affects 16 files. Unexpected negated condition.
+        "eslint/no-negated-condition": "off",
+        // Migration affects 8 files. Use the `RegExp#exec()` method instead.
+        "typescript/prefer-regexp-exec": "off",
+        // Migration affects 16 files. Unexpected negated condition.
+        "unicorn/no-negated-condition": "off",
+      }
+    },
+    {
+      "files": ["app/src/**", "gallery/*", "gallery/test/**"],
+      "rules": {
+        // Migration affects 6 files. Use `Array#toReversed()` instead of `Array#reverse()`.
+        "unicorn/no-array-reverse": "off",
+      }
+    },
+    {
+      "files": ["app/src/**", "gallery/src/**"],
+      "rules": {
+        // Migration affects 18 files. Prefer using an optional chain expression instead, as it's more concise and easier to read.
+        "typescript/prefer-optional-chain": "off",
+        // Migration affects 4 files. Prefer re-exporting directly from the source module.
+        "unicorn/prefer-export-from": "off",
+        // Migration affects 4 files. should be a `Set`, and use `.has()` to check existence or non-existence.
+        "unicorn/prefer-set-has": "off",
+      }
+    },
+    {
+      "files": ["app/src/**", "gallery/src/**", "gallery/test/**"],
+      "rules": {
+        // Migration affects 14 files. Unexpected hexadecimal digits in lowercase.
+        "unicorn/number-literal-case": "off",
+      }
+    },
+    {
+      "files": ["app/src/**", "gallery/test/**"],
+      "rules": {
+        // Migration affects 14 files. Use `interface` instead of `type`.
+        "typescript/consistent-type-definitions": "off",
+        // Migration affects 7 files. 'url' may use Object's default stringification format ('[object Object]') when stringified.
+        "typescript/no-base-to-string": "off",
+        // Suites use setup and cleanup to restore shared resources.
+        "vitest/no-hooks": "off",
+        // Migration affects 40 files. Require test cases and hooks to be inside a `describe` block.
+        "vitest/require-top-level-describe": "off",
+      }
+    },
+    {
+      "files": ["app/src/app/editor-session.tsx", "app/src/app/uploaded-picture.tsx"],
+      "rules": {
+        // Migration affects 2 files. The Context `value` prop should not be constructed.
+        "react/jsx-no-constructed-context-values": "off",
+      }
+    },
+    {
+      "files": ["app/src/app/handoff.ts", "app/src/materials/material-file.ts", "app/src/synthesis/fake.test.ts"],
+      "rules": {
+        // Migration affects 3 files. Use a ! assertion to more succinctly remove null and undefined from the type.
+        "typescript/non-nullable-type-assertion-style": "off",
+      }
+    },
+    {
+      "files": ["app/src/app/routes.tsx"],
+      "rules": {
+        // Migration affects 1 file. Fragments should contain more than one child.
+        "react/jsx-no-useless-fragment": "off",
+        // Migration affects 1 file. Expected an error object to be thrown.
+        "typescript/only-throw-error": "off",
+      }
+    },
+    {
+      "files": ["app/src/app/site-words.test.ts"],
+      "rules": {
+        // Migration affects 1 file. Type assertions should be done using `toBeTypeOf`.
+        "vitest/prefer-expect-type-of": "off",
+      }
+    },
+    {
+      "files": ["app/src/code-target.test.ts", "app/src/features/how/safetensors.ts", "app/src/library/records.ts"],
+      "rules": {
+        // Migration affects 3 files. Enforce using the separator argument with Array#join().
+        "unicorn/require-array-join-separator": "off",
+      }
+    },
+    {
+      "files": ["app/src/env.d.ts", "app/src/features/editor/video/gifenc.d.ts", "gallery/src/text-modules.d.ts"],
+      "rules": {
+        // Migration affects 3 files. This module could be mistakenly parsed as script instead of module.
+        "import/unambiguous": "off",
+      }
+    },
+    {
+      "files": ["app/src/features/atlas/atlas-page.tsx"],
+      "rules": {
+        // Migration affects 1 file. Found missing/extra memoization dependencies.
+        "react/memo-dependencies": "off",
+      }
+    },
+    {
+      "files": ["app/src/features/atlas/card-loading.ts", "app/src/features/editor/video/mp4.test.ts", "app/src/grow/grow.worker.ts"],
+      "rules": {
+        // Migration affects 3 files. Property limit should be declared as a class property.
+        "typescript/parameter-properties": "off",
+      }
+    },
+    {
+      "files": ["app/src/features/atlas/cloud-card.tsx"],
+      "rules": {
+        // Migration affects 1 file. Cannot reassign variable after render completes.
+        "react/immutability": "off",
+      }
+    },
+    {
+      "files": ["app/src/features/atlas/cloud-card.tsx", "app/tests/shell-browser.test.mjs", "gallery/src/worker.ts"],
+      "rules": {
+        // Migration affects 3 files. Prefer ternary expressions over simple `if-else` statements.
+        "unicorn/prefer-ternary": "off",
+      }
+    },
+    {
+      "files": ["app/src/features/automata/tries-strip.tsx"],
+      "rules": {
+        // The toolbar uses roving focus on its buttons.
+        "jsx-a11y/interactive-supports-focus": "off",
+      }
+    },
+    {
+      "files": ["app/src/features/editor/canvas/creation-canvas.tsx", "app/src/features/look/selection.ts"],
+      "rules": {
+        // Migration affects 2 files. Unexpected implicit coercion to boolean.
+        "eslint/no-implicit-coercion": "off",
+      }
+    },
+    {
+      "files": ["app/src/features/editor/create-page.tsx", "app/src/features/saved/your-canvases.tsx"],
+      "rules": {
+        // These editors focus the newly opened field.
+        "jsx-a11y/no-autofocus": "off",
+      }
+    },
+    {
+      "files": ["app/src/features/editor/deselect.ts", "app/tests/home-replay-browser.test.mjs"],
+      "rules": {
+        // Element.getAttribute works on every Element and preserves null for a missing attribute.
+        "unicorn/prefer-dom-node-dataset": "off",
+      }
+    },
+    {
+      "files": ["app/src/features/editor/detail/retarget.test.ts", "app/src/library/full-cloud.test.ts"],
+      "rules": {
+        // Migration affects 2 files. Unexpected use of comma operator.
+        "eslint/no-sequences": "off",
+      }
+    },
+    {
+      "files": ["app/src/features/editor/objective/rows.test.ts", "app/src/grow/figure-recipe.test.ts", "app/src/grow/target-set.test.ts"],
+      "rules": {
+        // Migration affects 3 files. Don't use a zero fraction in the number.
+        "unicorn/no-zero-fractions": "off",
+      }
+    },
+    {
+      "files": ["app/src/features/editor/run/movement.ts", "app/src/features/look/strength-bands.ts"],
+      "rules": {
+        // Migration affects 2 files. Expected a `for...of` loop instead of a `for` loop with this simple iteration.
+        "typescript/prefer-for-of": "off",
+      }
+    },
+    {
+      "files": ["app/src/features/editor/run/session.test.ts", "app/src/features/look/selection.ts"],
+      "rules": {
+        // Migration affects 2 files. Assignment to function parameter 'state'.
+        "eslint/no-param-reassign": "off",
+      }
+    },
+    {
+      "files": ["app/src/features/editor/state.test.ts"],
+      "rules": {
+        // Migration affects 1 file. Do not use an object literal as default for parameter `at`.
+        "unicorn/no-object-as-default-parameter": "off",
+      }
+    },
+    {
+      "files": ["app/src/features/editor/video/clip.ts", "app/src/features/gallery/submission-label.ts"],
+      "rules": {
+        // The parsers intentionally detect control characters.
+        "eslint/no-control-regex": "off",
+      }
+    },
+    {
+      "files": ["app/src/features/editor/video/gif.ts", "app/src/library/full-cloud.ts"],
+      "rules": {
+        // Migration affects 2 files. A function with a name starting with an uppercase letter should only be used as a constructor.
+        "eslint/new-cap": "off",
+      }
+    },
+    {
+      "files": ["app/src/features/editor/video/mp4.test.ts", "app/src/features/how/featurizer-passes-source.ts"],
+      "rules": {
+        // Migration affects 2 files. The catch parameter "reason" should be named "error_".
+        "unicorn/catch-error-name": "off",
+      }
+    },
+    {
+      "files": ["app/src/features/gallery/turnstile.test.ts", "app/src/reader/client.test.ts", "gallery/test/publish-library-folder.test.ts"],
+      "rules": {
+        // Some asynchronous assertions are stored before triggering an event and awaited after it.
+        "vitest/valid-expect": "off",
+      }
+    },
+    {
+      "files": ["app/src/features/how/automaton-math.test.ts", "app/src/replay/figure-reference.test.ts"],
+      "rules": {
+        // The test expressions retain the zero-valued coefficient from the formula under test.
+        "oxc/erasing-op": "off",
+      }
+    },
+    {
+      "files": ["app/src/features/how/automaton-math.ts", "engine/tools/synthesis.ts"],
+      "rules": {
+        // Migration affects 2 files. Blocks are nested too deeply (5). Maximum allowed is 4.
+        "eslint/max-depth": "off",
+      }
+    },
+    {
+      "files": ["app/src/features/how/basis-math.test.ts", "app/src/library/library.test.ts"],
+      "rules": {
+        // Migration affects 2 files. Using a spread operator here creates a new array unnecessarily.
+        "unicorn/no-useless-spread": "off",
+      }
+    },
+    {
+      "files": ["app/src/features/how/figures/figure-readout.tsx", "app/src/features/how/figures/references-figure.tsx"],
+      "rules": {
+        // Unmarked lists keep their list role in Safari with assistive technology.
+        "jsx-a11y/no-redundant-roles": "off",
+      }
+    },
+    {
+      "files": ["app/src/features/how/how-map.test.ts", "app/src/features/look/look-camera.test.ts"],
+      "rules": {
+        // Migration affects 2 files. Test has no assertions.
+        "vitest/expect-expect": "off",
+      }
+    },
+    {
+      "files": ["app/src/features/how/how-page.tsx"],
+      "rules": {
+        // The rule reads ordinary prose containing the word it as a commented test.
+        "vitest/no-commented-out-tests": "off",
+      }
+    },
+    {
+      "files": ["app/src/features/look/cloud-dots-webgl.test.ts"],
+      "rules": {
+        // Migration affects 1 file. Suggest having hooks before any test cases.
+        "vitest/prefer-hooks-on-top": "off",
+      }
+    },
+    {
+      "files": ["app/src/features/look/look-page.tsx", "app/src/features/owner/owner-automata-page.tsx", "app/src/features/playground/block-preview.tsx"],
+      "rules": {
+        // Migration affects 3 files. Do not define components during render.
+        "react/no-unstable-nested-components": "off",
+      }
+    },
+    {
+      "files": ["app/src/features/look/region-graph.test.ts"],
+      "rules": {
+        // Migration affects 1 file. Unexpected return statement in constructor.
+        "eslint/no-constructor-return": "off",
+        // Migration affects 1 file. Unexpected class with only a constructor.
+        "typescript/no-extraneous-class": "off",
+      }
+    },
+    {
+      "files": ["app/src/features/owner/owner-automata-page.tsx", "app/src/grow/grow-page.tsx"],
+      "rules": {
+        // Migration affects 2 files. Avoid calling back inside of a promise.
+        "promise/no-callback-in-promise": "off",
+      }
+    },
+    {
+      "files": ["app/src/features/research/research-runs.ts", "app/src/synthesis/engine.worker.ts"],
+      "rules": {
+        // Migration affects 2 files. The `name` property should be set to `ManifestError`.
+        "unicorn/custom-error-definition": "off",
+      }
+    },
+    {
+      "files": ["app/src/grow/co-selection.test.ts", "app/src/ui/sampled-accent.test.ts"],
+      "rules": {
+        // Migration affects 2 files. Array destructuring may not contain consecutive ignored values.
+        "unicorn/no-unreadable-array-destructuring": "off",
+      }
+    },
+    {
+      "files": ["app/src/grow/figure-recipe.ts", "gallery/src/submission.ts"],
+      "rules": {
+        // Migration affects 2 files. Import statements must come first.
+        "import/first": "off",
+      }
+    },
+    {
+      "files": ["app/src/grow/grow-view.test.ts", "app/src/grow/train-method.test.ts"],
+      "rules": {
+        // Migration affects 2 files. Enforce using `each` rather than manual loops.
+        "vitest/prefer-each": "off",
+      }
+    },
+    {
+      "files": ["app/src/grow/train-run.test.ts", "app/src/reader/client.test.ts"],
+      "rules": {
+        // Migration affects 2 files. Suggest using `toBeCalledWith()` or `toHaveBeenCalledWith()`.
+        "vitest/prefer-called-with": "off",
+      }
+    },
+    {
+      "files": ["app/src/library/full-cloud.audit.test.ts"],
+      "rules": {
+        // Migration affects 1 file. IIFE with parenthesized arrow function body is considered unreadable.
+        "unicorn/no-unreadable-iife": "off",
+      }
+    },
+    {
+      "files": ["app/src/library/full-cloud.test.ts", "app/src/synthesis/fake.test.ts", "app/src/synthesis/objective.test.ts"],
+      "rules": {
+        // Migration affects 3 files. Use `new Array()` instead of `Array()`.
+        "unicorn/new-for-builtins": "off",
+      }
+    },
+    {
+      "files": ["app/src/main.tsx", "app/tests/ui-state-harness.tsx"],
+      "rules": {
+        // Migration affects 2 files. Prefer `.querySelector()` over `.getElementById()`.
+        "unicorn/prefer-query-selector": "off",
+      }
+    },
+    {
+      "files": ["app/src/reader/client.test.ts", "engine/benchmarks/browser.ts", "gallery/check-routes.ts"],
+      "rules": {
+        // Migration affects 3 files. Prefer the safe `: unknown` for a `catch` callback variable.
+        "typescript/use-unknown-in-catch-callback-variable": "off",
+      }
+    },
+    {
+      "files": ["app/src/reader/client.test.ts", "engine/benchmarks/set-methods-in-chrome.ts", "engine/tools/synthesis.ts"],
+      "rules": {
+        // Migration affects 3 files. Unexpected `any`. Specify a different type.
+        "typescript/no-explicit-any": "off",
+      }
+    },
+    {
+      "files": ["app/src/reader/load-engine.ts", "app/src/synthesis/engine.worker.ts"],
+      "rules": {
+        // Migration affects 2 files. There is no cause error attached to this new thrown error.
+        "eslint/preserve-caught-error": "off",
+      }
+    },
+    {
+      "files": ["app/src/replay/material-metadata.tsx"],
+      "rules": {
+        // Migration affects 1 file. Do not call `Array#push()` multiple times.
+        "unicorn/prefer-single-call": "off",
+      }
+    },
+    {
+      "files": ["app/src/replay/replay-page.ts"],
+      "rules": {
+        // The query helper passes the requested element type to querySelector.
+        "typescript/no-unnecessary-type-parameters": "off",
+        // Migration affects 1 file. `String.raw` should be used to avoid escaping `\`.
+        "unicorn/prefer-string-raw": "off",
+      }
+    },
+    {
+      "files": ["app/src/replay/stage-icons.tsx", "gallery/src/worker.ts"],
+      "rules": {
+        // Migration affects 2 files. Function component is not a function declaration.
+        "react/function-component-definition": "off",
+      }
+    },
+    {
+      "files": ["app/src/storage/creations.test.ts"],
+      "rules": {
+        // ISO date strings use lexical order. Vitest's numeric matcher rejects strings.
+        "vitest/prefer-comparison-matcher": "off",
+      }
+    },
+    {
+      "files": ["app/src/storage/creations.ts"],
+      "rules": {
+        // The IndexedDB completion callback uses an explicit void result type.
+        "typescript/no-invalid-void-type": "off",
+      }
+    },
+    {
+      "files": ["app/src/synthesis/assets.test.ts"],
+      "rules": {
+        // Migration affects 1 file. Prefer `throw error` over `return Promise.reject(error)`.
+        "unicorn/no-useless-promise-resolve-reject": "off",
+      }
+    },
+    {
+      "files": ["app/src/synthesis/assets.ts"],
+      "rules": {
+        // Migration affects 1 file. Returning an awaited promise is not allowed in this context.
+        "typescript/return-await": "off",
+      }
+    },
+    {
+      "files": ["app/src/synthesis/engine.worker.ts"],
+      "rules": {
+        // The worker dispatches run and pause before entering this switch.
+        "typescript/switch-exhaustiveness-check": "off",
+      }
+    },
+    {
+      "files": ["app/src/ui/code-space/code-plane.tsx"],
+      "rules": {
+        // Keyboard users can select points on this interactive canvas.
+        "jsx-a11y/no-noninteractive-tabindex": "off",
+      }
+    },
+    {
+      "files": ["app/src/ui/code-space/code-space-3d.tsx"],
+      "rules": {
+        // Migration affects 1 file. Expected the first argument to be an inline function expression.
+        "react/use-memo": "off",
+      }
+    },
+    {
+      "files": ["app/src/ui/library-image.tsx"],
+      "rules": {
+        // Migration affects 1 file. Avoid nesting promises.
+        "promise/no-nesting": "off",
+      }
+    },
+    {
+      "files": ["app/tests/home-replay-browser.test.mjs"],
+      "rules": {
+        // Migration affects 1 file. Unexpected `if` as the only statement in a `if` block without `else`.
+        "unicorn/no-lonely-if": "off",
+      }
+    },
+    {
+      "files": ["app/tests/home-replay-browser.test.mjs", "app/tests/shell-browser.test.mjs", "engine/benchmarks/set-methods-in-chrome.ts"],
+      "rules": {
+        // Migration affects 3 files. Unexpected unnamed function.
+        "eslint/func-names": "off",
+      }
+    },
+    {
+      "files": ["app/vite.config.ts"],
+      "rules": {
+        // Migration affects 1 file. Express endpoint handler for `/fixtures` should not be `async`.
+        "oxc/no-async-endpoint-handlers": "off",
+      }
+    },
+    {
+      "files": ["ci/test-plan.mjs"],
+      "rules": {
+        // Migration affects 1 file. Use 'String#endsWith' method instead.
+        "typescript/prefer-string-starts-ends-with": "off",
+      }
+    },
+    {
+      "files": ["ci/test-plan.test.mjs"],
+      "rules": {
+        // Migration affects 1 file. Invalid operand of type 'string | NonSharedBuffer' for a '+' operation.
+        "typescript/restrict-plus-operands": "off",
+        // Migration affects 1 file. Inconsistent assert usage.
+        "unicorn/consistent-assert": "off",
+      }
+    },
+    {
+      "files": ["engine/**", "gallery/*"],
+      "rules": {
+        // Migration affects 5 files. Don't use `process.exit()`.
+        "unicorn/no-process-exit": "off",
+      }
+    },
+    {
+      "files": ["engine/benchmarks/browser.ts"],
+      "rules": {
+        // Migration affects 1 file. Prefer top-level await over using a promise chain.
+        "unicorn/prefer-top-level-await": "off",
+      }
+    },
+    {
+      "files": ["engine/benchmarks/set-methods-in-chrome.ts"],
+      "rules": {
+        // Migration affects 1 file. Invalid type used in template literal expression.
+        "typescript/restrict-template-expressions": "off",
+      }
+    },
+    {
+      "files": ["engine/tools/prepare_how_automaton_replay.mjs", "engine/tools/prepare_how_grids.mjs", "engine/tools/record_link_previews.mjs"],
+      "rules": {
+        // Migration affects 3 files. Filename should be in kebab-case.
+        "unicorn/filename-case": "off",
+      }
+    },
+    {
+      "files": ["engine/tools/synthesis.ts"],
+      "rules": {
+        // Migration affects 1 file. Expected return with your callback function.
+        "node/callback-return": "off",
+      }
+    },
+    {
+      "files": ["gallery/check-admin-page.ts", "gallery/check-deployment.ts"],
+      "rules": {
+        // Migration affects 2 files. Prefer `.textContent` over `.innerText`.
+        "unicorn/prefer-dom-node-text-content": "off",
+      }
+    },
+    {
+      "files": ["gallery/deploy.ts", "gallery/publish-library-folder.ts", "gallery/review-cli.ts"],
+      "rules": {
+        // Migration affects 3 files. Do not construct dirname.
+        "unicorn/prefer-import-meta-properties": "off",
+      }
+    },
+    {
+      "files": ["gallery/src/cdn-check.ts"],
+      "rules": {
+        // Migration affects 1 file. Expected 1 empty line after import statement not followed by another import.
+        "import/newline-after-import": "off",
+      }
+    },
+    {
+      "files": ["gallery/src/worker.ts"],
+      "rules": {
+        // Migration affects 1 file. Assign object to a variable before exporting as module default.
+        "import/no-anonymous-default-export": "off",
+      }
+    },
+  ]
+}

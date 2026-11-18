@@ -102,7 +102,7 @@ describe("planCommand", () => {
 
   it("keeps one apply pending and then sends only the latest revision", () => {
     const first = { revision: 1, recipe: validRecipe() };
-    let { state, sent } = drive(createRunState(), first, [{ type: "requestRun" }, event({ type: "phase", phase: "ready" })]);
+    const { state, sent } = drive(createRunState(), first, [{ type: "requestRun" }, event({ type: "phase", phase: "ready" })]);
     expect(sent.map((command) => command.type)).toEqual(["load", "apply"]);
 
     // Two more edits arrive while revision 1 is being prepared.
@@ -111,8 +111,8 @@ describe("planCommand", () => {
     expect(planCommand(state, second, release)).toBeNull();
     expect(planCommand(state, third, release)).toBeNull();
 
-    ({ state, sent } = drive(state, third, [event({ type: "applied", revision: 1, step: 0, resetAdam: true, rebased: false })]));
-    expect(sent[0]).toEqual({ type: "apply", revision: 3, recipe: third.recipe });
+    const applied = drive(state, third, [event({ type: "applied", revision: 1, step: 0, resetAdam: true, rebased: false })]);
+    expect(applied.sent[0]).toEqual({ type: "apply", revision: 3, recipe: third.recipe });
   });
 
   it("never sends an invalid recipe and does not resend a rejected revision", () => {

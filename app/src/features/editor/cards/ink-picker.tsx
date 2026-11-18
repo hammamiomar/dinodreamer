@@ -59,7 +59,7 @@ export function InkPicker({
   const colours = paletteFor(term);
   const tone = term === "look" ? pair.look : pair.code;
   const chosen = colours.findIndex((entry) => sameColour(entry.colour, tone));
-  const focusable = chosen >= 0 ? chosen : 0;
+  const focusable = Math.max(0, chosen);
   const hex = toHex(tone);
 
   useEffect(() => {

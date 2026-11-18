@@ -282,7 +282,6 @@ export function createFakeSynthesisClient(options: FakeSynthesisOptions = {}): S
         return;
       case "dispose":
         dispose();
-        return;
     }
   }
 

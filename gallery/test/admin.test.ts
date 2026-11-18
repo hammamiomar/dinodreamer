@@ -28,7 +28,7 @@ async function signingPair(kid: string): Promise<KeyPair> {
 }
 
 function base64Url(bytes: Uint8Array): string {
-  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/[=]+$/, "");
 }
 
 /** A token as Access issues it: RS256, the key's kid, the team as issuer and the application as audience. */
