@@ -458,11 +458,11 @@ select {
   background: currentColor;
 }
 
-/*
- * A navigation slower than a second (frame.tsx): the current page's mark, or the mark of the
- * link being opened, blinks slowly. It sits in the mark room, so nothing on the page moves; a fast
- * load shows nothing. With reduced motion the mark is hollow instead.
- */
+/* The pending link shows its square immediately. Reduced motion keeps the square hollow. */
+.frame-header[data-busy] .wordmark.pending {
+  color: var(--ink-2);
+}
+
 .frame-header[data-busy] .frame-nav a.pending::before {
   content: "";
   position: absolute;
@@ -475,7 +475,7 @@ select {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .frame-header[data-busy] .frame-nav a:is(.active, .pending)::before {
+  .frame-header[data-busy] .frame-nav a.pending::before {
     animation: frame-busy 1.6s steps(1, end) infinite;
   }
 
@@ -487,7 +487,7 @@ select {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .frame-header[data-busy] .frame-nav a:is(.active, .pending)::before {
+  .frame-header[data-busy] .frame-nav a.pending::before {
     background: none;
     border: 1px solid currentColor;
   }

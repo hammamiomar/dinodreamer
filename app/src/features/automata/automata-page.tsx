@@ -81,7 +81,7 @@ function PublishedGallery({ groups, names, status }: { groups: GalleryGroup<Publ
   const namesSaved = address.automaton !== null && saved.automata.some((each) => each.entry.id === address.automaton);
   if (address.group === SAVED_GROUP || (group === null && namesSaved)) return <SavedScreen saved={saved} />;
 
-  // The wall stays under an open group, not displayed: its faces keep what they have grown, and Back finds them so.
+  // Keep the wall mounted under the group, so Back restores its sort, filter and scroll position.
   const open = group !== null && playing !== null;
   const missing = typeof address.group === "number" && status === null ? fill(WORDS.unknownGroup, { group: address.group }) : status;
   const savedWay = (

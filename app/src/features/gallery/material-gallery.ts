@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
 import { readFigureMaterial, type FigureMaterial, type FigureMaterialFile } from "../../materials/material-file";
 import { useLoaded, type Loaded } from "../../ui/use-loaded";
 import { refusal } from "./gallery-api";
-import { EMPTY_MATERIAL_INDEX, readMaterialIndex, type MaterialFileName, type MaterialIndex } from "./material-index";
+import { EMPTY_MATERIAL_INDEX, readMaterialIndex, type MaterialEntry, type MaterialFileName, type MaterialIndex } from "./material-index";
 
 type Fetch = typeof fetch;
 export { MATERIAL_SUBMISSION_LIMITS } from "./submission-label";
@@ -35,27 +35,28 @@ export async function fetchMaterialIndex(fetcher: Fetch = fetch): Promise<Materi
 const publishedFiles = new Map<string, Promise<FigureMaterial>>();
 
 /**
- * A published definition by its entry id; `step` as materialFileUrl takes it. A load is shared between
- * playback and older index labels.
+ * Readers of the same published file share its load. A new reading step selects a different file.
  */
 export function fetchPublishedMaterial(id: string, fetcher: Fetch = fetch, step?: number): Promise<FigureMaterial> {
-  const cached = fetcher === fetch ? publishedFiles.get(id) : undefined;
+  const url = materialFileUrl(id, "material.json", step);
+  const cached = fetcher === fetch ? publishedFiles.get(url) : undefined;
   if (cached) return cached;
   const loading = (async () => {
-    const response = await fetcher(materialFileUrl(id, "material.json", step));
+    const response = await fetcher(url);
     if (!response.ok) throw new Error(`Automaton ${id} answered ${response.status}.`);
     return readFigureMaterial(await response.json());
   })();
   if (fetcher === fetch) {
-    publishedFiles.set(id, loading);
-    void loading.catch(() => publishedFiles.delete(id));
+    publishedFiles.set(url, loading);
+    void loading.catch(() => publishedFiles.delete(url));
   }
   return loading;
 }
 
-/** A published material's file, loaded once per id; null asks for none (a still shows the poster alone). */
-export function usePublishedMaterial(id: string | null): Loaded<FigureMaterial> {
-  return useLoaded(id, () => (id === null ? null : fetchPublishedMaterial(id)));
+/** Load the indexed version for playback. A still view passes null. */
+export function usePublishedMaterial(entry: Pick<MaterialEntry, "id" | "tick"> | null): Loaded<FigureMaterial> {
+  const url = entry && materialFileUrl(entry.id, "material.json", entry.tick);
+  return useLoaded(url, () => entry && fetchPublishedMaterial(entry.id, fetch, entry.tick));
 }
 
 export async function submitMaterial(file: FigureMaterialFile, label: { title: string; credit: string }, turnstileToken: string | null,

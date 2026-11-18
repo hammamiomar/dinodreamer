@@ -22,6 +22,7 @@ function replayStub() {
 function manualFrames() {
   const queue: (() => void)[] = [];
   return {
+    get pending() { return queue.length; },
     schedule: (callback: () => void) => { queue.push(callback); },
     async frame() {
       queue.shift()?.();
@@ -44,6 +45,38 @@ describe("replay loop", () => {
     loop.reseed(9);
     await frames.frame(); await frames.frame();
     expect(calls.slice(2)).toEqual(["reseed 9", "present"]);
+  });
+
+  it("sleeps when clean and coalesces edits that arrive during a paused draw", async () => {
+    const { replay, calls } = replayStub();
+    const frames = manualFrames();
+    const loop = startReplayLoop(replay, { speed: 1, playing: false, schedule: frames.schedule });
+    await frames.frame();
+    expect(frames.pending).toBe(0);
+    let finish!: () => void;
+    const present = replay.present;
+    replay.present = () => new Promise<void>(resolve => { finish = resolve; });
+    loop.redraw();
+    await frames.frame();
+    loop.redraw();
+    loop.damage(1, 2, 3);
+    expect(frames.pending).toBe(0);
+    replay.present = present;
+    finish();
+    await frames.frame();
+    expect(frames.pending).toBe(1);
+    await frames.frame();
+    expect(calls).toEqual(["present", "stamp 1,2,3", "present"]);
+    expect(frames.pending).toBe(0);
+    for (const change of [() => loop.reseed(2), () => loop.setSpeed(2), () => loop.redraw()]) {
+      change();
+      expect(frames.pending).toBe(1);
+      await frames.frame();
+      expect(frames.pending).toBe(0);
+    }
+    loop.play();
+    await frames.frame();
+    expect(calls.at(-1)).toBe("advance 2");
   });
 
   it("holds each tick for 2 or 4 frames below one tick per frame, and still draws a stamp at once", async () => {

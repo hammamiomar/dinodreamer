@@ -173,7 +173,7 @@ function Cells({ record, entry }: { record: AutomatonRecord | null; entry: Retur
   const [noReplay, setNoReplay] = useState(false);
   const [grown, setGrown] = useState(0);
   const still: HomeStill = !("gpu" in navigator) || noReplay ? "no-webgpu" : reduced ? "reduced-motion" : null;
-  const material = usePublishedMaterial(still || !entry ? null : entry.id);
+  const material = usePublishedMaterial(still ? null : entry ?? null);
   const grid = record?.coarse ?? null;
   const [hovered, setHovered] = useState<number | null>(null);
   return (

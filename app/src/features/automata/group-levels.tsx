@@ -39,15 +39,9 @@ export function LevelPicture({ slot, block, band }: { slot: PictureSlot; block: 
   );
 }
 
-/** The group's record and decoded pictures, read once it is wanted; shared with the Index's cards. */
-export function useGroupPictures(block: number, wanted = true) {
-  const library = useLibrary();
-  return useLoaded(wanted ? block : null, () => (wanted ? cardLoader(library).load(block, "screen") : null));
-}
-
 export function GroupLevels({ block }: { block: number }) {
   const library = useLibrary();
-  const content = useGroupPictures(block);
+  const content = useLoaded(block, () => cardLoader(library).load(block, "screen"));
   if (content.status === "failed") return <p className="automata-levels-status muted">{WORDS.levelsFailed}</p>;
   const cloud = content.status === "ready" ? content.value.cloud : null;
   const failed = content.status === "ready" ? content.value.failed : null;

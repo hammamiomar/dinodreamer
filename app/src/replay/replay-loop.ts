@@ -26,6 +26,8 @@ export interface ReplayLoop {
   readonly speed: number;
   play(): void;
   pause(): void;
+  /** Present the current cells again, including while paused. */
+  redraw(): void;
   setSpeed(speed: number): void;
   /** Grow again from this seed's noise at tick 0. */
   reseed(seed: number): void;
@@ -67,61 +69,78 @@ export function startReplayLoop(replay: FigureReplay, options: ReplayLoopOptions
   checkSpeed(speed);
 
   const frame = async () => {
+    let redraw = dirty;
+    dirty = false;
     if (pendingSeed !== undefined) {
       replay.reseed(pendingSeed);
       pendingSeed = undefined;
       // A reset starts a new hold, so tick 0 shows for its full 1/speed frames like any other tick.
       framesOnTick = 0;
-      dirty = true;
+      redraw = true;
     }
     if (pendingDamage.length) {
       const discs = pendingDamage.splice(0).map(([x, y, radius]) => ({ x, y, radius }));
       await replay.stamp(discs);
-      dirty = true;
+      redraw = true;
     }
     if (playing && speed >= 1) await replay.advance(speed);
     else if (playing && ++framesOnTick >= 1 / speed) {
       framesOnTick = 0;
       await replay.advance(1);
-    } else if (dirty) await replay.present();
+    } else if (redraw) await replay.present();
     else return;
-    dirty = false;
     if (!stopped) options.onFrame?.(replay.tick);
   };
   let inFlight: Promise<void> = Promise.resolve();
-  const loop = () => {
-    if (stopped) return;
-    if (holds > 0) { schedule(loop); return; }
-    inFlight = frame().catch((error: unknown) => {
-      // A frame that was in flight when the loop stopped may find its replay closed; that is not news.
-      if (stopped) return;
-      playing = false;
-      options.onError?.(error);
-    }).finally(() => { if (!stopped) schedule(loop); });
-  };
-  schedule(loop);
+  let scheduled = false;
+  let drawing = false;
+  const needsFrame = () => playing || dirty || pendingSeed !== undefined || pendingDamage.length > 0;
+  function wake() {
+    if (stopped || scheduled || drawing || holds > 0 || !needsFrame()) return;
+    scheduled = true;
+    schedule(() => {
+      scheduled = false;
+      if (stopped || holds > 0 || !needsFrame()) return;
+      drawing = true;
+      inFlight = frame().catch((error: unknown) => {
+        if (stopped) return;
+        playing = false;
+        options.onError?.(error);
+      }).finally(() => {
+        drawing = false;
+        wake();
+      });
+    });
+  }
+  wake();
 
   return {
     get playing() { return playing; },
     get speed() { return speed; },
-    play() { playing = true; },
+    play() { playing = true; wake(); },
     pause() { playing = false; },
+    redraw() { dirty = true; wake(); },
     setSpeed(value) {
-      speed = checkSpeed(value);
+      if (speed === checkSpeed(value)) return;
+      speed = value;
       framesOnTick = 0;
+      if (!playing) dirty = true;
+      wake();
     },
     reseed(seed) {
       if (!Number.isInteger(seed) || seed < 0 || seed > 0xffffffff) throw new Error("Seed must be an unsigned 32-bit integer.");
       pendingSeed = seed;
       pendingDamage.length = 0;
+      wake();
     },
-    damage(x, y, radius) { pendingDamage.push([x, y, radius]); },
+    damage(x, y, radius) { pendingDamage.push([x, y, radius]); wake(); },
     stroke(x0, y0, x1, y1, radius) {
       const spacing = Math.max(radius / 4, 1);
       const steps = Math.ceil(Math.hypot(x1 - x0, y1 - y0) / spacing);
       for (let step = 1; step <= steps; step++) {
         pendingDamage.push([x0 + (x1 - x0) * step / steps, y0 + (y1 - y0) * step / steps, radius]);
       }
+      wake();
     },
     async hold(work) {
       holds++;
@@ -131,7 +150,7 @@ export function startReplayLoop(replay: FigureReplay, options: ReplayLoopOptions
       });
       heldWork = result.then(() => {}, () => {});
       try { return await result; }
-      finally { holds--; dirty = true; }
+      finally { holds--; dirty = true; wake(); }
     },
     stop() { stopped = true; },
   };

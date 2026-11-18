@@ -1,7 +1,7 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { attemptAfterReload, attemptFor, reloadLibraryUrl, LibraryImage } from "./library-image";
+import { attemptAfterReload, attemptFor, reloadLibraryUrl, loadLibraryPicture, LibraryImage } from "./library-image";
 
 describe("LibraryImage", () => {
   it("writes crossOrigin first and src last, so the one request it starts carries an Origin", () => {
@@ -49,4 +49,23 @@ describe("reloadLibraryUrl", () => {
     expect(fetch.mock.calls.map((call) => call[0])).toEqual(["https://library.example/previews/heal-1.png", "https://library.example/previews/heal-2.png"]);
     expect(fetch.mock.calls[0]![1]).toMatchObject({ cache: "reload" });
   });
+});
+
+it("releases a low-priority image consumer without starting a cache reload", async () => {
+  let fail!: () => void;
+  const release = vi.fn(() => fail());
+  const network = vi.fn();
+  vi.stubGlobal("fetch", network);
+  vi.stubGlobal("Image", class {
+    removeAttribute = release;
+    decode() { return new Promise<void>((_, reject) => { fail = () => reject(new Error("released")); }); }
+  });
+  try {
+    const controller = new AbortController();
+    const loading = loadLibraryPicture("photo", { priority: "low", signal: controller.signal });
+    controller.abort();
+    await expect(loading).rejects.toMatchObject({ name: "AbortError" });
+    expect(release).toHaveBeenCalledWith("src");
+    expect(network).not.toHaveBeenCalled();
+  } finally { vi.unstubAllGlobals(); }
 });
