@@ -48,9 +48,9 @@ for (const width of [320, 360, 390, 430]) {
       const model = page.locator('.home-beat[data-beat="model"]');
       await page.waitForFunction(() => {
         const section = document.querySelector('.home-beat[data-beat="model"]');
-        return Math.abs(section.getBoundingClientRect().top - innerHeight * 0.6) < 2;
+        const aligned = Math.abs(section.getBoundingClientRect().top - innerHeight * 0.6) < 2;
+        return aligned && document.querySelector(".home").dataset.beat === "model";
       });
-      assert.equal(await page.locator(".home").getAttribute("data-beat"), "model");
       const initialY = await model.evaluate(() => scrollY);
       // WebKit's automation interface has no native swipe. Exercise incremental document
       // scrolling and verify the page follows it through the remaining reading positions.
