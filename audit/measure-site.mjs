@@ -221,6 +221,7 @@ async function collect(browser, name, index) {
     design: "wall",
     scroll: "wall",
     idle: "wall",
+    plates: "wall",
     phone: "wall",
     training: "target",
   };
@@ -364,6 +365,20 @@ async function collect(browser, name, index) {
         await pause(800);
         log.backUrl = page.url();
       }
+    } else if (mode === "plates") {
+      const deck = page.locator(".automata-deck").first();
+      await page.waitForSelector(".automata-deck-face[data-state=live]");
+      await pause(1000);
+      log.beforeFocus = await page.locator(".automata-deck-plate img").count();
+      log.focusAt = await page.evaluate(() => performance.now());
+      await deck.locator("a").focus();
+      await deck.locator(".automata-deck-plate img").first().waitFor({ timeout: 15000 });
+      log.firstPhotoAt = await page.evaluate(() => performance.now());
+      await deck.locator(".automata-deck-plate img").nth(15).waitFor({ timeout: 20000 });
+      log.focusedPlates = await deck.locator(".automata-deck-plate").evaluateAll(plates =>
+        plates.map(plate => plate.querySelectorAll("img").length));
+      log.otherPhotos = await page.locator(".automata-deck:not(:focus-within) .automata-deck-plate img").count();
+      await screenshot("focused");
     } else if (mode === "index-count") {
       log.publication = await page.evaluate(async () => {
         const response = await fetch("/api/materials");

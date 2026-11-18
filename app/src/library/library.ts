@@ -138,7 +138,7 @@ export class Library {
   }
 
   /** At most 2,796 bytes; shared by Index cards and block headers. */
-  atlasCloud(block: number): Promise<AtlasCloud> {
+  atlasCloud(block: number, priority?: RequestPriority): Promise<AtlasCloud> {
     return this.read(
       `${this.baseUrl}/${ATLAS_CLOUDS_PATH}/blocks/${block}.bin`,
       "bytes",
@@ -147,6 +147,7 @@ export class Library {
         if (cloud.block !== block) throw new Error("The Index record belongs to another basis group.");
         return cloud;
       },
+      priority,
     );
   }
 
@@ -377,9 +378,9 @@ export class Library {
   }
 
   private read<T>(url: string, kind: "json", decode: (value: unknown) => T): Promise<T>;
-  private read<T>(url: string, kind: "bytes", decode: (value: ArrayBuffer) => T): Promise<T>;
-  private read<T>(url: string, kind: "json" | "bytes", decode: (value: never) => T): Promise<T> {
-    return this.remember(url, () => readFile(this.fetcher, url, kind, decode));
+  private read<T>(url: string, kind: "bytes", decode: (value: ArrayBuffer) => T, priority?: RequestPriority): Promise<T>;
+  private read<T>(url: string, kind: "json" | "bytes", decode: (value: never) => T, priority?: RequestPriority): Promise<T> {
+    return this.remember(url, () => readFile(this.fetcher, url, kind, decode, priority));
   }
 
   /** The decoded file under `key`, loaded once; a failed load is forgotten so the next call retries. */
@@ -451,10 +452,10 @@ async function readRange(fetcher: Fetch, url: string, start: number, length: num
   }
 }
 
-async function readFile<T>(fetcher: Fetch, url: string, kind: "json" | "bytes", decode: (value: never) => T): Promise<T> {
+async function readFile<T>(fetcher: Fetch, url: string, kind: "json" | "bytes", decode: (value: never) => T, priority?: RequestPriority): Promise<T> {
   let response: Response;
   try {
-    response = await fetcher(url);
+    response = priority ? await fetcher(url, { priority }) : await fetcher(url);
   } catch (error) {
     throw new LibraryReadError(url, null, `could not reach ${url}: ${errorMessage(error)}`);
   }

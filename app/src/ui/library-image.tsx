@@ -17,10 +17,10 @@ const reloads = new Map<string, Promise<void>>();
  * Replaces the cached copy of `url` with a CORS one, once per page: a later call, during the reload
  * or after it, waits for the same download. It resolves whether the download succeeds or not.
  */
-export function reloadLibraryUrl(url: string): Promise<void> {
+export function reloadLibraryUrl(url: string, priority?: RequestPriority): Promise<void> {
   let reload = reloads.get(url);
   if (!reload) {
-    reload = fetch(url, { cache: "reload", credentials: "omit" })
+    reload = fetch(url, { cache: "reload", credentials: "omit", priority })
       .then((response) => response.arrayBuffer())
       .then(
         () => undefined,
@@ -87,22 +87,26 @@ export const LibraryImage = forwardRef<HTMLImageElement, LibraryImageProps>(func
 });
 
 /** Loads and decodes a library picture in CORS mode; after a failure, reloads the URL once and tries again. */
-export async function loadLibraryPicture(url: string, { priority }: { priority?: "high" } = {}): Promise<HTMLImageElement> {
+export async function loadLibraryPicture(url: string, { priority, signal }: { priority?: RequestPriority; signal?: AbortSignal } = {}): Promise<HTMLImageElement> {
   try {
-    return await decodedPicture(url, priority);
+    return await decodedPicture(url, priority, signal);
   } catch {
-    await reloadLibraryUrl(url);
-    return decodedPicture(url, priority);
+    signal?.throwIfAborted();
+    await reloadLibraryUrl(url, priority);
+    return decodedPicture(url, priority, signal);
   }
 }
 
-function decodedPicture(url: string, priority: "high" | undefined): Promise<HTMLImageElement> {
+function decodedPicture(url: string, priority?: RequestPriority, signal?: AbortSignal): Promise<HTMLImageElement> {
+  signal?.throwIfAborted();
   const picture = new Image();
   // Before src, which starts the request.
   picture.crossOrigin = "anonymous";
   if (priority) (picture as HTMLImageElement & { fetchPriority?: string }).fetchPriority = priority;
+  const release = () => picture.removeAttribute("src");
+  signal?.addEventListener("abort", release, { once: true });
   picture.src = url;
-  return picture.decode().then(() => picture);
+  return picture.decode().then(() => picture).finally(() => signal?.removeEventListener("abort", release));
 }
 
 /**

@@ -12,7 +12,7 @@
 //
 // With reduced motion, or where the browser cannot grow an automaton, a face is its still.
 
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode, type RefObject } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode, type RefObject } from "react";
 import { flushSync } from "react-dom";
 import { Link } from "react-router";
 import { fill, SITE_WORDS } from "../../app/site-words";
@@ -21,15 +21,13 @@ import type { AtlasBand } from "../../library/atlas-cloud";
 import type { FigureMaterial } from "../../materials/material-file";
 import { PATCH_SLOT_OFFSET } from "../../recipe";
 import { ATLAS_TEXT } from "../atlas/atlas-text";
-import { pictureSlots } from "../atlas/card-loading";
-import { useNearScreen } from "../atlas/cloud-card";
 import { nameOf, type BasisGroupNames } from "../gallery/basis-groups";
 import { BAND_COLOURS } from "../look/strength-bands";
 import { LibraryImage } from "../../ui/library-image";
 import { useMediaMatch } from "../../ui/media-match";
 import { Select } from "../../ui/select";
 import { addressSearch, findGroups, pictureOfGroup, shownCount, sortWall, WALL_SORTS, type GalleryAutomaton, type GalleryGroup, type WallSort } from "./gallery";
-import { useGroupPictures } from "./group-levels";
+import { useVisibleDecks, useWallPhotos } from "./wall-photos";
 import { FROM_WALL } from "./group-screen";
 import { openLiveFace, type LiveFace } from "./live-faces";
 import { useWallEye } from "./wall-eye";
@@ -40,8 +38,6 @@ const WORDS = SITE_WORDS.automata;
 const LEVELS_DEEPEST_FIRST: readonly AtlasBand[] = [0, 1, 2, 3];
 const STRONGEST: AtlasBand = 3;
 const PATCHES_PER_SIDE = 16;
-/** A face starts to grow when this share of it is in the window. */
-const SHARE_IN_VIEW = 0.25;
 /** The pointer may cross the room between two decks this long before the deck it left goes back down. */
 const LEAVE_MS = 180;
 /** A deck that changes place, when the wall is sorted or searched, glides there in this time. */
@@ -53,19 +49,21 @@ const GLIDE_EASING = "cubic-bezier(0.3, 0.9, 0.25, 1)";
 export type LoadFace<T> = (automaton: T) => Promise<{ material: FigureMaterial; side: number; seed: number; tick: number }>;
 
 /** A deck's face: black until its turn, then the automaton growing, then at rest; its still where it cannot grow. */
-function DeckFace<T extends GalleryAutomaton>({ automaton, loadFace, forward, wallHidden, carried }: {
+function DeckFace<T extends GalleryAutomaton>({ automaton, loadFace, forward, visible, onFileSettled, wallHidden, carried }: {
   automaton: T;
   /** Absent: the face is the automaton's still. */
   loadFace?: LoadFace<T>;
   /** The reader is on the deck: a face that waits for its turn grows now. */
   forward: boolean;
+  visible: boolean;
+  onFileSettled: (url: string) => void;
   wallHidden: boolean;
   carried: boolean;
 }) {
-  const self = useRef<HTMLSpanElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const face = useRef<LiveFace | null>(null);
-  const inView = useRef(false);
+  const inView = useRef(visible);
+  inView.current = visible;
   const side = useRef(0);
   const last = useRef<{ x: number; y: number } | null>(null);
   const isForward = useRef(forward);
@@ -75,22 +73,16 @@ function DeckFace<T extends GalleryAutomaton>({ automaton, loadFace, forward, wa
   const [state, setState] = useState<"waiting" | "live" | "still">(loadFace && "gpu" in navigator ? "waiting" : "still");
 
   useEffect(() => {
-    const element = self.current;
-    if (!element) return;
-    const observer = new IntersectionObserver(([seen]) => {
-      inView.current = seen?.isIntersecting ?? false;
-      if (inView.current) setWanted(true);
-      face.current?.setInView(inView.current);
-    }, { threshold: SHARE_IN_VIEW });
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, []);
+    if (visible) setWanted(true);
+    face.current?.setInView(visible);
+  }, [visible]);
 
   useEffect(() => {
     if (!wanted || !loadFace || state === "still") return;
     let closed = false;
     loadFace(automaton).then((grown) => {
       if (closed || !canvas.current) return;
+      onFileSettled(automaton.pictureUrl);
       side.current = grown.side;
       const opened = openLiveFace(canvas.current, grown.material, grown, {
         onShown: () => setState("live"),
@@ -99,14 +91,14 @@ function DeckFace<T extends GalleryAutomaton>({ automaton, loadFace, forward, wa
       opened.setInView(inView.current);
       if (isForward.current) opened.hurry();
       face.current = opened;
-    }, () => { if (!closed) setState("still"); });
+    }, () => { if (!closed) { onFileSettled(automaton.pictureUrl); setState("still"); } });
     return () => {
       closed = true;
       face.current?.close();
       face.current = null;
     };
     // The state is read once, to skip a face that is a still from the start; a face that fails closes itself.
-  }, [wanted, loadFace, automaton.id]);
+  }, [wanted, loadFace, automaton.pictureUrl, onFileSettled]);
 
   // A canvas that was not displayed has lost its picture: the cells are drawn again when the wall returns.
   useEffect(() => {
@@ -126,24 +118,22 @@ function DeckFace<T extends GalleryAutomaton>({ automaton, loadFace, forward, wa
   };
 
   return (
-    <span ref={self} className="automata-deck-face" data-state={state} style={carried ? { viewTransitionName: STAGE_PASSAGE } : undefined}
+    <span className="automata-deck-face" data-state={state} style={carried ? { viewTransitionName: STAGE_PASSAGE } : undefined}
       onPointerMove={wake} onPointerLeave={() => { last.current = null; }}>
       {state === "still"
-        ? <img src={automaton.pictureUrl} alt="" width={128} height={128} loading="lazy" />
+        ? visible && <img src={automaton.pictureUrl} alt="" width={128} height={128}
+            onLoad={() => onFileSettled(automaton.pictureUrl)} onError={() => onFileSettled(automaton.pictureUrl)} />
         : <canvas ref={canvas} />}
     </span>
   );
 }
 
-/** The four plates under a face, read when the deck comes near the window. */
-function DeckPlates({ block, wanted, carried }: { block: number; wanted: boolean; carried: boolean }) {
+/** The four levels keep their geometry while a visible deck waits for photos. */
+function DeckPlates({ block, wanted, carried }: {
+  block: number; wanted: boolean; carried: boolean;
+}) {
   const library = useLibrary();
-  const content = useGroupPictures(block, wanted);
-  const slots = content.status === "ready"
-    ? pictureSlots(content.value.cloud.pictures, (picture) => content.value.failed.has(library.thumbnailUrl(picture.imageId)))
-    : null;
-  // A group whose pictures cannot be read has no plates: a deck never shows a level it cannot fill.
-  if (content.status === "failed") return null;
+  const slots = useWallPhotos(library, block, wanted);
   return (
     <>
       {LEVELS_DEEPEST_FIRST.map((band) => (
@@ -154,7 +144,7 @@ function DeckPlates({ block, wanted, carried }: { block: number; wanted: boolean
             const patch = slot.picture.slot - PATCH_SLOT_OFFSET;
             return (
               <span key={position} className="automata-level-picture">
-                <LibraryImage src={library.thumbnailUrl(slot.picture.imageId)} alt={ATLAS_TEXT.pictureName(block, ATLAS_TEXT.bands[band])} />
+                <LibraryImage {...{ fetchpriority: "low" }} src={library.thumbnailUrl(slot.picture.imageId)} alt={ATLAS_TEXT.pictureName(block, ATLAS_TEXT.bands[band])} />
                 <i style={{ left: `${((patch % PATCHES_PER_SIDE) / PATCHES_PER_SIDE) * 100}%`, top: `${(Math.floor(patch / PATCHES_PER_SIDE) / PATCHES_PER_SIDE) * 100}%` }} />
               </span>
             );
@@ -165,7 +155,7 @@ function DeckPlates({ block, wanted, carried }: { block: number; wanted: boolean
   );
 }
 
-function Deck<T extends GalleryAutomaton>({ group, name, mark, loadFace, forward, fan, carried, wallHidden, onLook, onLeave, onOpen }: {
+function Deck<T extends GalleryAutomaton>({ group, name, mark, loadFace, forward, fan, carried, visible, photosReady, onFileSettled, wallHidden, onLook, onLeave, onOpen }: {
   group: GalleryGroup<T>;
   name: string | null;
   /** The owner's view: in the count's place, how many of the group's automata a visitor sees. */
@@ -176,13 +166,15 @@ function Deck<T extends GalleryAutomaton>({ group, name, mark, loadFace, forward
   /** The side the plates slide out to: 1 to the right, -1 to the left, where the wall has the room. */
   fan: 1 | -1;
   carried: boolean;
+  visible: boolean;
+  photosReady: boolean;
+  onFileSettled: (url: string) => void;
   wallHidden: boolean;
   onLook: (deck: HTMLElement) => void;
   onLeave: () => void;
   onOpen: () => void;
 }) {
   const self = useRef<HTMLLIElement>(null);
-  const near = useNearScreen(self);
   const picture = pictureOfGroup(group);
   const count = shownCount(group.automata);
   return (
@@ -192,8 +184,8 @@ function Deck<T extends GalleryAutomaton>({ group, name, mark, loadFace, forward
         onPointerEnter={(event) => { if (event.pointerType === "mouse" && self.current) onLook(self.current); }} onPointerLeave={onLeave}
         onFocus={() => { if (self.current) onLook(self.current); }} onBlur={onLeave}>
         <span className="automata-deck-body">
-          <DeckPlates block={group.group} wanted={near} carried={carried} />
-          {picture && <DeckFace automaton={picture} loadFace={loadFace} forward={forward} wallHidden={wallHidden} carried={carried} />}
+          <DeckPlates block={group.group} wanted={visible && photosReady && forward} carried={carried} />
+          {picture && <DeckFace key={picture.pictureUrl} visible={visible} onFileSettled={onFileSettled} automaton={picture} loadFace={loadFace} forward={forward} wallHidden={wallHidden} carried={carried} />}
         </span>
         <span className="automata-deck-words">
           <span className="automata-deck-name">{name ?? group.group}</span>
@@ -255,8 +247,19 @@ export function GroupWall<T extends GalleryAutomaton>({ groups, names, status, a
   const ordered = findGroups(sortWall(groups, sort, name), words, name);
   const still = useMediaMatch("(prefers-reduced-motion: reduce)");
   const table = useRef<HTMLOListElement>(null);
+  const order = ordered.map(group => group.group).join(" ");
+  const visible = useVisibleDecks(table, order, !hidden);
+  const [settled, setSettled] = useState<ReadonlySet<string>>(new Set());
+  const onFileSettled = useCallback((url: string) => {
+    setSettled(previous => previous.has(url) ? previous : new Set(previous).add(url));
+  }, []);
+  const photosReady = ordered.every(group => {
+    if (!visible.has(group.group)) return true;
+    const face = pictureOfGroup(group);
+    return face === null || settled.has(face.pictureUrl);
+  });
   useWallEye(table, !still, !hidden);
-  useDecksGlide(table, ordered.map((group) => group.group).join(" "), still);
+  useDecksGlide(table, order, still);
   const [forward, setForward] = useState<{ group: number; fan: 1 | -1 } | null>(null);
   // Rendering again after a deck is marked as the one that opens puts the passage's names on it before the page changes.
   const [, setMarked] = useState(0);
@@ -309,6 +312,7 @@ export function GroupWall<T extends GalleryAutomaton>({ groups, names, status, a
         {ordered.map((group) => (
           <Deck key={group.group} group={group} name={nameOf(names, group.group)} mark={markOf?.(group)} loadFace={still ? undefined : loadFace}
             forward={forward?.group === group.group} fan={forward?.group === group.group ? forward.fan : 1}
+            visible={!hidden && visible.has(group.group)} photosReady={photosReady} onFileSettled={onFileSettled}
             carried={carried === group.group} wallHidden={hidden}
             onLook={(deck) => look(group.group, deck)} onLeave={() => leave(group.group)} onOpen={() => open(group.group)} />
         ))}
