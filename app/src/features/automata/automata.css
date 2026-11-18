@@ -1057,9 +1057,12 @@
      depth the deepest plate of a deck 800 px from the eye shows 25 px of itself, which the room over the
      deck's words holds. */
   --plate-depth: 12px;
-  --forward: 210px;
-  /* A spring: past its end by a seventh, then back. Where linear() is unknown the curve after it is used. */
-  --deck-spring: cubic-bezier(0.2, 1.25, 0.35, 1);
+  --forward: 110px;
+  /* How the decks and plates move: easing out, with no overshoot, so the wall stays calm. */
+  --deck-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --deck-move: 380ms;
+  /* How far each plate behind the front one stands out beside it: its edge, wide enough to click. */
+  --plate-step: 30px;
   display: grid;
   grid-template-columns: repeat(auto-fill, var(--face));
   justify-content: space-between;
@@ -1071,12 +1074,6 @@
   perspective-origin: var(--eye-x, 50%) var(--eye-y, 320px);
   /* One space for every deck, so a deck that has come forward stands in front of its neighbours. */
   transform-style: preserve-3d;
-}
-
-@supports (transition-timing-function: linear(0, 1)) {
-  .automata-table {
-    --deck-spring: linear(0, 0.006, 0.025 2.8%, 0.101 6.1%, 0.539 18.9%, 0.721 25.3%, 0.849 31.5%, 0.937 38.1%, 0.968 41.8%, 0.991 45.7%, 1.006 50.1%, 1.015 55%, 1.017 63.9%, 1.001 85.9%, 1);
-  }
 }
 
 /* Reduced motion: no eye and no perspective; a deck's plates stay under its face until it comes forward. */
@@ -1100,7 +1097,7 @@
   gap: 26px;
   color: inherit;
   text-decoration: none;
-  transition: transform 520ms var(--deck-spring);
+  transition: transform var(--deck-move) var(--deck-ease);
 }
 
 .automata-deck-link:focus-visible {
@@ -1128,7 +1125,21 @@
   background: color-mix(in srgb, var(--band) 26%, var(--black));
   box-shadow: inset 0 0 0 2px var(--band);
   transform: translateZ(calc(var(--depth) * var(--plate-depth) * -1));
-  transition: transform 520ms var(--deck-spring);
+  transition: transform var(--deck-move) var(--deck-ease);
+  pointer-events: none;
+}
+
+/* The level's name under the front plate of a forward deck, in its colour. */
+.automata-deck-plate-level {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  color: var(--band);
+  font-size: var(--s-1);
+  line-height: 16px;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 200ms;
   pointer-events: none;
 }
 
@@ -1201,13 +1212,14 @@
 }
 
 .automata-table[data-forward] .automata-deck:not([data-forward]) .automata-deck-link {
-  transform: translateZ(-40px);
+  transform: translateZ(-24px);
 }
 
 /*
  * The deck the reader is on: it comes forward, and its plates slide out from under the face to the
- * side with the room. The strongest level lies whole beside the face, at the face's own depth; each
- * weaker level stands 18 px further out and one step deeper, so its edge and its colour show.
+ * side with the room. The level in front (the strongest, until the reader clicks another) lies whole
+ * beside the face, at the face's own depth; each other level stands --plate-step further out and one
+ * step deeper, so its edge, its photographs' edge and its colour show, and a click brings it forward.
  */
 .automata-deck[data-forward] .automata-deck-link {
   transform: translateZ(var(--forward));
@@ -1216,7 +1228,16 @@
 .automata-deck[data-forward] .automata-deck-plate {
   /* The plates of the deck the reader is on belong to it: the pointer on them keeps the deck forward. */
   pointer-events: auto;
-  transform: translate3d(calc((100% + 20px + (var(--depth) - 1) * 18px) * var(--fan)), 0, calc((var(--depth) - 1) * var(--plate-depth) * -1));
+  cursor: pointer;
+  transform: translate3d(calc((100% + 20px + var(--order) * var(--plate-step)) * var(--fan)), 0, calc(var(--order) * var(--plate-depth) * -1));
+}
+
+.automata-deck[data-forward] .automata-deck-plate[data-front] {
+  cursor: inherit;
+}
+
+.automata-deck[data-forward] .automata-deck-plate[data-front] .automata-deck-plate-level {
+  opacity: 1;
 }
 
 .automata-deck[data-forward] .automata-deck-name {
@@ -1231,6 +1252,7 @@
 @media (prefers-reduced-motion: reduce) {
   .automata-deck-link,
   .automata-deck-plate,
+  .automata-deck-plate-level,
   .automata-deck-face::after,
   .automata-deck-plate::before {
     transition: none;
