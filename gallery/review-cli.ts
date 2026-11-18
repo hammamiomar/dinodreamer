@@ -7,8 +7,9 @@ import { fileURLToPath } from "node:url";
 import { RestBucket, wranglerToken } from "./src/rest-bucket.ts";
 import { PUBLIC_BUCKET, SUBMISSIONS_BUCKET, type Bucket } from "./src/storage.ts";
 
+/** Cloudflare's two buckets, with wrangler's login, renewed when a long run outlives it (rest-bucket.ts). */
 export function openBuckets(): { submissions: RestBucket; library: RestBucket } {
-  const token = wranglerToken(dirname(fileURLToPath(import.meta.url)));
+  const token = () => wranglerToken(dirname(fileURLToPath(import.meta.url)));
   return { submissions: new RestBucket(SUBMISSIONS_BUCKET, token), library: new RestBucket(PUBLIC_BUCKET, token) };
 }
 

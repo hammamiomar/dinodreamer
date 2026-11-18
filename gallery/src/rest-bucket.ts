@@ -25,13 +25,21 @@ const retryDelayMs = (attempt: number) => Math.min(60_000, 2_000 * 2 ** attempt)
 
 export class RestBucket implements Bucket {
   private readonly base: string;
-  private readonly token: string;
+  private token: string;
+  /** Gives a fresh token when the API refuses this one (401); absent for a fixed token. */
+  private readonly renew: (() => string) | null;
   private readonly fetcher: typeof fetch;
   private readonly delayMs: (attempt: number) => number;
 
-  constructor(bucket: string, token: string, fetcher: typeof fetch = fetch, delayMs = retryDelayMs) {
+  /**
+   * `token` is a token, or a function that gives one: wrangler's login lasts about an hour from its last
+   * refresh, so a long run outlives the token it started with. With a function, a refused request (401)
+   * takes a fresh token once and is sent again.
+   */
+  constructor(bucket: string, token: string | (() => string), fetcher: typeof fetch = fetch, delayMs = retryDelayMs) {
     this.base = `${API}/accounts/${ACCOUNT_ID}/r2/buckets/${bucket}/objects`;
-    this.token = token;
+    this.renew = typeof token === "function" ? token : null;
+    this.token = typeof token === "function" ? token() : token;
     this.fetcher = fetcher;
     this.delayMs = delayMs;
   }
@@ -41,9 +49,16 @@ export class RestBucket implements Bucket {
    * a GET, a PUT of the whole object, a DELETE or a LIST.
    */
   private async request(path: string, init: RequestInit = {}): Promise<Response> {
-    const headers = { ...(init.headers as Record<string, string> | undefined), authorization: `Bearer ${this.token}` };
+    let renewed = false;
     for (let attempt = 1; ; attempt++) {
+      const headers = { ...(init.headers as Record<string, string> | undefined), authorization: `Bearer ${this.token}` };
       const response = await this.fetcher(`${this.base}${path}`, { ...init, headers });
+      if (response.status === 401 && this.renew && !renewed) {
+        renewed = true;
+        this.token = this.renew();
+        attempt--;
+        continue;
+      }
       if ((response.status !== 429 && response.status < 500) || attempt === ATTEMPTS) return response;
       await new Promise((resolve) => setTimeout(resolve, this.delayMs(attempt)));
     }
