@@ -69,13 +69,20 @@ const waiting: (() => void)[] = [];
 function turnToEmerge(signal: AbortSignal): { turn: Promise<void>; hurry: () => void } {
   let hurry = () => {};
   const turn = new Promise<void>((resolve, reject) => {
+    const cancel = () => {
+      const index = waiting.indexOf(start);
+      if (index >= 0) waiting.splice(index, 1);
+      reject(signal.reason);
+    };
     const start = () => {
+      signal.removeEventListener("abort", cancel);
       if (signal.aborted) { reject(signal.reason); return; }
       emerging += 1;
       resolve();
     };
     if (emerging < MOST_EMERGING) { start(); return; }
     waiting.push(start);
+    signal.addEventListener("abort", cancel, { once: true });
     hurry = () => {
       const place = waiting.indexOf(start);
       if (place < 0) return;
@@ -143,31 +150,48 @@ export function openLiveFace(canvas: HTMLCanvasElement, material: FigureMaterial
     }
   };
 
-  const queued = turnToEmerge(closing.signal);
-  (async () => {
-    await queued.turn;
-    hasTurn = true;
-    const device = await deviceForFaces();
-    const box = canvas.getBoundingClientRect();
-    const scale = Math.min(MOST_PIXELS_PER_CELL, Math.max(1, Math.round((box.width * (window.devicePixelRatio || 1)) / grid.side)));
-    const created = await createFigureReplay(
-      { canvas, device, side: grid.side, seed: grid.seed, scale, ...figurePlayback(material.file), signal: closing.signal },
-      { values: material.values, fireRate: material.file.rule.fireRate },
-      FIGURE_SHADERS,
-    );
-    if (closing.signal.aborted) { created.dispose(); return; }
-    replay = created;
-    loop = startReplayLoop(created, { speed: EMERGE_SPEED, playing: inView, onFrame, onError: (error) => { giveTurnBack(); if (!closing.signal.aborted) events.onFailed(error); } });
-  })().catch((error: unknown) => {
-    giveTurnBack();
-    if (!closing.signal.aborted) events.onFailed(error);
-  });
+  let opening = false;
+  let queued: ReturnType<typeof turnToEmerge> | undefined;
+  async function emerge() {
+    if (opening || loop || !inView || closing.signal.aborted) return;
+    opening = true;
+    queued = turnToEmerge(closing.signal);
+    try {
+      await queued.turn;
+      hasTurn = true;
+      // Visibility can change while waiting. An offscreen face tries again when it returns.
+      if (!inView || closing.signal.aborted) { giveTurnBack(); return; }
+      const device = await deviceForFaces();
+      if (!inView || closing.signal.aborted) { giveTurnBack(); return; }
+      const box = canvas.getBoundingClientRect();
+      const scale = Math.min(MOST_PIXELS_PER_CELL, Math.max(1, Math.round((box.width * (window.devicePixelRatio || 1)) / grid.side)));
+      const created = await createFigureReplay(
+        { canvas, device, side: grid.side, seed: grid.seed, scale, ...figurePlayback(material.file), signal: closing.signal },
+        { values: material.values, fireRate: material.file.rule.fireRate },
+        FIGURE_SHADERS,
+      );
+      if (closing.signal.aborted) { created.dispose(); return; }
+      replay = created;
+      loop = startReplayLoop(created, {
+        speed: EMERGE_SPEED, playing: inView, onFrame,
+        onError: error => { giveTurnBack(); if (!closing.signal.aborted) events.onFailed(error); },
+      });
+    } catch (error) {
+      giveTurnBack();
+      if (!closing.signal.aborted) events.onFailed(error);
+    } finally {
+      queued = undefined;
+      opening = false;
+    }
+  }
+  void emerge();
 
   return {
     setInView(next) {
       inView = next;
       // A face that left the window while it emerged lets the next one start; it keeps what it has grown.
-      if (!next) giveTurnBack();
+      if (next) void emerge();
+      else giveTurnBack();
       run();
     },
     stroke(from, to) {
@@ -176,7 +200,7 @@ export function openLiveFace(canvas: HTMLCanvasElement, material: FigureMaterial
       healUntil = performance.now() + HEAL_MS;
       run();
     },
-    hurry: queued.hurry,
+    hurry() { queued?.hurry(); },
     redraw() {
       if (loop && replay) void loop.hold(async () => {}).catch(() => {});
     },

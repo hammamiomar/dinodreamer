@@ -1018,9 +1018,9 @@
   pointer-events: none;
 }
 
-/* The face: a line around the black while the automaton waits for its turn to grow. */
+/* The published poster fills the face until its canvas has drawn a frame. */
 .automata-deck-face {
-  background: var(--black);
+  background: color-mix(in srgb, var(--ink-3) 40%, var(--black));
   box-shadow: inset 0 0 0 1px var(--line);
 }
 
@@ -1031,6 +1031,8 @@
 
 .automata-deck-face > canvas,
 .automata-deck-face > img {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
   height: 100%;

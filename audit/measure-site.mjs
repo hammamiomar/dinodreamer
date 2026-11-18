@@ -428,6 +428,8 @@ async function collect(browser, name, index) {
               y: scrollY,
               visible: visible.length,
               shown: visible.filter((x) => x.dataset.state === "live").length,
+              waiting: visible.filter(x => x.dataset.state === "waiting").length,
+              waitingWithPoster: visible.filter(x => x.dataset.state === "waiting" && x.querySelector("img")?.naturalWidth > 0).length,
               opened: faces.filter((x) => x.dataset.state === "live").length,
               bytes: window.auditObservation.buffers,
               submits: window.auditObservation.submits,
