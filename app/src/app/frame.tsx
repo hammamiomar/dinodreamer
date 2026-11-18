@@ -234,10 +234,10 @@ function FrameLayout({ busy, children }: { busy: boolean; children: ReactNode })
             <span className="frame-nav-short">{SITE_WORDS.header.howShortForm}</span>
           </NavLink>
           {/* The experiment's one page, the Painter's, which also stands for the Painter itself (/create). Under
-              832 px the link shows three squares (styles.css); its name stays the word. */}
+              832 px the link shows its short form (styles.css); its name stays the word. */}
           <NavLink to="/canvas" className={({ isPending }) => [experimentalPage(pathname) && "active", isPending && "pending"].filter(Boolean).join(" ")} aria-label={SITE_WORDS.header.experimental}>
             <span className="frame-nav-full">{SITE_WORDS.header.experimental}</span>
-            <span className="frame-nav-short frame-nav-squares" aria-hidden="true"><i /><i /><i /></span>
+            <span className="frame-nav-short" aria-hidden="true">{SITE_WORDS.header.experimentalShortForm}</span>
           </NavLink>
         </nav>
         <span className="visually-hidden" aria-live="polite">

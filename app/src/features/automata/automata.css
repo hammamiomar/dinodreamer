@@ -282,8 +282,6 @@
 .automata-level-name b {
   color: var(--band);
   font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 
 .automata-level-name span {

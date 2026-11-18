@@ -233,12 +233,11 @@ select {
   letter-spacing: -0.02em;
 }
 
+/* A label: small, in the page's quiet ink, in the case it is written in; no capitals, no tracking. */
 .label {
   font-size: var(--s-1);
   font-weight: 500;
   line-height: var(--lh-1);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
   color: var(--ink-3);
 }
 
@@ -251,8 +250,6 @@ select {
   font-size: var(--s-1);
   font-weight: 500;
   line-height: var(--lh-1);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 
 .band.barely,
@@ -580,8 +577,6 @@ select {
   background: none;
   color: var(--ink);
   font: 500 var(--s-1) / var(--lh-1) var(--mono);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
   text-decoration: none;
   cursor: pointer;
   touch-action: manipulation;
@@ -599,7 +594,7 @@ select {
   color: var(--danger);
 }
 
-/* A chip: a plain tracked word that toggles; pressed, it is white with its outline. */
+/* A chip: a plain word that toggles; pressed, it is white with its outline. */
 .chip {
   display: inline-flex;
   align-items: center;
@@ -611,7 +606,6 @@ select {
   background: none;
   color: var(--ink-2);
   font: 500 var(--s-1) / var(--lh-1) var(--mono);
-  letter-spacing: 0.08em;
   white-space: nowrap;
   text-decoration: none;
   cursor: pointer;
@@ -631,8 +625,9 @@ select {
 }
 
 /*
- * A choice (ui/segmented.tsx): the options in a row on a line, a square mark before each, filled
- * before the chosen one. As wide as its options: a column flex parent would otherwise stretch it.
+ * A choice (ui/segmented.tsx): the options in a row on a line. The chosen one stands in full ink with a
+ * 2 px line under its word on the row's rule, as the header marks the current page; the others are
+ * muted. As wide as its options: a column flex parent would otherwise stretch it.
  */
 .segmented {
   display: inline-flex;
@@ -649,7 +644,7 @@ select {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  padding: 0 0 0 16px;
+  padding: 0;
   border: 0;
   background: none;
   color: var(--ink-2);
@@ -660,15 +655,15 @@ select {
   touch-action: manipulation;
 }
 
+/* The line under the chosen word, on the row's rule: 8 px of the row's padding and its 1 px rule below the button. */
 .segmented > button::before {
   content: "";
   position: absolute;
-  top: 50%;
+  right: 0;
+  bottom: -9px;
   left: 0;
-  width: 8px;
-  height: 8px;
-  margin-top: -4px;
-  border: 1px solid var(--line-2);
+  height: 2px;
+  background: transparent;
 }
 
 .segmented > button[aria-checked="true"] {
@@ -676,7 +671,6 @@ select {
 }
 
 .segmented > button[aria-checked="true"]::before {
-  border-color: var(--ink);
   background: var(--ink);
 }
 
@@ -872,15 +866,18 @@ select {
   width: 100%;
 }
 
+/* The select's mark: a small down chevron, the ordinary sign that a list opens. */
 .select::after {
   content: "";
   position: absolute;
   top: 50%;
-  right: 12px;
+  right: 14px;
   width: 6px;
   height: 6px;
-  margin-top: -3px;
-  background: var(--ink-2);
+  margin-top: -5px;
+  border-right: 1px solid var(--ink-2);
+  border-bottom: 1px solid var(--ink-2);
+  transform: rotate(45deg);
   pointer-events: none;
 }
 
@@ -1016,7 +1013,7 @@ input[type="color"]::-moz-color-swatch {
   }
 
   .segmented > button[aria-checked="false"]:not([aria-disabled="true"]):hover::before {
-    border-color: var(--ink);
+    background: var(--line-2);
   }
 
   .chip:hover:not(:disabled, [aria-disabled="true"]),
@@ -1031,9 +1028,9 @@ input[type="color"]::-moz-color-swatch {
     color: var(--black);
   }
 
-  /* A chosen option that acts again when chosen again (Random) shows its mark hollow on hover. */
+  /* A chosen option that acts again when chosen again (Random) shows its line dimmed on hover. */
   .segmented > button[aria-checked="true"][data-repeatable]:hover::before {
-    background: none;
+    background: var(--ink-2);
   }
 
   input[type="checkbox"]:hover:not(:disabled, :checked),
@@ -1149,7 +1146,7 @@ html {
 }
 
 /*
- * Below 832 px, use the short How label and square Experimental mark. The full text needs
+ * Below 832 px, use the short How and Experimental labels. The full text needs
  * about 781 px including gaps and padding; this threshold leaves room for a scrollbar and
  * aligns to the 16 px grid. Below 640 px, the menu shows the full destination names.
  */
@@ -1162,22 +1159,6 @@ html {
     display: inline;
   }
 
-  /* The Experimental link's three squares, in place of its word (frame.tsx), a little clear of the word before; filled on its page. */
-  .frame-nav-short.frame-nav-squares {
-    display: flex;
-    gap: 4px;
-    margin-inline-start: 4px;
-  }
-
-  .frame-nav-squares i {
-    width: 4px;
-    height: 4px;
-    border: 1px solid currentColor;
-  }
-
-  .frame-nav a.active .frame-nav-squares i {
-    background: currentColor;
-  }
 }
 
 /* Phone navigation uses a disclosure so every destination keeps its full name and touch target. */

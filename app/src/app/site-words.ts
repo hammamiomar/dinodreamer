@@ -24,6 +24,8 @@ export const SITE_WORDS = {
      * and this word stays its name for a screen reader.
      */
     experimental: "Experimental",
+    /** Its short form in the header under 832 px, as "How" is How it works's. */
+    experimentalShortForm: "Lab",
   },
 
   frame: {
