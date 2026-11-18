@@ -12,9 +12,9 @@ describe("the model's download while a run starts", () => {
     expect(record.startup).toBeNull();
   });
 
-  it("names the file and the megabytes received, and gives way once every file is in", () => {
+  it("names the megabytes received of the whole, and gives way once every file is in", () => {
     const record = { ...NO_RECORD, active: true, startup };
-    expect(startupLine(record)).toBe("Downloading the model · file 3 of 14 · 66.8 of 340.2 MB");
+    expect(startupLine(record)).toBe("Downloading the model · 66.8 of 340.2 MB");
     expect(startupLine({ ...record, startup: { ...startup, file: 14, receivedBytes: startup.totalBytes } })).toBeNull();
     expect(startupLine(NO_RECORD)).toBeNull();
   });
