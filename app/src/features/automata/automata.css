@@ -1129,14 +1129,18 @@
   pointer-events: none;
 }
 
-/* The level's name under the front plate of a forward deck, in its colour. */
+/* The level's name on the front plate of a forward deck, in its colour, at the plate's lower corner, on
+   black, so it never stands over a neighbouring deck's name. */
 .automata-deck-plate-level {
   position: absolute;
-  top: calc(100% + 8px);
+  bottom: 0;
   left: 0;
+  z-index: 2;
+  padding: 0 6px;
+  background: var(--black);
   color: var(--band);
   font-size: var(--s-1);
-  line-height: 16px;
+  line-height: 18px;
   white-space: nowrap;
   opacity: 0;
   transition: opacity 200ms;

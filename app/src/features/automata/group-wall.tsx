@@ -220,10 +220,12 @@ function Deck<T extends GalleryAutomaton>({ group, name, mark, loadFace, forward
   const picture = pictureOfGroup(group);
   const count = shownCount(group.automata);
   return (
-    <li ref={self} className="automata-deck" data-group={group.group} data-forward={forward || undefined} style={{ "--fan": fan } as CSSProperties}>
+    // The pointer's entry and exit belong to the whole deck: a pointer that arrives quickly can land on the
+    // list item around the link before the link itself, and the deck must still come forward.
+    <li ref={self} className="automata-deck" data-group={group.group} data-forward={forward || undefined} style={{ "--fan": fan } as CSSProperties}
+      onPointerEnter={(event) => { if (event.pointerType === "mouse" && self.current) onLook(self.current, false); }} onPointerLeave={onLeave}>
       <Link className="automata-deck-link" to={{ search: addressSearch({ group: group.group, automaton: null }) }} state={FROM_WALL} viewTransition
         aria-label={fill(WORDS.cardName, { group: group.group, name: name ?? "" }).trim()} onClick={onOpen}
-        onPointerEnter={(event) => { if (event.pointerType === "mouse" && self.current) onLook(self.current, false); }} onPointerLeave={onLeave}
         onFocus={() => { if (self.current) onLook(self.current, true); }} onBlur={onLeave}>
         <span className="automata-deck-body">
           <DeckPlates block={group.group} wanted={visible && photosReady} carried={carried} forward={forward} />
