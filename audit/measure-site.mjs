@@ -220,6 +220,7 @@ async function collect(browser, name, index) {
     interrupt: "wall",
     design: "wall",
     scroll: "wall",
+    tour: "wall",
     idle: "wall",
     plates: "wall",
     phone: "wall",
@@ -411,7 +412,7 @@ async function collect(browser, name, index) {
           buffers: window.auditObservation.buffers,
         };
       });
-    } else if (mode === "scroll") {
+    } else if (mode === "scroll" || mode === "tour") {
       await page.waitForSelector(".automata-deck-face[data-state=live]");
       log.positions = [];
       const record = async (label) =>
@@ -428,6 +429,7 @@ async function collect(browser, name, index) {
               y: scrollY,
               visible: visible.length,
               shown: visible.filter((x) => x.dataset.state === "live").length,
+              postersOffscreen: faces.filter(x => !visible.includes(x) && x.dataset.state === "still" && x.querySelector("img")?.naturalWidth > 0).length,
               waiting: visible.filter(x => x.dataset.state === "waiting").length,
               waitingWithPoster: visible.filter(x => x.dataset.state === "waiting" && x.querySelector("img")?.naturalWidth > 0).length,
               opened: faces.filter((x) => x.dataset.state === "live").length,
@@ -437,7 +439,8 @@ async function collect(browser, name, index) {
           }, label),
         );
       await record("start");
-      for (const fraction of [0.26, 0.52, 0.78, 1]) {
+      const stops = mode === "tour" ? [0, 0.26, 0.52, 0.78, 1, 0] : [0.26, 0.52, 0.78, 1];
+      for (const fraction of stops) {
         await page.evaluate(
           (fraction) =>
             window.scrollTo({
@@ -447,6 +450,11 @@ async function collect(browser, name, index) {
           fraction,
         );
         await pause(130);
+        if (mode === "tour") await page.waitForFunction(() =>
+          [...document.querySelectorAll(".automata-deck-face")].every(face => {
+            const rect = face.getBoundingClientRect();
+            return rect.top >= innerHeight || rect.bottom <= 64 || face.dataset.state === "live";
+          }), null, { timeout: 10000 });
         await record("move");
       }
       for (const delay of [1500, 4000, 5000]) {

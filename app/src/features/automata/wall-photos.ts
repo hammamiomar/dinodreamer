@@ -1,32 +1,7 @@
-import { useEffect, useState, type RefObject } from "react";
+import { useEffect, useState } from "react";
 import type { Library } from "../../library/library";
 import { loadLibraryPicture } from "../../ui/library-image";
 import { pictureSlots, type PictureSlot } from "../atlas/card-loading";
-
-/** One observer reports the entire visible batch, so the last visible definition permits the focused deck to load. */
-export function useVisibleDecks(table: RefObject<HTMLOListElement | null>, order: string, displayed: boolean) {
-  const [visible, setVisible] = useState<ReadonlySet<number>>(new Set());
-  useEffect(() => {
-    setVisible(new Set());
-    if (!displayed || !table.current) return;
-    let active = true;
-    const observer = new IntersectionObserver(entries => {
-      if (!active) return;
-      setVisible(previous => {
-        const next = new Set(previous);
-        for (const entry of entries) {
-          const group = Number((entry.target as HTMLElement).dataset.group);
-          if (entry.isIntersecting && entry.intersectionRatio > 0) next.add(group);
-          else next.delete(group);
-        }
-        return next;
-      });
-    });
-    for (const deck of table.current.children) observer.observe(deck);
-    return () => { active = false; observer.disconnect(); };
-  }, [table, order, displayed]);
-  return visible;
-}
 
 /** Only the deck under the pointer or keyboard focus admits photos. Its effect owns one image at a time. */
 export function useWallPhotos(library: Library, block: number, wanted: boolean) {
