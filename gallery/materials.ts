@@ -15,6 +15,13 @@
 //                        hidden ones: a reseed does not undo the owner's hide or featured mark. The entry id
 //                        is the file's id with every character that an entry id refuses made a hyphen
 //                        ("delta-0.25" → "delta-0-25"); the entry keeps the file's own id as materialId
+//   reread <folder> [--write]
+//                        give shown or hidden automata a reading taken again: <folder>/<entry id>/material.json
+//                        each holds the automaton's published file with only its reading and its preview
+//                        replaced (research.ts, rereadProblem, checks that and nothing else changed). Its file,
+//                        poster and entry, or its hidden record, take the new reading; its id, label, marks and
+//                        place stay (material-review.ts, replaceMaterialFiles). Without --write a dry run that
+//                        checks every file and counts them
 //   seed-production <persist dir> [--production]
 //                        copy the local Worker's published materials to Cloudflare, shown or hidden and
 //                        featured or not as the owner left them in the local owner view; without --production a dry run that
@@ -29,10 +36,11 @@ import { confirmed, openBuckets, openLocalBuckets } from "./review-cli.ts";
 import { FIGURE_PYRAMID_LAYOUT, readFigureMaterial, type FigureMaterialFile } from "../app/src/materials/material-file.ts";
 import { isMaterialEntryId, materialKey } from "../app/src/features/gallery/material-index.ts";
 import {
-  addFeaturedMarks, approveMaterial, findMaterial, hideMaterial, materialEntries, PROJECT_CREDIT, publishMaterial, publishMaterials, purgeMaterial,
-  readMaterials, restoreMaterial, setMaterialFeatured, type MaterialToPublish,
+  addFeaturedMarks, approveMaterial, checkedMaterial, findMaterial, hideMaterial, materialEntries, PROJECT_CREDIT, publishMaterial, publishMaterials,
+  purgeMaterial, readMaterials, replaceMaterialFiles, restoreMaterial, setMaterialFeatured, type MaterialToPublish,
 } from "./src/material-review.ts";
 import { reject } from "./src/review.ts";
+import { rereadProblem } from "./src/research.ts";
 import type { Bucket } from "./src/storage.ts";
 
 
@@ -131,6 +139,29 @@ try {
       seeded++;
     }
     console.log(`Seeded ${seeded} project materials${hidden.size ? `; kept ${names.length - seeded} hidden` : ""}`);
+  } else if (command === "reread") {
+    const folder = need("folder");
+    const write = args.includes("--write");
+    const ids = readdirSync(folder, { withFileTypes: true }).filter((item) => item.isDirectory()).map((item) => item.name).sort();
+    const files = new Map<string, FigureMaterialFile>();
+    const problems: string[] = [];
+    for (const id of ids) {
+      const text = readFileSync(join(folder, id, "material.json"), "utf8");
+      const checked = checkedMaterial(text);
+      if ("error" in checked) { problems.push(`${id}: ${checked.error}`); continue; }
+      const stored = await library.get(materialKey(id, "material.json"));
+      if (stored === null) { problems.push(`${id}: no published or hidden automaton holds this id`); continue; }
+      const problem = rereadProblem(await stored.text(), JSON.stringify(checked.file));
+      if (problem !== null) { problems.push(`${id}: ${problem}`); continue; }
+      files.set(id, checked.file);
+    }
+    if (problems.length > 0) throw new Error(`Nothing was written. ${problems.length} files cannot replace theirs:\n${problems.join("\n")}`);
+    if (!write) {
+      console.log(`${files.size} automata may take their new reading. Dry run: nothing was written. Add --write to write them.`);
+    } else {
+      const replaced = await replaceMaterialFiles(submissions, library, files);
+      console.log(`${replaced.shown.length} shown automata and ${replaced.hidden.length} hidden ones took their new reading; ${replaced.absent.length} were neither`);
+    }
   } else if (command === "seed-production") {
     // The source is the local store named by the argument; the target is Cloudflare, and only with the flag.
     if (persistTo) throw new Error("seed-production reads the local store named by its argument and writes Cloudflare; drop --local");
