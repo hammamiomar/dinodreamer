@@ -20,6 +20,9 @@ export interface ReplayLoopOptions {
    * hitch or a hidden tab is not made up in one jump; a frame steps at most 64 ticks. Absent: `speed`.
    */
   stepsPerSecond?: number;
+  /** For a changing pace, use this function instead of stepsPerSecond. It gives the absolute tick
+   * after the specified playback time. A pause holds the clock and a reseed starts it at zero. */
+  tickAtTime?: (seconds: number) => number;
   playing: boolean;
   /** Called after every drawn frame with the replay's tick. */
   onFrame?: (tick: number) => void;
@@ -73,6 +76,7 @@ export function startReplayLoop(replay: FigureReplay, options: ReplayLoopOptions
   const rate = options.stepsPerSecond;
   if (rate !== undefined && !(rate > 0 && Number.isFinite(rate))) throw new Error("Steps per second must be a positive number.");
   let lastFrameAt = performance.now();
+  let secondsPlayed = 0;
   let owed = 0;
   const checkSpeed = (value: number) => {
     const held = value === 0.5 || value === 0.25;
@@ -87,6 +91,10 @@ export function startReplayLoop(replay: FigureReplay, options: ReplayLoopOptions
     if (pendingSeed !== undefined) {
       replay.reseed(pendingSeed);
       pendingSeed = undefined;
+      if (options.tickAtTime) {
+        secondsPlayed = 0;
+        lastFrameAt = performance.now();
+      }
       // A reset starts a new hold, so tick 0 shows for its full 1/speed frames like any other tick.
       framesOnTick = 0;
       redraw = true;
@@ -96,12 +104,20 @@ export function startReplayLoop(replay: FigureReplay, options: ReplayLoopOptions
       await replay.stamp(discs);
       redraw = true;
     }
-    if (playing && rate !== undefined) {
+    if (playing && (options.tickAtTime || rate !== undefined)) {
       const now = performance.now();
-      owed += (Math.min(Math.max(now - lastFrameAt, 0), MOST_FRAME_MS) / 1000) * rate;
+      const seconds = Math.min(Math.max(now - lastFrameAt, 0), MOST_FRAME_MS) / 1000;
       lastFrameAt = now;
-      const ticks = Math.min(Math.floor(owed), MOST_TICKS_PER_FRAME);
-      owed -= ticks;
+      let ticks: number;
+      if (options.tickAtTime) {
+        secondsPlayed += seconds;
+        const target = Math.floor(options.tickAtTime(secondsPlayed));
+        ticks = Math.min(Math.max(0, target - replay.tick), MOST_TICKS_PER_FRAME);
+      } else {
+        owed += seconds * rate!;
+        ticks = Math.min(Math.floor(owed), MOST_TICKS_PER_FRAME);
+        owed -= ticks;
+      }
       if (ticks > 0) await replay.advance(ticks);
       else if (redraw) await replay.present();
       else return;

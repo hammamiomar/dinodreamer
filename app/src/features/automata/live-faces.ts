@@ -1,5 +1,5 @@
 // The wall's living faces. A deck's face is its automaton, grown in the browser when the deck comes into
-// view: from noise, quickly until its image has emerged, then slowly until the tick its published
+// view: it shows the seed, quickly forms the image, then slowly reaches the tick its published
 // picture was read at, and there it rests. A face at rest costs nothing. The pointer moving across a
 // face stamps the brush on its cells, and the face runs again until the rule has had time to heal them.
 //
@@ -11,35 +11,36 @@ import { createFigureReplay, type FigureReplay } from "../../replay/figure-repla
 import { FIGURE_SHADERS } from "../../replay/figure-shaders";
 import { startReplayLoop, type ReplayLoop } from "../../replay/replay-loop";
 
-/** Faces that emerge from noise at the same time. Each steps EMERGE_SPEED ticks a frame while it does. */
+/** Only the seed and fast growth occupy an emergence turn. The slower finish can overlap the next turn. */
 const MOST_EMERGING = 6;
-/** Ticks per frame from noise until EMERGED_TICK, about a third of a second: the image is there. */
-const EMERGE_SPEED = 8;
-const EMERGED_TICK = 160;
-/**
- * Then ticks per frame until the face rests at the automaton's reading step, where its picture was read:
- * 600 for basis-group mean matching, the step of the lowest own loss for a set method (100 to 2,000).
- * At least SETTLE_SPEED; faster for a late step, so the way there takes about SETTLE_FRAMES frames, as
- * the way to step 600 does at SETTLE_SPEED.
- */
-const SETTLE_SPEED = 2;
-const SETTLE_FRAMES = 220;
-
-/**
- * The ticks the face steps in its next frame on its way to rest at `restingTick`: fast while the image
- * emerges, then slower, and never past the step it rests at. 0 once it is there.
- */
-export function faceSpeed(tick: number, restingTick: number): number {
-  if (tick >= restingTick) return 0;
-  const settle = Math.max(SETTLE_SPEED, Math.ceil((restingTick - EMERGED_TICK) / SETTLE_FRAMES));
-  return Math.min(tick < EMERGED_TICK ? EMERGE_SPEED : settle, restingTick - tick);
-}
-/** After the pointer's last stamp a face runs this long, at one tick a frame, so the rule heals it in sight. */
-const HEAL_MS = 4000;
-/** The brush the pointer carries across a face, in cells of a 128-cell grid: under half the stage's brush. */
-const WAKE_RADIUS = 5;
+const SEED_SECONDS = 0.16;
+const EMERGENCE_STEPS_PER_SECOND = 600;
+const MAX_EMERGENCE_TICKS = 160;
+const EMERGENCE_FRACTION = 0.6;
+const SETTLING_SECONDS = 4.5;
+const HEAL_STEPS_PER_SECOND = 60;
 /** A face is drawn at whole device pixels per cell, at most the replay's eight. */
 const MOST_PIXELS_PER_CELL = 8;
+/** The brush radius in cells of a 128-cell grid. */
+const WAKE_RADIUS = 5;
+/** After the pointer's last stamp a face runs for four seconds so the reader can see it heal. */
+const HEAL_MS = 4000;
+
+/** Reserve part of even a short reading for the slower motion, while early form emerges quickly. */
+function emergedTick(readingTick: number): number {
+  return Math.min(MAX_EMERGENCE_TICKS, Math.ceil(readingTick * EMERGENCE_FRACTION));
+}
+
+/** Absolute simulation tick after this much visible playback. Every face lands on its published reading. */
+export function faceTickAtTime(seconds: number, readingTick: number): number {
+  const growing = seconds - SEED_SECONDS;
+  if (growing <= 0) return 0;
+  const emerged = emergedTick(readingTick);
+  const settling = growing - emerged / EMERGENCE_STEPS_PER_SECOND;
+  if (settling < 0) return Math.floor(growing * EMERGENCE_STEPS_PER_SECOND);
+  const fractionSettled = Math.min(1, settling / SETTLING_SECONDS);
+  return emerged + Math.floor((readingTick - emerged) * fractionSettled);
+}
 
 let sharedDevice: Promise<GPUDevice> | null = null;
 
@@ -126,6 +127,8 @@ export function openLiveFace(canvas: HTMLCanvasElement, material: FigureMaterial
   let shown = false;
   /** The time a face woken by the pointer runs until; 0 while it has not been touched since it came to rest. */
   let healUntil = 0;
+  // The playback clock stops at rest. Its next interval starts when the reader brushes the face.
+  let healingStartedAt: number | undefined;
   const giveTurnBack = () => {
     if (!hasTurn) return;
     hasTurn = false;
@@ -134,20 +137,13 @@ export function openLiveFace(canvas: HTMLCanvasElement, material: FigureMaterial
   const growing = () => replay !== null && replay.tick < grid.tick;
   const run = () => {
     if (!loop) return;
-    if (inView && (growing() || performance.now() < healUntil)) loop.play();
+    if (shown && inView && (growing() || performance.now() < healUntil)) loop.play();
     else loop.pause();
   };
   const onFrame = (tick: number) => {
     if (!shown) { shown = true; events.onShown(); }
-    // The image is there at EMERGED_TICK, or earlier for an automaton read before it.
-    if (tick >= Math.min(EMERGED_TICK, grid.tick)) giveTurnBack();
-    if (!loop) return;
-    const speed = faceSpeed(tick, grid.tick);
-    if (speed > 0) loop.setSpeed(speed);
-    else {
-      loop.setSpeed(1);
-      if (performance.now() >= healUntil) loop.pause();
-    }
+    if (tick >= emergedTick(grid.tick)) giveTurnBack();
+    run();
   };
 
   let opening = false;
@@ -173,7 +169,13 @@ export function openLiveFace(canvas: HTMLCanvasElement, material: FigureMaterial
       if (closing.signal.aborted) { created.dispose(); return; }
       replay = created;
       loop = startReplayLoop(created, {
-        speed: EMERGE_SPEED, playing: inView, onFrame,
+        speed: 1, playing: false, onFrame,
+        // The first paused draw presents the actual seed. Its visible time starts in onFrame.
+        tickAtTime(seconds) {
+          if (created.tick < grid.tick) return faceTickAtTime(seconds, grid.tick);
+          healingStartedAt ??= seconds;
+          return grid.tick + (seconds - healingStartedAt) * HEAL_STEPS_PER_SECOND;
+        },
         onError: error => { giveTurnBack(); if (!closing.signal.aborted) events.onFailed(error); },
       });
     } catch (error) {
@@ -195,7 +197,7 @@ export function openLiveFace(canvas: HTMLCanvasElement, material: FigureMaterial
       run();
     },
     stroke(from, to) {
-      if (!loop || !replay || replay.tick < EMERGED_TICK) return;
+      if (!loop || !replay || replay.tick < emergedTick(grid.tick)) return;
       loop.stroke(from.x, from.y, to.x, to.y, (WAKE_RADIUS * grid.side) / 128);
       healUntil = performance.now() + HEAL_MS;
       run();
