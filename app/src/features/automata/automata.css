@@ -1053,10 +1053,11 @@
  */
 .automata-table {
   --face: 192px;
-  /* The depth between two plates of a deck. At this
+  /* The depth between two plates of a deck, and how far the deck the reader is on comes forward. At this
      depth the deepest plate of a deck 800 px from the eye shows 25 px of itself, which the room over the
      deck's words holds. */
   --plate-depth: 12px;
+  --forward: 210px;
   /* A spring: past its end by a seventh, then back. Where linear() is unknown the curve after it is used. */
   --deck-spring: cubic-bezier(0.2, 1.25, 0.35, 1);
   display: grid;
@@ -1068,7 +1069,7 @@
   list-style: none;
   perspective: 1500px;
   perspective-origin: var(--eye-x, 50%) var(--eye-y, 320px);
-  /* Share the perspective origin across all decks. */
+  /* One space for every deck, so a deck that has come forward stands in front of its neighbours. */
   transform-style: preserve-3d;
 }
 
@@ -1078,7 +1079,7 @@
   }
 }
 
-/* The reduced-motion wall keeps the same preview and a flat projection. */
+/* Reduced motion: no eye and no perspective; a deck's plates stay under its face until it comes forward. */
 .automata-table[data-still] {
   perspective: none;
 }
@@ -1203,31 +1204,26 @@
   transform: translateZ(-40px);
 }
 
-/* Once a patch arrives, the face and the four strongest patches share this deck's square.
-   The other levels remain underneath the strongest plate. The caption and link keep their positions. */
-.automata-deck[data-forward] .automata-deck-body:has([data-preview]) {
-  overflow: clip;
-  background: var(--black);
-  transform-style: flat;
+/*
+ * The deck the reader is on: it comes forward, and its plates slide out from under the face to the
+ * side with the room. The strongest level lies whole beside the face, at the face's own depth; each
+ * weaker level stands 18 px further out and one step deeper, so its edge and its colour show.
+ */
+.automata-deck[data-forward] .automata-deck-link {
+  transform: translateZ(var(--forward));
 }
 
-.automata-deck[data-forward] .automata-deck-body:has([data-preview]) .automata-deck-face {
-  inset: 0 12.5% 25%;
-}
-
-.automata-deck[data-forward] .automata-deck-body:has([data-preview]) .automata-deck-plate {
-  inset: 75% 0 0;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  grid-template-rows: 1fr;
-  transform: none;
-  transition: none;
+.automata-deck[data-forward] .automata-deck-plate {
+  /* The plates of the deck the reader is on belong to it: the pointer on them keeps the deck forward. */
+  pointer-events: auto;
+  transform: translate3d(calc((100% + 20px + (var(--depth) - 1) * 18px) * var(--fan)), 0, calc((var(--depth) - 1) * var(--plate-depth) * -1));
 }
 
 .automata-deck[data-forward] .automata-deck-name {
   color: var(--ink);
 }
 
-.automata-deck-link:focus-visible .automata-deck-body {
+.automata-deck-link:focus-visible .automata-deck-face {
   outline: 2px solid var(--ink);
   outline-offset: 4px;
 }
