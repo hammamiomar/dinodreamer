@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { FigureReplay } from "./figure-replay";
 import { REPLAY_DEFAULT_SPEED, REPLAY_SPEEDS, speedLabel, startReplayLoop } from "./replay-loop";
 
@@ -218,5 +218,34 @@ describe("replay loop", () => {
     expect(loop.playing).toBe(false);
     expect(String(errors[0])).toContain("device lost");
     expect(() => loop.setSpeed(0)).toThrow(/Speed/);
+  });
+});
+
+describe("replay loop in steps per second", () => {
+  it("steps by the time that has passed, whatever the frame rate, and owes nothing for a pause", async () => {
+    const { replay, calls } = replayStub();
+    const frames = manualFrames();
+    let now = 1000;
+    const clock = vi.spyOn(performance, "now").mockImplementation(() => now);
+    try {
+      const loop = startReplayLoop(replay, { speed: 1, stepsPerSecond: 30, playing: true, schedule: frames.schedule });
+      // Five frames at 120 Hz: 30 ticks a second owe a quarter tick a frame, so one tick and a quarter.
+      for (let frame = 0; frame < 5; frame++) { now += 1000 / 120; await frames.frame(); }
+      expect(replay.tick).toBe(1);
+      // Two frames at 60 Hz owe another tick.
+      for (let frame = 0; frame < 2; frame++) { now += 1000 / 60; await frames.frame(); }
+      expect(replay.tick).toBe(2);
+      // A long hitch counts for 100 ms at most: 3 ticks, not 30.
+      now += 1000; await frames.frame();
+      expect(replay.tick).toBe(5);
+      loop.pause();
+      now += 5000;
+      loop.play();
+      now += 1000 / 60; await frames.frame();
+      expect(replay.tick).toBe(5);
+      expect(calls.every((call) => call.startsWith("advance") || call === "present")).toBe(true);
+    } finally {
+      clock.mockRestore();
+    }
   });
 });

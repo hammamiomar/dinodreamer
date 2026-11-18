@@ -14,6 +14,12 @@ export function speedLabel(speed: number): string {
 export interface ReplayLoopOptions {
   /** Ticks per drawn frame: 1 to 64, or 1/2 and 1/4, which hold each tick for 2 and 4 frames. */
   speed: number;
+  /**
+   * Ticks per second instead of per frame: each frame steps by the time that has passed since the last,
+   * so every screen shows the same pace, whatever its frame rate. A frame counts for at most 100 ms, so a
+   * hitch or a hidden tab is not made up in one jump; a frame steps at most 64 ticks. Absent: `speed`.
+   */
+  stepsPerSecond?: number;
   playing: boolean;
   /** Called after every drawn frame with the replay's tick. */
   onFrame?: (tick: number) => void;
@@ -61,6 +67,13 @@ export function startReplayLoop(replay: FigureReplay, options: ReplayLoopOptions
   let framesOnTick = 0;
   let pendingSeed: number | undefined;
   const pendingDamage: [number, number, number][] = [];
+  // In steps per second: when the last frame ran, and the part of a tick that time has owed since.
+  const MOST_FRAME_MS = 100;
+  const MOST_TICKS_PER_FRAME = 64;
+  const rate = options.stepsPerSecond;
+  if (rate !== undefined && !(rate > 0 && Number.isFinite(rate))) throw new Error("Steps per second must be a positive number.");
+  let lastFrameAt = performance.now();
+  let owed = 0;
   const checkSpeed = (value: number) => {
     const held = value === 0.5 || value === 0.25;
     if (!held && !(Number.isInteger(value) && value >= 1 && value <= 64)) throw new Error("Speed is 1/4, 1/2 or 1–64 simulation steps per frame.");
@@ -83,7 +96,16 @@ export function startReplayLoop(replay: FigureReplay, options: ReplayLoopOptions
       await replay.stamp(discs);
       redraw = true;
     }
-    if (playing && speed >= 1) await replay.advance(speed);
+    if (playing && rate !== undefined) {
+      const now = performance.now();
+      owed += (Math.min(Math.max(now - lastFrameAt, 0), MOST_FRAME_MS) / 1000) * rate;
+      lastFrameAt = now;
+      const ticks = Math.min(Math.floor(owed), MOST_TICKS_PER_FRAME);
+      owed -= ticks;
+      if (ticks > 0) await replay.advance(ticks);
+      else if (redraw) await replay.present();
+      else return;
+    } else if (playing && speed >= 1) await replay.advance(speed);
     else if (playing && ++framesOnTick >= 1 / speed) {
       framesOnTick = 0;
       await replay.advance(1);
@@ -117,7 +139,12 @@ export function startReplayLoop(replay: FigureReplay, options: ReplayLoopOptions
   return {
     get playing() { return playing; },
     get speed() { return speed; },
-    play() { playing = true; wake(); },
+    play() {
+      // The time it was paused is not owed.
+      if (!playing) { lastFrameAt = performance.now(); owed = 0; }
+      playing = true;
+      wake();
+    },
     pause() { playing = false; },
     redraw() { dirty = true; wake(); },
     setSpeed(value) {
