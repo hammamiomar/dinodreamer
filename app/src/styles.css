@@ -353,16 +353,18 @@ select {
   pointer-events: none;
 }
 
-/* The wordmark stands 40 px from the first word: this 28 px gap and that link's 12 px mark room (below). */
+/* The wordmark stands 40 px from the first word. The header is solid: the lattice does not run under it. */
 .frame-header {
   position: relative;
+  z-index: 2;
   display: flex;
   grid-column: full;
   align-items: center;
-  gap: 28px;
+  gap: 40px;
   height: var(--top);
   padding: 0 var(--edge-end) 0 var(--edge);
   border-bottom: 1px solid var(--line);
+  background: var(--black);
 }
 
 /*
@@ -376,9 +378,7 @@ select {
   right: 0;
   left: 0;
   z-index: 3;
-  background: var(--black);
 }
-
 .site[data-home][data-entrance] .frame-header {
   transform: translateY(-100%);
 }
@@ -412,27 +412,23 @@ select {
 }
 
 /*
- * Each entry keeps room for the square mark on its inline-start side (--nav-mark-room: the 6 px
- * square and 6 px of air), so the current page's square sits inside its link and the keyboard ring
- * wraps the square and the word together. With the 20 px gaps the words
- * stand 32 px apart, and a ring (7 px out) keeps 25 px from the next word.
+ * The links stand the header's full height, so the current page's mark, a line on the header's own lower
+ * rule under its word, belongs to the header's structure: no square, no badge. The words stand 32 px
+ * apart, and a keyboard ring (7 px out) keeps 25 px from the next word.
  */
 .frame-nav {
-  --nav-mark-room: 12px;
   display: flex;
   align-self: stretch;
-  align-items: center;
-  gap: 20px;
+  align-items: stretch;
+  gap: 32px;
   font-size: var(--s0);
-}
-
-.frame-nav > a {
-  padding-inline-start: var(--nav-mark-room);
 }
 
 /* A link never wraps: the header is one line, and a name too long for it shows as overflow, not as two lines. */
 .frame-nav a {
   position: relative;
+  display: flex;
+  align-items: center;
   color: var(--ink-2);
   text-decoration: none;
   white-space: nowrap;
@@ -446,50 +442,36 @@ select {
   color: var(--ink);
 }
 
-/* The square mark of the current page's link, in the link's mark room, so no link moves. */
-.frame-nav a.active::before {
+/* The current page's line: its word's width, on the header's lower rule. */
+.frame-nav a.active::before,
+.frame-header[data-busy] .frame-nav a.pending::before {
   content: "";
   position: absolute;
-  top: 50%;
+  right: 0;
+  bottom: -1px;
   left: 0;
-  width: 6px;
-  height: 6px;
-  margin-top: -3px;
+  height: 2px;
   background: currentColor;
 }
 
-/* The pending link shows its square immediately. Reduced motion keeps the square hollow. */
+/* A link the reader chose shows its line at once, while its page loads; it pulses until the page is there. */
 .frame-header[data-busy] .wordmark.pending {
   color: var(--ink-2);
 }
 
-.frame-header[data-busy] .frame-nav a.pending::before {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 0;
-  width: 6px;
-  height: 6px;
-  margin-top: -3px;
-  background: currentColor;
+.frame-header[data-busy] .frame-nav a.pending {
+  color: var(--ink);
 }
 
 @media (prefers-reduced-motion: no-preference) {
   .frame-header[data-busy] .frame-nav a.pending::before {
-    animation: frame-busy 1.6s steps(1, end) infinite;
+    animation: frame-busy 1.6s ease-in-out infinite;
   }
 
   @keyframes frame-busy {
     50% {
-      opacity: 0;
+      opacity: 0.25;
     }
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .frame-header[data-busy] .frame-nav a.pending::before {
-    background: none;
-    border: 1px solid currentColor;
   }
 }
 
@@ -515,15 +497,6 @@ select {
   margin-top: calc(-0.5lh - 7px);
   border: 1px solid var(--ink);
   pointer-events: none;
-}
-
-/* A link that shows no square: its ring starts 6 px before its word, not before the empty mark room. */
-.frame-nav > a:not(.active):focus-visible::after {
-  left: calc(var(--nav-mark-room) - 7px);
-}
-
-.frame-header[data-busy] .frame-nav > a.pending:focus-visible::after {
-  left: -7px;
 }
 
 /* A page's sides are the band's; it keeps its own space above and below. */
@@ -1258,9 +1231,11 @@ html {
     gap: 0;
   }
 
+  /* A link is as wide as its word, so the current page's line stands under the word, not across the menu. */
   .frame-nav > a {
     display: flex;
     align-items: center;
+    justify-self: start;
     min-height: 44px;
   }
 
