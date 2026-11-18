@@ -12,14 +12,13 @@ import {
   entryIdOfRun, placeOfRun, readResearchManifest, RESEARCH_MANIFEST_BYTES, RESEARCH_MANIFEST_KEY, researchRunKey, stillName,
   type ResearchManifest, type ResearchRun,
 } from "../../app/src/features/research/research-runs.ts";
-import { submissionLabelProblem } from "../../app/src/features/gallery/submission-label.ts";
 import type { GalleryPlace } from "../../app/src/features/gallery/gallery-place.ts";
 import type { MaterialEntry } from "../../app/src/features/gallery/material-index.ts";
 import {
-  checkedMaterial, hiddenMaterialKey, MATERIAL_DICTIONARIES, MATERIAL_LIMITS, materialPoster, PROJECT_CREDIT, publishMaterials, readMaterials,
-  replaceMaterialFiles, setGalleryPlaces, storeMaterialSubmission, type MaterialSubmissionMetadata, type MaterialToPublish, type ReplacedMaterialFiles,
+  checkedMaterial, hiddenMaterialKey, MATERIAL_DICTIONARIES, MATERIAL_LIMITS, PROJECT_CREDIT, publishMaterials, readMaterials,
+  replaceMaterialFiles, setGalleryPlaces, type MaterialToPublish, type ReplacedMaterialFiles,
 } from "./material-review.ts";
-import { isPng, listKeys, requiredObject, submissionId, type Bucket } from "./storage.ts";
+import { isPng, listKeys, requiredObject, type Bucket } from "./storage.ts";
 
 /** Uploads in flight at once: the REST bucket answers each put in about a quarter of a second. */
 const CONCURRENT_UPLOADS = 8;
@@ -145,22 +144,6 @@ export async function writeResearch(bucket: Bucket, manifestText: string, runs: 
   };
   await Promise.all(Array.from({ length: CONCURRENT_UPLOADS }, upload));
   await bucket.put(RESEARCH_MANIFEST_KEY, manifestText, { httpMetadata: { contentType: "application/json" } });
-}
-
-/**
- * Promote a run to a pending material under a new submission id: its file is checked with the app's
- * loader as a visitor's would be, and stored with the owner's title and the project's credit. It
- * becomes public only when the owner approves it (approveMaterial).
- */
-export async function promoteResearchRun(submissions: Bucket, runId: string, title: string, now: Date, random: Uint8Array): Promise<MaterialSubmissionMetadata> {
-  const trimmed = title.trim();
-  const problem = submissionLabelProblem(trimmed, MATERIAL_LIMITS.titleCharacters);
-  if (trimmed === "" || problem !== null) throw new Error(`the title must be 1 to ${MATERIAL_LIMITS.titleCharacters} characters without control characters`);
-  const text = await (await requiredObject(submissions, researchRunKey(runId, "material.json"))).text();
-  const checked = checkedMaterial(text);
-  if ("error" in checked) throw new Error(`${runId}: ${checked.error}`);
-  const submission = { file: checked.file, text: JSON.stringify(checked.file), poster: materialPoster(checked.file), title: trimmed, credit: PROJECT_CREDIT };
-  return storeMaterialSubmission(submissions, submissionId(now, random), submission, now);
 }
 
 /**

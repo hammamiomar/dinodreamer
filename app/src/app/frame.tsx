@@ -62,7 +62,7 @@ export function fitsTheWindow(pathname: string, search = ""): boolean {
   const under = (screen: string) => pathname === screen || pathname.startsWith(`${screen}/`);
   // Automata fits the window while a basis group's screen is open; its wall of groups is a page that scrolls. So does the owner's view of it.
   if (under("/automata") || under("/admin/automata")) return opensGroup(new URLSearchParams(search));
-  return ["/create", "/admin/materials", "/train", "/how"].some(under);
+  return ["/create", "/train", "/how"].some(under);
 }
 
 /** The Experimental link marks its page: the Painter's page and the Painter with its panels. */

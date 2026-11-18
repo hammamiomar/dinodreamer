@@ -32,5 +32,4 @@ export const LEGACY_PAGE_PATHS = [
   "/picture/block/:id",
   "/how/block/:id",
   "/create/block/:id",
-  "/admin/materials/block/:id",
 ] as const;

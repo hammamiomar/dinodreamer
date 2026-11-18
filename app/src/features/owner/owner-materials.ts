@@ -1,7 +1,7 @@
-// The owner API's client for the owner mode of the Playground (/admin/materials): the pending,
-// shown and hidden automata from GET /admin/api/materials, a pending submission's file, and one
-// action at a time (gallery/src/admin.ts). The Worker owns the operations and their rules; this
-// module reads its answers and checks them once. The owner mode's own rules are owner-mode.ts.
+// The owner API's client, for the owner's Automata page (/admin/automata): the pending, shown and
+// hidden automata from GET /admin/api/materials, a pending submission's file, and one action at a
+// time (gallery/src/admin.ts). The Worker owns the operations and their rules; this module reads
+// its answers and checks them once.
 
 import { readFigureMaterial, type FigureMaterial } from "../../materials/material-file";
 import { materialEntry, readMaterialIndex, type MaterialEntry } from "../gallery/material-index";

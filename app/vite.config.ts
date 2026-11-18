@@ -120,7 +120,7 @@ export default defineConfig({
       // GALLERY_WORKER=http://127.0.0.1:8791 sends /api to a local `wrangler dev` of gallery/,
       // so the dev server reads and submits the local material gallery. Unset, /api is not served.
       ...(process.env.GALLERY_WORKER ? { "/api": { target: process.env.GALLERY_WORKER, changeOrigin: true } } : {}),
-      // The owner view (/admin/materials) calls the Worker's owner API too. The Worker takes a POST only
+      // The owner view (/admin/automata) calls the Worker's owner API too. The Worker takes a POST only
       // from its own origin (gallery/src/admin.ts), so this server's own pages post with the Worker's
       // origin; a request from any other origin keeps its Origin and is refused.
       ...(process.env.GALLERY_WORKER ? {

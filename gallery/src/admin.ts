@@ -3,9 +3,7 @@
 // the same functions as the terminal commands; nothing here has rules of its own.
 //
 //   GET  /admin                                   the page (admin-page.html)
-//   GET  /admin/materials                         the owner's materials view: the app's page, whose router
-//   GET  /admin/materials/basis/<n>               the same page with basis group n's panel over it
-//                                                 draws it (app/src/features/owner) over the routes below
+//   GET  /admin/materials..., /admin/research...  the owner's earlier pages: a redirect to /admin/automata
 //   GET  /admin/api/entries                       pending submissions (pendingRow), shown and hidden entries
 //   GET  /admin/api/pending/<id>/image.png        a pending picture, from the private bucket
 //   GET  /admin/api/gallery/<id>/thumbnail.webp   a shown or hidden entry's thumbnail, from the public bucket
@@ -24,11 +22,10 @@
 //   POST /admin/api/materials/cell-picture|group-picture  { id }   make a shown automaton the picture of its cell
 //                                                 of the Automata page's grid, or of its basis group; both answer
 //                                                 { entries }, every entry whose mark changed, the chosen one first
-//   GET  /admin/automata, /admin/automata/basis/<n>   the owner's view of the Automata page (the app's)
-//   GET  /admin/research, /admin/research/group/<n or none>, /admin/research/run/<id>   the research page (the app's)
+//   GET  /admin/automata, /admin/automata/basis/<n>   the owner's view of the Automata page (the app's, whose
+//                                                 router draws it: app/src/features/owner), over the routes below
 //   GET  /admin/api/research/manifest.json         the research run index (research.ts), from the private bucket
 //   GET  /admin/api/research/runs/<id>/material.json | still-<tick>.png   a run's file and stills
-//   POST /admin/api/research/promote  { id, title }   store a run as a pending material; Approve publishes it
 //   POST /admin/api/research/show  { ids }        show these runs on the Automata page: each becomes a published
 //                                                 automaton with its place in the grid (research.ts, showStoredRuns);
 //                                                 answers { result, entries }
@@ -47,7 +44,7 @@ import {
 } from "./material-review.ts";
 import { isMaterialEntryId, materialKey } from "../../app/src/features/gallery/material-index.ts";
 import { isResearchRunId, RESEARCH_MANIFEST_KEY, researchRunKey } from "../../app/src/features/research/research-runs.ts";
-import { promoteResearchRun, showStoredRuns } from "./research.ts";
+import { showStoredRuns } from "./research.ts";
 import { setName } from "./basis-group-names.ts";
 import { isSubmissionId, pendingKey, publishedKey, type Bucket, type SubmissionMetadata } from "./storage.ts";
 import { imagesThumbnail, type ImagesBinding } from "./thumbnail.ts";
@@ -58,7 +55,7 @@ export interface OwnerEnv extends OwnerAccessEnv {
   IMAGES: ImagesBinding;
   /** The library CDN, the same value as app/.env's ASSET_BASE_URL (a test checks); the purge step names it. */
   ASSET_BASE_URL: string;
-  /** The app build; /admin/materials answers with its index.html. */
+  /** The app build; /admin/automata answers with its index.html. */
   ASSETS: { fetch(request: Request): Promise<Response> };
 }
 
@@ -81,6 +78,9 @@ export async function ownerRequest(request: Request, env: OwnerEnv, page: string
   if (pathname === "/admin" || pathname === "/admin/") {
     return request.method === "GET" ? ownerPage(page) : json({ error: "use GET" }, 405, { allow: "GET" });
   }
+  if (EARLIER_OWNER_PAGE.test(pathname)) {
+    return request.method === "GET" ? Response.redirect(new URL("/admin/automata", request.url).toString(), 302) : json({ error: "use GET" }, 405, { allow: "GET" });
+  }
   if (OWNER_APP_PAGE.test(pathname)) {
     return request.method === "GET" ? ownerPage(await appPage(request, env)) : json({ error: "use GET" }, 405, { allow: "GET" });
   }
@@ -89,11 +89,14 @@ export async function ownerRequest(request: Request, env: OwnerEnv, page: string
   return json({ error: "use GET or POST" }, 405, { allow: "GET, POST" });
 }
 
+/** The owner view the app draws: the owner's Automata page, alone or with a basis group's panel over it. */
+const OWNER_APP_PAGE = /^\/admin\/automata(?:\/basis\/\d{1,5})?$/;
+
 /**
- * The owner views the app draws: the materials view, alone or with a basis group's panel over it,
- * and the research page with its group and run views.
+ * The owner's earlier pages, the Playground's owner mode and the research page, which the owner's
+ * Automata page replaced on 18 November 2026: their addresses, and those under them, open it.
  */
-const OWNER_APP_PAGE = /^\/admin\/(?:(?:automata|materials)(?:\/basis\/\d{1,5})?|research(?:\/group\/(?:\d{1,5}|none)|\/run\/[a-z0-9][a-z0-9-]{0,95})?)$/;
+const EARLIER_OWNER_PAGE = /^\/admin\/(?:materials|research)(?:\/.*)?$/;
 
 /**
  * The app's index.html, for an owner view that the app draws: one player implementation, the
@@ -183,11 +186,6 @@ async function ownerPost(request: Request, pathname: string, env: OwnerEnv, now:
     const { block, name } = body;
     if (!Number.isInteger(block) || typeof name !== "string") return json({ error: "send a basis group's number and a name" }, 400);
     return run(async () => ({ names: await setName(env.LIBRARY, block as number, name) }));
-  }
-  if (pathname === "/admin/api/research/promote") {
-    const { id, title } = body;
-    if (typeof id !== "string" || !isResearchRunId(id) || typeof title !== "string") return json({ error: "send a research run id and a title" }, 400);
-    return run(async () => ({ pending: await promoteResearchRun(env.SUBMISSIONS, id, title, now, crypto.getRandomValues(new Uint8Array(4))) }));
   }
   if (pathname === "/admin/api/research/show") {
     const { ids } = body;

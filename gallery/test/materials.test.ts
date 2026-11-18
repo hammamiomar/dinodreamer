@@ -388,22 +388,21 @@ describe("owner page materials", () => {
     expect((await post("/admin/api/materials/hide", { id: "../index" })).status).toBe(400);
   });
 
-  it("answers /admin/materials and its basis group panels with the app's page, for the owner only", async () => {
+  it("sends the earlier materials page and its panels to the owner's Automata page, for the owner only", async () => {
     const { ownerRequest } = await import("../src/admin.ts");
     const fixture = testEnv();
-    const owner = await ownerRequest(new Request(`${ORIGIN}/admin/materials`), { ...fixture.env, ADMIN_LOCAL_OWNER: "yes" }, "<html></html>", neverFetch);
-    expect(await owner.text()).toBe("<!doctype html>");
-    expect([owner.headers.get("cache-control"), owner.headers.get("content-security-policy")]).toEqual(["no-store", "frame-ancestors 'none'"]);
-    expect(fixture.assetRequests).toEqual(["/"]);
+    for (const path of ["/admin/materials", "/admin/materials/basis/12002"]) {
+      const owner = await ownerRequest(new Request(`${ORIGIN}${path}`), { ...fixture.env, ADMIN_LOCAL_OWNER: "yes" }, "<html></html>", neverFetch);
+      expect([path, owner.status, owner.headers.get("location")]).toEqual([path, 302, `${ORIGIN}/admin/automata`]);
+    }
     const stranger = await ownerRequest(new Request(`${ORIGIN}/admin/materials`), fixture.env, "<html></html>", neverFetch);
     expect(stranger.status).toBe(403);
+    // The owner's Automata page and its panels are the app's page.
+    const page = await ownerRequest(new Request(`${ORIGIN}/admin/automata/basis/12002`), { ...fixture.env, ADMIN_LOCAL_OWNER: "yes" }, "<html></html>", neverFetch);
+    expect([page.status, await page.text()]).toEqual([200, "<!doctype html>"]);
+    expect([page.headers.get("cache-control"), page.headers.get("content-security-policy")]).toEqual(["no-store", "frame-ancestors 'none'"]);
+    expect((await ownerRequest(new Request(`${ORIGIN}/admin/automata/basis/twelve`), { ...fixture.env, ADMIN_LOCAL_OWNER: "yes" }, "<html></html>", neverFetch)).status).toBe(404);
     expect(fixture.assetRequests).toEqual(["/"]);
-    // A basis group's panel over the view (the app's route /admin/materials/basis/:id) loads the same page.
-    const panel = await ownerRequest(new Request(`${ORIGIN}/admin/materials/basis/12002`), { ...fixture.env, ADMIN_LOCAL_OWNER: "yes" }, "<html></html>", neverFetch);
-    expect([panel.status, await panel.text()]).toEqual([200, "<!doctype html>"]);
-    const other = await ownerRequest(new Request(`${ORIGIN}/admin/materials/basis/twelve`), { ...fixture.env, ADMIN_LOCAL_OWNER: "yes" }, "<html></html>", neverFetch);
-    expect(other.status).toBe(404);
-    expect(fixture.assetRequests).toEqual(["/", "/"]);
   });
 });
 

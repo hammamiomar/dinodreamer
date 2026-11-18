@@ -3,10 +3,10 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { ownerRequest } from "../src/admin.ts";
 import {
-  changedRuns, checkedResearchManifest, promoteResearchRun, republishRereadRuns, rereadProblem, rereadProblems, researchRunProblems, runsToWrite,
+  changedRuns, checkedResearchManifest, republishRereadRuns, rereadProblem, rereadProblems, researchRunProblems, runsToWrite,
   showResearchRuns, writeResearch, type ResearchRunFiles,
 } from "../src/research.ts";
-import { approveMaterial, hideMaterial, readMaterials } from "../src/material-review.ts";
+import { approveMaterial, checkedMaterial, hideMaterial, materialPoster, readMaterials, storeMaterialSubmission } from "../src/material-review.ts";
 import { entryIdOfRun, placeOfRun, RESEARCH_MANIFEST_KEY, type ResearchManifest } from "../../app/src/features/research/research-runs.ts";
 import type { Env } from "../src/worker.ts";
 import type { MemoryBucket } from "./memory-bucket.ts";
@@ -159,7 +159,11 @@ describe("showing research runs on the Automata page", () => {
 
   it("a run that an earlier promotion published under a submission's id takes its place there and is not published twice", async () => {
     const env = await storeWithRun();
-    const pending = await promoteResearchRun(env.SUBMISSIONS, RUN_ID, "Scales", new Date("2026-11-02T15:30:12Z"), new Uint8Array([1, 2, 3, 4]));
+    // An earlier owner page promoted a run: its file stored as a pending material with a title, then approved.
+    const checked = checkedMaterial(new TextDecoder().decode(MATERIAL));
+    if ("error" in checked) throw new Error(checked.error);
+    const promotion = { file: checked.file, text: JSON.stringify(checked.file), poster: materialPoster(checked.file), title: "Scales", credit: "DinoDreamer project" };
+    const pending = await storeMaterialSubmission(env.SUBMISSIONS, "20261102-153012-01020304", promotion, new Date("2026-11-02T15:30:12Z"));
     await approveMaterial(env.SUBMISSIONS, env.LIBRARY, pending.id, new Date("2026-11-02T15:31:00Z"));
     const [run] = manifestOf([{ id: RUN_ID, gallery: PLACE }]).runs;
     const result = await showResearchRuns(env.SUBMISSIONS, env.LIBRARY, [run!], new Date(), true);
@@ -246,13 +250,12 @@ describe("owner API: the research page", () => {
     return { env, get, post };
   }
 
-  it("serves the app's page for the research views", async () => {
+  it("sends the earlier research page's addresses to the owner's Automata page", async () => {
     const { get } = await ownerSetup();
     for (const path of ["/admin/research", "/admin/research/group/12002", "/admin/research/group/none", `/admin/research/run/${RUN_ID}`]) {
       const answer = await get(path);
-      expect([path, answer.status, answer.headers.get("content-type")]).toEqual([path, 200, "text/html; charset=utf-8"]);
+      expect([path, answer.status, answer.headers.get("location")]).toEqual([path, 302, `${ORIGIN}/admin/automata`]);
     }
-    expect((await get("/admin/research/run/Not-An-Id")).status).toBe(404);
   });
 
   it("reads the index, a run's file and its stills from the private bucket", async () => {
@@ -265,19 +268,6 @@ describe("owner API: the research page", () => {
     expect([still.status, still.headers.get("content-type")]).toEqual([200, "image/png"]);
     expect((await get(`/admin/api/research/runs/${RUN_ID}/still-0400.png`)).status).toBe(404);
     expect((await (await ownerSetup(false)).get("/admin/api/research/manifest.json")).status).toBe(404);
-  });
-
-  it("promotes a run to a pending material that Approve publishes", async () => {
-    const { get, post } = await ownerSetup();
-    const promoted = await post("/admin/api/research/promote", { id: RUN_ID, title: "  Collar of light " });
-    expect(promoted.status).toBe(200);
-    const pending = promoted.body.pending as { id: string; title: string; credit: string; materialId: string };
-    expect([pending.title, pending.credit, pending.materialId]).toEqual(["Collar of light", "DinoDreamer project", RUN_ID]);
-    const listed = (await (await get("/admin/api/materials")).json()) as { pending: { id: string }[]; published: { id: string }[] };
-    expect(listed.pending.map((submission) => submission.id)).toEqual([pending.id]);
-    expect(listed.published).toEqual([]);
-    const approved = await post("/admin/api/materials/approve", { id: pending.id });
-    expect((approved.body.entry as { title: string; materialId: string })).toMatchObject({ title: "Collar of light", materialId: RUN_ID });
   });
 
   it("shows a run from the owner's view: it becomes a published automaton with its place, and the page gets its entry", async () => {
@@ -297,12 +287,5 @@ describe("owner API: the research page", () => {
     expect([unknown.status, ((await unknown.json()) as { error: string }).error]).toEqual([409, "no research run no-such-run"]);
     expect((await show([])).status).toBe(400);
     expect((await show(["Not An Id"])).status).toBe(400);
-  });
-
-  it("refuses a promotion without a title, of an unknown run or with a malformed id", async () => {
-    const { post } = await ownerSetup();
-    expect((await post("/admin/api/research/promote", { id: RUN_ID, title: "   " })).status).toBe(409);
-    expect((await post("/admin/api/research/promote", { id: "no-such-run", title: "A title" })).status).toBe(409);
-    expect((await post("/admin/api/research/promote", { id: "../pending", title: "A title" })).status).toBe(400);
   });
 });

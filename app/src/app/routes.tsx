@@ -121,24 +121,10 @@ export const router = createBrowserRouter([
             lazy: async () => ({ Component: (await import("../features/owner/owner-automata-page")).OwnerAutomataPage }),
             children: [{ index: true, element: <></> }, { path: "basis/:id", element: <BasisGroupPanel home="/admin/automata" /> }],
           },
-          // The owner mode of the Playground: the same stage and shelf, under the frame, which reads the library.
-          // The Worker serves this page only after its owner check (gallery/src/admin.ts).
-          {
-            path: "/admin/materials",
-            lazy: async () => ({ Component: (await import("../features/owner/owner-materials-page")).OwnerMaterialsPage }),
-            children: [{ path: "basis/:id", element: <BasisGroupPanel home="/admin/materials" /> }],
-          },
-          // The owner's research page: every research run, by basis group and condition (features/research/).
-          // The Worker serves it only after its owner check (gallery/src/admin.ts).
-          {
-            path: "/admin/research",
-            lazy: async () => ({ Component: (await import("../features/research/research-page")).ResearchPage }),
-            children: [
-              { index: true, lazy: async () => ({ Component: (await import("../features/research/research-overview")).ResearchOverview }) },
-              { path: "group/:block", lazy: async () => ({ Component: (await import("../features/research/research-group")).ResearchGroup }) },
-              { path: "run/:id", lazy: async () => ({ Component: (await import("../features/research/research-run")).ResearchRunView }) },
-            ],
-          },
+          // The owner's earlier pages, the Playground's owner mode and the research page, gave way to the owner's
+          // view of the Automata page (18 November 2026): their old addresses open it.
+          { path: "/admin/materials/*", loader: () => redirect("/admin/automata") },
+          { path: "/admin/research/*", loader: () => redirect("/admin/automata") },
           // Train trains on this device; its page loads only when a visitor opens it. A basis group opens in its panel over it.
           {
             path: "/train",

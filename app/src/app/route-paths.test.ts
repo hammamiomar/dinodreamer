@@ -14,7 +14,6 @@ describe("canonical page paths", () => {
     ["/picture/block/7178", "/picture/basis/7178"],
     ["/how/block/7178", "/how/basis/7178"],
     ["/create/block/7178", "/create/basis/7178"],
-    ["/admin/materials/block/7178", "/admin/materials/basis/7178"],
     ["/index/block/7178", "/index/basis/7178"],
   ])("redirects %s to %s", (previous, current) => {
     expect(canonicalPathname(previous)).toBe(current);
