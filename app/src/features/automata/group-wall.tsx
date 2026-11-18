@@ -13,12 +13,13 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode, type RefObject } from "react";
 import { flushSync } from "react-dom";
-import { Link, useNavigation } from "react-router";
+import { Link, NavLink, useNavigation } from "react-router";
 import { fill, SITE_WORDS } from "../../app/site-words";
 import { useLibrary } from "../../app/library-session";
 import type { AtlasBand } from "../../library/atlas-cloud";
 import type { FigureMaterial } from "../../materials/material-file";
 import { PATCH_SLOT_OFFSET } from "../../recipe";
+import { explorePath } from "../atlas/atlas-position";
 import { ATLAS_TEXT } from "../atlas/atlas-text";
 import { nameOf, type BasisGroupNames } from "../gallery/basis-groups";
 import { BAND_COLOURS } from "../look/strength-bands";
@@ -326,6 +327,19 @@ export function GroupWall<T extends GalleryAutomaton>({ groups, names, status, a
             onLook={() => look(group.group)} onLeave={() => leave(group.group)} onOpen={() => open(group.group)} />
         ))}
       </ol>
+      {ordered.length > 0 && (
+        <nav className="automata-wall-navigation" aria-label={WORDS.wallNavigation}>
+          <NavLink to="/" end>{WORDS.homeLink}</NavLink>
+          <NavLink to={explorePath()}>{SITE_WORDS.header.explore}</NavLink>
+          <NavLink to="/automata">{SITE_WORDS.header.playground}</NavLink>
+          <NavLink to="/train">{SITE_WORDS.header.grow}</NavLink>
+          <NavLink to="/how" aria-label={SITE_WORDS.header.how}>
+            <span className="frame-nav-full">{SITE_WORDS.header.how}</span>
+            <span className="frame-nav-short">{SITE_WORDS.header.howShortForm}</span>
+          </NavLink>
+          <NavLink to="/canvas">{SITE_WORDS.header.experimental}</NavLink>
+        </nav>
+      )}
       {children}
     </main>
   );

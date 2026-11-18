@@ -955,6 +955,42 @@
   padding: var(--m) 0;
 }
 
+/* The last row occupies the wall's existing bottom module, above the site's publication credits. */
+.automata-wall:has(> .automata-wall-navigation) {
+  padding-bottom: 0;
+}
+
+.automata-wall-navigation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--space-6);
+  min-height: var(--m);
+  font-size: var(--s0);
+}
+
+.automata-wall-navigation a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-target);
+  color: var(--ink-2);
+  text-decoration: none;
+}
+
+.automata-wall-navigation a:is(:hover, :focus-visible, .active, .pending) {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+@media (max-width: 640px) {
+  .automata-wall-navigation {
+    justify-content: space-between;
+    gap: 0 var(--space-2);
+    font-size: var(--s-1);
+  }
+}
+
 /* The heading and the way to the saved automata on one line, as the Index's; the sentence under them. */
 .automata-wall-head {
   display: grid;

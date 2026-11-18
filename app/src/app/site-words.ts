@@ -1203,6 +1203,9 @@ export const SITE_WORDS = {
   automata: {
     /** The wall's heading, on /automata. */
     wallTitle: "The automata of each basis group",
+    /** The navigation following the last deck uses the header’s destination names. */
+    wallNavigation: "Site navigation at the end of the Automata wall",
+    homeLink: "Home",
     /** The wall's find field: its name for a screen reader, and what it shows while empty. */
     find: "Find a basis group by its name or number",
     findPlaceholder: "Name or number",
