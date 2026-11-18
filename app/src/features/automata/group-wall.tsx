@@ -54,7 +54,7 @@ const GLIDE_EASING = "cubic-bezier(0.3, 0.9, 0.25, 1)";
 /** A face's automaton and the replay its picture was read on: grid side, seed, and the step the face rests at. */
 export type LoadFace<T> = (automaton: T) => Promise<{ material: FigureMaterial; side: number; seed: number; tick: number }>;
 
-/** A deck shows its published poster until the replay presents its first frame. */
+/** A live deck starts with its real seed. Released or still decks use the published picture. */
 function DeckFace<T extends GalleryAutomaton>({ automaton, loadFace, forward, visible, retained, readFile, onFileSettled, wallHidden, carried }: {
   automaton: T;
   /** Absent: the face is the automaton's still. */
@@ -133,7 +133,7 @@ function DeckFace<T extends GalleryAutomaton>({ automaton, loadFace, forward, vi
   return (
     <span className="automata-deck-face" data-state={state} style={carried ? { viewTransitionName: STAGE_PASSAGE } : undefined}
       onPointerMove={wake} onPointerLeave={() => { last.current = null; }}>
-      {(visible || visited) && state !== "live" &&
+      {(visible || visited) && state === "still" &&
         <img src={automaton.pictureUrl} alt="" width={128} height={128}
           onLoad={still ? () => onFileSettled(automaton.pictureUrl) : undefined}
           onError={still ? () => onFileSettled(automaton.pictureUrl) : undefined} />}
