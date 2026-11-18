@@ -1147,7 +1147,7 @@
   pointer-events: none;
 }
 
-/* The published poster fills the face until its canvas has drawn a frame. */
+/* A live face first shows its seeded canvas. A still face uses the published picture. */
 .automata-deck-face {
   background: color-mix(in srgb, var(--ink-3) 40%, var(--black));
   box-shadow: inset 0 0 0 1px var(--line);
