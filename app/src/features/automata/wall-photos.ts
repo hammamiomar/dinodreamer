@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import type { Library } from "../../library/library";
 import { loadLibraryPicture } from "../../ui/library-image";
 import { pictureSlots, type PictureSlot } from "../atlas/card-loading";
@@ -7,7 +7,7 @@ import { pictureSlots, type PictureSlot } from "../atlas/card-loading";
 export function useWallPhotos(library: Library, block: number, wanted: boolean) {
   const [plates, setPlates] = useState<{ block: number; count: number; complete: boolean; slots: PictureSlot[][] } | null>(null);
   const complete = plates?.block === block && plates.complete;
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!wanted || complete) return;
     const controller = new AbortController();
     const { signal } = controller;

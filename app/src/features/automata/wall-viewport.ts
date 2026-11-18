@@ -1,4 +1,4 @@
-import { useEffect, useState, type RefObject } from "react";
+import { useLayoutEffect, useState, type RefObject } from "react";
 
 /** Backtracking by a few decks preserves their cells. All other offscreen decks use their posters. */
 const RECENT_OFFSCREEN_DECKS = 3;
@@ -15,9 +15,10 @@ export function updateWallViewport(previous: WallViewport, visible: ReadonlySet<
 }
 
 /** One observer reports each batch before faces or photos start. */
-export function useWallViewport(table: RefObject<HTMLOListElement | null>, order: string, displayed: boolean) {
+export function useWallViewport(table: RefObject<HTMLOListElement | null>, order: string, displayed: boolean, departing: boolean) {
   const [viewport, setViewport] = useState<WallViewport>({ visible: new Set(), recent: [] });
-  useEffect(() => {
+  useLayoutEffect(() => {
+    if (departing) return;
     if (!displayed || !table.current) {
       setViewport(previous => updateWallViewport(previous, new Set()));
       return;
@@ -36,6 +37,6 @@ export function useWallViewport(table: RefObject<HTMLOListElement | null>, order
     });
     for (const deck of table.current.children) observer.observe(deck);
     return () => { active = false; observer.disconnect(); };
-  }, [table, order, displayed]);
+  }, [table, order, displayed, departing]);
   return viewport;
 }

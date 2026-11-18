@@ -224,6 +224,7 @@ async function collect(browser, name, index) {
     idle: "wall",
     plates: "wall",
     versions: "picture",
+    pending: "wall",
     phone: "wall",
     training: "target",
   };
@@ -367,6 +368,30 @@ async function collect(browser, name, index) {
         await pause(800);
         log.backUrl = page.url();
       }
+    } else if (mode === "pending") {
+      // Hold the destination chunk so the departing wall remains mounted during a scroll.
+      let release;
+      const gate = new Promise(resolve => { release = resolve; });
+      await page.route("**/assets/grow-page-*.js", async route => { await gate; await route.continue(); });
+      await page.evaluate(() => {
+        const header = document.querySelector(".frame-header");
+        const observer = new MutationObserver(() => {
+          if (header.matches("[data-busy]") && header.querySelector('a[href="/train"].pending')) {
+            window.auditObservation.milestones.pending = performance.now();
+            observer.disconnect();
+          }
+        });
+        observer.observe(header, { subtree: true, attributes: true });
+      });
+      try {
+        await page.locator('.frame-nav a[href="/train"]').click();
+        await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+        await pause(1400);
+        log.departing = await page.evaluate(() => ({
+          at: performance.now(), path: location.pathname, marker: !!document.querySelector(".frame-header[data-busy] a.pending"),
+        }));
+      } finally { release(); }
+      await page.waitForSelector(".grow-panel .button.primary");
     } else if (mode === "versions") {
       if (!["dev", "model"].includes(environment)) throw new Error("The version probe imports a Vite source module.");
       log.versions = await page.evaluate(async () => {
