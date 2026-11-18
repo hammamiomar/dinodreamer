@@ -38,7 +38,7 @@ export function LoopFigure() {
   const [noReplay, setNoReplay] = useState(false);
   const still: HomeStill = !("gpu" in navigator) || noReplay ? "no-webgpu" : reduced ? "reduced-motion" : null;
   const entry = index.status === "ready" ? materialsOfBlock(index.index, HOW_PICTURE.block).find((candidate) => candidate.id === HOW_AUTOMATON) ?? null : null;
-  const material = usePublishedMaterial(still || !entry ? null : entry.id);
+  const material = usePublishedMaterial(still ? null : entry ?? null);
   const point = story.status === "ready" ? story.value.anchor : null;
   return (
     <div className="how-loop how-pair" data-columns={3}>

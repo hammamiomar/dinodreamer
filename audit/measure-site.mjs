@@ -223,6 +223,7 @@ async function collect(browser, name, index) {
     tour: "wall",
     idle: "wall",
     plates: "wall",
+    versions: "picture",
     phone: "wall",
     training: "target",
   };
@@ -366,6 +367,18 @@ async function collect(browser, name, index) {
         await pause(800);
         log.backUrl = page.url();
       }
+    } else if (mode === "versions") {
+      if (!["dev", "model"].includes(environment)) throw new Error("The version probe imports a Vite source module.");
+      log.versions = await page.evaluate(async () => {
+        const { fetchPublishedMaterial } = await import("/src/features/gallery/material-gallery.ts");
+        const { entries } = await (await fetch("/api/materials")).json();
+        const { id } = entries[0];
+        const first = fetchPublishedMaterial(id, fetch, 100);
+        const second = fetchPublishedMaterial(id, fetch, 200);
+        const repeat = fetchPublishedMaterial(id, fetch, 100);
+        await Promise.all([first, second, repeat]);
+        return { id, sharedAcrossSteps: first === second, reusedSameStep: first === repeat };
+      });
     } else if (mode === "plates") {
       const deck = page.locator(".automata-deck").first();
       await page.waitForSelector(".automata-deck-face[data-state=live]");

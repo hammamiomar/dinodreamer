@@ -92,7 +92,7 @@ export function HomePage() {
   const still: HomeStill = !("gpu" in navigator) || noReplay ? "no-webgpu" : reducedMotion ? "reduced-motion" : null;
   // The thread's automaton, basis group 4009's, which the beats tell and the end runs.
   const threadEntry = index.status === "ready" ? index.index.entries.find((candidate) => candidate.id === HOW_AUTOMATON) ?? null : null;
-  const threadMaterial = usePublishedMaterial(still || !threadEntry ? null : threadEntry.id);
+  const threadMaterial = usePublishedMaterial(still ? null : threadEntry);
   const recordedState = useLoaded(still === null, () => still ? null : loadAutomatonState());
   // The entrance's automaton: one of the featured pool that met its selection target, drawn per visit,
   // the arrows turning to the next or the previous.
@@ -101,7 +101,7 @@ export function HomePage() {
   const [turned, setTurned] = useState(0);
   const [reset, setReset] = useState(0);
   const shownEntry: MaterialEntry | null = pool.length > 0 ? pool[(((Math.floor(drawn * pool.length) + turned) % pool.length) + pool.length) % pool.length]! : null;
-  const shownMaterial = usePublishedMaterial(still || !shownEntry ? null : shownEntry.id);
+  const shownMaterial = usePublishedMaterial(still ? null : shownEntry);
   const story = useLoaded("story", loadHowStory);
   const cloud = useLoaded("cloud", () => library.atlasCloud(HOW_PICTURE.block));
   const narrow = useMediaMatch(NARROW);
