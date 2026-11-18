@@ -1234,8 +1234,17 @@ export const SITE_WORDS = {
     previousGroup: "Previous",
     nextGroup: "Next",
 
-    /** The frame's upper corner on a group's stage: where the automaton starts, then what it was asked for. */
-    making: "{start} · {method}",
+    /** Beside the group title: the selected start, training method and try in this grid cell. */
+    stageTry: "Try {at}/{count}",
+    stageMethods: {
+      "basis-group-mean": "basis-group mean",
+      "basis-group-mean-guided": "guided basis-group mean",
+      "basis-group-distribution": "basis-group distribution",
+      "token-mean": "token mean",
+      "token-distribution": "token distribution",
+      "mean-distribution-mix": "mean/distribution mix",
+      "unit-activation": "one DINO unit",
+    },
     /** The frame's lower corner: the automaton's grids, then the grid's size. {side} is the cells along a side. */
     gridsFine: "fine · {side} × {side} cells",
     gridsCoarseFine: "coarse + fine · {side} × {side} cells",
@@ -1259,7 +1268,7 @@ export const SITE_WORDS = {
       "circle-anywhere": "Noise disc placed anywhere",
       drawn: "A drawn start",
     },
-    /** The same starts inside the frame's corner line, after nothing: lower case, short. */
+    /** The start as it appears inside a sentence or a material record. */
     startsInLine: {
       noise: "noise field",
       circle: "noise disc",
@@ -1283,7 +1292,7 @@ export const SITE_WORDS = {
       "mean-distribution-mix": "mean and distribution",
       "unit-activation": "one DINO unit",
     },
-    /** A method's full name, in the frame's corner line and for a screen reader. */
+    /** A method's full name for the grid cell's accessible label. */
     methods: {
       "basis-group-mean": "basis-group mean matching",
       "basis-group-mean-guided": "basis-group mean matching with a guide",

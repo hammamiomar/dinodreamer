@@ -12,14 +12,14 @@ const WORDS = SITE_WORDS.automata;
 /** The room a try keeps from the strip's edge when the strip scrolls to it, in page pixels. */
 const STRIP_MARGIN = 8;
 
-export function TriesStrip<T extends GalleryAutomaton>({ cell, playing, onChoose }: {
+export function TriesStrip<T extends GalleryAutomaton>({ cell, playing, position, onChoose }: {
   cell: GalleryCell<T>;
   playing: T;
+  position: number;
   onChoose: (automaton: T) => void;
 }) {
   const strip = useRef<HTMLDivElement>(null);
   const count = cell.tries.length;
-  const at = Math.max(0, cell.tries.findIndex((automaton) => automaton.id === playing.id));
 
   // The playing try stays in the strip's view, also when a key or the address chose it. Only the
   // strip scrolls, and only sideways: the page keeps its place.
@@ -48,7 +48,7 @@ export function TriesStrip<T extends GalleryAutomaton>({ cell, playing, onChoose
     <section className="automata-tries" aria-label={WORDS.triesTitle}>
       <p className="automata-tries-line">
         <span className="label">{WORDS.triesTitle}</span>
-        <span className="automata-tries-place">{fill(WORDS.triesPlace, { at: at + 1, count })}</span>
+        <span className="automata-tries-place">{fill(WORDS.triesPlace, { at: position, count })}</span>
         <span className="automata-tries-words">{count === 1 ? WORDS.triesOne : WORDS.triesMany}</span>
       </p>
       <div ref={strip} className="automata-tries-strip" role="toolbar" aria-orientation="horizontal" onKeyDown={onKeyDown}>
