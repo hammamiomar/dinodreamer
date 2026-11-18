@@ -3,7 +3,11 @@ import type { Library } from "../../library/library";
 import { loadLibraryPicture } from "../../ui/library-image";
 import { pictureSlots, type PictureSlot } from "../atlas/card-loading";
 
-/** Only the deck under the pointer or keyboard focus admits photos. Its effect owns one image at a time. */
+/**
+ * A deck in view loads its plates' photographs once the faces in view have their files, the strongest
+ * plate first, one image at a time and at low priority. It stops when the deck leaves the view or a
+ * navigation starts (`wanted` false): the effect aborts what it has not read.
+ */
 export function useWallPhotos(library: Library, block: number, wanted: boolean) {
   const [plates, setPlates] = useState<{ block: number; count: number; complete: boolean; slots: PictureSlot[][] } | null>(null);
   const complete = plates?.block === block && plates.complete;

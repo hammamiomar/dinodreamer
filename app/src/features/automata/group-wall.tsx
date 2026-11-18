@@ -198,7 +198,7 @@ function Deck<T extends GalleryAutomaton>({ group, name, mark, loadFace, forward
         onPointerEnter={(event) => { if (event.pointerType === "mouse" && self.current) onLook(self.current); }} onPointerLeave={onLeave}
         onFocus={() => { if (self.current) onLook(self.current); }} onBlur={onLeave}>
         <span className="automata-deck-body">
-          <DeckPlates block={group.group} wanted={visible && photosReady && forward} carried={carried} />
+          <DeckPlates block={group.group} wanted={visible && photosReady} carried={carried} />
           {picture && <DeckFace key={loadFace ? picture.pictureUrl : `poster-${picture.pictureUrl}`} visible={visible} retained={retained} readFile={readFile} onFileSettled={onFileSettled} automaton={picture} loadFace={loadFace} forward={forward} wallHidden={wallHidden} carried={carried} />}
         </span>
         <span className="automata-deck-words">
