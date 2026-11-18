@@ -743,21 +743,6 @@
   }
 }
 
-.train-loading {
-  width: min(448px, calc(100vw - 32px));
-  max-height: calc(100dvh - 32px);
-  margin: auto;
-  padding: 32px;
-  border: 1px solid var(--line);
-  background: var(--black);
-  color: var(--ink);
-}
-
-.train-loading::backdrop { background: rgb(0 0 0 / 75%); }
-.train-loading h2 { margin: 0 0 24px; font-size: var(--s1); }
-.train-loading p { margin: 24px 0; color: var(--ink-2); line-height: 24px; }
-.train-loading .button { min-height: 44px; }
-
 .grow-levels { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .grow-levels .grow-pick { padding: 0; border: 0; background: none; color: var(--ink-2); font: inherit; cursor: pointer; }
 .grow-levels .grow-pick[aria-pressed="true"] { color: var(--ink); }

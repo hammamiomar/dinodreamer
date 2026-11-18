@@ -133,6 +133,18 @@ export interface TrainLadder {
 /** The start command's fields, as the store gives them to the client. */
 export type GrowStart = Omit<Extract<GrowCommand, { type: "start" }>, "type">;
 
+/**
+ * The model's download at a start: the model file being loaded (1-based) of the release's files (the
+ * encoder's stem and layers, then the calibration), and the bytes received of all of them against the
+ * total the release lists. A cached file counts whole at once.
+ */
+export interface StartupProgress {
+  file: number;
+  files: number;
+  receivedBytes: number;
+  totalBytes: number;
+}
+
 export type GrowEvent =
   /**
    * "live": the run has ended and its rule grows; "stopped": the person's Stop holds the run there;
@@ -141,6 +153,8 @@ export type GrowEvent =
    */
   | { type: "phase"; phase: "loading" | "training" | "finishing" | "retry" | "live" | "stopped"; message: string }
   | { type: "input"; anchor: MaterialAnchor; medianNorm: number; direction: Control; batch: 1 | 4 }
+  /** The model's download while the run starts, at most every STARTUP_REPORT_MS and at each file's end. */
+  | { type: "startup"; startup: StartupProgress }
   | { type: "run"; run: number; runs: number; seed: number; method: FigureMethod }
   | { type: "checkpoint"; checkpoint: Checkpoint }
   | { type: "progress"; progress: GrowProgress }

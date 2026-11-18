@@ -1019,6 +1019,13 @@ export const SITE_WORDS = {
     kept: "Saved",
     /** Status while the models load. */
     loading: "Loading the models on this device.",
+    /**
+     * Status, first line, while a run starts and the model downloads: {file} of {files} model files, {received} of
+     * {total} megabytes. Stop stands beside it, on the page and in the corner tray.
+     */
+    startupDownload: "Downloading the model · file {file} of {files} · {received} of {total} MB",
+    /** Status, second line, while a run starts: the page does not hold the visitor. */
+    startupNote: "The first start downloads the model to this device. You can read other pages meanwhile; the corner keeps the run.",
     /** Status, first line, while training: the update counter. {update} is the optimizer update. */
     update: "Optimizer update {update}",
     /** Status, first line, after Stop: the held update. */

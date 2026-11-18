@@ -2,7 +2,7 @@ import { methodNeedsSet, type FigureMethod } from "../materials/material-file";
 import type { PublishState } from "../features/gallery/publish-material";
 import type { CoSelection } from "./co-selection";
 import { RESUME_UPDATES, type KeptStage } from "./figure-recipe";
-import type { GrowEvent } from "./protocol";
+import type { GrowEvent, StartupProgress } from "./protocol";
 
 // The Grow page's states, all shown in one layout. The panel
 // records what the worker reported (GrowRecord); growState names the state, and the functions
@@ -35,10 +35,12 @@ export interface GrowRecord {
   reading: { strength: number; winnerFraction: number; selectedPatches: Uint8Array; coSelection: CoSelection } | null;
   outcomes: GrowOutcome[];
   failure: string;
+  /** The model's download while the run starts; null once the run trains, and before. */
+  startup: StartupProgress | null;
 }
 
 export const NO_RECORD: GrowRecord = {
-  active: false, phase: null, phaseMessage: "", run: null, progress: null, reading: null, outcomes: [], failure: "",
+  active: false, phase: null, phaseMessage: "", run: null, progress: null, reading: null, outcomes: [], failure: "", startup: null,
 };
 
 /** The record after one worker event. A new run starts without progress or a reading. */
@@ -46,8 +48,10 @@ export function recordEvent(record: GrowRecord, event: GrowEvent): GrowRecord {
   switch (event.type) {
     case "phase":
       return { ...record, phase: event.phase, phaseMessage: event.message };
+    case "startup":
+      return { ...record, startup: event.startup };
     case "run":
-      return { ...record, run: { run: event.run, runs: event.runs, method: event.method }, progress: null, reading: null };
+      return { ...record, startup: null, run: { run: event.run, runs: event.runs, method: event.method }, progress: null, reading: null };
     case "progress": {
       const { completed, total, trainingMs, readerChunks, methodLoss } = event.progress;
       return { ...record, progress: { completed, total, trainingMs, readerChunks, methodLoss } };

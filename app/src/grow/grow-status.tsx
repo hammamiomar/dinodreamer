@@ -6,6 +6,8 @@ import { firstFireOfRun, hasFired, keptMark, resultOutcome, setMethodRun, type G
 import { readoutText } from "./live-readout";
 import type { MaterialKind } from "./material-kind";
 import { readingRegion } from "./material-kind";
+import { runWentDownInThisTab } from "./batch-size";
+import { adapterUnavailable } from "./protocol";
 import "./grow-status.css";
 
 const WORDS = SITE_WORDS.grow;
@@ -13,13 +15,41 @@ const WORDS = SITE_WORDS.grow;
 const READER_PARTS = 32;
 const number = (value: number) => value.toLocaleString("en-US");
 
+/** Megabytes with one decimal, for the download line: 66.8. */
+const megabytes = (bytes: number) => (bytes / 1_000_000).toFixed(1);
+
+/**
+ * The model's download while a run starts: the file of the files and the megabytes received of the total;
+ * null when nothing is downloading, before the first file and once every file is in.
+ */
+export function startupLine(record: GrowRecord): string | null {
+  const startup = record.startup;
+  if (!startup || startup.receivedBytes >= startup.totalBytes) return null;
+  return fill(WORDS.startupDownload, {
+    file: startup.file, files: startup.files, received: megabytes(startup.receivedBytes), total: megabytes(startup.totalBytes),
+  });
+}
+
+/**
+ * A failure in the site's words where it has them: no GPU just after a run took the page down is the
+ * browser's state, and a reload gives it one again (protocol.ts adapterUnavailable); else the failure as it is.
+ */
+export function failureWords(failure: string): string {
+  return reloadHelps(failure) ? WORDS.noAdapter : failure;
+}
+
+/** Whether a reload is the way out of a failure: no adapter right after a run took this tab's page down. */
+export function reloadHelps(failure: string): boolean {
+  return adapterUnavailable(failure) && runWentDownInThisTab();
+}
+
 /** The first line: the update counter is the clock; the fire, when it comes, in the Strongest tone. The corner tray shows it too. */
 export function statusFirstLine(state: GrowState, record: GrowRecord): ReactNode {
   const fired = (words: string) => <span className="grow-fired">{words}</span>;
   // Before a run the line is empty: the frame shows the start itself.
   if (state === "idle") return "";
-  if (state === "failed") return <span className="grow-failure">{record.failure}</span>;
-  if (state === "loading") return record.phaseMessage || WORDS.loading;
+  if (state === "failed") return <span className="grow-failure">{failureWords(record.failure)}</span>;
+  if (state === "loading") return startupLine(record) ?? (record.phaseMessage || WORDS.loading);
   if (state === "retry") return WORDS.retry;
   if (state === "done") {
     const result = resultOutcome(record);
@@ -44,7 +74,9 @@ export function statusFirstLine(state: GrowState, record: GrowRecord): ReactNode
 
 /** The second line: the reading, or what it waits for. `block`: the run's basis group, named in the reading. */
 function secondLine(state: GrowState, record: GrowRecord, kind: MaterialKind, block: number | null): string {
-  if (state === "idle" || state === "loading" || state === "failed") return "";
+  // While the run starts, the page is free: the visitor may read other pages, and the corner tray keeps the run.
+  if (state === "loading") return WORDS.startupNote;
+  if (state === "idle" || state === "failed") return "";
   if (record.reading && block !== null) {
     const reading = readoutText(record.reading, block, readingRegion(kind), !setMethodRun(record));
     return state === "fired" && record.phase === "training" ? `${reading} · ${WORDS.trainingOn}` : reading;

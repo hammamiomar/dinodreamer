@@ -14,9 +14,8 @@ import {
 import { CoSelectedPictures } from "./co-selected-pictures";
 import { TrainMap } from "./train-map";
 import { KeptStepChoices } from "./step-choices";
-import { TrainLoading } from "./train-loading";
 import { LIGHT_BATCH, RECIPE_BATCH, batchFallback, clearBatchFallback, presetBatch, type BatchSize } from "./batch-size";
-import { GrowStatus } from "./grow-status";
+import { GrowStatus, reloadHelps } from "./grow-status";
 import { durationText, timeBefore, timeLeft, timeTaken, type GrowTime } from "./grow-time";
 import {
   choicesOpen, growState, hasFired, isHeld, NO_RECORD, primaryAction, resultOutcome, resumeUpdates, shownCoSelection, stopAction,
@@ -362,7 +361,12 @@ export function GrowPanel({ block, request, origin, continuation, method, onMeth
   // The run's line under the time: the check before and while a run trains; after a run, Publish and
   // Train more; after a run that did not meet the target, Keep beside the primary Restart.
   let runLine: ReactNode;
-  if (primary === "open" || primary === "resume") {
+  if (state === "failed" && reloadHelps(record.failure)) {
+    // No GPU right after a run took the page down: a reload gives the page one again (the status says so).
+    runLine = <div className="grow-publish">
+      <button type="button" className="button" onClick={() => location.reload()}>{WORDS.reload}</button>
+    </div>;
+  } else if (primary === "open" || primary === "resume") {
     runLine = <div className="grow-publish">
       {resultFile && publishable && <PublishMaterial key={resultFile.id} file={resultFile} />}
       {/* After Stop, Resume is the primary; after a run's end, a word here, since opening the result is the likelier step. */}
@@ -418,8 +422,6 @@ export function GrowPanel({ block, request, origin, continuation, method, onMeth
     </aside>
     {/* The primary: in the foot row beside the status, or at the bottom of a phone's screen. */}
     <div className="grow-go">{goControl}</div>
-    {(state === "loading" || (state === "failed" && record.progress === null))
-      && <TrainLoading message={record.phaseMessage} failure={record.failure} onStop={trainRun.end} />}
     {/* Expose save completion for browser checks. */}
     {record.outcomes.map((outcome) => <span key={outcome.id} hidden className="grow-panel-outcome"
       data-fired={outcome.fired} data-stage={outcome.stage} data-saved={outcome.saved} />)}

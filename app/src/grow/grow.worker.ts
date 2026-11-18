@@ -101,15 +101,30 @@ async function createEngine(): Promise<BrowserEngine> {
   }
 }
 
+/** The least time between two reports of the model's download, so a fast connection does not flood the page. */
+const STARTUP_REPORT_MS = 250;
+
 async function loadModel(release: ModelRelease, assets: AssetLoader, block: number) {
   phase("loading", "Preparing graphics on this device…");
   await initializeEngine();
   engine = await createEngine();
   engine.on_device_lost((message: string) => send({ type: "error", message, deviceLost: true }));
   const files = [...release.encoder, release.calibration];
+  // The download's progress: the files done so far, the release's total, and when it was last told.
+  const totalBytes = files.reduce((sum, file) => sum + file.bytes, 0);
+  let doneBytes = 0;
+  let toldAt = Number.NEGATIVE_INFINITY;
   for (const [index, file] of files.entries()) {
+    const tell = (receivedBytes: number, always = false) => {
+      if (!always && performance.now() - toldAt < STARTUP_REPORT_MS) return;
+      toldAt = performance.now();
+      send({ type: "startup", startup: { file: index + 1, files: files.length, receivedBytes, totalBytes } });
+    };
     phase("loading", `Loading the training models · ${index + 1}/${files.length}`);
-    const bytes = await assets.bytes(file);
+    tell(doneBytes, true);
+    const bytes = await assets.bytes(file, (received) => tell(doneBytes + received));
+    doneBytes += bytes.length;
+    tell(doneBytes, true);
     if (index === 0) engine.load_stem(bytes);
     else if (index < files.length - 1) engine.load_layer(index - 1, bytes);
     else engine.load_calibration(bytes);

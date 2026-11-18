@@ -136,6 +136,35 @@ async function sha256Hex(bytes: Uint8Array<ArrayBuffer>): Promise<string> {
   return Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+/**
+ * A response body read chunk by chunk, telling `onProgress` the bytes received so far. A listed length
+ * sizes the buffer once; more bytes than it lists are refused as they arrive.
+ */
+async function readCounting(body: ReadableStream<Uint8Array>, path: string, expected: number | undefined,
+  onProgress: (received: number) => void): Promise<Uint8Array<ArrayBuffer>> {
+  const reader = body.getReader();
+  const chunks: Uint8Array[] = [];
+  let received = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    received += value.length;
+    if (expected !== undefined && received > expected) {
+      await reader.cancel();
+      throw new Error(`${path} is longer than the release lists. Retry loading.`);
+    }
+    chunks.push(value);
+    onProgress(received);
+  }
+  const bytes = new Uint8Array(received);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return bytes;
+}
+
 /** Immutable release files through the Cache API. Unavailable storage only disables caching. */
 export class AssetLoader {
   cacheHits = 0;
@@ -168,13 +197,18 @@ export class AssetLoader {
     }
   }
 
-  /** A listed file has a known length and digest; an unlisted one (a block, a preview) has neither. */
-  async bytes(file: ModelFile | string): Promise<Uint8Array<ArrayBuffer>> {
+  /**
+   * A listed file has a known length and digest; an unlisted one (a block, a preview) has neither.
+   * `onProgress`, when given, hears the bytes received so far as a download arrives, and the whole
+   * length at once for a cached copy; the length and digest are checked on the whole file as before.
+   */
+  async bytes(file: ModelFile | string, onProgress?: (received: number) => void): Promise<Uint8Array<ArrayBuffer>> {
     const { path, bytes: expected, sha256 } = typeof file === "string" ? { path: file, bytes: undefined, sha256: undefined } : file;
     const url = new URL(path, this.base).href;
     const cached = await this.cachedBytes(url, expected);
     if (cached) {
       this.cacheHits++;
+      onProgress?.(cached.length);
       return cached;
     }
     this.networkRequests++;
@@ -182,7 +216,7 @@ export class AssetLoader {
       throw new Error(`Could not download ${path}: ${describeFetchError(error)}`);
     });
     if (!response.ok) throw new Error(`Could not load ${path} (${response.status}).`);
-    const bytes = new Uint8Array(await response.arrayBuffer());
+    const bytes = onProgress && response.body ? await readCounting(response.body, path, expected, onProgress) : new Uint8Array(await response.arrayBuffer());
     this.networkBytes += bytes.length;
     if (expected !== undefined && bytes.length !== expected) throw new Error(`${path} is incomplete. Retry loading.`);
     if (sha256 !== undefined && (await sha256Hex(bytes)) !== sha256) throw new Error(`${path} does not match the release digest.`);
