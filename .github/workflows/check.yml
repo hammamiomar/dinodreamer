@@ -13,83 +13,34 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check:
+  plan:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    outputs:
+      matrix: ${{ steps.tests.outputs.matrix }}
+      tests: ${{ steps.tests.outputs.tests }}
+      cargo: ${{ steps.tests.outputs.cargo }}
+      engine-node: ${{ steps.tests.outputs.engineNode }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      - uses: ./.github/actions/web-dependencies
+      - name: Restore durations recorded on main
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          node-version: '24'
-      - uses: pnpm/action-setup@d9184bf108216479bc5a137cc391f4d7b14c870b # v6.1.0
-        with:
-          package_json_file: app/package.json
-      - name: Read the engine build version
-        id: engine-version
-        run: |
-          echo "wasm-pack=$(node -p 'require("./engine/qualified-engine.json").wasmPackVersion')" >> "$GITHUB_OUTPUT"
-      - name: Restore the tested engine package
-        id: engine-package
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: engine/pkg/
-          # Hash the clean checkout, including tests, fixtures, Cargo config and vendor code.
-          # Qualification metadata does not change the build; wasm-pack's version does.
-          key: >-
-            engine-package-ubuntu-24.04-${{ runner.arch }}-v1-${{ steps.engine-version.outputs.wasm-pack }}-${{
-              hashFiles('engine/**', '!engine/qualified-engine.json', '.github/workflows/check.yml')
-            }}
-      - name: Install the repository Rust toolchain
-        if: steps.engine-package.outputs.cache-hit != 'true'
-        working-directory: engine
-        run: rustup show active-toolchain
-      - if: steps.engine-package.outputs.cache-hit != 'true'
-        uses: Swatinem/rust-cache@2201cc584a476d1b508be977bbe4b7d1c7a52e9c # v2.9.3
-        with:
-          workspaces: engine
-      - name: Install pinned wasm-pack
-        if: steps.engine-package.outputs.cache-hit != 'true'
+          path: ${{ runner.temp }}/test-durations
+          key: test-durations-v1-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: test-durations-v1-${{ runner.os }}-
+      - name: Select affected tests and balance their durations
+        id: tests
         env:
-          WASM_PACK_VERSION: ${{ steps.engine-version.outputs.wasm-pack }}
-        run: cargo install wasm-pack --version "$WASM_PACK_VERSION" --locked
-      - name: Build the engine package
-        if: steps.engine-package.outputs.cache-hit != 'true'
-        working-directory: engine
-        run: wasm-pack build --target web --release -- --locked
-      - name: Record the engine package checksum
-        working-directory: engine
-        run: |
-          sha256sum pkg/dinodreamer_engine_bg.wasm | tee pkg/runtime.sha256
-          cat pkg/runtime.sha256 >> "$GITHUB_STEP_SUMMARY"
-      - name: Save the engine for GPU qualification
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: engine-package
-          path: engine/pkg/
-          retention-days: 14
-      - name: Install dependencies
-        run: |
-          pnpm --dir app install --frozen-lockfile
-          pnpm --dir gallery install --frozen-lockfile
-      - name: Check the app
-        working-directory: app
-        run: |
-          pnpm check
-          pnpm test --maxWorkers=2
-          pnpm build
-      - name: Check the gallery
-        working-directory: gallery
-        run: |
-          pnpm check
-          pnpm test --maxWorkers=2
-      - name: Check the engine
-        if: steps.engine-package.outputs.cache-hit != 'true'
-        working-directory: engine
-        run: |
-          cargo test --locked --no-default-features --features cpu
+          BASE: ${{ github.event.pull_request.base.sha }}
+          CI_PREVIOUS_DURATIONS: ${{ runner.temp }}/test-durations
+        run: node ci/test-plan.mjs "${BASE:---all}"
+      - name: Exercise the selection and sharding rules
+        if: steps.tests.outputs.planner == 'true'
+        run: node --test ci/test-plan.test.mjs
       - name: Scan added commit lines for credentials
         env:
           BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
@@ -106,6 +57,215 @@ jobs:
           const files = execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' }).split('\0').filter(Boolean);
           const large = files.filter(file => statSync(file).size >= 1_000_000);
           if (large.length) throw new Error(`Tracked files must be below 1,000,000 bytes: ${large.join(', ')}`);
+          JS
+
+  engine:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Read the engine build version
+        id: engine-version
+        run: |
+          echo "wasm-pack=$(node -p 'require("./engine/qualified-engine.json").wasmPackVersion')" >> "$GITHUB_OUTPUT"
+      - name: Restore the engine build
+        id: engine-package
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: engine/pkg/
+          # The compile cache is independent of test results. Cargo runs on every main check
+          # and on relevant PRs, including a cache hit.
+          key: >-
+            engine-build-ubuntu-24.04-${{ runner.arch }}-v1-${{ steps.engine-version.outputs.wasm-pack }}-${{
+              hashFiles('engine/**', '!engine/qualified-engine.json', '!engine/tests/**', '!engine/benchmarks/**',
+                        '!engine/tools/**', '!engine/examples/**', '!engine/*.md', 'ci/build-engine.sh')
+            }}
+      - name: Install the repository Rust toolchain
+        if: steps.engine-package.outputs.cache-hit != 'true'
+        working-directory: engine
+        run: rustup show active-toolchain
+      - if: steps.engine-package.outputs.cache-hit != 'true'
+        uses: Swatinem/rust-cache@2201cc584a476d1b508be977bbe4b7d1c7a52e9c # v2.9.3
+        with:
+          workspaces: engine
+      - name: Build the pinned engine
+        if: steps.engine-package.outputs.cache-hit != 'true'
+        run: bash ci/build-engine.sh
+      - name: Record the engine package checksum
+        working-directory: engine
+        run: |
+          sha256sum pkg/dinodreamer_engine_bg.wasm | tee pkg/runtime.sha256
+          cat pkg/runtime.sha256 >> "$GITHUB_STEP_SUMMARY"
+      - name: Save the engine for GPU qualification
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: engine-package
+          path: engine/pkg/
+          retention-days: 14
+
+  lint:
+    needs: engine
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/web-dependencies
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: engine-package
+          path: engine/pkg/
+      - run: pnpm --dir engine install --frozen-lockfile
+      - run: pnpm --dir ci install --frozen-lockfile
+      - run: pnpm --dir ci lint
+
+  typecheck:
+    needs: engine
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/web-dependencies
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: engine-package
+          path: engine/pkg/
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.4
+      - name: Check both projects with the locked TypeScript version
+        run: |
+          for project in app gallery; do
+            test "$(bun -p process.versions.typescript)" = "$(node -p "require('./$project/node_modules/typescript/package.json').version")"
+            bun check --no-script --all -p "$project"
+          done
+
+  build:
+    needs: engine
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/web-dependencies
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: engine-package
+          path: engine/pkg/
+      - name: Bundle the app
+        run: pnpm --dir app exec vite build
+
+  tests:
+    name: ${{ matrix.kind }} tests ${{ matrix.shard }}
+    needs: [plan, engine]
+    if: needs.plan.outputs.tests == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/web-dependencies
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: engine-package
+          path: engine/pkg/
+      - name: Cache the matching Playwright browser binaries
+        if: matrix.kind == 'browser'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: browsers-ubuntu-24.04-${{ runner.arch }}-${{ hashFiles('gallery/pnpm-lock.yaml') }}-${{ matrix.webkit }}
+      - name: Install headless browsers
+        if: matrix.kind == 'browser'
+        env:
+          WEBKIT: ${{ matrix.webkit }}
+        run: |
+          browsers=(chromium)
+          if [[ "$WEBKIT" == "true" ]]; then browsers+=(webkit); fi
+          pnpm --dir gallery exec playwright-core install --with-deps --only-shell "${browsers[@]}"
+      - name: Run selected files
+        env:
+          TEST_SHARD: ${{ toJSON(matrix) }}
+          CI_RECORD_DURATIONS: ${{ github.event_name == 'push' && format('{0}/test-durations', runner.temp) || '' }}
+        run: node ci/run-test-shard.mjs
+
+      - name: Save main's measured shard durations
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: test-durations-${{ matrix.kind }}-${{ matrix.shard }}
+          path: ${{ runner.temp }}/test-durations/*.json
+          if-no-files-found: error
+          retention-days: 1
+
+  durations:
+    needs: tests
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: test-durations-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/test-durations
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/test-durations
+          key: test-durations-v1-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+  cargo:
+    needs: plan
+    if: needs.plan.outputs.cargo == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - working-directory: engine
+        run: rustup show active-toolchain
+      - uses: Swatinem/rust-cache@2201cc584a476d1b508be977bbe4b7d1c7a52e9c # v2.9.3
+        with:
+          workspaces: engine
+      - working-directory: engine
+        run: cargo test --locked --no-default-features --features cpu
+
+  engine-node:
+    needs: plan
+    if: needs.plan.outputs.engine-node == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+      - run: node --test engine/tests/*.test.ts
+
+  check:
+    if: always()
+    needs: [plan, engine, lint, typecheck, build, tests, cargo, engine-node]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require each scheduled check to pass
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          node --input-type=module <<'JS'
+          const results = JSON.parse(process.env.RESULTS);
+          const plan = results.plan.outputs;
+          const optional = { tests: plan.tests, cargo: plan.cargo, 'engine-node': plan['engine-node'] };
+          for (const [name, job] of Object.entries(results)) {
+            if (job.result === 'success' || (job.result === 'skipped' && optional[name] === 'false')) continue;
+            throw new Error(name + ' ended with ' + job.result);
+          }
           JS
 
   preview:
