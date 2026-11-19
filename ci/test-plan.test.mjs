@@ -36,7 +36,7 @@ test("shared app modules reach gallery tests and the app source audit", async ()
   assert(files.includes("app/src/app/engine-wasm.test.ts"));
 });
 
-test("main, deleted modules, engine inputs and CI changes run the complete matrix", async () => {
+test("main runs every browser viewport and broad PR changes run every unit test", async () => {
   const main = await planTests(null);
   const all = filesOf(main).sort();
   assert.equal(new Set(all).size, all.length);
@@ -55,16 +55,19 @@ test("main, deleted modules, engine inputs and CI changes run the complete matri
     changed(".github/workflows/check.yml"),
   ]) {
     const plan = await planTests(changes);
-    assert.deepEqual(filesOf(plan).sort(), all);
+    assert.deepEqual(filesOf(plan).sort(), all.filter((file) => file.endsWith(".test.ts")));
     assert(plan.cargo);
   }
 });
 
-test("a browser-only edit selects its suite, including every viewport in a layout test", async () => {
+test("browser changes wait for main, which runs all browser suites and viewports", async () => {
   const file = "app/tests/how-layout-browser.test.mjs";
-  const files = filesOf(await planTests(changed(file)));
-  assert(files.length > 1);
-  assert(files.every((task) => task.startsWith(file + "#")));
+  assert.deepEqual(filesOf(await planTests(changed(file))), []);
+  const browsers = filesOf(await planTests(null)).filter((task) => task.includes("-browser.test.mjs"));
+  const distinct = [...new Set(browsers.map((task) => task.split("#")[0]))].sort();
+  const suites = readdirSync("app/tests").filter((name) => name.endsWith("-browser.test.mjs"));
+  assert.deepEqual(distinct, suites.map((name) => "app/tests/" + name).sort());
+  assert.equal(browsers.filter((task) => task.startsWith(file + "#")).length, 5);
 });
 
 test("a Rust integration test schedules Cargo alone", async () => {
@@ -72,11 +75,6 @@ test("a Rust integration test schedules Cargo alone", async () => {
   assert.deepEqual(plan.jobs, []);
   assert(plan.cargo);
   assert.equal(plan.engineNode, false);
-});
-
-test("a shared browser harness reaches only its consumer", async () => {
-  const files = filesOf(await planTests(changed("app/tests/ui-state-harness.tsx")));
-  assert.deepEqual(files, ["app/tests/shell-browser.test.mjs"]);
 });
 
 test("the Rust target-set fixture reaches Cargo", async () => {

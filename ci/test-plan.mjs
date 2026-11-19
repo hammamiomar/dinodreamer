@@ -33,54 +33,6 @@ async function relatedFiles(project, related, include) {
   }
 }
 
-const browserInputs = {
-  "home-browser.test.mjs": ["src/main.tsx"],
-  "home-replay-browser.test.mjs": [
-    "src/main.tsx",
-    "src/replay/figure-reference.ts",
-    "src/replay/figure-shaders.ts",
-    "src/replay/figure-replay.ts",
-    "src/features/how/automaton-record.ts",
-    "src/features/gallery/material-gallery.ts",
-  ],
-  "how-layout-browser.test.mjs": ["src/main.tsx", "src/features/how/how-page.tsx"],
-  "how-pager-browser.test.mjs": ["src/main.tsx", "src/features/how/how-page.tsx"],
-  "shell-browser.test.mjs": ["src/main.tsx", "src/features/how/how-page.tsx", "tests/ui-state-harness.tsx"],
-};
-
-async function relatedBrowsers(changes) {
-  const selected = new Set(browserFiles.filter((file) => changes.includes(file)));
-  const inputs = changes.filter(
-    (file) => file.startsWith("app/") && !unitFile.test(file) && !browserFiles.includes(file),
-  );
-  if (!inputs.length) return [...selected];
-  if (inputs.some((file) => !moduleFile.test(file) || file === browserDirectory + "run-browser-tests.mjs"))
-    return browserFiles;
-  if (inputs.includes(browserDirectory + "how-layout-viewports.mjs"))
-    selected.add(browserDirectory + "how-layout-browser.test.mjs");
-  const workerEntries = execFileSync("git", ["ls-files", "--", "app/src/**/*.worker.ts"], {
-    cwd: root,
-    encoding: "utf8",
-  })
-    .trim()
-    .split("\n")
-    .filter(Boolean)
-    .map((file) => file.slice(4));
-  const entriesOf = (file) => [
-    file.slice(4),
-    "tests/run-browser-tests.mjs",
-    ...workerEntries,
-    ...(browserInputs[file.slice(browserDirectory.length)] ?? []),
-  ];
-  const roots = [...new Set(browserFiles.flatMap((file) => entriesOf(file)))];
-  const affected = new Set(await relatedFiles("app", inputs, roots));
-  for (const file of browserFiles) {
-    const entries = browserInputs[file.slice(browserDirectory.length)];
-    if (!entries || entriesOf(file).some((entry) => affected.has("app/" + entry))) selected.add(file);
-  }
-  return [...selected];
-}
-
 function readDiff(base) {
   // HEAD is the merge result tested by Actions. Retain both sides of a rename.
   const fields = execFileSync("git", ["diff", "--no-renames", "--name-status", "-z", base, "HEAD"], {
@@ -197,9 +149,7 @@ async function relatedUnits({ paths, runtime }) {
 export default async function planTests(diff) {
   const scope = testScope(diff);
   const units = await relatedUnits(scope);
-  const galleryFixture = "gallery/seed/materials/block-4009-figure-pyramid-strongest-seed-0.material.json";
-  const browsers =
-    scope.runtime || scope.paths.includes(galleryFixture) ? browserFiles : await relatedBrowsers(scope.paths);
+  const browsers = diff === null ? browserFiles : [];
   const browserTasks = browsers.flatMap((file) =>
     file.endsWith("/how-layout-browser.test.mjs")
       ? layoutViewports.map(({ width, height }) => file + "#" + width + "-" + height)

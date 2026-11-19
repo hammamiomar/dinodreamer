@@ -24,11 +24,11 @@ Oxlint enables all seven rule categories. The root configuration lists each exce
 
 ## Test selection and timing
 
-On a pull request, the planner compares the base commit to the checked-out merge result. Vitest resolves imports from each project to find affected tests, including tests that consume the other project’s source. The planner also accounts for setup files, source-tree scans, subprocess entry points, browser routes, Web Workers and files read from disk. Changes to configuration, deleted code or unrecognized inputs can select the complete suite. When a test starts reading a file outside its import graph, record that dependency in the planner and exercise it in the selection tests.
+On a pull request, the planner compares the base commit to the checked-out merge result. Vitest resolves imports from each project to find affected tests, including tests that consume the other project’s source. The planner also accounts for setup files, source-tree scans, subprocess entry points and files read from disk. Changes to configuration, deleted code or unrecognized inputs can select the complete suite. When a test starts reading a file outside its import graph, record that dependency in the planner and exercise it in the selection tests.
 
 The planner assigns extra unit shards to the project with the most recorded work per shard. Each large shard starts Vitest once. A small change across projects can share one job. Within a suite, the planner assigns the longest remaining test to the lightest shard.
 
-On main, the planner schedules all suites. Test shards report measured durations per file. The How layout test reports one duration for each viewport. GitHub saves these measurements together after all shards pass. A later run uses this cache or starts from the measurements in `test-durations.json`. A new file receives its suite's median duration until main records it.
+Browser tests run on pushes to main. Main also runs every unit suite and the Rust CPU tests. Test shards report measured durations per file. The How layout test reports one duration for each viewport. GitHub saves these measurements together after all shards pass. A later run uses this cache or starts from the measurements in `test-durations.json`. A new file receives its suite's median duration until main records it.
 
 Browser tests start a local Vite server, serve a checked-in gallery entry and read library assets from the configured release. Install the matching browsers with `pnpm --dir gallery exec playwright-core install --with-deps chromium webkit`. A browser test can run directly, for example `node app/tests/run-browser-tests.mjs app/tests/home-browser.test.mjs`.
 
