@@ -17,13 +17,13 @@ import { explorePath } from "../atlas/atlas-position";
 import { useMaterialIndex, usePublishedMaterial } from "../gallery/material-gallery";
 import type { MaterialEntry } from "../gallery/material-index";
 import type { FigureMaterial } from "../../materials/material-file";
-import { featuredMaterials } from "../playground/playground";
 import { HOW_AUTOMATON, loadHowStory } from "../how/figures/figure-data";
 import { loadAutomatonState } from "../how/automaton-record";
 import { HOW_PICTURE } from "../how/how-source";
 import { usePrefersReducedMotion } from "../landing/motion";
 import type { HomeStill } from "./home-material-view";
 import { HomePanel, type Shown } from "./home-panel";
+import { ENTRANCE_AUTOMATA, entrancePool, shuffled } from "./home-material";
 import { entranceAutomaton } from "./home-relay";
 import { approachedBeats, BEAT_PLAY_MS, HOME_BEATS, NARROW_PANEL_SHARE, readingLine, sectionAt, type HomeBeat } from "./home-scroll";
 import { ResetMark } from "../../ui/reset-mark";
@@ -110,13 +110,14 @@ export function HomePage() {
   const threadMaterial = usePublishedMaterial(still || !approached.end ? null : threadEntry);
   const endLoads = still === null && approached.end;
   const recordedState = useLoaded(endLoads, () => (endLoads ? loadAutomatonState() : null));
-  // The entrance's automaton: one of the featured pool that met its selection target, drawn per visit,
-  // the arrows turning to the next or the previous, which grows out of the shown one's cells.
-  const pool = useMemo(() => (index.status === "ready" ? featuredMaterials(index.index.entries).filter((candidate) => candidate.fired) : []), [index]);
-  const [drawn] = useState(() => Math.random());
+  // The entrance's automaton: the essay's opening list in an order shuffled for the visit
+  // (home-material.ts, ENTRANCE_AUTOMATA), the arrows turning to the next or the previous, which grows
+  // out of the shown one's cells.
+  const [order] = useState(() => shuffled(ENTRANCE_AUTOMATA, Math.random));
+  const pool = useMemo(() => (index.status === "ready" ? entrancePool(index.index.entries, order) : []), [index, order]);
   const [turned, setTurned] = useState(0);
   const [reset, setReset] = useState(0);
-  const chosenEntry: MaterialEntry | null = pool.length > 0 ? pool[(((Math.floor(drawn * pool.length) + turned) % pool.length) + pool.length) % pool.length]! : null;
+  const chosenEntry: MaterialEntry | null = pool.length > 0 ? pool[((turned % pool.length) + pool.length) % pool.length]! : null;
   const chosenMaterial = usePublishedMaterial(still ? null : chosenEntry);
   const entrance = useEntranceAutomaton(chosenEntry, chosenMaterial);
   const story = useLoaded("story", loadHowStory);

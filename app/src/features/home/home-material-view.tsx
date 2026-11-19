@@ -94,6 +94,7 @@ interface RunRequest {
   cells?: FigureReplayState;
   carried: boolean;
   speed: number;
+  stepsPerSecond: number | undefined;
   drawRatio: number;
   regrowAtTick: number;
   /** The field is in the window, and the page asks for play: the run grows only while both hold. */
@@ -133,6 +134,7 @@ function openFieldRun(request: RunRequest): FieldRun {
     ),
     {
       speed: request.speed,
+      stepsPerSecond: request.stepsPerSecond,
       playing: requestedPlaying.current,
       onFrame: (tick) => {
         if (!framed) {
@@ -280,6 +282,7 @@ export function HomeMaterial({
   playing = true,
   posterUrl = materialFileUrl(entry, "poster.png"),
   speed = REPLAY_DEFAULT_SPEED,
+  stepsPerSecond,
   drawRatio = Number.POSITIVE_INFINITY,
   posterWhileRunning = true,
   brush = true,
@@ -298,6 +301,8 @@ export function HomeMaterial({
   posterUrl?: string;
   /** Ticks per drawn frame (replay-loop.ts): 1/2 holds each tick for two frames, for small players on a phone. */
   speed?: number;
+  /** Ticks per second instead of `speed` (replay-loop.ts): the same pace on a 60, 120 or 144 Hz screen. */
+  stepsPerSecond?: number;
   /** The most device pixels per CSS pixel the canvas is drawn at: 1 for a field the size of the window, whose cells are 2 CSS px or more. */
   drawRatio?: number;
   /** Whether the poster stays under a running replay. False opens on black and the growth, with no flash of the grown image first; the poster returns when there is no material to run or the replay has stopped. */
@@ -374,6 +379,7 @@ export function HomeMaterial({
       cells,
       carried,
       speed,
+      stepsPerSecond,
       drawRatio,
       regrowAtTick,
       visible,
@@ -402,7 +408,7 @@ export function HomeMaterial({
     setShownEntry(next);
     // A field that carries its cells keeps its runs for the next material; the effects below close them.
     return carryCells ? undefined : () => closeRuns(runs.current);
-  }, [material, entry.side, entry.seed, initialState, speed, drawRatio, regrowAtTick, carryCells]);
+  }, [material, entry.side, entry.seed, initialState, speed, stepsPerSecond, drawRatio, regrowAtTick, carryCells]);
 
   useEffect(() => {
     if (!material) closeRuns(runs.current);

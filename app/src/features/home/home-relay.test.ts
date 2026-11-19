@@ -102,17 +102,15 @@ describe("a rule that cannot grow from the cells", () => {
 
   test("starts again from its own start after two flat checks in a row, not one", () => {
     expect(startsAgain(null, 0)).toBe(false);
-    expect(startsAgain(0.3, 0.005)).toBe(false);
-    expect(startsAgain(0.005, 0.3)).toBe(false);
+    expect(startsAgain(0.3, 0.01)).toBe(false);
+    expect(startsAgain(0.01, 0.3)).toBe(false);
     expect(startsAgain(0.0099, 0.0078)).toBe(true);
-    expect(startsAgain(0, 0)).toBe(true);
   });
 
-  test("leaves a faint field to grow: above the bound, or below it with a rising spread", () => {
-    // Measured after two turns that regrow (2026-11-18): 13364 seeded to 12002 coarse + fine bottoms
-    // at 0.0123; to 2632 coarse + fine it rises from 0.0058.
-    expect(startsAgain(0.0123, 0.0123)).toBe(false);
-    expect(startsAgain(0.0058, 0.0098)).toBe(false);
+  test("starts again when a flat field creeps upward, and leaves a field above the bound to grow", () => {
+    // Measured (2026-11-18): 12240 to 2632 creeps at 0.0105 to 0.0107 and stays flat to the eye.
+    expect(startsAgain(0.0105, 0.0107)).toBe(true);
+    expect(startsAgain(0.0232, 0.0123)).toBe(false);
   });
 });
 

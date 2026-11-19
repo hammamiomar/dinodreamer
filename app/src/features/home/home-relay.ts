@@ -97,8 +97,9 @@ function folded(cells: FigureReplayState, side: number): Float32Array {
 /**
  * Two grids from one, with the same picture: the coarse grid is the mean of each 2 × 2 fine cells
  * (all 16 values), and its colour, upsampled, is taken out of the fine colour. A coarse grid of zeros
- * would show the same picture too, but measured on the home's pool (2026-11-18), a coarse + fine rule
- * then often settles into one background colour instead of growing its figure.
+ * would show the same picture too, but measured on the 14 automata featured on the Automata page
+ * (2026-11-18), a coarse + fine rule then often settles into one background colour instead of
+ * growing its figure.
  */
 function split(fine_NC: Float32Array, side: number): { fine: Float32Array; coarse: Float32Array } {
   const coarse_NC = halved(fine_NC, side);
@@ -125,19 +126,19 @@ export function cellsForGrids(cells: FigureReplayState, from: Grids, to: Grids):
 }
 
 /**
- * A field grown from another automaton's cells reads its picture this often, in ticks (about 1 s at
- * 60 ticks a second), to see whether the rule has left it flat.
+ * A field grown from another automaton's cells reads its picture this often, in ticks (1 s at the
+ * home's 60 ticks a second), to see whether the rule has left it flat.
  */
 export const FLAT_CHECK_EVERY_TICKS = 60;
 
 /**
- * A picture whose spread is below this is flat: one colour to the eye (0.01 is 2.6 levels of 255).
- * The essay uses 0.02. Measured on 2026-11-18 over the 182 turns between the home's 14 featured
- * automata, each 600 ticks after the last one's start: the 15 turns that die fall below 0.01 and keep
- * falling; 8 others fall below 0.02 for a few seconds, 3 of them below 0.01, and then regrow with a
- * rising spread.
+ * A picture whose spread is below this is flat: one colour to the eye (the essay's bound, about 5
+ * levels of 255). Measured on 2026-11-18 over the 306 turns between the entrance's 18 automata, each
+ * 600 ticks after the last one's start: the 7 turns that end flat (all into 2632) fall below it and
+ * restart 120 to 900 ticks after the turn; none of the 299 that regrow stay below it at two checks.
+ * Some flat fields creep upward by 0.001 in 10 s, so the rule does not ask for a falling spread.
  */
-const FLAT_BELOW = 0.01;
+const FLAT_BELOW = 0.02;
 
 /**
  * The spread of a picture of RGBA bytes: the standard deviation of each colour channel over the
@@ -162,13 +163,12 @@ export function pictureSpread(pixels_N4: Uint8ClampedArray): number {
 
 /**
  * Whether a field grown from another automaton's cells starts again from its own automaton's start:
- * its picture was flat at two checks in a row and did not grow between them. A rule can fail to grow
- * from another rule's cells and leave one colour, and such a field fades at every check. A field that
- * is nearly flat for a moment while the rule regrows it has a rising spread, so it is left to grow.
- * `spreadBefore` is null at the first check.
+ * its picture was flat at two checks in a row, as in the essay. A rule can fail to grow from another
+ * rule's cells and leave one colour; one flat reading is not enough, since a field can be one colour
+ * for a moment while it changes. `spreadBefore` is null at the first check.
  */
 export function startsAgain(spreadBefore: number | null, spreadNow: number): boolean {
-  return spreadBefore !== null && spreadBefore < FLAT_BELOW && spreadNow < FLAT_BELOW && spreadNow <= spreadBefore;
+  return spreadBefore !== null && spreadBefore < FLAT_BELOW && spreadNow < FLAT_BELOW;
 }
 
 /**
