@@ -214,3 +214,51 @@
   text-decoration: underline;
   text-underline-offset: 5px;
 }
+
+.owner-canvas-review {
+  grid-column: 1 / -1;
+  padding-block: var(--space-2);
+  border-bottom: 1px solid var(--line);
+}
+
+.owner-canvas-review summary,
+.owner-automaton-label summary {
+  width: fit-content;
+  cursor: pointer;
+}
+
+.owner-canvas-review ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  padding: 0;
+  gap: var(--space-3);
+  list-style: none;
+}
+
+.owner-canvas-card {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  overflow-wrap: anywhere;
+}
+
+.owner-canvas-card p { margin: 0; }
+.owner-canvas-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.owner-canvas-confirmation { flex-basis: 100%; }
+
+.owner-automaton-label { grid-column: 1 / -1; }
+@media (max-width: 640px) { .owner-automaton-label { order: 2; } }
+
+.owner-automaton-label form,
+.owner-automaton-label label {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.owner-automaton-label form {
+  max-width: 28rem;
+  margin-block: var(--space-2);
+  gap: var(--space-2);
+}
+
+.owner-automaton-label input { min-width: 0; }

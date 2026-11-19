@@ -127,6 +127,8 @@ export const FLAT_CHECK_EVERY_TICKS = 60;
 
 /**
  * Mean per-channel RGB standard deviation below which a field appears uniform (~5 of 255 levels).
+ * On 2026-11-18, seven of 306 transfers among 18 automata ended flat, all into group 2632.
+ * Two readings below this bound caught all seven within 120–900 ticks and none of the other 299.
  * Flat fields can drift slightly upward, so detection compares directly against this bound instead
  * of requiring a strictly decreasing spread.
  */

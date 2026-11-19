@@ -17,6 +17,15 @@ const responses = new Map([
   ["/api/materials/" + id + "/material.json", ["application/json", definition]],
   ["/api/materials/" + id + "/poster.png", ["image/png", poster]],
 ]);
+const tasks = process.argv.slice(2);
+const ownerTest = tasks.some((task) => task.endsWith("owner-browser.test.mjs"));
+let appUrl;
+let ownerWorker;
+if (ownerTest) {
+  const { startOwnerWorker } = await import("./owner-worker-fixture.mjs");
+  ownerWorker = await startOwnerWorker(definition, () => appUrl);
+  process.env.GALLERY_WORKER = ownerWorker.url;
+}
 const server = await createServer({
   root,
   mode: "remote",
@@ -39,7 +48,7 @@ const server = await createServer({
 try {
   await server.listen();
   const url = server.resolvedUrls.local[0].replace(/\/$/, "");
-  const tasks = process.argv.slice(2);
+  appUrl = url;
   if (!tasks.length) throw new Error("Supply browser test files.");
   const elapsed = {};
   for (const task of tasks) {
@@ -77,5 +86,6 @@ try {
     await writeFile(process.env.TEST_DURATION_FILE, JSON.stringify(elapsed) + "\n");
   }
 } finally {
+  ownerWorker?.close();
   await server.close();
 }

@@ -35,7 +35,7 @@ it.each(["onerror", "onmessageerror", "dispose"] as const)("settles pending sear
   expect(resolved).toHaveBeenCalledExactlyOnceWith(null);
   expect(worker.terminate).toHaveBeenCalledOnce();
   expect(await graph.distances([1])).toBeNull();
-  graph.build([[0, 0, 0]]);
+  graph.buildPrefix([[0, 0, 0]], 1);
   expect(worker.postMessage).toHaveBeenCalledTimes(1);
 });
 
@@ -44,4 +44,15 @@ it("settles a search when posting to the worker throws", async () => {
   worker.postMessage.mockImplementation(() => { throw new Error("Worker unavailable"); });
   expect(await graph.distances([0])).toBeNull();
   expect(worker.terminate).toHaveBeenCalledOnce();
+});
+
+it("only transfers a new graph when its bounded prefix grows", () => {
+  const { worker, graph } = graphWorker();
+  const codes = [[1, 2, 3], [4, 5, 6], [7, 8, 9]] as const;
+  graph.buildPrefix(codes.slice(0, 1), 1);
+  graph.buildPrefix(codes.slice(0, 2), 2);
+  graph.buildPrefix([...codes], 2);
+  expect(worker.postMessage).toHaveBeenCalledTimes(2);
+  const [command] = worker.postMessage.mock.calls[1]!;
+  expect([...new Float64Array(command.codes)]).toEqual([1, 2, 3, 4, 5, 6]);
 });

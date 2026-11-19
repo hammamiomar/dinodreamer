@@ -17,6 +17,7 @@
 //   GET  /admin/api/materials/pending/<id>/material.json           pending automaton file for preview before approval
 //   GET  /admin/api/materials/gallery/<id>/poster.png              shown or hidden automaton poster from the public bucket
 //   POST /admin/api/materials/approve|reject|hide|restore|purge  { id }
+//   POST /admin/api/materials/rename { id, title, credit }        edit the published label
 //   POST /admin/api/materials/feature|unfeature  { id }            toggle the site featured mark; returns { entry }
 //   POST /admin/api/materials/cell-picture|group-picture  { id }   choose a cell or group representative; returns { entries }
 //   GET  /admin/api/research/manifest.json                         research run index from the private bucket
@@ -32,13 +33,14 @@ import { checkOwner, type OwnerAccessEnv } from "./access.ts";
 import { materialCdnPurge, PURGE_BY_PREFIX_PLACE, purgePrefix } from "./cdn-check.ts";
 import { approveAll, galleryEntries, hide, pendingBlocks, purge, reject, restore } from "./review.ts";
 import {
-  approveMaterial, hideMaterial, materialEntries, pendingMaterialKey, purgeMaterial, restoreMaterial, setCellPicture, setGroupPicture, setMaterialFeatured,
+  approveMaterial, hideMaterial, materialEntries, pendingMaterialKey, purgeMaterial, renameMaterial, restoreMaterial, setCellPicture, setGroupPicture, setMaterialFeatured,
 } from "./material-review.ts";
 import { isMaterialEntryId, materialKey } from "../../app/src/features/gallery/material-index.ts";
 import { isResearchRunId, RESEARCH_MANIFEST_KEY, researchRunKey } from "../../app/src/features/research/research-runs.ts";
 import { showStoredRuns } from "./research.ts";
 import { setName } from "./basis-group-names.ts";
 import { ConflictError, isSubmissionId, jsonResponse, pendingKey, publishedKey, type Bucket, type SubmissionMetadata } from "./storage.ts";
+import { readMaterialLabel } from "./submission.ts";
 import { imagesThumbnail, type ImagesBinding } from "./thumbnail.ts";
 
 export interface OwnerEnv extends OwnerAccessEnv {
@@ -171,7 +173,7 @@ async function ownerPost(request: Request, pathname: string, env: OwnerEnv, now:
     return jsonResponse({ error: "the body is not JSON" }, 400);
   }
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return jsonResponse({ error: "the body must be a JSON object" }, 400);
-  const body = parsed as { id?: unknown; ids?: unknown; block?: unknown; name?: unknown };
+  const body = parsed as { id?: unknown; ids?: unknown; block?: unknown; name?: unknown; title?: unknown; credit?: unknown };
   if (pathname === "/admin/api/basis-groups/name") {
     const { block, name } = body;
     if (!Number.isInteger(block) || typeof name !== "string") return jsonResponse({ error: "send a basis group's number and a name" }, 400);
@@ -183,6 +185,13 @@ async function ownerPost(request: Request, pathname: string, env: OwnerEnv, now:
       return jsonResponse({ error: `ids must list 1 to ${MAX_SHOW} research run ids` }, 400);
     }
     return run(() => showStoredRuns(env.SUBMISSIONS, env.LIBRARY, ids as string[], now));
+  }
+  if (pathname === "/admin/api/materials/rename") {
+    const { id } = body;
+    if (typeof id !== "string" || !isMaterialEntryId(id)) return jsonResponse({ error: "id must name an automaton" }, 400);
+    const label = readMaterialLabel(body.title, body.credit);
+    if ("error" in label) return jsonResponse({ error: label.error }, 400);
+    return run(async () => ({ entry: await renameMaterial(env.LIBRARY, id, label) }));
   }
   const materialAction = pathname.match(/^\/admin\/api\/materials\/(approve|reject|hide|restore|purge|feature|unfeature|cell-picture|group-picture)$/)?.[1];
   if (materialAction !== undefined) return materialPost(materialAction, body.id, env, now);
