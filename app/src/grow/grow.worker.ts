@@ -517,7 +517,7 @@ async function trainWithStops(
     await keepUnkept(control, session, live, reader, began);
     const completed = session.training.completed();
     control.setPhase("stopped", `Stopped at optimizer update ${completed.toLocaleString("en-US")}. Resume trains on from here.`);
-    await liveLoop(control, live, session, completed, began, ["resume-training"]);
+    await liveLoop(control, live, session, reader.ready, began, ["resume-training"]);
     control.clearStop();
     control.setPhase("training", session.firstKept ? "Still improving after the first accepted checkpoint" : "Training on this device");
   }
@@ -534,11 +534,12 @@ async function liveLoop(
   control: RunControl<BrowserEngine>,
   live: BrowserFigureGrid,
   held: Session,
-  completed: number,
+  readerReady: boolean,
   began: number,
   accepts: readonly RunDecision[],
 ): Promise<RunDecision> {
   const { engine, input } = held;
+  const completed = held.training.completed();
   const loop = heldLoop(held);
   control.clearDecision();
   let lastRead = performance.now();
@@ -557,12 +558,12 @@ async function liveLoop(
     }
     const started = performance.now();
     if (loop) {
-      const reading = await turnLoop(control, engine, live, loop, LIVE_TICKS_PER_FRAME, input, "final", completed, began, true);
+      const reading = await turnLoop(control, engine, live, loop, LIVE_TICKS_PER_FRAME, input, "final", completed, began, readerReady);
       if (reading) send({ type: "reading", reading });
     } else {
       await showLive(control, live, LIVE_TICKS_PER_FRAME, "final", completed);
     }
-    if (!loop && performance.now() - lastRead >= LIVE_READ_MS) {
+    if (readerReady && !loop && performance.now() - lastRead >= LIVE_READ_MS) {
       const reading = await readIfFinite(engine, live, input, "final", completed, began);
       if (reading) send({ type: "reading", reading });
       else restartLive(control, live);
@@ -583,7 +584,7 @@ async function holdRun(
 ): Promise<never> {
   for (;;) {
     control.setPhase("live", "The automaton keeps running here.");
-    await liveLoop(control, live, session, session.training.completed(), began, ["resume-training"]);
+    await liveLoop(control, live, session, reader.ready, began, ["resume-training"]);
     control.clearStop();
     if (session.training.completed() >= session.training.target()) session.training.extend(RESUME_UPDATES);
     control.setPhase("training", session.firstKept ? "Still improving after the first accepted checkpoint" : "Training on this device");
@@ -691,7 +692,7 @@ async function grow(control: RunControl<BrowserEngine>, command: Extract<GrowCom
       if (afterRun(run, runs, session.firstKept || fired(reading)) !== "retry") break;
       control.setPhase("retry", `Run ${run} did not meet the selection target (selection fraction ${Math.round((reading.winnerFraction ?? 0) * 100)} % at step ${READING_TICK}). `
         + "Restart from the next seed, or keep this automaton.");
-      const choice = await liveLoop(control, live, session, session.training.completed(), began, ["restart", "keep"]);
+      const choice = await liveLoop(control, live, session, reader.ready, began, ["restart", "keep"]);
       if (choice === "keep") break;
       live.restart(LIVE_SEED);
     }

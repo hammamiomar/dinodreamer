@@ -14,6 +14,7 @@ export type RegionGraphEvent = { type: "distances"; id: number; distances: Array
 export class RegionGraph {
   private worker = new Worker(new URL("./region-graph.worker.ts", import.meta.url), { type: "module" });
   private serial = 0;
+  private builtRows: number | null = null;
   private stopped = false;
   private pending = new Map<number, (distances: Float64Array | null) => void>();
 
@@ -26,11 +27,12 @@ export class RegionGraph {
     };
   }
 
-  /** The graph over these codes, the page's first rows; it replaces the previous one. */
-  build(codes: readonly Vec3[]): void {
-    if (this.stopped) return;
-    const xyz = new Float64Array(codes.length * 3);
-    codes.forEach((code, index) => xyz.set(code, 3 * index));
+  /** LookBlock owns one append-only cloud. A new group or picture mounts a new graph. */
+  buildPrefix(codes: readonly Vec3[], rows: number): void {
+    if (this.stopped || this.builtRows === rows) return;
+    this.builtRows = rows;
+    const xyz = new Float64Array(rows * 3);
+    for (let index = 0; index < rows; index++) xyz.set(codes[index], 3 * index);
     this.post({ type: "build", codes: xyz.buffer }, [xyz.buffer]);
   }
 
@@ -83,7 +85,7 @@ export function useRegionDistances(codes: readonly Vec3[], rows: number, seeds: 
       setUnavailable(true);
     }
   }, [started]);
-  useEffect(() => graph?.build(codes.slice(0, rows)), [graph, codes, rows]);
+  useEffect(() => graph?.buildPrefix(codes, rows), [graph, codes, rows]);
   const [result, setResult] = useState<{
     graph: RegionGraph;
     rows: number;
