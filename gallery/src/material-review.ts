@@ -332,17 +332,36 @@ export async function approveMaterial(submissions: Bucket, library: Bucket, id: 
   const metadata = JSON.parse(await (await requiredObject(submissions, pendingMaterialKey(id, "meta.json"))).text()) as MaterialSubmissionMetadata;
   const checked = checkedMaterial(await (await requiredObject(submissions, pendingMaterialKey(id, "material.json"))).text());
   if ("error" in checked) throw new Error(`${id}: ${checked.error}`);
+  const holder = await entryWithMaterialId(submissions, library, checked.file.id);
+  if (holder !== null) throw new Error(`${id}: the ${holder.state} automaton ${holder.id} already has the file id ${checked.file.id}`);
   const entry = await publishMaterial(library, id, checked.file, metadata, now);
   await submissions.delete(PENDING_FILES.map((file) => pendingMaterialKey(id, file)));
   return entry;
+}
+
+/**
+ * The shown or hidden automaton that publishes a file with this own id, or null. A file's own id names
+ * one automaton on the site and on each visitor's device (app/src/storage/materials.ts), so approval
+ * refuses a second file that claims it.
+ */
+async function entryWithMaterialId(submissions: Bucket, library: Bucket, materialId: string): Promise<{ state: "shown" | "hidden"; id: string } | null> {
+  const shown = (await readMaterials(library)).entries.find((entry) => entry.materialId === materialId);
+  if (shown !== undefined) return { state: "shown", id: shown.id };
+  const hidden = (await hiddenMaterials(submissions)).find((entry) => entry.materialId === materialId);
+  return hidden === undefined ? null : { state: "hidden", id: hidden.id };
+}
+
+/** Every hidden material's record, in key order. */
+export async function hiddenMaterials(submissions: Bucket): Promise<HiddenMaterial[]> {
+  const hiddenKeys = (await listKeys(submissions, "hidden/materials/")).sort();
+  return Promise.all(hiddenKeys.map(async (key) => JSON.parse(await (await requiredObject(submissions, key)).text()) as HiddenMaterial));
 }
 
 /** Shown, hidden and pending materials: everything the owner can act on. */
 export async function materialEntries(submissions: Bucket, library: Bucket): Promise<{ pending: MaterialSubmissionMetadata[]; published: MaterialEntry[]; hidden: HiddenMaterial[] }> {
   const pending = await pendingMaterials(submissions);
   const published = (await readMaterials(library)).entries;
-  const hiddenKeys = (await listKeys(submissions, "hidden/materials/")).sort();
-  const hidden = await Promise.all(hiddenKeys.map(async (key) => JSON.parse(await (await requiredObject(submissions, key)).text()) as HiddenMaterial));
+  const hidden = await hiddenMaterials(submissions);
   return { pending, published, hidden };
 }
 

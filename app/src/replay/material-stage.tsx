@@ -372,7 +372,7 @@ export function MaterialStage({ entries, source = PUBLISHED_SOURCE, layout = "pa
 
   const panels = <>
     {panel === "downloads" && material && <div className="stage-panel" role="group" aria-label={WORDS.downloads}>
-      {!instrument && source.keepable(entry) && <KeepMaterial key={entry.id} material={material} />}
+      {!instrument && source.keepable(entry) && <KeepMaterial key={entry.id} material={material} entryId={entry.id} />}
       <MaterialExports material={material} onError={setMessage} />
       <button type="button" className="button" onClick={() => void record()} disabled={recording || replayStatus === "failed"}>{fill(WORDS.video, { seconds: video.seconds })}</button>
       <button type="button" className="link-control" aria-expanded={videoOpen} onClick={() => setVideoOpen(!videoOpen)}>{WORDS.videoSettings}</button>
@@ -438,7 +438,7 @@ export function MaterialStage({ entries, source = PUBLISHED_SOURCE, layout = "pa
           {ownerActions && <div className="stage-owner">{ownerActions}</div>}
           <div className="stage-actions">
             <p className="stage-words">
-              {material && source.keepable(entry) && <><KeepWord key={entry.id} material={material} className="stage-word" /><span aria-hidden="true">·</span></>}
+              {material && source.keepable(entry) && <><KeepWord key={entry.id} material={material} entryId={entry.id} className="stage-word" /><span aria-hidden="true">·</span></>}
               <button type="button" className="stage-word" aria-expanded={panel === "downloads"} onClick={() => togglePanel("downloads")}>{INSTRUMENT_WORDS.export}</button>
               <span aria-hidden="true">·</span>
               <button type="button" className="stage-word" aria-expanded={panel === "options"} onClick={() => togglePanel("options")}>{INSTRUMENT_WORDS.options}</button>

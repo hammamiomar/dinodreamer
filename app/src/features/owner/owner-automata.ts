@@ -23,11 +23,16 @@ export interface OwnerAutomaton extends GalleryAutomaton {
   run: ResearchRun | null;
 }
 
-/** What the owner's view reads: the published index, the hidden records, and the research run index (null before its first publish). */
+/**
+ * What the owner's view reads: the published index, the hidden records, the research run index (null
+ * before its first publish), and the runs an earlier promotion published under a submission's id
+ * (run id to entry id, research-runs.ts promotedRunEntries).
+ */
 export interface OwnerRead {
   shown: readonly MaterialEntry[];
   hidden: readonly MaterialEntry[];
   manifest: ResearchManifest | null;
+  promotions: ReadonlyMap<string, string>;
 }
 
 /** Where the page finds an automaton's still: a published or hidden automaton's poster, or a run's last still. */
@@ -80,12 +85,14 @@ function automatonOfEntry(entry: MaterialEntry, state: OwnerState, pictures: Own
 
 /**
  * The entry that holds a run's rule, among these: the one the run is on the page as (entryIdOfRun), or
- * one whose file is the run's own, which a promotion from the earlier research page published under a
- * submission's id. Null when none does.
+ * the one an earlier promotion published under a submission's id, which `promotions` names after a
+ * rule match. A file's own id (materialId) is its submitter's claim and never links an entry to a run.
+ * Null when none does.
  */
-export function entryOfRun(run: ResearchRun, entries: readonly MaterialEntry[]): MaterialEntry | null {
+export function entryOfRun(run: ResearchRun, entries: readonly MaterialEntry[], promotions: ReadonlyMap<string, string>): MaterialEntry | null {
   const id = entryIdOfRun(run);
-  return entries.find((entry) => entry.id === id) ?? entries.find((entry) => entry.materialId === run.id) ?? null;
+  const promoted = promotions.get(run.id);
+  return entries.find((entry) => entry.id === id) ?? (promoted === undefined ? null : entries.find((entry) => entry.id === promoted) ?? null);
 }
 
 /**
@@ -100,8 +107,8 @@ export function ownerAutomata(read: OwnerRead, pictures: OwnerPictures): { autom
   const taken = new Set<string>();
   let unfiled = 0;
   for (const run of read.manifest?.runs ?? []) {
-    const shown = entryOfRun(run, read.shown);
-    const hidden = shown === null ? entryOfRun(run, read.hidden) : null;
+    const shown = entryOfRun(run, read.shown, read.promotions);
+    const hidden = shown === null ? entryOfRun(run, read.hidden, read.promotions) : null;
     const state: OwnerState = shown !== null ? "shown" : hidden !== null ? "hidden" : "not-shown";
     const automaton = automatonOfRun(run, shown ?? hidden, state, studyDates.get(run.study) ?? "", pictures);
     // Two runs can hold one rule (a rule trained once and exported by two studies): the first is the automaton.

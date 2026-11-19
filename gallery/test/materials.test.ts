@@ -145,6 +145,18 @@ describe("material review", () => {
     expect((await worker.fetch(new Request(`https://app.test/api/materials/${id}/rule.wgsl`), env)).status).toBe(404);
   });
 
+  it("refuses to approve a second file whose own id a shown automaton already has, and publishes nothing", async () => {
+    const { env, submissions, library } = testEnv();
+    const first = (await submitMaterial(env)).body.id!;
+    await approveMaterial(submissions, library, first, new Date());
+    // Another visitor's file: other weights under the first file's own id.
+    const file = JSON.parse(text(quietName));
+    const second = (await submitMaterial(env, { material: JSON.stringify({ ...file, id: JSON.parse(text(firedName)).id }) })).body.id!;
+    await expect(approveMaterial(submissions, library, second, new Date())).rejects.toThrow(`the shown automaton ${first} already has the file id`);
+    expect((await readMaterials(library)).entries.map((entry) => entry.id)).toEqual([first]);
+    expect(library.objects.has(materialKey(second, "material.json"))).toBe(false);
+  });
+
   it("accepts a set method's file from Train, keeps its method, layers and set, and files it in its method's column", async () => {
     const { env, submissions, library } = testEnv();
     const trained = JSON.parse(text(firedName));

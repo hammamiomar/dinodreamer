@@ -22,7 +22,7 @@ import { GroupWall } from "../automata/group-wall";
 import { nameOf } from "../gallery/basis-groups";
 import { fetchPublishedMaterial, materialFileUrl } from "../gallery/material-gallery";
 import type { MaterialEntry } from "../gallery/material-index";
-import { fetchResearchManifest, fetchResearchMaterial, lastStillUrl } from "../research/research-api";
+import { fetchPromotedRunEntries, fetchResearchManifest, fetchResearchMaterial, lastStillUrl } from "../research/research-api";
 import type { ResearchManifest, ResearchRun } from "../research/research-runs";
 import {
   actionsFor, afterChange, ownerAutomata, ownerCounts, requiresConfirmation,
@@ -89,9 +89,15 @@ export function OwnerAutomataPage() {
   useEffect(() => {
     if (manifest === undefined) return;
     let current = true;
-    fetchOwnerMaterials().then(
-      (materials) => {
-        if (current) setPage({ status: "ready", read: { shown: materials.shown, hidden: materials.hidden, manifest }, pending: materials.pending });
+    const read = async () => {
+      const materials = await fetchOwnerMaterials();
+      // Files are read only for an automaton whose own id claims a run that has no entry of its own.
+      const promotions = await fetchPromotedRunEntries(manifest?.runs ?? [], [...materials.shown, ...materials.hidden]);
+      return { materials, promotions };
+    };
+    read().then(
+      ({ materials, promotions }) => {
+        if (current) setPage({ status: "ready", read: { shown: materials.shown, hidden: materials.hidden, manifest, promotions }, pending: materials.pending });
       },
       (error: unknown) => { if (current) setPage({ status: "failed", message: error instanceof Error ? error.message : String(error) }); },
     );
