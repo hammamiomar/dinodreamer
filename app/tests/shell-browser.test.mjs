@@ -110,8 +110,9 @@ for (const reason of ["no WebGPU", "reduced motion", "loading"]) {
   test(`Home disables regrowing while it shows a still for ${reason}`, () => inPage(async (page) => {
     if (reason === "no WebGPU") await page.addInitScript(() => { delete Navigator.prototype.gpu; });
     if (reason === "reduced motion") await page.emulateMedia({ reducedMotion: "reduce" });
-    const entries = [1, 2].map((block) => ({
-      id: `block-${block}`, title: "Test automaton", credit: "", publishedAt: "2026-10-29", materialId: `m${block}`,
+    // The entrance shows only the essay's automata (home-material.ts, ENTRANCE_AUTOMATA), so the index offers two of them.
+    const entries = [["2088-guided-all-noise-seed-0", 2088], ["12240-plain-all-noise-seed-0", 12240]].map(([id, block]) => ({
+      id, title: "Test automaton", credit: "", publishedAt: "2026-10-29", materialId: id,
       block, recipe: "test", band: "strongest", strength: 2, winnerFraction: 1, fired: true,
       side: 128, seed: 1, tick: 600, engine: "e", trainerCommit: "t", layout: "figure-16-96-torus-v1",
       start: "noise", pixelsPerCell: 1, featured: true,
