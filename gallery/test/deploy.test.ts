@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
-import { publishedEngineExists, checkQualifiedEngine, previewUrl } from "../deploy.ts";
+import { publishedEngineExists, checkQualifiedEngine, previewUrl, workersSubdomain } from "../deploy.ts";
 
 describe("release engine qualification", () => {
   const qualified = createHash("sha256").update("qualified runtime").digest("hex");
@@ -37,4 +37,10 @@ it("reads the alias from Wrangler's structured upload output", () => {
   ].map(record => JSON.stringify(record)).join("\n");
   expect(previewUrl(output)).toBe("https://pr-1-worker.workers.dev");
   expect(() => previewUrl('{"type":"version-upload"}')).toThrow("preview alias URL");
+});
+
+it("finds the account's workers.dev subdomain in a preview address, so that GitHub can mask it", () => {
+  expect(workersSubdomain("https://pr-7-dinodreamer-public.example-account.workers.dev")).toBe("example-account");
+  expect(workersSubdomain("https://0123abcd-dinodreamer-public.example-account.workers.dev/train")).toBe("example-account");
+  expect(() => workersSubdomain("https://dinodreamer.computervision.vision")).toThrow("Not a workers.dev address");
 });
