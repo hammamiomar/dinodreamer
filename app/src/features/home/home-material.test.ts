@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { FIGURE_LAYOUT, FIGURE_PYRAMID_LAYOUT } from "../../materials/material-file";
 import type { MaterialEntry } from "../gallery/material-index";
-import { kindWords, nextSeed, REGROW_AT_TICK, strokeOnTorus, tiledCanvas } from "./home-material";
+import { ENTRANCE_AUTOMATA, entrancePool, kindWords, shuffled, nextSeed, REGROW_AT_TICK, strokeOnTorus, tiledCanvas } from "./home-material";
 
 function entry(changes: Partial<MaterialEntry>): MaterialEntry {
   return {
@@ -16,6 +16,25 @@ describe("the home's material", () => {
     expect(REGROW_AT_TICK).toBe(2000);
     expect(nextSeed(1)).toBe(2);
     expect(nextSeed(0xffffffff)).toBe(0);
+  });
+});
+
+describe("the entrance's automata", () => {
+  test("are the essay's opening list in its order, those the index holds, met target or not", () => {
+    const entries = [entry({ id: "b", fired: false }), entry({ id: "a" }), entry({ id: "c" })];
+    expect(entrancePool(entries, ["a", "missing", "b"]).map((shown) => shown.id)).toEqual(["a", "b"]);
+    expect(ENTRANCE_AUTOMATA).toHaveLength(18);
+    expect(new Set(ENTRANCE_AUTOMATA).size).toBe(18);
+  });
+
+  test("are shuffled once per visit: every id once, the order from the random draws", () => {
+    const ids = ["a", "b", "c", "d"];
+    // Random values near 1 pick the last remaining place each time: the order stays.
+    expect(shuffled(ids, () => 0.999)).toEqual(ids);
+    // Near 0, each place from the last down swaps with the first, so the first id ends last.
+    expect(shuffled(ids, () => 0)).toEqual(["b", "c", "d", "a"]);
+    expect([...shuffled(ENTRANCE_AUTOMATA, Math.random)].sort()).toEqual([...ENTRANCE_AUTOMATA].sort());
+    expect(ids).toEqual(["a", "b", "c", "d"]);
   });
 });
 

@@ -113,7 +113,11 @@ for (const width of [390, 1440]) {
       const started = await page.evaluate(() => { document.querySelector(".home-end").scrollIntoView(); return performance.now(); });
       await page.waitForFunction(() => window.recordedQueues[0].ticks.length >= 2);
       const ticks = await page.evaluate(() => window.recordedQueues[0].ticks.slice(0, 2));
-      assert.deepEqual(ticks.map(({ tick, beat }) => ({ tick, beat })), [{ tick: 600, beat: "end" }, { tick: 601, beat: "end" }]);
+      // The home steps by time, 60 ticks a second; a frame counts for at most 100 ms (replay-loop.ts),
+      // so the first update covers 1 to 6 ticks, and the paused time is not made up.
+      assert.deepEqual(ticks.map(({ beat }) => beat), ["end", "end"]);
+      assert.equal(ticks[0].tick, 600);
+      assert.ok(ticks[1].tick > 600 && ticks[1].tick <= 606, JSON.stringify(ticks));
       assert.equal(await field.getAttribute("data-live"), "true");
       assert.match(await field.evaluate((element) => element.style.backgroundImage), /picture-128\.png/);
       await page.evaluate(() => document.querySelector('.home-beat[data-beat="automaton"]').scrollIntoView());
