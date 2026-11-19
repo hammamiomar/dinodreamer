@@ -15,14 +15,12 @@
 
 import { createHash, randomInt } from "node:crypto";
 import { readFileSync, readdirSync, statSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join, relative, resolve } from "node:path";
+import { libraryCdnBaseUrl } from "./review-cli.ts";
 import { RestBucket, wranglerToken } from "./src/rest-bucket.ts";
 import { CACHE_IMMUTABLE, PUBLIC_BUCKET, type Bucket } from "./src/storage.ts";
 
-/** wrangler.jsonc's ASSET_BASE_URL: the public library on the CDN. */
-const LIBRARY_URL = "https://library.computervision.vision";
-// The research publisher's content types (deploy/public/public_objects.py) for the suffixes these folders hold.
+// Content types for file extensions stored in the public library bucket.
 const CONTENT_TYPES: Record<string, string> = {
   ".json": "application/json", ".bin": "application/octet-stream", ".safetensors": "application/octet-stream",
   ".png": "image/png", ".mp4": "video/mp4",
@@ -117,6 +115,7 @@ export async function publish(bucket: Pick<Bucket, "put">, files: LocalFile[], p
  * them when there are fewer): status, bytes, content type and cache header.
  */
 async function verify(files: LocalFile[], prefix: string): Promise<boolean> {
+  const libraryUrl = libraryCdnBaseUrl();
   const byKey = new Map(files.map((file) => [file.key, file]));
   const atRoot = files.filter((file) => !file.key.slice(prefix.length + 1).includes("/"));
   const below = files.filter((file) => !atRoot.includes(file));
@@ -125,7 +124,7 @@ async function verify(files: LocalFile[], prefix: string): Promise<boolean> {
   let failures = 0;
   for (const key of sample) {
     const file = byKey.get(key)!;
-    const response = await fetch(`${LIBRARY_URL}/${key}`, { headers: { "user-agent": "dinodreamer-publish-library-folder" } });
+    const response = await fetch(`${libraryUrl}/${key}`, { headers: { "user-agent": "dinodreamer-publish-library-folder" } });
     const bytes = (await response.arrayBuffer()).byteLength;
     const headers = [response.headers.get("content-type"), response.headers.get("cache-control")];
     const ok = response.status === 200 && bytes === file.size && headers[0] === file.contentType && headers[1] === CACHE_IMMUTABLE;
@@ -151,7 +150,7 @@ async function main(): Promise<void> {
   if (args.includes("--verify")) {
     process.exitCode = (await verify(files, prefix)) ? 0 : 1;
   } else {
-    const bucket = new RestBucket(PUBLIC_BUCKET, () => wranglerToken(dirname(fileURLToPath(import.meta.url))));
+    const bucket = new RestBucket(PUBLIC_BUCKET, () => wranglerToken(import.meta.dirname));
     const { missing, different, present } = plan(files, await storedObjects(bucket, prefix));
     console.log(`The bucket holds ${present} of them already; ${missing.length} to upload; ${different.length} differ`);
     if (different.length) throw new Error(`These objects exist with other bytes; nothing was uploaded: ${different.slice(0, 5).join(", ")}`);
@@ -164,4 +163,4 @@ async function main(): Promise<void> {
   }
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main();
+if (process.argv[1] && resolve(process.argv[1]) === import.meta.filename) await main();

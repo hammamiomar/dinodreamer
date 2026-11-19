@@ -9,6 +9,7 @@ import { withEntry, withoutEntry, EMPTY_INDEX, type GalleryEntry, type GalleryIn
 import {
   CACHE_IMMUTABLE,
   CACHE_INDEX,
+  ConflictError,
   INDEX_KEY,
   SUBMISSION_FILES,
   hiddenKey,
@@ -23,7 +24,7 @@ import {
 import { THUMBNAIL_CONTENT_TYPE, type MakeThumbnail } from "./thumbnail.ts";
 
 function checkedId(id: string): void {
-  if (!isSubmissionId(id)) throw new Error(`"${id}" is not a submission id, such as 20261011-153012-a1b2c3d4`);
+  if (!isSubmissionId(id)) throw new ConflictError(`"${id}" is not a submission id, such as 20261011-153012-a1b2c3d4`);
 }
 
 async function readIndex(library: Bucket): Promise<GalleryIndex> {
@@ -80,7 +81,9 @@ export async function approve(submissions: Bucket, library: Bucket, id: string, 
     await submissions.delete(await listKeys(submissions, `pending/${id}/`));
     return published.entry;
   }
-  const metadata = JSON.parse(await (await requiredObject(submissions, pendingKey(id, "meta.json"))).text()) as SubmissionMetadata;
+  const metaObject = await submissions.get(pendingKey(id, "meta.json"));
+  if (metaObject === null) throw new ConflictError(`no pending submission ${id}`);
+  const metadata = JSON.parse(await metaObject.text()) as SubmissionMetadata;
   const image = await (await requiredObject(submissions, pendingKey(id, "image.png"))).arrayBuffer();
   const recipe = await (await requiredObject(submissions, pendingKey(id, "recipe.json"))).text();
   const thumbnail = await makeThumbnail(image);
@@ -166,7 +169,7 @@ export async function recoverCreation(submissions: Bucket, library: Bucket, id: 
     return { title: entry.title, text: creationFileText(creation) };
   }
   const pending = await submissions.get(pendingKey(id, "meta.json"));
-  if (pending === null) throw new Error(`no pending, published or hidden submission ${id}`);
+  if (pending === null) throw new ConflictError(`no pending, published or hidden submission ${id}`);
   const metadata = JSON.parse(await pending.text()) as SubmissionMetadata;
   const recipe = JSON.parse(await (await requiredObject(submissions, pendingKey(id, "recipe.json"))).text()) as unknown;
   const png = new Uint8Array(await (await requiredObject(submissions, pendingKey(id, "image.png"))).arrayBuffer());
@@ -178,7 +181,7 @@ export async function recoverCreation(submissions: Bucket, library: Bucket, id: 
 export async function reject(submissions: Bucket, id: string): Promise<void> {
   checkedId(id);
   const keys = await listKeys(submissions, `pending/${id}/`);
-  if (keys.length === 0) throw new Error(`no pending submission ${id}`);
+  if (keys.length === 0) throw new ConflictError(`no pending submission ${id}`);
   await submissions.delete(keys);
 }
 
@@ -192,7 +195,7 @@ export async function hide(submissions: Bucket, library: Bucket, id: string, now
   checkedId(id);
   const index = await readIndex(library);
   const entry = index.entries.find((published) => published.id === id);
-  if (entry === undefined) throw new Error(`no published entry ${id}`);
+  if (entry === undefined) throw new ConflictError(`no published entry ${id}`);
   const hidden: HiddenEntry = { ...entry, hiddenAt: now.toISOString() };
   await submissions.put(hiddenKey(id), JSON.stringify(hidden, null, 2), { httpMetadata: { contentType: "application/json" } });
   await writeIndex(library, withoutEntry(index, id));
@@ -206,7 +209,7 @@ export async function hide(submissions: Bucket, library: Bucket, id: string, now
 export async function restore(submissions: Bucket, library: Bucket, id: string): Promise<GalleryEntry> {
   checkedId(id);
   const hidden = await readHidden(submissions, id);
-  if (hidden === null) throw new Error(`no hidden entry ${id}`);
+  if (hidden === null) throw new ConflictError(`no hidden entry ${id}`);
   const { hiddenAt: _hiddenAt, ...entry } = hidden;
   await writeIndex(library, withEntry(await readIndex(library), entry));
   await submissions.delete(hiddenKey(id));
@@ -214,14 +217,12 @@ export async function restore(submissions: Bucket, library: Bucket, id: string):
 }
 
 /**
- * Delete a published or hidden entry for good: its public objects first, then its index
- * entry, then any hidden record. The records go last, so a failed purge is still listed and
- * is finished by running it again. Browsers that loaded the image keep their cached copy.
- * The command asks before it calls this.
+ * Delete a published or hidden entry permanently: remove public objects first, then the index
+ * entry, then any hidden record so an interrupted purge remains listed and can be retried.
  */
 export async function purge(submissions: Bucket, library: Bucket, id: string): Promise<void> {
   const found = await findEntry(submissions, library, id);
-  if (found === null) throw new Error(`no published or hidden entry ${id}`);
+  if (found === null) throw new ConflictError(`no published or hidden entry ${id}`);
   await library.delete(await listKeys(library, `gallery/${id}/`));
   if (found.state === "published") await writeIndex(library, withoutEntry(await readIndex(library), id));
   await submissions.delete(hiddenKey(id));

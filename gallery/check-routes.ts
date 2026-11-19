@@ -3,14 +3,15 @@
 //
 // --software uses SwiftShader for playback and skips training, which is much slower on the CPU.
 //   1. GET /api/materials answers the published index (with --materials, that many entries).
-//   2. /admin and /admin/api/materials are closed to a stranger: the local owner of `wrangler dev`
-//      is admitted (200), production answers with Cloudflare Access's sign-in redirect.
-//   3. Each route loads without a page error, a console error or a failed request, and Explore draws
-//      its block clouds: HTTP 200 alone does not establish that their format can be decoded.
+//   2. /admin, /admin/automata, and /admin/api/materials are closed to a stranger: the local owner
+//      under `wrangler dev` is admitted (redirect from /admin to /admin/automata, 200 on the rest),
+//      while production answers with Cloudflare Access's sign-in redirect.
+//   3. Each route loads without a page error, a console error or a failed request, and Index draws
+//      its response plots: HTTP 200 alone does not establish that their format can be decoded.
 //   4. With automata published: basis group 12002 lists its automata; the home shows a canvas whose
 //      picture changes within two seconds (an automaton growing); the Automata page grows the automaton
 //      of a basis group on its wall, and the group's screen, opened from the wall, runs one on its stage.
-//   5. Without --software: Grow on block 12002 reaches update 40 with the dictionary reader loaded
+//   5. Without --software: Train on basis group 12002 reaches update 40 with the dictionary reader loaded
 //      (32 parts from the library bucket), then stops.
 // A failed check prints FAIL and the run exits 1.
 
@@ -36,11 +37,14 @@ async function checkApi(): Promise<number> {
   const count = Array.isArray(entries) ? entries.length : -1;
   const expected = options.materials === undefined ? null : Number(options.materials);
   check("GET /api/materials answers the index", count >= 0 && (expected === null || count === expected), `HTTP ${response.status}, ${count} entries`);
-  for (const path of ["/admin", "/admin/api/materials"]) {
+  for (const path of ["/admin", "/admin/automata", "/admin/api/materials"]) {
     const answer = await fetch(`${BASE}${path}`, { redirect: "manual" });
     const location = answer.headers.get("location") ?? "";
-    const closed = LOCAL ? answer.status === 200 : answer.status >= 300 && answer.status < 400 && location.includes(".cloudflareaccess.com/");
-    check(`${path} is the owner's only`, closed, `HTTP ${answer.status}${location ? ` to ${new URL(location).host}` : ""}`);
+    const localOk = path === "/admin"
+      ? answer.status === 302 && new URL(location, BASE).pathname === "/admin/automata"
+      : answer.status === 200;
+    const closed = LOCAL ? localOk : answer.status >= 300 && answer.status < 400 && location.includes(".cloudflareaccess.com/");
+    check(`${path} is the owner's only`, closed, `HTTP ${answer.status}${location ? ` to ${new URL(location, BASE).host}` : ""}`);
   }
   return count;
 }
@@ -114,7 +118,7 @@ try {
       const failed = await page.getByText("This response plot could not be loaded.").count();
       const cards = await page.locator(".atlas-cloud-card").count();
       check("the Index draws its response plots", failed === 0 && cards > 0, `${cards} cards, ${failed} response plots not loaded`);
-      await checkCloudPixels(page).catch((error) => check("the Index draws response plot pixels", false, String(error).split("\n")[0]));
+      await checkCloudPixels(page).catch((error: unknown) => check("the Index draws response plot pixels", false, String(error).split("\n")[0]));
     }
     if (route === "/") {
       const adapter = await page.evaluate(async () => {
@@ -141,7 +145,7 @@ try {
     results.push("SKIP automaton playback: no automaton is published yet");
   }
   if (options.software) results.push("SKIP Train: software WebGPU");
-  else await checkGrow(page).catch((error) => check("Train reaches an optimizer update", false, String(error).split("\n")[0]));
+  else await checkGrow(page).catch((error: unknown) => check("Train reaches an optimizer update", false, String(error).split("\n")[0]));
 } finally {
   await browser.close();
 }

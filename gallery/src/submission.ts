@@ -3,12 +3,12 @@
 
 import { validateRecipe, type Recipe } from "../../app/src/recipe.ts";
 import { parseRecipe } from "../../app/src/recipe-parse.ts";
-import { isPng, pendingKey, type Bucket, type SubmissionMetadata } from "./storage.ts";
-
-export { isPng };
 import { submissionLabelProblem } from "../../app/src/features/gallery/submission-label.ts";
+import { isPng, pendingKey, type Bucket, type SubmissionMetadata } from "./storage.ts";
 import { TOKEN_FIELD } from "./turnstile.ts";
 import { MATERIAL_LIMITS, checkedMaterial, materialPoster, type MaterialSubmission } from "./material-review.ts";
+
+export { isPng };
 
 export const SUBMISSION_LIMITS = {
   imageBytes: 2 * 1024 * 1024,
@@ -107,14 +107,9 @@ export async function readForm(request: Request): Promise<{ ok: true; form: Form
   }
 }
 
-export async function readSubmission(request: Request, releaseBlocks: ReleaseBlocks): Promise<SubmissionResult> {
-  const read = await readForm(request);
-  return read.ok ? readCreationForm(read.form, releaseBlocks) : refused(read.status, read.error);
-}
-
 /**
- * A material submission (kind=material): the format-4 file only, never shader source, checked by
- * the app's own loader; the site makes any shader from the weights.
+ * Validate a material submission (`kind=material`) with the app's format-4 loader.
+ * Shader source is never accepted; the app generates shaders from the weights.
  */
 export async function readMaterialForm(form: FormData):
   Promise<{ ok: true; submission: MaterialSubmission; turnstileToken: string | null } | { ok: false; status: number; error: string }> {

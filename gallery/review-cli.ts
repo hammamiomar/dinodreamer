@@ -1,32 +1,29 @@
-// Shared start-up of the owner's commands: the two buckets, opened with wrangler's login,
-// the id argument, the y/N question before a command that cannot be undone, and the one way
-// they print a visitor's text.
+// Shared CLI utilities: R2 bucket connections, library base URL lookup, y/N confirmation,
+// and terminal-safe escaping for visitor text.
 
 import { readFileSync } from "node:fs";
-import { dirname } from "node:path";
 import { createInterface } from "node:readline/promises";
-import { fileURLToPath } from "node:url";
 import { RestBucket, wranglerToken } from "./src/rest-bucket.ts";
 import { PUBLIC_BUCKET, SUBMISSIONS_BUCKET, type Bucket } from "./src/storage.ts";
 import { escapedText } from "../app/src/visitor-text.ts";
 
-/** The public bucket's CDN host, as the app build reads it (app/.env). */
-export function libraryCdnBaseUrl(): string {
-  const env = readFileSync(new URL("../app/.env", import.meta.url), "utf8");
-  const line = env.split("\n").find((setting) => setting.startsWith("ASSET_BASE_URL="));
-  if (line === undefined) throw new Error("app/.env has no ASSET_BASE_URL");
-  return line.slice("ASSET_BASE_URL=".length).trim();
+/** Read the public library CDN origin from app/.env (without a trailing slash). */
+export function libraryCdnBaseUrl(envFile: URL | string = new URL("../app/.env", import.meta.url)): string {
+  const env = readFileSync(envFile, "utf8");
+  const match = env.match(/^ASSET_BASE_URL=(https:\/\/\S+)$/m);
+  if (!match?.[1]) throw new Error("app/.env must name the public HTTPS library in ASSET_BASE_URL");
+  return match[1].replace(/\/$/, "");
 }
 
-/** Cloudflare's two buckets, with wrangler's login, renewed when a long run outlives it (rest-bucket.ts). */
+/** Open the Cloudflare R2 buckets using wrangler's login, renewing tokens if a long run expires. */
 export function openBuckets(): { submissions: RestBucket; library: RestBucket } {
-  const token = () => wranglerToken(dirname(fileURLToPath(import.meta.url)));
+  const token = () => wranglerToken(import.meta.dirname);
   return { submissions: new RestBucket(SUBMISSIONS_BUCKET, token), library: new RestBucket(PUBLIC_BUCKET, token) };
 }
 
 /**
- * The local Worker's two buckets, as `wrangler dev --local --persist-to <dir>` keeps them: the
- * terminal and the local owner page then act on the same objects, and nothing reaches Cloudflare.
+ * Open the local Worker's persisted buckets (`wrangler dev --local --persist-to <dir>`)
+ * so CLI commands and the local owner view operate on the same objects without reaching Cloudflare.
  */
 export async function openLocalBuckets(persistTo: string): Promise<{ submissions: Bucket; library: Bucket; close(): Promise<void> }> {
   const { getPlatformProxy } = await import("wrangler");
@@ -34,16 +31,7 @@ export async function openLocalBuckets(persistTo: string): Promise<{ submissions
   return { submissions: proxy.env.SUBMISSIONS, library: proxy.env.LIBRARY, close: () => proxy.dispose() };
 }
 
-export function idArgument(command: string): string {
-  const id = process.argv[2];
-  if (id === undefined) {
-    console.error(`usage: pnpm run ${command} <submission id>   (list the entries with: pnpm run list)`);
-    process.exit(2);
-  }
-  return id;
-}
-
-/** True only when the owner types y or yes. */
+/** Return true only when the owner types y or yes. */
 export async function confirmed(question: string): Promise<boolean> {
   const terminal = createInterface({ input: process.stdin, output: process.stdout });
   const answer = await terminal.question(`${question} [y/N] `);
@@ -52,9 +40,8 @@ export async function confirmed(question: string): Promise<boolean> {
 }
 
 /**
- * A stored visitor text (title, credit, a file's own id) as the owner's terminal prints it: a control
- * character or line separator shows as its \uXXXX escape and does nothing. The submission boundary
- * refuses them; this keeps an older record or another writer's from acting on the terminal.
+ * Escape control characters and line separators before printing visitor text in the terminal.
+ * Submissions reject unsafe characters at upload time; escaping here protects against older records.
  */
 export function terminalText(text: string): string {
   return escapedText(text);

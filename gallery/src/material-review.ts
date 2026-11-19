@@ -16,7 +16,7 @@ import {
 } from "../../app/src/features/gallery/material-index.ts";
 import { samePlace, type GalleryPlace } from "../../app/src/features/gallery/gallery-place.ts";
 import { MATERIAL_SUBMISSION_LIMITS } from "../../app/src/features/gallery/submission-label.ts";
-import { CACHE_IMMUTABLE, CACHE_INDEX, isPng, listKeys, requiredObject, type Bucket } from "./storage.ts";
+import { CACHE_IMMUTABLE, CACHE_INDEX, ConflictError, isPng, listKeys, requiredObject, sha256Hex, type Bucket } from "./storage.ts";
 import { previewKeys } from "./link-preview.ts";
 
 /** The dictionary of the current release; a material of another dictionary reads other codes. */
@@ -107,7 +107,7 @@ async function writeMaterials(library: Bucket, index: MaterialIndex): Promise<vo
 }
 
 function checkedEntryId(id: string): string {
-  if (!isMaterialEntryId(id)) throw new Error(`"${id}" is not an entry id for an automaton definition`);
+  if (!isMaterialEntryId(id)) throw new ConflictError(`"${id}" is not an entry id for an automaton definition`);
   return id;
 }
 
@@ -124,10 +124,9 @@ export async function publishMaterial(library: Bucket, id: string, given: Figure
   return entry;
 }
 
-/** A revision is complete once both objects are written. The digest covers the PNG embedded in the definition. */
+/** Write both immutable versioned objects. The digest covers the PNG embedded in the definition. */
 async function putMaterialVersion(library: Bucket, id: string, definition: Uint8Array<ArrayBuffer>, poster: Uint8Array): Promise<string> {
-  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", definition));
-  const revision = Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  const revision = await sha256Hex(definition);
   await library.put(versionedMaterialKey(id, revision, "material.json"), definition, {
     httpMetadata: { contentType: "application/json", cacheControl: CACHE_IMMUTABLE },
   });
@@ -196,17 +195,17 @@ export async function publishMaterials(submissions: Bucket, library: Bucket, mat
   return { shown: materials.length - hidden, hidden };
 }
 
-/** What replaceMaterialFiles did, by entry id. */
+/** Summary of entry ids processed by replaceMaterialFiles. */
 export interface ReplacedMaterialFiles {
-  /** Shown automata whose file, poster and index entry were replaced. */
+  /** Shown automata whose file, poster, and index entry were replaced. */
   shown: string[];
-  /** Hidden automata whose file, poster and recovery record were replaced: a later restore shows the new file. */
+  /** Hidden automata whose file, poster, and recovery record were replaced. */
   hidden: string[];
-  /** Ids that are neither shown nor hidden; nothing was written for them. */
+  /** Entry ids that are neither shown nor hidden; left untouched. */
   absent: string[];
 }
 
-/** An entry with a new file: what the file says replaces what the entry copied from the old one; the label, the owner's marks and the place in the grid stay. */
+/** Update file-derived metadata on an entry while preserving its label, owner marks, and gallery place. */
 function entryWithFile<Entry extends MaterialEntry>(entry: Entry, fromFile: MaterialEntry): Entry {
   const { featured, featuredInBlock, gallery } = entry;
   return {
@@ -217,12 +216,10 @@ function entryWithFile<Entry extends MaterialEntry>(entry: Entry, fromFile: Mate
 }
 
 /**
- * Replace the files of automata that are shown or hidden: each one's public file and poster are
- * written again, and its index entry, or its recovery record, takes what the new file says, the
- * reading's step and values among it, and keeps its label, its publication time, the owner's marks
- * and its place in the grid. It is for a file whose reading was taken again: the caller has checked
- * that nothing else in it changed (research.ts rereadProblem). An id that is neither shown nor hidden
- * is left alone. One index write.
+ * Replace the published file and poster for shown or hidden automata that were re-read.
+ * Updates file-derived readout fields while preserving labels, publication timestamps,
+ * owner marks, and gallery placement in a single index write. Callers must verify via
+ * rereadProblem that only reading and preview fields changed.
  */
 export async function replaceMaterialFiles(submissions: Bucket, library: Bucket, files: ReadonlyMap<string, FigureMaterialFile>): Promise<ReplacedMaterialFiles> {
   let index = await readMaterials(library);
@@ -251,9 +248,8 @@ export async function replaceMaterialFiles(submissions: Bucket, library: Bucket,
 }
 
 /**
- * Give shown entries their place in their basis group's grid, in one index write; none when every
- * place is already as asked. An id the index does not list is left alone: a hidden automaton keeps
- * the record it was hidden with. The answer is the number of entries that changed.
+ * Assign gallery grid places to shown entries in one index write.
+ * Skips ids not in the index and returns the count of updated entries.
  */
 export async function setGalleryPlaces(library: Bucket, places: ReadonlyMap<string, GalleryPlace>): Promise<number> {
   const index = await readMaterials(library);
@@ -269,11 +265,9 @@ export async function setGalleryPlaces(library: Bucket, places: ReadonlyMap<stri
 }
 
 /**
- * One exclusive mark among the shown automata of a basis group: `marked` says whether an entry
- * carries it, `among` which entries of the group it is exclusive among, and `mark` writes it. The
- * entry of `id` takes the mark and every other entry among them loses it, in one index write; none
- * when the marks are already so. The answer is the entries that changed, the newly marked one first.
- * A hidden automaton cannot take a mark: it is shown first.
+ * Apply an exclusive boolean mark to one shown automaton within its basis group scope.
+ * Clears the mark from matching peers in a single index write and returns all modified entries,
+ * with the chosen entry first. Rejects hidden or unknown automata.
  */
 async function markOne(
   submissions: Bucket, library: Bucket, id: string,
@@ -284,7 +278,7 @@ async function markOne(
   const chosen = index.entries.find((entry) => entry.id === id);
   if (chosen === undefined) {
     const hidden = await submissions.get(hiddenMaterialKey(id));
-    throw new Error(hidden === null ? `no published automaton ${id}` : `${id} is hidden: show it first`);
+    throw new ConflictError(hidden === null ? `no published automaton ${id}` : `${id} is hidden: show it first`);
   }
   const changed: MaterialEntry[] = [];
   const entries = index.entries.map((entry) => {
@@ -300,10 +294,7 @@ async function markOne(
   return changed;
 }
 
-/**
- * Make a shown automaton the picture of its cell on the Automata page: of the group's automata that
- * share its start and method, it alone carries the mark.
- */
+/** Mark one shown automaton as the representative for its start-and-method cell in its basis group. */
 export function setCellPicture(submissions: Bucket, library: Bucket, id: string): Promise<MaterialEntry[]> {
   return markOne(submissions, library, id, {
     marked: (entry) => entry.cellPicture === true,
@@ -312,11 +303,7 @@ export function setCellPicture(submissions: Bucket, library: Bucket, id: string)
   });
 }
 
-/**
- * Make a shown automaton the picture of its basis group, on the wall and on the stage before a
- * visitor chooses: of the group's automata, it alone is featured within the group. The site's
- * featured mark is another matter and is left as it is.
- */
+/** Mark one shown automaton as the representative for its basis group without altering the site featured mark. */
 export function setGroupPicture(submissions: Bucket, library: Bucket, id: string): Promise<MaterialEntry[]> {
   return markOne(submissions, library, id, {
     marked: (entry) => entry.featuredInBlock === true,
@@ -325,7 +312,7 @@ export function setGroupPicture(submissions: Bucket, library: Bucket, id: string
   });
 }
 
-/** Pending material submissions, oldest first. Canvas submissions are review.ts's. */
+/** List pending material submissions oldest first. Canvas submissions are handled by review.ts. */
 export async function pendingMaterials(submissions: Bucket): Promise<MaterialSubmissionMetadata[]> {
   const keys = await listKeys(submissions, "pending/");
   const ids = keys.filter((key) => key.endsWith("/meta.json")).map((key) => key.split("/")[1] ?? "").sort();
@@ -334,9 +321,8 @@ export async function pendingMaterials(submissions: Bucket): Promise<MaterialSub
 }
 
 /**
- * Approve one pending material: the stored file is checked again with the app's loader, then
- * published, then the pending objects are deleted. The entry's readouts come from the file.
- * When the entry is already shown or hidden, only the pending copy's cleanup is left.
+ * Approve one pending material: revalidate the stored file, publish it, then delete pending objects.
+ * When the entry is already published or hidden, finish pending cleanup and return the existing entry.
  */
 export async function approveMaterial(submissions: Bucket, library: Bucket, id: string, now: Date): Promise<MaterialEntry> {
   const found = await findMaterial(submissions, library, id);
@@ -344,20 +330,22 @@ export async function approveMaterial(submissions: Bucket, library: Bucket, id: 
     await submissions.delete(await listKeys(submissions, `pending/${id}/`));
     return found.entry;
   }
-  const metadata = JSON.parse(await (await requiredObject(submissions, pendingMaterialKey(id, "meta.json"))).text()) as MaterialSubmissionMetadata;
+  const metaObject = await submissions.get(pendingMaterialKey(id, "meta.json"));
+  if (metaObject === null) throw new ConflictError(`no pending automaton ${id}`);
+  const metadata = JSON.parse(await metaObject.text()) as MaterialSubmissionMetadata;
   const checked = checkedMaterial(await (await requiredObject(submissions, pendingMaterialKey(id, "material.json"))).text());
-  if ("error" in checked) throw new Error(`${id}: ${checked.error}`);
+  if ("error" in checked) throw new ConflictError(`${id}: ${checked.error}`);
   const holder = await entryWithMaterialId(submissions, library, checked.file.id);
-  if (holder !== null) throw new Error(`${id}: the ${holder.state} automaton ${holder.id} already has the file id ${checked.file.id}`);
+  if (holder !== null) throw new ConflictError(`${id}: the ${holder.state} automaton ${holder.id} already has the file id ${checked.file.id}`);
   const entry = await publishMaterial(library, id, checked.file, metadata, now);
   await submissions.delete(PENDING_FILES.map((file) => pendingMaterialKey(id, file)));
   return entry;
 }
 
 /**
- * The shown or hidden automaton that publishes a file with this own id, or null. A file's own id names
- * one automaton on the site and on each visitor's device (app/src/storage/materials.ts), so approval
- * refuses a second file that claims it.
+ * Find any shown or hidden automaton that already uses this file id.
+ * File ids are unique across the site and local storage (app/src/storage/materials.ts),
+ * so approval rejects duplicates.
  */
 async function entryWithMaterialId(submissions: Bucket, library: Bucket, materialId: string): Promise<{ state: "shown" | "hidden"; id: string } | null> {
   const shown = (await readMaterials(library)).entries.find((entry) => entry.materialId === materialId);
@@ -366,7 +354,7 @@ async function entryWithMaterialId(submissions: Bucket, library: Bucket, materia
   return hidden === undefined ? null : { state: "hidden", id: hidden.id };
 }
 
-/** Every hidden material's record, in key order. */
+/** List every hidden material record in key order. */
 export async function hiddenMaterials(submissions: Bucket): Promise<HiddenMaterial[]> {
   const hiddenKeys = (await listKeys(submissions, "hidden/materials/")).sort();
   return Promise.all(hiddenKeys.map(async (key) => JSON.parse(await (await requiredObject(submissions, key)).text()) as HiddenMaterial));
@@ -446,7 +434,7 @@ export async function hideMaterial(submissions: Bucket, library: Bucket, id: str
   checkedEntryId(id);
   const index = await readMaterials(library);
   const entry = index.entries.find((shown) => shown.id === id);
-  if (entry === undefined) throw new Error(`no published automaton definition ${id}`);
+  if (entry === undefined) throw new ConflictError(`no published automaton definition ${id}`);
   const hidden: HiddenMaterial = { ...entry, hiddenAt: now.toISOString() };
   await submissions.put(hiddenMaterialKey(id), JSON.stringify(hidden, null, 2), { httpMetadata: { contentType: "application/json" } });
   await writeMaterials(library, withoutMaterialEntry(index, id));
@@ -457,7 +445,7 @@ export async function hideMaterial(submissions: Bucket, library: Bucket, id: str
 export async function restoreMaterial(submissions: Bucket, library: Bucket, id: string): Promise<MaterialEntry> {
   checkedEntryId(id);
   const stored = await submissions.get(hiddenMaterialKey(id));
-  if (stored === null) throw new Error(`no hidden automaton definition ${id}`);
+  if (stored === null) throw new ConflictError(`no hidden automaton definition ${id}`);
   const { hiddenAt: _hiddenAt, ...entry } = JSON.parse(await stored.text()) as HiddenMaterial;
   await writeMaterials(library, withMaterialEntry(await readMaterials(library), entry));
   await submissions.delete(hiddenMaterialKey(id));
@@ -465,9 +453,9 @@ export async function restoreMaterial(submissions: Bucket, library: Bucket, id: 
 }
 
 /**
- * Mark a shown material featured, or clear the mark: the home picks among the
- * featured ones, and the Playground lists them first. One index write; none when the mark is already
- * as asked. A hidden material keeps its mark in its record and cannot change it until it is shown.
+ * Mark a shown automaton as featured, or clear the mark. The Home page picks from featured
+ * automata, and the Automata page highlights them. Skips writing when the mark is unchanged.
+ * A hidden automaton keeps its mark in its record and cannot change it until shown.
  */
 export async function setMaterialFeatured(submissions: Bucket, library: Bucket, id: string, featured: boolean): Promise<MaterialEntry> {
   checkedEntryId(id);
@@ -475,7 +463,7 @@ export async function setMaterialFeatured(submissions: Bucket, library: Bucket, 
   const entry = index.entries.find((shown) => shown.id === id);
   if (entry === undefined) {
     const hidden = await submissions.get(hiddenMaterialKey(id));
-    throw new Error(hidden === null ? `no published material ${id}` : `${id} is hidden: show it first`);
+    throw new ConflictError(hidden === null ? `no published material ${id}` : `${id} is hidden: show it first`);
   }
   if ((entry.featured ?? false) === featured) return entry;
   const marked = { ...entry, featured };
@@ -483,30 +471,10 @@ export async function setMaterialFeatured(submissions: Bucket, library: Bucket, 
   return marked;
 }
 
-/**
- * Count the index entries and hidden records without a featured mark,
- * and with `write`, give each featured: false (the index in one write, each hidden record once).
- * An entry that has the mark is never changed, so running it again changes nothing.
- */
-export async function addFeaturedMarks(submissions: Bucket, library: Bucket, write: boolean): Promise<{ entries: number; hidden: number }> {
-  const index = await readMaterials(library);
-  const unmarked = index.entries.filter((entry) => entry.featured === undefined).length;
-  const hiddenKeys = (await listKeys(submissions, "hidden/materials/")).sort();
-  const records = await Promise.all(hiddenKeys.map(async (key) => ({ key, record: JSON.parse(await (await requiredObject(submissions, key)).text()) as HiddenMaterial })));
-  const unmarkedRecords = records.filter(({ record }) => record.featured === undefined);
-  if (write) {
-    if (unmarked) await writeMaterials(library, { entries: index.entries.map((entry) => ({ ...entry, featured: entry.featured ?? false })) });
-    for (const { key, record } of unmarkedRecords) {
-      await submissions.put(key, JSON.stringify({ ...record, featured: false }, null, 2), { httpMetadata: { contentType: "application/json" } });
-    }
-  }
-  return { entries: unmarked, hidden: unmarkedRecords.length };
-}
-
-/** Delete a shown or hidden material for good: public objects first, then the records. */
+/** Delete a shown or hidden material permanently: remove public objects first, then the records. */
 export async function purgeMaterial(submissions: Bucket, library: Bucket, id: string): Promise<void> {
   const found = await findMaterial(submissions, library, id);
-  if (found === null) throw new Error(`no published or hidden automaton definition ${id}`);
+  if (found === null) throw new ConflictError(`no published or hidden automaton definition ${id}`);
   // R2 accepts at most 1,000 keys in one delete. List first so deletion cannot change a subsequent list page.
   const keys = await listKeys(library, `gallery/materials/${id}/`);
   const deleteLimit = 1000;

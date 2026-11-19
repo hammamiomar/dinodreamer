@@ -4,9 +4,6 @@
 Every other setting below is made in the Cloudflare dashboard, and no code deploys it. When you change one
 of these settings, change this page in the same change.
 
-Recorded on 19 November 2026, after the performance audit of that day. The checks are ordinary GET requests
-from outside Cloudflare, made by the orchestrator and the audit.
-
 ## Account
 
 | Setting | Value | Why |
@@ -48,15 +45,14 @@ the rules because a new reading replaces them.
 
 ### Security rules
 
-The zone also has WAF and rate-limiting rules. They are not published here. The owner keeps them with the
-library's bucket notes in the research repository (`deploy/public/README.md`, "Bucket configuration").
+The zone also has WAF and rate-limiting rules managed in the Cloudflare dashboard. They are not published here.
 
 ## R2 bucket `dinodreamer-library`
 
 | Setting | Value |
 | --- | --- |
 | Custom domain | `library.computervision.vision`, minimum TLS 1.2 |
-| CORS | Anonymous `GET` and `HEAD` from any origin. It exposes `ETag`, `Age` and `CF-Cache-Status`. The research repository's `deploy/public/public-cors.json` holds the rule. |
+| CORS | Anonymous `GET` and `HEAD` from any origin. It exposes `ETag`, `Age`, and `CF-Cache-Status`. |
 | `robots.txt` | `library-robots.txt` in this folder. |
 
 Upload `robots.txt` after you change `library-robots.txt`:
@@ -74,7 +70,7 @@ The site's own crawl policy is `app/public/robots.txt`. Static Assets serve it w
 the strongest blocks or the contributions, adds a field to it. The edge keeps the manifest for up to
 2 hours. The app asks for it with `cache: "no-cache"`, so a browser always revalidates it with the edge.
 
-After the research publisher rewrites a manifest, it prints this step. Do it at once:
+After a release manifest is rewritten, purge the edge cache immediately:
 
 1. Open Cloudflare dashboard > computervision.vision > Caching > Configuration > Custom Purge.
 2. Purge by Prefix: `library.computervision.vision/releases/<release>.json`.

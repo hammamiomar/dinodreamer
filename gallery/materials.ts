@@ -6,11 +6,8 @@
 //   hide <id>            take a shown material out of the index; keep its objects
 //   restore <id>         put a hidden material back
 //   purge <id>           delete a shown or hidden material for good (asks y/N)
-//   feature <id>         mark a shown material featured: the home's pool and the Playground's first group
+//   feature <id>         mark a shown material featured for the Home pool and Automata page
 //   unfeature <id>       clear the mark
-//   add-featured [--write]
-//                        count the index entries and hidden records without a
-//                        featured mark; with --write, give each featured: false. Without it a dry run
 //   version-files [--write]
 //                        count shown and hidden records that lack a file revision. With --write, copy their
 //                        existing files to versioned library keys and update the records.
@@ -40,7 +37,7 @@ import { materialCdnPurge } from "./src/cdn-check.ts";
 import { FIGURE_PYRAMID_LAYOUT, readFigureMaterial, type FigureMaterialFile } from "../app/src/materials/material-file.ts";
 import { isMaterialEntryId, materialKey } from "../app/src/features/gallery/material-index.ts";
 import {
-  addFeaturedMarks, approveMaterial, checkedMaterial, findMaterial, hideMaterial, materialEntries, migrateMaterialVersions, PROJECT_CREDIT, publishMaterial, publishMaterials,
+  approveMaterial, checkedMaterial, findMaterial, hideMaterial, materialEntries, migrateMaterialVersions, PROJECT_CREDIT, publishMaterials,
   purgeMaterial, readMaterials, replaceMaterialFiles, restoreMaterial, setMaterialFeatured, type MaterialToPublish,
 } from "./src/material-review.ts";
 import { reject } from "./src/review.ts";
@@ -60,6 +57,40 @@ function projectEntryId(fileId: string): string {
   const id = fileId.replace(/[^a-z0-9-]+/g, "-");
   if (!isMaterialEntryId(id)) throw new Error(`"${fileId}" gives no valid entry id`);
   return id;
+}
+
+/** Publish every *.material.json in a folder in one index write while preserving hidden entries and owner marks. */
+async function seedFolder(submissions: Bucket, library: Bucket, folder: string): Promise<void> {
+  const names = readdirSync(folder).filter((name) => name.endsWith(".material.json")).sort();
+  const current = await materialEntries(submissions, library);
+  const hidden = new Set(current.hidden.map((entry) => entry.id));
+  const shownById = new Map(current.published.map((entry) => [entry.id, entry]));
+  const toPublish: MaterialToPublish[] = [];
+  for (const name of names) {
+    const { file } = readFigureMaterial(JSON.parse(readFileSync(join(folder, name), "utf8")));
+    const id = projectEntryId(file.id);
+    if (hidden.has(id)) continue;
+    const existing = shownById.get(id);
+    toPublish.push({
+      id,
+      file,
+      label: { title: file.name, credit: PROJECT_CREDIT },
+      hidden: false,
+      featured: existing?.featured === true,
+      ...(existing?.featuredInBlock === undefined ? {} : { featuredInBlock: existing.featuredInBlock }),
+      ...(existing?.gallery === undefined ? {} : { gallery: existing.gallery }),
+    });
+  }
+  if (toPublish.length > 0) await publishMaterials(submissions, library, toPublish, new Date());
+  if (names.length <= 10) {
+    const entriesById = new Map((await readMaterials(library)).entries.map((entry) => [entry.id, entry]));
+    for (const item of toPublish) {
+      const entry = entriesById.get(item.id);
+      if (entry) console.log(`  ${entry.id}  block ${entry.block}  ${entry.fired ? "fired" : "did not fire"}  "${terminalText(entry.title)}"`);
+    }
+  }
+  const skipped = names.length - toPublish.length;
+  console.log(`Seeded ${toPublish.length} project materials${skipped > 0 ? `; kept ${skipped} hidden` : ""}`);
 }
 
 /** The local store's shown and hidden materials, each with its checked file, to copy to Cloudflare. */
@@ -115,11 +146,6 @@ try {
   } else if (command === "feature" || command === "unfeature") {
     const entry = await setMaterialFeatured(submissions, library, need("id"), command === "feature");
     console.log(`${entry.id} is ${entry.featured ? "featured" : "not featured"}; /api/materials shows it after its minute's cache`);
-  } else if (command === "add-featured") {
-    const write = args.includes("--write");
-    const missing = await addFeaturedMarks(submissions, library, write);
-    console.log(`Without a featured mark: ${missing.entries} index entries, ${missing.hidden} hidden records`);
-    console.log(write ? "Each now has featured: false." : "Dry run: nothing was written. Add --write to give each featured: false.");
   } else if (command === "version-files") {
     const write = args.includes("--write");
     const { shown, hidden } = await migrateMaterialVersions(submissions, library, write);
@@ -137,20 +163,7 @@ try {
       }
     } else console.log("Nothing deleted");
   } else if (command === "seed") {
-    const folder = need("folder");
-    const names = readdirSync(folder).filter((name) => name.endsWith(".material.json")).sort();
-    const hidden = new Set((await materialEntries(submissions, library)).hidden.map((entry) => entry.id));
-    const now = new Date();
-    let seeded = 0;
-    for (const name of names) {
-      const { file } = readFigureMaterial(JSON.parse(readFileSync(join(folder, name), "utf8")));
-      const id = projectEntryId(file.id);
-      if (hidden.has(id)) continue;
-      const entry = await publishMaterial(library, id, file, { title: file.name, credit: PROJECT_CREDIT }, now);
-      if (names.length <= 10) console.log(`  ${entry.id}  block ${entry.block}  ${entry.fired ? "fired" : "did not fire"}  "${terminalText(entry.title)}"`);
-      seeded++;
-    }
-    console.log(`Seeded ${seeded} project materials${hidden.size ? `; kept ${names.length - seeded} hidden` : ""}`);
+    await seedFolder(submissions, library, need("folder"));
   } else if (command === "reread") {
     const folder = need("folder");
     const write = args.includes("--write");
@@ -200,7 +213,7 @@ try {
     }
   } else {
     console.error("usage: pnpm run materials <list | approve <id> | reject <id> | hide <id> | restore <id> | purge <id> | feature <id> | unfeature <id> | "
-      + "add-featured [--write] | version-files [--write] | reread <folder> [--write] | seed <folder> | seed-production <persist dir> [--production]> [--local <dir>]");
+      + "version-files [--write] | reread <folder> [--write] | seed <folder> | seed-production <persist dir> [--production]> [--local <dir>]");
     process.exitCode = 2;
   }
 } finally {

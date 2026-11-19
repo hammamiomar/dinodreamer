@@ -14,8 +14,8 @@
 //
 // --without-gpu is for a time when a research job holds this Mac's GPU: a second GPU user
 // slows it and can corrupt its results. Chrome runs with the GPU disabled and the app with
-// the fake engine (?engine=fake), which loads no .wasm. Explore's cards with their clouds, the
-// block page and a block panel with its provenance record come first. Then 3 and 4 run on the fake
+// the fake engine (?engine=fake), which loads no .wasm. Index cards with their response plots,
+// the basis group page, and the basis group panel come first. Then 3 and 4 run on the fake
 // engine, which has no download gate: a Step with nothing enabled is refused at once. Run
 // the full check when the GPU is free: only it loads the engine.
 
@@ -104,7 +104,7 @@ async function checkMissingBuildFile(): Promise<void> {
 }
 
 async function stepCounter(page: Page): Promise<string> {
-  return page.locator(".transport-step").innerText();
+  return (await page.locator(".transport-step").textContent())?.trim() ?? "";
 }
 
 /** Steps 3 and 4 on the real engine: the fresh profile has never loaded the model, so Canvas asks first. */
@@ -121,7 +121,7 @@ async function checkCreate(page: Page): Promise<void> {
   await stepWithSmoothness(page);
 }
 
-/** Steps 3 and 4 on the fake engine, which has no download gate (e33ea66): Step works at once. */
+/** Run steps 3 and 4 with the fake engine, which skips the model download gate. */
 async function checkCreateWithFakeEngine(page: Page): Promise<void> {
   await page.goto(`${BASE}/create?engine=fake`, { waitUntil: "domcontentloaded" });
   const step = page.getByRole("button", { name: "Step", exact: true });
@@ -146,7 +146,7 @@ async function stepWithSmoothness(page: Page): Promise<void> {
   log(`one Step with TV smoothness reached step 1 in ${((Date.now() - clicked) / 1000).toFixed(2)} s after the click`);
 }
 
-/** Explore's cards and clouds, the block page and the block panel of PROVENANCE_BLOCK, on the fake engine. */
+/** Verify the Index cards, basis group page, and basis group panel with the fake engine. */
 async function checkLibraryPages(page: Page): Promise<void> {
   // Index cards must decode and draw their block clouds; HTTP 200 alone does not establish that.
   await page.goto(`${BASE}/index?engine=fake`, { waitUntil: "domcontentloaded" });
@@ -161,8 +161,7 @@ async function checkLibraryPages(page: Page): Promise<void> {
   await page.locator("#look-cloud-title").waitFor({ timeout: PAGE_MS });
   log(`basis group ${PROVENANCE_BLOCK}, Inspect: its response plot section`);
 
-  // The panel over the Image editor is the one basis group panel (0d266563: the editor's older block
-  // panel and its provenance bar left), with the group's response plot section.
+  // Verify that the basis group panel opens over the Create page with its response plot section.
   await page.goto(`${BASE}/create/basis/${PROVENANCE_BLOCK}?role=patch&engine=fake`, { waitUntil: "domcontentloaded" });
   await page.getByRole("dialog", { name: `Basis group ${PROVENANCE_BLOCK}`, exact: true }).waitFor({ timeout: PAGE_MS });
   await page.locator("dialog #look-cloud-title").waitFor({ timeout: PAGE_MS });
