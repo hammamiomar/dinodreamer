@@ -130,8 +130,17 @@ export default async function planTests(diff) {
 export function scheduleJobs(plan) {
   const units = plan.jobs.filter((job) => job.kind === "unit");
   const inline = units.length === 1 ? units : [];
-  const matrix = plan.jobs.filter((job) => !inline.includes(job));
-  return { matrix, validation: { jobs: inline, planner: plan.planner, engineNode: plan.engineNode } };
+  const independent = plan.jobs.filter((job) => !inline.includes(job));
+  // Give the planner checks to the shortest independent unit shard, which already has Vitest.
+  const shortest =
+    plan.planner && units.length > 1
+      ? units.reduce((a, b) => (a.milliseconds <= b.milliseconds ? a : b))
+      : null;
+  const matrix = independent.map((job) => (job === shortest ? { ...job, planner: true } : job));
+  return {
+    matrix,
+    validation: { jobs: inline, planner: plan.planner && !shortest, engineNode: plan.engineNode },
+  };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

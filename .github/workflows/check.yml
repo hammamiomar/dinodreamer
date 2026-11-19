@@ -136,6 +136,10 @@ jobs:
           retention-days: 1
 
   cargo:
+    # Keep assertions and source lines while reducing the native cache and numerical test time.
+    env:
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_OPT_LEVEL: 1
     name: Engine tests
     runs-on: ubuntu-24.04
     steps:
@@ -158,6 +162,7 @@ jobs:
         if: steps.scope.outputs.cargo == 'true'
         with:
           workspaces: engine
+          key: native-test-opt1-lines
       - if: steps.scope.outputs.cargo == 'true'
         working-directory: engine
         run: cargo "+$NATIVE_RUST" test --locked --no-default-features --features cpu
@@ -187,6 +192,10 @@ jobs:
           TEST_SHARD: ${{ toJSON(matrix) }}
           CI_RECORD_DURATIONS: ${{ github.event_name == 'push' && format('{0}/test-durations', runner.temp) || '' }}
         run: node ci/run-test-shard.mjs
+
+      - name: Exercise the selection and sharding rules
+        if: matrix.planner
+        run: node --test ci/test-plan.test.mjs
 
       - name: Save main's measured shard durations
         if: github.event_name == 'push'

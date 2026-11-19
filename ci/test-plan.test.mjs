@@ -106,5 +106,11 @@ test("small selections share validation while larger unit shards keep separate r
   assert.deepEqual(scheduleJobs(small).matrix, []);
   const large = await planTests(changed(".github/workflows/check.yml"));
   assert.deepEqual(scheduleJobs(large).validation.jobs, []);
-  assert.deepEqual(scheduleJobs(large).matrix, large.jobs);
+  const scheduled = scheduleJobs(large);
+  assert.deepEqual(
+    scheduled.matrix.map(({ files }) => files),
+    large.jobs.map(({ files }) => files),
+  );
+  assert.equal(scheduled.matrix.filter((job) => job.planner).length, 1);
+  assert.equal(scheduled.validation.planner, false);
 });
