@@ -45,7 +45,9 @@ describe("shared site preview", () => {
     const list = vi.spyOn(fixture.library, "list");
     const env = {
       ...fixture.env,
-      ASSETS: { fetch: async () => new Response(PAGE, { headers: { "content-type": "text/html; charset=utf-8", etag: '"page"' } }) },
+      ASSETS: { fetch: async () => new Response(PAGE, {
+        headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=0, must-revalidate", etag: '"page"' },
+      }) },
     };
     for (const path of ["/", "/index?sort=block&page=7", "/automata", "/train", "/how/", "/canvas", "/picture", "/create", "/gallery", "/saved", "/basis/4009", "/index/basis/4009", "/automata/basis/4009", "/train/basis/4009", "/how/basis/4009"]) {
       const ask = (agent: string) => worker.fetch(new Request(`${ORIGIN}${path}`, { headers: { "user-agent": agent } }), env);
@@ -54,6 +56,7 @@ describe("shared site preview", () => {
       expect(body).toBe(await (await ask("Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X)")).text());
       expect(body).toContain(`${fixture.env.ASSET_BASE_URL}${SITE_PREVIEW.video}`);
       expect(body).toContain(`${ORIGIN}${path.replaceAll("&", "&amp;")}`);
+      expect(messages.headers.get("cache-control")).toBe("public, max-age=0, must-revalidate");
       expect(messages.headers.get("etag")).toBeNull();
     }
     expect(get).not.toHaveBeenCalled();

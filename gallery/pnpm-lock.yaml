@@ -169,6 +169,9 @@ importers:
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5
+      miniflare:
+        specifier: 5.20261019.2-beta
+        version: 5.20261019.2-beta(@types/node@26.6.5)
       playwright-core:
         specifier: ^1.64.1
         version: 1.64.1
