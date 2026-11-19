@@ -94,12 +94,12 @@ export function HomePanel({ beat, progress, prefetch, still, entrance, thread, r
   /** The reader has scrolled: the beats' heavier files load now, before their figures show. */
   prefetch: boolean;
   still: HomeStill;
-  /** The automaton on the entrance: the visit's, from the featured pool, with no picture shown beside it. */
+  /** The automaton on the entrance: the visit's, from the featured pool, with no picture shown beside it; its cells go to the next one an arrow turns to. */
   entrance: Shown | null;
   /** The thread's automaton, basis group 4009's, at the end. */
   thread: Shown | null;
   recordedState: AutomatonState | null;
-  /** How many times the visitor has reset the entrance's automaton: each reset grows it again from noise. */
+  /** How many times the visitor has reset the entrance's automaton: each reset grows it again from its own start. */
   reset: number;
   story: StoryRecord | null;
   cloud: AtlasCloud | null;
@@ -126,7 +126,17 @@ export function HomePanel({ beat, progress, prefetch, still, entrance, thread, r
     <div ref={panel} className="home-panel">
       <div className="home-layer home-layer-live" data-shown={beat === "entrance" || undefined}>
         {entrance && (
-          <HomeMaterial key={`${entrance.entry.id}-${reset}`} entry={entrance.entry} material={beat === "entrance" && !still ? entrance.material : null} posterWhileRunning={false} drawRatio={FIELD_DRAW_RATIO} regrowAtTick={Number.POSITIVE_INFINITY} onNoReplay={onNoReplay} />
+          // An arrow press hands the cells to the next automaton (carryCells); a reset grows the shown one again from its own start.
+          <HomeMaterial
+            key={reset}
+            entry={entrance.entry}
+            material={beat === "entrance" && !still ? entrance.material : null}
+            posterWhileRunning={false}
+            drawRatio={FIELD_DRAW_RATIO}
+            regrowAtTick={Number.POSITIVE_INFINITY}
+            carryCells
+            onNoReplay={onNoReplay}
+          />
         )}
       </div>
       <div className="home-layer home-layer-figure" data-shown={beat === "model" || undefined}>

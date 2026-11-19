@@ -55,6 +55,11 @@
   touch-action: none;
 }
 
+/* A field that carries its cells has two canvases (the relay): only the one that shows the cells is seen. */
+.home-field[data-carry] canvas:not([data-shown]) {
+  visibility: hidden;
+}
+
 /* The poster shows until the replay has something to show (data-live), and again if the replay stops. */
 .home-field:not([data-live]) canvas {
   opacity: 0;
