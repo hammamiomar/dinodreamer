@@ -20,6 +20,7 @@ jobs:
       units: ${{ steps.tests.outputs.units }}
       has-units: ${{ steps.tests.outputs.hasUnits }}
       browsers: ${{ steps.tests.outputs.browsers }}
+      has-browsers: ${{ steps.tests.outputs.hasBrowsers }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -71,7 +72,7 @@ jobs:
         uses: ./.github/actions/web-dependencies
       - name: Exercise the selection and sharding rules
         if: steps.tests.outputs.planner == 'true'
-        run: node --test ci/test-plan.test.mjs
+        run: node --test ci/test-plan.test.mjs ci/require-green-main.test.mjs
       - name: Run a small unit selection here
         if: steps.tests.outputs.inlineUnit != 'null'
         uses: ./.github/actions/test-shard
@@ -192,12 +193,12 @@ jobs:
           shard: ${{ toJSON(matrix) }}
       - name: Exercise the selection and sharding rules
         if: matrix.planner
-        run: node --test ci/test-plan.test.mjs
+        run: node --test ci/test-plan.test.mjs ci/require-green-main.test.mjs
 
   browsers:
     name: browser tests ${{ matrix.shard }}
     needs: [plan, web]
-    if: github.event_name == 'push'
+    if: needs.plan.outputs.has-browsers == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     container: mcr.microsoft.com/playwright:v1.64.1-noble-amd64@sha256:ee15712262f017b8157421b212b12099146645f44b1bc5c0514cbbe6a229b1d0
@@ -247,7 +248,7 @@ jobs:
           for (const [name, job] of Object.entries(jobs)) {
             if (job.result === 'success') continue;
             if (name === 'units' && job.result === 'skipped' && jobs.plan.outputs['has-units'] === 'false') continue;
-            if (name === 'browsers' && job.result === 'skipped' && process.env.EVENT === 'pull_request') continue;
+            if (name === 'browsers' && job.result === 'skipped' && jobs.plan.outputs['has-browsers'] === 'false') continue;
             throw new Error(name + ' ended with ' + job.result);
           }
           JS
