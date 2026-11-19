@@ -125,7 +125,7 @@ describe("material review", () => {
     const invalid = { ...file, preview: "data:image/png;base64,iVBORw0KGgo=" };
     await expect(publishMaterial(library, file.id, invalid, label, new Date())).rejects.toThrow();
     expect([...library.objects.keys()]).toEqual([...before.keys()]);
-    for (const [key, stored] of before) expect(library.objects.get(key) === stored, key).toBe(true);
+    for (const [key, stored] of before) expect(library.objects.get(key), key).toBe(stored);
   });
 
   it("approves into published/materials.json with readouts taken from the file", async () => {

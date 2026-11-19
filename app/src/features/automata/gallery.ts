@@ -242,7 +242,8 @@ export function automatonToPlay<T extends GalleryAutomaton>(group: GalleryGroup<
 /** The try `steps` places after this one in its cell (negative: before), held to the cell's ends. */
 export function tryAfter<T extends GalleryAutomaton>(cell: GalleryCell<T>, id: string, steps: number): T {
   const at = cell.tries.findIndex((automaton) => automaton.id === id);
-  const next = Math.min(cell.tries.length - 1, Math.max(0, (at < 0 ? 0 : at) + steps));
+  const current = Math.max(0, at);
+  const next = Math.min(cell.tries.length - 1, Math.max(0, current + steps));
   return cell.tries[next]!;
 }
 

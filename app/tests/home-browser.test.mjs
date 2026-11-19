@@ -23,71 +23,44 @@ async function home(browser, options, run) {
   } finally { await page.close(); }
 }
 
-async function finishTravel(page) {
-  // The pager owns a 640 ms animation, even after the rounded scroll offset settles.
-  await page.waitForTimeout(680);
-}
-
-async function positions(page) {
-  return page.evaluate(() => ({ y: window.scrollY, beat: document.querySelector(".home").dataset.beat }));
-}
-
 for (const reducedMotion of ["no-preference", "reduce"]) {
-  test(`a continuous wheel stream advances one section with ${reducedMotion} motion`, () => home(desktop, {
+  test(`a short wheel gesture scrolls part of the entrance with ${reducedMotion} motion`, () => home(desktop, {
     viewport: { width: 1440, height: 900 }, reducedMotion,
   }, async (page) => {
-    const stops = await page.locator(".home-beat").evaluateAll((sections) => sections.map((section) => section.getBoundingClientRect().top + window.scrollY));
+    const model = page.locator('.home-beat[data-beat="model"]');
+    const top = await model.evaluate(node => node.getBoundingClientRect().top + scrollY);
     await page.mouse.move(350, 600);
-    const events = [];
-    await new Promise((resolve) => {
-      const interval = setInterval(() => {
-        events.push(page.mouse.wheel(0, 40));
-        if (events.length === 100) {
-          clearInterval(interval);
-          resolve();
-        }
-      }, 20);
-    });
-    await Promise.all(events);
-    await page.waitForFunction((top) => Math.abs(window.scrollY - top) < 2, stops[0], { timeout: 2000 });
-    await finishTravel(page);
-    assert.equal((await positions(page)).beat, "model");
+    await page.mouse.wheel(0, 120);
+    await page.waitForFunction(() => scrollY > 0);
+    assert.ok(await page.evaluate(() => scrollY) < top / 2);
+    assert.equal(await page.locator(".home").getAttribute("data-beat"), "entrance");
     await page.keyboard.press("PageDown");
-    await page.waitForFunction((top) => Math.abs(window.scrollY - top) < 2, stops[1], { timeout: 2000 });
-    await page.waitForFunction(() => document.querySelector(".home")?.dataset.beat === "basis");
+    await page.waitForFunction(() => document.querySelector(".home").dataset.beat === "model");
   }));
 }
 
 for (const width of [320, 360, 390, 430]) {
   for (const reducedMotion of ["no-preference", "reduce"]) {
-    test(`iPhone WebKit advances through readable sections at ${width}px with ${reducedMotion} motion`, () => home(mobile, {
+    test(`iPhone WebKit follows native scroll at ${width}px with ${reducedMotion} motion`, () => home(mobile, {
       ...devices["iPhone 13"], viewport: { width, height: 844 }, reducedMotion,
     }, async (page) => {
       await page.locator(".home-down").tap();
-      await page.waitForFunction(() => document.querySelector(".home")?.dataset.beat === "model");
-      // Wait for the bounded section animation to finish before the next gesture.
+      const model = page.locator('.home-beat[data-beat="model"]');
       await page.waitForFunction(() => {
-        const top = document.querySelector('.home-beat[data-beat="model"]').getBoundingClientRect().top;
-        return Math.abs(top - innerHeight * 0.6) < 2;
+        const section = document.querySelector('.home-beat[data-beat="model"]');
+        const aligned = Math.abs(section.getBoundingClientRect().top - innerHeight * 0.6) < 2;
+        return aligned && document.querySelector(".home").dataset.beat === "model";
       });
-      await finishTravel(page);
-      let before = await positions(page);
-      for (let gesture = 0; gesture < 8 && before.beat !== "end"; gesture++) {
-        // Playwright exposes taps, but no native WebKit swipe. Send the same
-        // touch events the pager receives, then observe its actual document scroll.
-        await page.evaluate(() => {
-          const target = document.querySelector(".home-words");
-          for (const [type, y] of [["touchstart", 700], ["touchmove", 500], ["touchend", null]]) {
-            const event = new Event(type, { bubbles: true, cancelable: true });
-            Object.defineProperty(event, "touches", { value: y === null ? [] : [{ clientX: 200, clientY: y }] });
-            target.dispatchEvent(event);
-          }
-        });
-        await page.waitForFunction((previous) => window.scrollY - previous > 50, before.y, { timeout: 2000 });
-        await finishTravel(page);
-        before = await positions(page);
+      const initialY = await model.evaluate(() => scrollY);
+      // WebKit's automation interface has no native swipe. Exercise incremental document
+      // scrolling and verify the page follows it through the remaining reading positions.
+      await page.evaluate(() => scrollBy({top: 24, behavior: "instant"}));
+      assert.ok(Math.abs(await page.evaluate(() => scrollY) - initialY - 24) <= 2);
+      for (const beat of ["basis", "automaton", "end"]) {
+        const section = beat === "end" ? ".home-end" : `.home-beat[data-beat="${beat}"]`;
+        await page.locator(section).evaluate(node => node.scrollIntoView({behavior: "instant"}));
+        await page.waitForFunction(expected => document.querySelector(".home").dataset.beat === expected, beat);
       }
-      assert.equal(before.beat, "end");
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     }));
   }

@@ -16,7 +16,7 @@ export interface CreationFile {
   createdAt: string;
   updatedAt: string;
   /** The recipe as stored; the importer parses it (an unreadable record's export carries it as it was). */
-  recipe: Recipe | unknown;
+  recipe: unknown;
   /** The creation's image, as a data: URL, so one file restores the whole creation. */
   previewPng: string;
   /** Present when the image was made by an earlier objective (storage/creations.ts). */
@@ -43,7 +43,7 @@ export async function encodeCreationFile(creation: {
   title: string;
   createdAt: string;
   updatedAt: string;
-  recipe: Recipe | unknown;
+  recipe: unknown;
   previewPng: Blob;
   upgradedFrom?: UpgradedFrom;
   engine?: string;

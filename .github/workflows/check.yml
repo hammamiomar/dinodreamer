@@ -2,6 +2,7 @@ name: Check
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
 
@@ -13,83 +14,40 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check:
+  plan:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    outputs:
+      units: ${{ steps.tests.outputs.units }}
+      has-units: ${{ steps.tests.outputs.hasUnits }}
+      browsers: ${{ steps.tests.outputs.browsers }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Determine whether the planner needs the import graph
+        id: scope
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: node ci/test-scope.mjs "${BASE:---all}"
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: steps.scope.outputs.full == 'true'
         with:
           node-version: '24'
-      - uses: pnpm/action-setup@d9184bf108216479bc5a137cc391f4d7b14c870b # v6.1.0
+      - uses: ./.github/actions/web-dependencies
+        if: steps.scope.outputs.full != 'true'
+      - name: Restore durations recorded on main
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          package_json_file: app/package.json
-      - name: Read the engine build version
-        id: engine-version
-        run: |
-          echo "wasm-pack=$(node -p 'require("./engine/qualified-engine.json").wasmPackVersion')" >> "$GITHUB_OUTPUT"
-      - name: Restore the tested engine package
-        id: engine-package
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: engine/pkg/
-          # Hash the clean checkout, including tests, fixtures, Cargo config and vendor code.
-          # Qualification metadata does not change the build; wasm-pack's version does.
-          key: >-
-            engine-package-ubuntu-24.04-${{ runner.arch }}-v1-${{ steps.engine-version.outputs.wasm-pack }}-${{
-              hashFiles('engine/**', '!engine/qualified-engine.json', '.github/workflows/check.yml')
-            }}
-      - name: Install the repository Rust toolchain
-        if: steps.engine-package.outputs.cache-hit != 'true'
-        working-directory: engine
-        run: rustup show active-toolchain
-      - if: steps.engine-package.outputs.cache-hit != 'true'
-        uses: Swatinem/rust-cache@2201cc584a476d1b508be977bbe4b7d1c7a52e9c # v2.9.3
-        with:
-          workspaces: engine
-      - name: Install pinned wasm-pack
-        if: steps.engine-package.outputs.cache-hit != 'true'
+          path: ${{ runner.temp }}/test-durations
+          key: test-durations-v1-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: test-durations-v1-${{ runner.os }}-
+      - name: Select affected tests and balance their durations
+        id: tests
         env:
-          WASM_PACK_VERSION: ${{ steps.engine-version.outputs.wasm-pack }}
-        run: cargo install wasm-pack --version "$WASM_PACK_VERSION" --locked
-      - name: Build the engine package
-        if: steps.engine-package.outputs.cache-hit != 'true'
-        working-directory: engine
-        run: wasm-pack build --target web --release -- --locked
-      - name: Record the engine package checksum
-        working-directory: engine
-        run: |
-          sha256sum pkg/dinodreamer_engine_bg.wasm | tee pkg/runtime.sha256
-          cat pkg/runtime.sha256 >> "$GITHUB_STEP_SUMMARY"
-      - name: Save the engine for GPU qualification
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: engine-package
-          path: engine/pkg/
-          retention-days: 14
-      - name: Install dependencies
-        run: |
-          pnpm --dir app install --frozen-lockfile
-          pnpm --dir gallery install --frozen-lockfile
-      - name: Check the app
-        working-directory: app
-        run: |
-          pnpm check
-          pnpm test --maxWorkers=2
-          pnpm build
-      - name: Check the gallery
-        working-directory: gallery
-        run: |
-          pnpm check
-          pnpm test --maxWorkers=2
-      - name: Check the engine
-        if: steps.engine-package.outputs.cache-hit != 'true'
-        working-directory: engine
-        run: |
-          cargo test --locked --no-default-features --features cpu
+          BASE: ${{ github.event.pull_request.base.sha }}
+          CI_PREVIOUS_DURATIONS: ${{ runner.temp }}/test-durations
+        run: node ci/test-plan.mjs "${BASE:---all}"
       - name: Scan added commit lines for credentials
         env:
           BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
@@ -108,10 +66,196 @@ jobs:
           if (large.length) throw new Error(`Tracked files must be below 1,000,000 bytes: ${large.join(', ')}`);
           JS
 
+      - name: Install dependencies for tests that stay on the planner
+        if: steps.scope.outputs.full == 'true' && (steps.tests.outputs.inlineUnit != 'null' || steps.tests.outputs.planner == 'true')
+        uses: ./.github/actions/web-dependencies
+      - name: Exercise the selection and sharding rules
+        if: steps.tests.outputs.planner == 'true'
+        run: node --test ci/test-plan.test.mjs
+      - name: Run a small unit selection here
+        if: steps.tests.outputs.inlineUnit != 'null'
+        uses: ./.github/actions/test-shard
+        with:
+          shard: ${{ steps.tests.outputs.inlineUnit }}
+
+  web:
+    name: Web validation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Read the engine build version
+        id: engine-version
+        run: |
+          echo "wasm-pack=$(node -p 'require("./engine/qualified-engine.json").wasmPackVersion')" >> "$GITHUB_OUTPUT"
+      - name: Restore the engine build
+        id: engine-package
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: engine/pkg/
+          # The compile cache is independent of test results. Cargo runs on every main check
+          # and on relevant PRs, including a cache hit.
+          key: >-
+            engine-build-ubuntu-24.04-${{ runner.arch }}-v1-${{ steps.engine-version.outputs.wasm-pack }}-${{
+              hashFiles('engine/**', '!engine/qualified-engine.json', '!engine/tests/**', '!engine/benchmarks/**',
+                        '!engine/tools/**', '!engine/examples/**', '!engine/*.md', 'ci/build-engine.sh')
+            }}
+      - name: Install the repository Rust toolchain
+        if: steps.engine-package.outputs.cache-hit != 'true'
+        working-directory: engine
+        run: rustup show active-toolchain
+      - if: steps.engine-package.outputs.cache-hit != 'true'
+        uses: Swatinem/rust-cache@2201cc584a476d1b508be977bbe4b7d1c7a52e9c # v2.9.3
+        with:
+          workspaces: engine
+      - name: Build the pinned engine
+        if: steps.engine-package.outputs.cache-hit != 'true'
+        run: bash ci/build-engine.sh
+      - name: Record the engine package checksum
+        working-directory: engine
+        run: |
+          sha256sum pkg/dinodreamer_engine_bg.wasm | tee pkg/runtime.sha256
+          cat pkg/runtime.sha256 >> "$GITHUB_STEP_SUMMARY"
+      - name: Save the engine for GPU qualification
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: engine-package
+          path: engine/pkg/
+          retention-days: 14
+      - name: Select engine Node tests
+        id: scope
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: node ci/test-scope.mjs "${BASE:---all}"
+      - uses: ./.github/actions/web-dependencies
+        with:
+          lint-tools: 'true'
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.4
+      - name: Lint, type-check and bundle against the generated engine
+        env:
+          ENGINE_NODE: ${{ steps.scope.outputs.engineNode }}
+        run: node ci/check-web.mjs
+
+  cargo:
+    # Keep assertions and source lines while reducing the native cache and numerical test time.
+    env:
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_OPT_LEVEL: 1
+    name: Engine tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Select engine suites
+        id: scope
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: node ci/test-scope.mjs "${BASE:---all}"
+      - name: Install the pinned native Rust toolchain
+        if: steps.scope.outputs.cargo == 'true'
+        run: |
+          channel=$(python3 -c 'import tomllib; print(tomllib.load(open("engine/rust-toolchain.toml", "rb"))["toolchain"]["channel"])')
+          rustup toolchain install "$channel" --profile minimal --no-self-update
+          echo "NATIVE_RUST=$channel" >> "$GITHUB_ENV"
+      - uses: Swatinem/rust-cache@2201cc584a476d1b508be977bbe4b7d1c7a52e9c # v2.9.3
+        if: steps.scope.outputs.cargo == 'true'
+        with:
+          workspaces: engine
+          key: native-test-opt1-lines
+      - if: steps.scope.outputs.cargo == 'true'
+        working-directory: engine
+        run: cargo "+$NATIVE_RUST" test --locked --no-default-features --features cpu
+
+  units:
+    name: unit tests ${{ matrix.shard }}
+    needs: plan
+    if: needs.plan.outputs.has-units == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.units) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/web-dependencies
+      - uses: ./.github/actions/test-shard
+        with:
+          shard: ${{ toJSON(matrix) }}
+      - name: Exercise the selection and sharding rules
+        if: matrix.planner
+        run: node --test ci/test-plan.test.mjs
+
+  browsers:
+    name: browser tests ${{ matrix.shard }}
+    needs: [plan, web]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    container: mcr.microsoft.com/playwright:v1.64.1-noble-amd64@sha256:ee15712262f017b8157421b212b12099146645f44b1bc5c0514cbbe6a229b1d0
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.browsers) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/web-dependencies
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: engine-package
+          path: engine/pkg/
+      - uses: ./.github/actions/test-shard
+        with:
+          shard: ${{ toJSON(matrix) }}
+
+  durations:
+    needs: check
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: test-durations-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/test-durations
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/test-durations
+          key: test-durations-v1-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+  check:
+    if: always()
+    needs: [plan, web, cargo, units, browsers]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require all scheduled jobs to pass
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          node --input-type=module <<'JS'
+          const jobs = JSON.parse(process.env.RESULTS);
+          for (const [name, job] of Object.entries(jobs)) {
+            if (job.result === 'success') continue;
+            if (name === 'units' && job.result === 'skipped' && jobs.plan.outputs['has-units'] === 'false') continue;
+            if (name === 'browsers' && job.result === 'skipped' && process.env.EVENT === 'pull_request') continue;
+            throw new Error(name + ' ended with ' + job.result);
+          }
+          JS
+
   preview:
     name: Preview (optional)
     needs: check
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name == 'pull_request' && !github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:

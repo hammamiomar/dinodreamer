@@ -12,8 +12,7 @@ describe("release engine qualification", () => {
   it("checks publication with one public HEAD request", async () => {
     const fetcher = vi.fn().mockResolvedValue(new Response(null, { headers: { "content-type": "application/wasm" } }));
     await expect(publishedEngineExists("https://library.example/app/runtime.wasm", fetcher)).resolves.toBe(true);
-    expect(fetcher).toHaveBeenCalledOnce();
-    expect(fetcher).toHaveBeenCalledWith("https://library.example/app/runtime.wasm", {
+    expect(fetcher).toHaveBeenCalledExactlyOnceWith("https://library.example/app/runtime.wasm", {
       method: "HEAD", signal: expect.any(AbortSignal),
     });
   });

@@ -231,7 +231,7 @@ export class Library {
   async strongestPatch(block: number): Promise<{ imageId: number; slot: number } | null> {
     const read = await this.strongestRead(block);
     if (!read || "problem" in read) return null;
-    const index = read.rows.publicPreview.findIndex((flag) => flag === 1);
+    const index = read.rows.publicPreview.indexOf(1);
     return index < 0 ? null : { imageId: read.rows.imageIds[index]!, slot: read.rows.slots[index]! };
   }
 

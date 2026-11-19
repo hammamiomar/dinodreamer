@@ -3,10 +3,15 @@ import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { chromium } from "../../gallery/node_modules/playwright-core/index.mjs";
 
+// Linux needs a software presentation surface as well as a software compute adapter.
+const linux = process.platform === "linux";
 const browser = await chromium.launch({
   headless: true,
-  ...(process.env.SHELL_BROWSER_EXECUTABLE ? { executablePath: process.env.SHELL_BROWSER_EXECUTABLE } : { channel: "chromium-headless-shell" }),
-  args: ["--enable-unsafe-webgpu", "--use-angle=swiftshader"],
+  ...(process.env.SHELL_BROWSER_EXECUTABLE ? { executablePath: process.env.SHELL_BROWSER_EXECUTABLE } : { channel: linux ? "chromium" : "chromium-headless-shell" }),
+  args: [
+    "--enable-unsafe-webgpu", "--use-angle=swiftshader",
+    ...(linux ? ["--use-vulkan=swiftshader", "--enable-features=Vulkan", "--disable-vulkan-surface"] : []),
+  ],
 });
 after(() => browser.close());
 const base = process.env.SHELL_TEST_BASE_URL ?? "http://127.0.0.1:5180";
@@ -72,6 +77,13 @@ for (const width of [390, 1440]) {
     const page = await browser.newPage({ viewport: { width, height: 900 } });
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
+    const diagnostics = [];
+    page.on("console", (message) => {
+      if (["warning", "error"].includes(message.type())) diagnostics.push(message.text());
+    });
+    page.on("response", (response) => {
+      if (response.status() >= 400) diagnostics.push(response.status() + " " + new URL(response.url()).pathname);
+    });
     try {
       await page.addInitScript(() => {
         window.recordedQueues = [];
@@ -112,6 +124,9 @@ for (const width of [390, 1440]) {
       assert.equal(await page.evaluate(() => window.recordedQueues[0].ticks.length), paused);
       assert.deepEqual(errors, []);
       console.log(`${width}px first update after a direct scroll: ${(ticks[0].time - started).toFixed(1)} ms; no catch-up updates`);
+    } catch (error) {
+      console.error("Home replay at failure", await page.locator(".home-layer").last().textContent({ timeout: 2000 }), { errors, diagnostics });
+      throw error;
     } finally { await page.close(); }
   });
 }

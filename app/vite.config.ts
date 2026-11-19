@@ -4,6 +4,7 @@ import { extname, join, resolve, sep } from "node:path";
 import react from "@vitejs/plugin-react";
 import { loadEnv, searchForWorkspaceRoot } from "vite";
 import { defineConfig, type Plugin } from "vitest/config";
+import unitTestPatterns from "../ci/unit-test-patterns.ts";
 
 const FIXTURE_TYPES: Record<string, string> = {
   ".json": "application/json",
@@ -138,7 +139,7 @@ export default defineConfig({
   envPrefix: ["VITE_", "ASSET_"],
   worker: { format: "es" },
   test: {
-    include: ["src/**/*.test.ts", "tests/**/*.test.ts"],
+    include: unitTestPatterns.app,
     environment: "node",
     passWithNoTests: true,
   },

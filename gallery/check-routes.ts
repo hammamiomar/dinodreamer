@@ -39,7 +39,7 @@ async function checkApi(): Promise<number> {
   for (const path of ["/admin", "/admin/api/materials"]) {
     const answer = await fetch(`${BASE}${path}`, { redirect: "manual" });
     const location = answer.headers.get("location") ?? "";
-    const closed = LOCAL ? answer.status === 200 : answer.status >= 300 && answer.status < 400 && /\.cloudflareaccess\.com\//.test(location);
+    const closed = LOCAL ? answer.status === 200 : answer.status >= 300 && answer.status < 400 && location.includes(".cloudflareaccess.com/");
     check(`${path} is the owner's only`, closed, `HTTP ${answer.status}${location ? ` to ${new URL(location).host}` : ""}`);
   }
   return count;

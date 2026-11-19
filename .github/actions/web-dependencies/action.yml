@@ -1,0 +1,33 @@
+name: Install web dependencies
+description: Use the repository's Node and pnpm versions and install both locked projects.
+inputs:
+  lint-tools:
+    description: Install the engine and CI packages needed by type-aware lint.
+    default: 'false'
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      with:
+        node-version: '24'
+    - uses: pnpm/action-setup@d9184bf108216479bc5a137cc391f4d7b14c870b # v6.1.0
+      with:
+        package_json_file: app/package.json
+        cache: true
+        cache_dependency_path: |
+          app/pnpm-lock.yaml
+          gallery/pnpm-lock.yaml
+          engine/pnpm-lock.yaml
+          ci/pnpm-lock.yaml
+    - shell: bash
+      env:
+        LINT_TOOLS: ${{ inputs.lint-tools }}
+      run: |
+        projects=(app gallery)
+        if [[ "$LINT_TOOLS" == true ]]; then projects+=(ci engine); fi
+        installs=()
+        for project in "${projects[@]}"; do
+          pnpm --dir "$project" install --frozen-lockfile &
+          installs+=("$!")
+        done
+        for pid in "${installs[@]}"; do wait "$pid"; done

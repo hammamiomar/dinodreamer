@@ -1,0 +1,22 @@
+name: Run a test shard
+description: Run the selected files and record their durations on main.
+inputs:
+  shard:
+    description: JSON containing the suite, shard number and files.
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        TEST_SHARD: ${{ inputs.shard }}
+        CI_RECORD_DURATIONS: ${{ github.event_name == 'push' && format('{0}/test-durations', runner.temp) || '' }}
+      run: node ci/run-test-shard.mjs
+    - name: Save measured durations
+      if: github.event_name == 'push'
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: test-durations-${{ fromJSON(inputs.shard).kind }}-${{ fromJSON(inputs.shard).shard }}
+        path: ${{ runner.temp }}/test-durations/*.json
+        if-no-files-found: error
+        retention-days: 1

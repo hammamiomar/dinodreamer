@@ -163,7 +163,7 @@ async function gpuCapabilities(): Promise<{ adapter?: string; reason?: string; l
     return { reason: "Only a software WebGPU adapter is available; it is too slow for synthesis." };
   }
   const name = [info.vendor, info.architecture, info.description].filter(Boolean).join(" ") || "WebGPU adapter";
-  const limits = Object.fromEntries(LIMIT_NAMES.map((limit) => [limit, Number((adapter.limits as unknown as Record<string, number>)[limit])]));
+  const limits = Object.fromEntries(LIMIT_NAMES.map((limit) => [limit, adapter.limits[limit]]));
   adapterReport = `${name}; limits ${LIMIT_NAMES.map((limit) => `${limit} ${limits[limit]}`).join(", ")}`;
   return { adapter: name, limits };
 }

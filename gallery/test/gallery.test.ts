@@ -15,7 +15,7 @@ import { THUMBNAIL_PIXELS } from "../src/thumbnail.ts";
 import { sharpThumbnail } from "../src/thumbnail-sharp.ts";
 import { SITEVERIFY_URL } from "../src/turnstile.ts";
 import worker from "../src/worker.ts";
-import { PNG, PNG_COLOUR, flatPng, recipe, submit, submissionRequest, testEnv } from "./fixtures.ts";
+import { PNG, PNG_COLOUR, flatPng, recipe, submit, type submissionRequest, testEnv } from "./fixtures.ts";
 
 
 describe("POST /api/submissions", () => {

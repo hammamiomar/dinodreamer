@@ -1,5 +1,6 @@
 // GALLERY_WORKER=https://dinodreamer.computervision.vision pnpm develop:remote --port 5180
 // SHELL_GALLERY_TEST_BASE_URL=http://127.0.0.1:5180 node --test tests/how-layout-browser.test.mjs
+import { layoutViewports } from './how-layout-viewports.mjs';
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -101,16 +102,11 @@ async function hoverPatches(page, before, section) {
   else assert.match(await page.locator('.how-caption-area > div:not([aria-hidden])').first().textContent(), /16, 16/);
 }
 
-const viewports = [
-  { width: 320, height: 900 },
-  { width: 390, height: 900 },
-  { width: 1440, height: 900 },
-  { width: 1700, height: 1000 },
-  { width: 1440, height: 1400 },
-];
-for (const viewport of viewports) {
+const requestedViewports = process.env.HOW_LAYOUT_VIEWPORTS ? process.env.HOW_LAYOUT_VIEWPORTS.split(',') : null;
+for (const viewport of layoutViewports) {
   const { width, height } = viewport;
   const size = `${width}-${height}`;
+  if (requestedViewports && !requestedViewports.includes(size)) continue;
   test(`all How figures fit and stay fixed at ${width}×${height}px`, async () => {
     const page = await browser.newPage({ viewport, reducedMotion: 'reduce' });
     const errors = [];
