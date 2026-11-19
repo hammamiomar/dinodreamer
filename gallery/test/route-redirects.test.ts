@@ -8,12 +8,12 @@ describe("old page redirects", () => {
     env.ASSETS = {
       fetch: async (request) => new URL(request.url).pathname.startsWith("/index")
         ? Response.redirect("https://app.test/", 307)
-        : new Response("<!doctype html><title>Dinodreamer</title>", { headers: { "content-type": "text/html" } }),
+        : new Response("<!doctype html><title>DinoDreamer</title>", { headers: { "content-type": "text/html" } }),
     };
     const response = await worker.fetch(new Request(`https://app.test${path}`), env);
     expect(response.status).toBe(200);
     expect(response.headers.get("location")).toBeNull();
-    expect(await response.text()).toContain("Dinodreamer");
+    expect(await response.text()).toContain("DinoDreamer");
   });
 
   it.each([

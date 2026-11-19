@@ -12,7 +12,9 @@
 //   GET  /api/basis-groups  the owner's names for the basis groups (basis-group-names.ts), cached for a minute
 //   GET  /assets/*          a file missing from the current build (404)
 //   /admin, /admin/*        the owner page and its API, behind Cloudflare Access (admin.ts)
-//   GET  public pages      the app's index.html with shared preview media (link-preview.ts)
+//   GET  public pages      the app's index.html with the page's title, description, canonical address and shared
+//                           preview media (link-preview.ts), and its reader text (reader-text.ts)
+//   GET  other addresses   the same index.html with status 404; the app shows its unknown-page view
 
 import ownerPage from "./admin-page.html";
 import { isOwnerPath, ownerRequest, type OwnerEnv } from "./admin.ts";
@@ -23,7 +25,8 @@ import { readMaterials, storeMaterialSubmission } from "./material-review.ts";
 import { storedNames } from "./basis-group-names.ts";
 import { isMaterialEntryId, isMaterialFileRevision, materialKey, versionedMaterialKey, MATERIAL_FILES, type MaterialFileName } from "../../app/src/features/gallery/material-index.ts";
 import { verifyTurnstile } from "./turnstile.ts";
-import { routePreview, withPreviewTags } from "./link-preview.ts";
+import { routePreview, topPageOf, withPreviewTags } from "./link-preview.ts";
+import { readerText, withReaderText } from "./reader-text.ts";
 import { canonicalPathname } from "../../app/src/app/route-paths.ts";
 
 export interface Env extends OwnerEnv {
@@ -84,20 +87,24 @@ async function gallery(env: Env): Promise<Response> {
 const PREVIEW_ROUTE = /^\/(?:(?:index|automata|train|picture|how|create)(?:\/basis\/(\d{1,5}))?|basis\/(\d{1,5})|canvas|gallery|saved)?\/?$/;
 
 /**
- * The app's index.html with the Open Graph and Twitter tags of its route. Link unfurlers run no
- * JavaScript, so the tags must be in the HTML. The fixed media pair needs no gallery reads or
- * storage-existence checks. Fetching "/" also prevents Static Assets redirecting /index to /.
+ * The app's index.html with its route's title, description, canonical address, Open Graph and Twitter tags,
+ * and its reader text. Link unfurlers, AI agents and some crawlers run no JavaScript, so all of it must be in
+ * the HTML. The words are fixed (site-words.ts) and the media pair is fixed, so no gallery read or
+ * storage-existence check is needed. Fetching "/" also prevents Static Assets redirecting /index to /.
  */
 async function previewPage(request: Request, env: Env, block: number | null): Promise<Response> {
-  const page = await env.ASSETS.fetch(new Request(new URL("/", request.url)));
-  if (!page.ok || !page.headers.get("content-type")?.startsWith("text/html")) return page;
+  const shell = await env.ASSETS.fetch(new Request(new URL("/", request.url)));
+  if (!shell.ok || !shell.headers.get("content-type")?.startsWith("text/html")) return shell;
   const url = new URL(request.url);
-  const preview = routePreview(block, `${url.origin}${url.pathname}${url.search}`, env.ASSET_BASE_URL);
+  const page = topPageOf(url.pathname.split("/")[1] ?? "");
+  const preview = routePreview(page, block, `${url.origin}${url.pathname}${url.search}`, env.ASSET_BASE_URL);
   // The body changes, so the static file's validators no longer describe it.
-  const headers = new Headers(page.headers);
+  const headers = new Headers(shell.headers);
   headers.delete("content-length");
   headers.delete("etag");
-  const body = request.method === "HEAD" ? null : withPreviewTags(await page.text(), preview);
+  if (request.method === "HEAD") return new Response(null, { status: 200, headers });
+  const tagged = withPreviewTags(await shell.text(), preview);
+  const body = withReaderText(tagged, readerText(page, block), page === "home" && block === null);
   return new Response(body, { status: 200, headers });
 }
 
@@ -173,7 +180,9 @@ export default {
       const block = shared[1] ?? shared[2];
       return previewPage(request, env, block === undefined ? null : Number(block));
     }
-    // The client router displays its unknown-page view. Keep the asset service's page validators.
-    return env.ASSETS.fetch(new Request(new URL("/", url), request));
+    // The client router displays its unknown-page view. The status tells crawlers that the address names no page,
+    // so they do not index it as a copy of the home (a "soft 404"). Keep the asset service's page validators.
+    const unknown = await env.ASSETS.fetch(new Request(new URL("/", url), request));
+    return new Response(unknown.body, { status: 404, headers: unknown.headers });
   },
 };

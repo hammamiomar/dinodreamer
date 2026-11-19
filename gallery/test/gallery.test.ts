@@ -256,11 +256,11 @@ describe("routes", () => {
     expect(assetRequests).toEqual([]);
   });
 
-  it("serves the app's unknown-page view on an unmatched page navigation", async () => {
+  it("serves the app's unknown-page view with status 404 on an unmatched page navigation", async () => {
     const { env, assetRequests } = testEnv();
     const request = new Request("https://app.test/an-unknown-page", { headers: { "Sec-Fetch-Mode": "navigate" } });
     const page = await worker.fetch(request, env);
-    expect([page.status, page.headers.get("content-type")]).toEqual([200, "text/html"]);
+    expect([page.status, page.headers.get("content-type")]).toEqual([404, "text/html"]);
     expect(assetRequests).toEqual(["/"]);
   });
 });
