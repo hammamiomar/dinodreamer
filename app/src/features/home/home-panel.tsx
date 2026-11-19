@@ -87,7 +87,7 @@ export interface Shown {
   material: FigureMaterial | null;
 }
 
-export function HomePanel({ beat, progress, prefetch, still, entrance, thread, recordedState, reset, story, cloud, onNoReplay }: {
+export function HomePanel({ beat, progress, prefetch, still, entrance, thread, recordedState, reset, story, cloud, onNoReplay, approached }: {
   beat: HomeBeat;
   /** How far the beat's figure has played, 0 to 1. */
   progress: number;
@@ -104,6 +104,8 @@ export function HomePanel({ beat, progress, prefetch, still, entrance, thread, r
   story: StoryRecord | null;
   cloud: AtlasCloud | null;
   onNoReplay: () => void;
+  /** The beats the reader has approached (home-scroll.ts, approachedBeats): the training strip loads with its beat. */
+  approached: Record<HomeBeat, boolean>;
 }) {
   const panel = useRef<HTMLDivElement>(null);
   const room = usePanelRoom(panel);
@@ -134,7 +136,7 @@ export function HomePanel({ beat, progress, prefetch, still, entrance, thread, r
         <BasisFigure room={room} progress={progressOf("basis")} cloud={cloud} story={story} />
       </div>
       <div className="home-layer home-layer-figure" data-shown={beat === "automaton" || undefined}>
-        <TrainingFigure side={side} progress={progressOf("automaton")} story={story} />
+        <TrainingFigure side={side} progress={progressOf("automaton")} story={approached.automaton ? story : null} />
       </div>
       <div className="home-layer home-layer-live" data-shown={beat === "end" || undefined}>
         {thread && (

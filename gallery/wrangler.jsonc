@@ -4,6 +4,7 @@
   // media (src/link-preview.ts). The shared media uses the public library CDN, including byte-range support.
   // Static Assets serves files first. The Worker handles page fallback so a missing build file
   // reaches its 404 handler even when a browser navigates directly to that file.
+  // Settings made in the Cloudflare dashboard, which no code deploys: cloudflare-settings.md.
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "dinodreamer-public",
   "main": "src/worker.ts",

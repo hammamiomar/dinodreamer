@@ -101,13 +101,14 @@ for (const width of [390, 1440]) {
         };
       });
       await page.goto(base);
+      // The end's grids load as the reader approaches it: on the training beat, one section before.
+      await page.locator('.home-beat[data-beat="automaton"]').waitFor({ state: "attached" });
+      await page.evaluate(() => document.querySelector('.home-beat[data-beat="automaton"]').scrollIntoView());
+      await page.waitForFunction(() => document.querySelector(".home").dataset.beat === "automaton");
       const field = page.locator(".home-layer").last().locator(".home-field");
       await field.locator("canvas").waitFor({ state: "attached" });
       await page.waitForFunction(() => document.querySelector(".home-layer:last-child .home-field")?.hasAttribute("data-live"));
       assert.equal(await page.evaluate(() => window.recordedQueues.length), 1);
-      assert.equal(await page.evaluate(() => window.recordedQueues[0].ticks.length), 0);
-      await page.evaluate(() => document.querySelector('.home-beat[data-beat="automaton"]').scrollIntoView());
-      await page.waitForFunction(() => document.querySelector(".home").dataset.beat === "automaton");
       assert.equal(await page.evaluate(() => window.recordedQueues[0].ticks.length), 0);
       const started = await page.evaluate(() => { document.querySelector(".home-end").scrollIntoView(); return performance.now(); });
       await page.waitForFunction(() => window.recordedQueues[0].ticks.length >= 2);
@@ -130,6 +131,27 @@ for (const width of [390, 1440]) {
     } finally { await page.close(); }
   });
 }
+
+test("an untouched entrance downloads none of the figures below it", async () => {
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  const below = [];
+  page.on("request", (request) => { if (/grid-(fine|coarse)-600|\/story\/.*\.webp/.test(request.url())) below.push(new URL(request.url()).pathname); });
+  try {
+    await page.goto(base);
+    await page.locator(".home-down").waitFor();
+    // The entrance's own files have arrived; give a late request time to appear.
+    await page.waitForLoadState("networkidle");
+    await page.waitForTimeout(1000);
+    assert.deepEqual(below, []);
+    // On the basis beat the training strip loads; on the training beat the end's grids load.
+    await page.evaluate(() => document.querySelector('.home-beat[data-beat="automaton"]').scrollIntoView());
+    await page.waitForFunction(() => document.querySelector(".home").dataset.beat === "automaton");
+    await page.waitForFunction(() => document.querySelector(".home-strip img") !== null);
+    await page.waitForFunction(() => document.querySelector(".home-layer:last-child .home-field")?.hasAttribute("data-live"));
+    assert.ok(below.some((path) => /grid-fine-600/.test(path)), JSON.stringify(below));
+    assert.ok(below.some((path) => /\/story\/.*\.webp/.test(path)), JSON.stringify(below));
+  } finally { await page.close(); }
+});
 
 for (const mode of ["reduced motion", "no WebGPU"]) {
   test(`${mode} keeps the matching poster and does not fetch recorded grids`, async () => {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { frameAt, layerAt, levelsArrived, NARROW_PANEL_SHARE, readingLine, sectionAt } from "./home-scroll";
+import { approachedBeats, frameAt, layerAt, levelsArrived, NARROW_PANEL_SHARE, readingLine, sectionAt } from "./home-scroll";
 
 // Five sections on a 900 px window, one window each.
 const tops = [0, 900, 1800, 2700, 3600];
@@ -18,6 +18,19 @@ describe("the section the window is on", () => {
     expect(sectionAt(tops, 450, 450)).toBe(1);
     expect(sectionAt(tops, 2700 - 450, 450)).toBe(3);
     expect(sectionAt(tops, 9000, 450)).toBe(4);
+  });
+});
+
+describe("the beats whose files load", () => {
+  test("only the entrance before the first scroll, even at a far section reached by a restored position", () => {
+    expect(approachedBeats(0, false)).toEqual({ entrance: true, model: false, basis: false, automaton: false, end: false });
+    expect(approachedBeats(3, false).end).toBe(false);
+  });
+  test("each beat while the reader is one section before it", () => {
+    expect(approachedBeats(0, true)).toEqual({ entrance: true, model: true, basis: false, automaton: false, end: false });
+    expect(approachedBeats(2, true)).toEqual({ entrance: true, model: true, basis: true, automaton: true, end: false });
+    expect(approachedBeats(3, true).end).toBe(true);
+    expect(approachedBeats(4, true).end).toBe(true);
   });
 });
 

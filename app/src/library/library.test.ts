@@ -33,6 +33,17 @@ describe("release and catalog", () => {
     await expect(openLibrary({ baseUrl: BASE, release: "pass-003" }, renamed)).rejects.toThrow(/describes release fixture/);
   });
 
+  it("revalidates the release manifest on every open, since a later table rewrites it under its name", async () => {
+    const { fetcher } = fixtureFetch();
+    const requests: { url: string; cache: RequestCache | undefined }[] = [];
+    const recording: typeof fetch = async (input, init) => {
+      requests.push({ url: String(input), cache: init?.cache });
+      return fetcher(input, init);
+    };
+    await openLibrary({ baseUrl: BASE, release: "fixture" }, recording);
+    expect(requests).toEqual([{ url: `${BASE}/releases/fixture.json`, cache: "no-cache" }]);
+  });
+
   it("decodes the catalog's per-role counts for every block", async () => {
     const { library } = await fixtureLibrary();
     const catalog = await library.catalog();
