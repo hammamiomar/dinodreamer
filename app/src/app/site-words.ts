@@ -1325,8 +1325,8 @@ export const SITE_WORDS = {
    * The five top pages as a reader that runs no JavaScript receives them: search crawlers that do not render, AI
    * agents and link unfurlers. The Worker writes each page's title, its description (the search and preview
    * sentence) and its reader text, one heading and one paragraph, into the HTML (gallery/src/link-preview.ts,
-   * gallery/src/reader-text.ts). The app replaces the reader text when it starts. Words by meme, 19 November 2026,
-   * after Omar's decisions; Omar rewrites last. A title stays under 60 characters and a description under 155.
+   * gallery/src/reader-text.ts). The app replaces the reader text when it starts. A title stays under 60 characters
+   * and a description under 155.
    * In a paragraph, [words](/path) is a link.
    */
   pageSummaries: {
