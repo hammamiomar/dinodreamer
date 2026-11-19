@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readdirSync } from "node:fs";
 import { test } from "node:test";
-import planTests, { scheduleJobs } from "./test-plan.mjs";
+import planTests, { relatedFiles, scheduleJobs } from "./test-plan.mjs";
 import { balance, unitShards } from "./test-shards.mjs";
 
 const changed = (file) => [{ status: "M", file }];
@@ -40,25 +40,16 @@ test("main runs every browser viewport and broad PR changes run every unit test"
   const main = await planTests(null);
   const all = filesOf(main).sort();
   assert.equal(new Set(all).size, all.length);
-  for (const project of ["app/src", "app/tests", "gallery/test"]) {
-    const actual = readdirSync(project, { recursive: true })
-      .filter((name) => name.endsWith(".test.ts"))
-      .map((name) => project + "/" + name);
-    assert.deepEqual(
-      actual.sort(),
-      all.filter((file) => file.startsWith(project + "/") && file.endsWith(".test.ts")),
-    );
-  }
+  const discovered = (await Promise.all(["app", "gallery"].map((project) => relatedFiles(project)))).flat().sort();
+  const planned = main.jobs.filter((job) => job.kind === "unit").flatMap((job) => job.files);
+  assert.deepEqual(planned.sort(), discovered);
   for (const changes of [
     [{ status: "D", file: "app/src/shared.ts" }],
     changed("engine/src/lib.rs"),
     changed(".github/workflows/check.yml"),
   ]) {
     const plan = await planTests(changes);
-    assert.deepEqual(
-      filesOf(plan).sort(),
-      all.filter((file) => file.endsWith(".test.ts")),
-    );
+    assert.deepEqual(filesOf(plan).sort(), discovered);
     assert(plan.cargo);
   }
 });

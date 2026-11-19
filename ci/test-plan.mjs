@@ -1,16 +1,15 @@
 import { execFileSync } from "node:child_process";
-import { appendFileSync, readdirSync } from "node:fs";
+import { appendFileSync, globSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { layoutViewports } from "../app/tests/how-layout-viewports.mjs";
-
+import unitTestPatterns from "./unit-test-patterns.ts";
 import { dataDirectory, readDiff, testScope } from "./test-scope.mjs";
 import { balance, recordedDurations, unitProjects, unitShards } from "./test-shards.mjs";
 
 const root = resolve(import.meta.dirname, "..");
 const appRequire = createRequire(resolve(root, "app/package.json"));
-const { createVitest } = await import(pathToFileURL(appRequire.resolve("vitest/node")));
 const browserDirectory = "app/tests/";
 const browserFiles = readdirSync(resolve(root, browserDirectory))
   .filter((name) => name.endsWith("-browser.test.mjs"))
@@ -18,7 +17,8 @@ const browserFiles = readdirSync(resolve(root, browserDirectory))
 const moduleFile = /\.[cm]?[jt]sx?$/;
 const unitFile = /\.test\.ts$/;
 
-async function relatedFiles(project, related, include) {
+export async function relatedFiles(project, related, include) {
+  const { createVitest } = await import(pathToFileURL(appRequire.resolve("vitest/node")));
   const context = await createVitest({
     root: resolve(root, project),
     watch: false,
@@ -95,7 +95,14 @@ async function relatedUnits({ paths, runtime }) {
 
 export default async function planTests(diff) {
   const scope = testScope(diff);
-  const units = await relatedUnits(scope);
+  const units = scope.full
+    ? unitProjects.flatMap((project) =>
+        globSync(unitTestPatterns[project], {
+          cwd: resolve(root, project),
+          exclude: ["**/node_modules", "**/.git"],
+        }).map((file) => project + "/" + file),
+      )
+    : await relatedUnits(scope);
   const browsers = diff === null ? browserFiles : [];
   const browserTasks = browsers.flatMap((file) =>
     file.endsWith("/how-layout-browser.test.mjs")

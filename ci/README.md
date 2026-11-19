@@ -24,7 +24,7 @@ Oxlint enables all seven rule categories. The root configuration lists each exce
 
 ## Test selection and timing
 
-On a pull request, the planner compares the base commit to the checked-out merge result. Vitest resolves imports from each project to find affected tests, including tests that consume the other project’s source. The planner also accounts for setup files, source-tree scans, subprocess entry points and files read from disk. Changes to configuration, deleted code or unrecognized inputs can select the complete suite. When a test starts reading a file outside its import graph, record that dependency in the planner and exercise it in the selection tests.
+On a pull request, the planner compares the base commit to the checked-out merge result. Vitest resolves imports from each project to find affected tests, including tests that consume the other project’s source. The planner also accounts for setup files, source-tree scans, subprocess entry points and files read from disk. Changes to configuration, deleted code or unrecognized inputs can select the complete suite. For a complete suite the planner reads the same file patterns as Vitest and starts the shards without installing web dependencies. A regression test checks that the plan matches Vitest discovery. When a test starts reading a file outside its import graph, record that dependency in the planner and exercise it in the selection tests.
 
 Each unit shard uses up to two workers. The planner assigns extra unit shards to the project with the most recorded work per shard. Each large shard starts Vitest once. A small change across projects can share one job. Within a suite, the planner assigns the longest remaining test to the lightest shard.
 

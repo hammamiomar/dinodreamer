@@ -25,7 +25,17 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Determine whether the planner needs the import graph
+        id: scope
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: node ci/test-scope.mjs "${BASE:---all}"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: steps.scope.outputs.full == 'true'
+        with:
+          node-version: '24'
       - uses: ./.github/actions/web-dependencies
+        if: steps.scope.outputs.full != 'true'
       - name: Restore durations recorded on main
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -56,6 +66,9 @@ jobs:
           if (large.length) throw new Error(`Tracked files must be below 1,000,000 bytes: ${large.join(', ')}`);
           JS
 
+      - name: Install dependencies for tests that stay on the planner
+        if: steps.scope.outputs.full == 'true' && (steps.tests.outputs.inlineUnit != 'null' || steps.tests.outputs.planner == 'true')
+        uses: ./.github/actions/web-dependencies
       - name: Exercise the selection and sharding rules
         if: steps.tests.outputs.planner == 'true'
         run: node --test ci/test-plan.test.mjs
