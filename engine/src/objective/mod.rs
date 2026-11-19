@@ -77,7 +77,7 @@ impl CodeReadout {
             ((selected_BPD - calibration.mean_D.clone().reshape([1, 1, WIDTH])) * calibration.scale)
                 .reshape([views, points, 1, WIDTH]);
         // A product and a sum over D, not `matmul`: on WebGPU without autotune, Burn's matmul
-        // adds roughly 12 ms per call even for one slot.
+        // adds roughly 12 ms per call even for one slot (Chrome, M1 Max).
         (centered_BP1D * self.frame_11RD.clone())
             .sum_dim(3)
             .reshape([views, points, 3])
