@@ -1,4 +1,5 @@
 import { figurePlayback, FIGURE_LAYOUT, type FigureMaterialFile } from "../materials/material-file";
+import { oneLineText } from "../visitor-text";
 
 export interface ShadertoySections {
   common: string;
@@ -177,8 +178,8 @@ ${constantArray("W2", values.subarray(6240))}
 export function shadertoyShaderSource(file: FigureMaterialFile, values: Float32Array): string {
   const { common, buffers, image } = shadertoySections(file, values);
   const minimumHeight = file.reading.side * figurePlayback(file).pixelsPerCell;
-  const header = `// DinoDreamer Shadertoy export: ${file.id.replace(/[\r\n]/g, " ")}
-// Trainer revision: ${file.trainerCommit.replace(/[\r\n]/g, " ")}
+  const header = `// DinoDreamer Shadertoy export: ${oneLineText(file.id)}
+// Trainer revision: ${oneLineText(file.trainerCommit)}
 // This file contains six sections. Paste each section into its named tab.
 // 1. Open https://www.shadertoy.com/new and add Common and Buffer A, B, C and D.
 // 2. Replace each tab's code with its section below. Replace Image with the Image section.

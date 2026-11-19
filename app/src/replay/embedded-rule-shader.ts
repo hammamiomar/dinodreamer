@@ -1,5 +1,6 @@
 import { figurePlayback, FIGURE_PYRAMID_LAYOUT, replayGridSides, type FigureMaterialFile } from "../materials/material-file";
 import { FIGURE_WGSL } from "./figure-shaders";
+import { oneLineText } from "../visitor-text";
 
 interface WeightArray { name: string; offset: number; length: number; note: string }
 /** fc1.weight, fc1.bias and fc2.weight in the figure layout's flat order. */
@@ -55,11 +56,13 @@ fn ${prefix}_w2(unit_index: u32, k: u32) -> vec4<f32> {
 }`;
 }
 
+/** The file's provenance as comment lines. Its text fields are the submitter's, so each stays on its own comment line (oneLineText). */
 function materialLines(file: FigureMaterialFile): string {
-  return `// ${file.name}: DinoDreamer cellular automaton, a shader with its weights embedded.
-// Generated from the automaton definition ${file.id}.material.json; edit the definition, not this file.
-// Basis group ${file.block} · training procedure ${file.recipe.name} · layout ${file.rule.layout} · cell update probability ${file.rule.fireRate}
-// Training procedure source ${file.recipe.source}, SHA-256 ${file.recipe.sourceSha256}; trainer commit ${file.trainerCommit}.`;
+  const line = oneLineText;
+  return `// ${line(file.name)}: DinoDreamer cellular automaton, a shader with its weights embedded.
+// Generated from the automaton definition ${line(file.id)}.material.json; edit the definition, not this file.
+// Basis group ${file.block} · training procedure ${line(file.recipe.name)} · layout ${file.rule.layout} · cell update probability ${file.rule.fireRate}
+// Training procedure source ${line(file.recipe.source)}, SHA-256 ${line(file.recipe.sourceSha256)}; trainer commit ${line(file.trainerCommit)}.`;
 }
 
 /**

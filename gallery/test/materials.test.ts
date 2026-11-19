@@ -12,6 +12,7 @@ import { galleryEntries, pendingSubmissions } from "../src/review.ts";
 import { canonicalFigureFile, readFigureMaterial } from "../../app/src/materials/material-file.ts";
 import { materialKey, readMaterialIndex } from "../../app/src/features/gallery/material-index.ts";
 import { TEST_TURNSTILE_TOKEN, submit, testEnv } from "./fixtures.ts";
+import { terminalText } from "../review-cli.ts";
 import type { Env } from "../src/worker.ts";
 
 const folder = new URL("../seed/materials/", import.meta.url);
@@ -75,6 +76,31 @@ describe("material submissions", () => {
     expect(entry.title).toBe(title.trim());
     const stored = await library.get(materialKey(entry.id, "material.json"));
     expect(JSON.parse(await stored!.text()).training).toEqual(file.training);
+  });
+
+  it("refuses a file whose own text holds a terminal sequence or a line break, and stores nothing", async () => {
+    // Built at run time: ESC [2K erases the owner's terminal line; a line break ends a shader comment.
+    const [escape, lineFeed, csi, lineSeparator] = [0x1b, 0x0a, 0x9b, 0x2028].map((code) => String.fromCodePoint(code));
+    for (const edit of [
+      (file: Record<string, unknown>) => { file.id = `seed${escape}[2K  forged line`; },
+      (file: Record<string, unknown>) => { file.name = `Scales${lineFeed}const X: u32 = 1u;`; },
+      (file: Record<string, unknown>) => { file.trainerCommit = `abc${csi}2K`; },
+      (file: Record<string, unknown>) => { file.trainerCommit = `abc${lineSeparator}fn x() {}`; },
+    ]) {
+      const { env, submissions } = testEnv();
+      const file = JSON.parse(text(firedName));
+      edit(file);
+      const response = await submitMaterial(env, { material: JSON.stringify(file) });
+      expect(response.status).toBe(400);
+      expect(response.body.error).toMatch(/control character or a line separator/);
+      expect(submissions.objects.size).toBe(0);
+    }
+  });
+
+  it("prints a stored visitor text in the owner's terminal with each control character shown as an escape", () => {
+    const stored = `seed${String.fromCodePoint(0x0d)}${String.fromCodePoint(0x1b)}[26C${String.fromCodePoint(0x9b)}K`;
+    expect(terminalText(stored)).toBe("seed\\u000d\\u001b[26C\\u009bK");
+    expect(terminalText("Garden at dusk")).toBe("Garden at dusk");
   });
 
   it("rejects 81 Unicode characters and embedded control characters without storing a submission", async () => {
