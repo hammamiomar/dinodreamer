@@ -9,8 +9,8 @@ import { downloadBlob } from "../ui/files";
 import { MaterialFrame } from "../ui/material-frame";
 import { Segmented } from "../ui/segmented";
 import {
-  changedFromRun, drawCells, sameTarget, SIDE, trainRun, useLiveCells, useTrainLadder, useTrainRun, useTrainTick,
-  type GrowSettings, type KeepFailure, type TrainRunState,
+  IDLE_TRAIN_RUN, changedFromRun, drawCells, sameTarget, SIDE, trainRun, useLiveCells, useTrainLadder, useTrainRun, useTrainTick,
+  type GrowSettings, type KeepFailure,
 } from "./train-run";
 import { CoSelectedPictures } from "./co-selected-pictures";
 import { TrainMap } from "./train-map";
@@ -19,7 +19,7 @@ import { LIGHT_BATCH, RECIPE_BATCH, batchFallback, clearBatchFallback, presetBat
 import { GrowStatus, reloadHelps } from "./grow-status";
 import { durationText, timeBefore, timeLeft, timeTaken, type GrowTime } from "./grow-time";
 import {
-  choicesOpen, growState, hasFired, isHeld, NO_RECORD, primaryAction, resultOutcome, resumeUpdates, shownCoSelection, stopAction,
+  choicesOpen, growState, hasFired, isHeld, primaryAction, resultOutcome, resumeUpdates, shownCoSelection, stopAction,
   type GrowRecord,
 } from "./grow-view";
 import { BRUSH, strokeStamps } from "./live-brush";
@@ -38,8 +38,13 @@ import {
 // worker events to the controls and status shown in this layout.
 
 const WORDS = SITE_WORDS.grow;
-/** What the page shows while the site's run is another target's, or there is none: the start. */
-const NO_RUN: TrainRunState = { record: NO_RECORD, settings: null, files: new Map(), sampled: null, keepFailure: null, shownOnPage: false, ladder: null };
+
+/** Leaf subscriber for the live-frame tick counter so GrowPanel does not re-render at 30 Hz. */
+function LiveTickOutput({ ours }: { ours: boolean }) {
+  const tick = useTrainTick();
+  const shownTick = ours ? tick ?? 0 : 0;
+  return <>{fill(WORDS.tick, { tick: shownTick.toLocaleString("en-US") })}</>;
+}
 
 /** The primary as a button: inverted for the actions that start training, outlined for Stop. */
 const PRIMARY_BUTTON = {
@@ -233,8 +238,7 @@ export function GrowPanel({ block, request, origin, continuation, method, onMeth
   const site = useTrainRun();
   // The site's run is this page's when it trains toward this page's target; another target starts idle here.
   const ours = site.settings !== null && sameTarget(site.settings, request, continuation);
-  const run = ours ? site : NO_RUN;
-  const tick = useTrainTick();
+  const run = ours ? site : IDLE_TRAIN_RUN;
   // "Grow another variation" on a material names its kind in the address; otherwise the fine rule from noise.
   const [kind, setKind] = useState<MaterialKind>(() => kindFromSearch(new URLSearchParams(globalThis.location?.search)));
   // Off by default: Grow trains on after the first fire and keeps both materials.
@@ -258,7 +262,7 @@ export function GrowPanel({ block, request, origin, continuation, method, onMeth
       onDepth(settings.depth);
     }
     setStopAtFirstFire(settings.stopAtFirstFire);
-  }, [settings]);
+  }, [settings, onMethod, onDepth]);
   // While the page shows the run, the corner tray need not.
   useEffect(() => {
     if (!ours) return;
@@ -310,7 +314,7 @@ export function GrowPanel({ block, request, origin, continuation, method, onMeth
   const publishable = result !== undefined && (result.fired || !keepRule(shownMethod, settings?.continuation != null, RUNS).publishesOnlyFired);
   // A set method trains once its set has one or more pictures; a continuation brings its own.
   const setReady = continuation !== null || !methodNeedsSet(runMethod) || (runSet !== null && setRefusal(runMethod, runSet) === null);
-  const ready = request?.anchor !== undefined && request.mode !== "plant" && setReady;
+  const ready = request?.anchor !== undefined && setReady;
   const time = growTime(record, settings, chosen, primary);
 
   // The live grid while the run is this page's; without one, the start of the chosen kind as a still.
@@ -391,10 +395,9 @@ export function GrowPanel({ block, request, origin, continuation, method, onMeth
   // The one coloured line: once the material has fired, the frame and selection map take its colour.
   const sampled = hasFired(state, record) && run.sampled ? ({ "--sampled": run.sampled } as CSSProperties) : undefined;
   const label = block === null ? undefined : `${block} · ${kindLabel(shownKind)}`;
-  const shownTick = ours ? tick ?? 0 : 0;
   return <div className="grow-panel" data-state={state}>
     <section className="grow-stage" style={sampled} aria-label={label}>
-      <MaterialFrame label={label} note={fill(WORDS.tick, { tick: shownTick.toLocaleString("en-US") })}>
+      <MaterialFrame label={label} note={<LiveTickOutput ours={ours} />}>
         <canvas ref={canvas} className="grow-cells" width={SIDE} height={SIDE} data-live={record.active || undefined}
           aria-label={record.active && block !== null ? fill(WORDS.canvasLabel, { block }) : WORDS.stillLabel}
           onPointerDown={(event) => {

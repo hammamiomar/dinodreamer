@@ -81,7 +81,7 @@ function isPrefix(token: Token): boolean {
 export const ADDRESS_ID_STRIDE = MAX_REQUEST_ID + 1;
 
 /** The blocks a request asks, its own first: { block, the token's code in it }. */
-export function requestedBlocks(request: Request): AddressBlock[] {
+function requestedBlocks(request: Request): AddressBlock[] {
   return [{ block: request.block, code: request.respondLike.code }, ...request.respondLike.alsoBlocks];
 }
 

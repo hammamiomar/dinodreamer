@@ -13,6 +13,7 @@ import { ResetMark } from "../../../ui/reset-mark";
 import { defaultReference } from "../model";
 import { fill } from "../../../app/site-words";
 import { CREATE_TEXT } from "../create-text";
+import "./cards.css";
 
 const WORDS = CREATE_TEXT.window;
 

@@ -24,23 +24,15 @@ import { checkVideoPlan, recordReplayVideo, videoFileName } from "./replay-video
 import { DownloadIcon, OptionsIcon, PauseIcon, PlayIcon } from "./stage-icons";
 import { ResetMark } from "../ui/reset-mark";
 import { useMediaMatch } from "../ui/media-match";
+import { assertUnsigned32 } from "../decode";
+import { BRUSH, brushAfterWheel, recipeWord, stageZoom, variationNameFor, ZOOMS } from "./material-stage-view";
 import "./material-stage.css";
 import { pagePointer } from "../ui/page-scale";
 
+export { brushAfterWheel, recipeWord, stageZoom, ZOOMS };
+
 /** The speed slider's steps are REPLAY_SPEEDS (¼x to 8x); a material starts at the players' default. */
 const NORMAL_SPEED = REPLAY_SPEEDS.indexOf(REPLAY_DEFAULT_SPEED);
-/**
- * Desktop zooms use whole CSS pixels per picture pixel. The stage takes the largest zoom that
- * fits its column. On a phone, the Automata canvas fills the column so the drawing area stays
- * large enough to use. Neither display size changes the simulation grid or the backing canvas.
- */
-export const ZOOMS = [1, 2, 3, 4, 5, 6, 7, 8];
-/**
- * Brush sizes are radii in steps of 4 CSS pixels, a cell of a 128-cell grid at 4 px per cell; the
- * brush keeps its size on screen when the grid or the zoom changes. Its ring is a cursor only: every
- * visible change on the canvas is the cells themselves.
- */
-const BRUSH = { min: 2, max: 32, start: 12, step: 1 };
 const BRUSH_STEP_PX = 4;
 /** The speed slider's ticks: one at each speed. The brush slider's: every 8 cells of radius. */
 const SPEED_TICKS = REPLAY_SPEEDS.map((_, index) => index);
@@ -58,27 +50,9 @@ const INSTRUMENT_WORDS = SITE_WORDS.playground;
 /** The instrument's tick counter: "1,240", written straight into its element on every frame. */
 const TICKS = new Intl.NumberFormat("en-US");
 
-/**
- * The zoom the stage shows: the largest that fits the cells' room, at least 1. `room` is the width
- * the cells can take, in page pixels. On a page scaled to 1.25 (ui/page-scale.ts) zoom 4 and 8 give
- * whole screen pixels per picture pixel and the others a quarter more or less; the stage keeps the
- * largest fitting zoom all the same, since a whole-pixel one would halve it.
- */
-export function stageZoom(pictureSide: number, room: number): number {
-  const fitting = ZOOMS.filter((zoom) => pictureSide * zoom <= room);
-  return fitting.length > 0 ? fitting[fitting.length - 1]! : ZOOMS[0];
-}
-
-/** The brush radius after `notches` wheel steps over the stage (positive: larger), by the Brush slider's step, held to its ends. */
-export function brushAfterWheel(brush: number, notches: number): number {
-  return Math.min(BRUSH.max, Math.max(BRUSH.min, brush + notches * BRUSH.step));
-}
-
 /** "12002 · strongest, mean · seed 1" → "strongest, mean · seed 1": the block is said once. An automaton without a title is named by its kind. */
 export function variationName(entry: MaterialEntry): string {
-  const prefix = `${entry.block} · `;
-  if (entry.title === "") return kindLine(entry);
-  return entry.title.startsWith(prefix) ? entry.title.slice(prefix.length) : entry.title;
+  return variationNameFor(entry, kindLine);
 }
 
 /** The stored value's words on the quiet line, by what the rule's settings say it holds. */
@@ -113,11 +87,6 @@ function readingParts(entry: MaterialEntry): string[] {
   }
   parts.push(entry.fired ? WORDS.fired : WORDS.didNotFire);
   return parts;
-}
-
-/** The recipe as the stage names it: its name without the date, "figure-seeded-2026-10-23" -> "figure-seeded". */
-export function recipeWord(recipe: string): string {
-  return recipe.replace(/-\d{4}-\d{2}-\d{2}$/, "");
 }
 
 /** Where the stage gets a material's file and poster, and whether Keep applies: the published library unless a page supplies another source. */
@@ -183,8 +152,8 @@ export function MaterialStage({ entries, source = PUBLISHED_SOURCE, layout = "pa
   const [recording, setRecording] = useState(false);
   const [message, setMessage] = useState("");
   const [replayStatus, setReplayStatus] = useState<"opening" | "ready" | "failed">("opening");
-  // The brush ring's place in the canvas window; its size follows the brush and the zoom.
-  const [ring, setRing] = useState<{ x: number; y: number } | null>(null);
+  // The brush ring element is positioned directly through a ref on pointermove to avoid 60–120 Hz React re-renders.
+  const ringElement = useRef<HTMLSpanElement>(null);
   const view = useRef<HTMLDivElement>(null);
   const fitBox = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -306,7 +275,7 @@ export function MaterialStage({ entries, source = PUBLISHED_SOURCE, layout = "pa
   // Reset: back to tick 0 of the current seed, the material's start.
   const reset = (from = seed) => {
     try {
-      if (!Number.isInteger(from) || from < 0 || from > 0xffffffff) throw new Error("Seed must be an unsigned 32-bit integer.");
+      assertUnsigned32(from, "Seed");
       runtime.current?.reseed(from);
       setSeed(from);
       setMessage("");
@@ -323,9 +292,19 @@ export function MaterialStage({ entries, source = PUBLISHED_SOURCE, layout = "pa
   const canvasSize = fillsMobileStage && room > 0 ? Math.floor(room) : pictureSide * zoom;
   const brushCells = (brush * BRUSH_STEP_PX) / (canvasSize / side);
   const ringSize = 2 * brush * BRUSH_STEP_PX;
+  const hideRing = () => {
+    const ring = ringElement.current;
+    if (ring) ring.dataset.visible = "false";
+  };
   const moveBrush = (event: PointerEvent<HTMLCanvasElement>) => {
     const { x, y } = cellAt(event);
-    setRing(pagePointer(event, event.currentTarget.parentElement!));
+    const ring = ringElement.current;
+    if (ring) {
+      const pointer = pagePointer(event, event.currentTarget.parentElement!);
+      ring.style.left = `${pointer.x}px`;
+      ring.style.top = `${pointer.y}px`;
+      ring.dataset.visible = "true";
+    }
     if (event.buttons === 0 || recording || !last.current) return;
     loop()?.stroke(last.current.x, last.current.y, x, y, brushCells);
     last.current = { x, y };
@@ -412,14 +391,14 @@ export function MaterialStage({ entries, source = PUBLISHED_SOURCE, layout = "pa
       label={instrument ? undefined : fill(WORDS.frameLabel, { block: entry.block, kind: kindWords(entry) })}
       note={gridNote?.(side) ?? fill(WORDS.frameGrid, { side })}>
       <div className="stage-canvas"
-        onPointerEnter={() => { hovering.current = true; }} onPointerLeave={() => { hovering.current = false; setRing(null); }}
+        onPointerEnter={() => { hovering.current = true; }} onPointerLeave={() => { hovering.current = false; hideRing(); }}
         ref={view}>
         <canvas ref={canvas} width={CANVAS_PIXELS} height={CANVAS_PIXELS} style={{ width: canvasSize, height: canvasSize, visibility: replayStatus === "ready" ? "visible" : "hidden" }}
           aria-label={fill(WORDS.canvasName, { title: entry.title })}
           onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); const { x, y } = cellAt(event); last.current = { x, y }; }}
           onPointerMove={moveBrush} onPointerUp={() => { last.current = null; }} onPointerCancel={() => { last.current = null; }} />
         {replayStatus !== "ready" && <img className="stage-poster" src={source.poster(entry)} alt={entry.title} />}
-        {replayStatus === "ready" && ring && <span className="stage-ring" style={{ left: ring.x, top: ring.y, width: ringSize, height: ringSize }} aria-hidden="true" />}
+        {replayStatus === "ready" && <span ref={ringElement} className="stage-ring" style={{ width: ringSize, height: ringSize }} aria-hidden="true" />}
         {replayStatus === "opening" && <span className="stage-loading">{fill(WORDS.loading, { name: variationName(entry) })}</span>}
       </div>
     </MaterialFrame>

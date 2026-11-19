@@ -1,3 +1,4 @@
+import { assertUnsigned32 } from "../decode";
 import type { FigureReplay } from "./figure-replay";
 import { startReplayLoop, type ReplayLoop, type ReplayLoopOptions } from "./replay-loop";
 
@@ -57,7 +58,7 @@ export function openStageSession(
       loop?.setSpeed(next);
     },
     reseed(next) {
-      if (!Number.isInteger(next) || next < 0 || next > 0xffffffff) throw new Error("Seed must be an unsigned 32-bit integer.");
+      assertUnsigned32(next, "Seed");
       pendingSeed = next;
       loop?.reseed(next);
     },

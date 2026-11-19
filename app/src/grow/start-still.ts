@@ -1,15 +1,10 @@
+import { SIDE } from "./figure-recipe";
 import { START_RADIUS, type MaterialKind } from "./material-kind";
 
-// The start as a still: what the frame shows before Grow. The engine starts every grid from noise,
-// each channel uniform in [−0.5, 0.5), or for the seeded start from zero outside a noise disc at the
-// centre (engine/src/grow/figure.rs, Start). The picture is the first three channels plus 0.5,
-// clamped, in 8 bits; for the coarse + fine rule it adds the coarse grid's colour, upsampled. So noise
-// shows as random colours, and zero as mid grey. The still draws that rule with its own random
-// numbers, not the engine's streams: it shows what the start looks like, not the exact start.
+// Preview still shown before training starts. Matches the engine's initial noise or
+// centre-disc distribution with a fixed local PRNG seed so the preview is deterministic.
 
-/** Cells along one side of the fine grid, and of the coarse grid of the coarse + fine rule. */
-const SIDE = 128;
-const COARSE_SIDE = 64;
+const COARSE_SIDE = SIDE / 2;
 
 /**
  * 1 for the cells whose centres lie within `radius` of the grid centre, else 0, row-major: the
@@ -34,7 +29,7 @@ function generator(seed: number): () => number {
 }
 
 /** The still of a kind's start: 128 × 128 RGBA bytes. */
-export function startStill(kind: MaterialKind, seed = 20261023): Uint8ClampedArray {
+export function startStill(kind: MaterialKind, seed = 20261023): Uint8ClampedArray<ArrayBuffer> {
   const random = generator(seed);
   const seeded = kind.start === "centre-disc";
   const fineMask = seeded ? centreDisc(SIDE, START_RADIUS) : null;

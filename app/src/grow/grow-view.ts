@@ -83,9 +83,8 @@ export function recordEvent(record: GrowRecord, event: GrowEvent): GrowRecord {
 }
 
 /**
- * Whether the person may keep a held set-method run's automaton at another step of its ladder (decision 12's
- * override): only while its file is not sent to the gallery. `publish` is the file's publishState
- * (features/gallery/publish-material.tsx): "awaiting" or "published" closes the step, since the gallery has that file.
+ * Whether the user can override a held set-method run's reading step from its ladder:
+ * only while its file has not been sent to the gallery ("awaiting" or "published" locks the step).
  */
 export function stepChoiceOpen(publish: PublishState): boolean {
   return publish === "idle";

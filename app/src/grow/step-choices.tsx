@@ -1,7 +1,6 @@
-// The reading step's choice (decision 12 of the four-methods brief): after a run that compares with a set,
-// a strip under the cells of the automaton's picture at each step of its ladder, the kept step marked. The
-// run keeps the step of the lowest own loss; a click keeps the automaton at another (train-run.ts
-// keepAtStep). Once the automaton is sent to the gallery its step is fixed.
+// Reading-step selector for runs that compare against a target set: displays a thumbnail
+// strip across the ladder with the kept step marked. By default the run keeps the lowest-loss
+// step; selecting another step replaces it (train-run.ts keepAtStep) until published.
 
 import { SITE_WORDS, fill } from "../app/site-words";
 import { useMaterialIndex } from "../features/gallery/material-gallery";

@@ -3,7 +3,7 @@
 //   MATERIAL_AUDIT=1 pnpm vitest run src/materials/material-files.audit.test.ts
 import { readdirSync, readFileSync } from "node:fs";
 import { beforeAll, describe, expect, it } from "vitest";
-import { FIRING_BOUNDARY_M, firingBoundary } from "../grow/firing-boundary";
+import { FIRING_BOUNDARY_M, firingBoundary } from "./firing-boundary";
 import {
   canonicalFigureFile, figurePlayback, fired, hiddenNoise, readingPictureSide,
   readFigureMaterial, replayGridSides, strengthStatistic, type FigureMaterialFile,

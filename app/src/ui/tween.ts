@@ -5,8 +5,10 @@
 // arrive together. A new target starts from wherever the values are, never queued. With
 // "reduce motion" set, values change at once.
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useMediaMatch } from "./media-match";
+
+const NO_VALUES: readonly number[] = [];
 
 /** How long a move takes: --motion-move in styles.css. */
 export const MOVE_MS = 240;
@@ -89,6 +91,18 @@ export function useMovingValues(target: readonly number[], { instant = false, sp
     [],
   );
   return shown;
+}
+
+/** Typed 3-vector wrapper around useMovingValues that preserves reference stability and avoids tuple casts. */
+export function useMovingVec3(
+  target: readonly [number, number, number] | null,
+  options?: MoveOptions,
+): [number, number, number] | null {
+  const values = useMovingValues(target ?? NO_VALUES, options);
+  return useMemo(
+    () => (values.length === 3 ? [values[0]!, values[1]!, values[2]!] : null),
+    [values],
+  );
 }
 
 /** The visitor asks for reduced motion; follows a change while the page is open. */

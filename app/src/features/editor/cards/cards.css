@@ -1,0 +1,857 @@
+/*
+ * Request cards, image-group term rows, colour picker, reference picture strip, and
+ * source window editor (cards/*.tsx, detail/card-code-space.tsx).
+ */
+
+.request-card,
+.image-group {
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--black);
+  user-select: none;
+}
+
+/* The sections' strips carry the ink. A click on a card that is not selected selects its request. */
+.request-card {
+  cursor: pointer;
+  /* Its width decides the brush slot's lines (canvas/canvas.css); the column sets the width. */
+  container: request-card / inline-size;
+}
+
+.request-card[data-selected] {
+  border-color: var(--line-2);
+  cursor: default;
+}
+
+.request-head {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3);
+}
+
+/* The held token's brush, at the right of its one section's head. */
+.held-card .section-brush {
+  margin-left: auto;
+}
+
+/* The held token is not placed yet: its ink edge is dashed, like its slot on the dock. */
+.held-card {
+  border-left: 3px dashed var(--paint);
+}
+
+.source-picture {
+  position: relative;
+  display: block;
+  flex: none;
+  overflow: clip;
+  background: var(--black);
+}
+
+.source-picture img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* The 16 × 16 grid over the picture, faint (ui/patch-grid.tsx); the token's cell outlined in the ink. */
+.source-grid {
+  opacity: 0.35;
+  color: var(--ink);
+}
+
+.source-cell {
+  position: absolute;
+  outline: 2px solid var(--paint);
+  outline-offset: -1px;
+}
+
+.request-side {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/* The block number is the link to the block panel on the request's source picture. */
+.request-block {
+  align-self: flex-start;
+  font-size: 40px;
+  line-height: 44px;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.request-actions {
+  align-self: flex-start;
+  display: flex;
+  gap: var(--space-1);
+}
+
+/* The open card's explanation, behind its "?". */
+.request-card > .explanation {
+  margin: 0;
+  padding: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+
+/* The request's code space, under the sections. */
+.request-code-space {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+
+/* The request's code space (detail/card-code-space.tsx), framed in its ink. */
+.card-code-space {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--paint);
+}
+
+.card-code-line {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+}
+
+.card-code-distance b {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+/* "Random token" under the line, and why a move did not happen. */
+.card-code-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+}
+
+/*
+ * A card's two sections (request-card.tsx TermSections), Code over Appearance, and the
+ * control strip between them. Each section's 3 px left edge aligns under the lock square
+ * (canvas/lock-square.tsx), whose horizontal position follows --brush-control.
+ */
+.term-sections {
+  border-top: 1px solid var(--line);
+  --edge-left: calc(var(--brush-control) / 2 - 1.5px);
+  --section-indent: calc(var(--brush-control) / 2 + 14px);
+}
+
+.term-section {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--section-indent);
+  cursor: pointer;
+}
+
+.term-section::before {
+  content: "";
+  position: absolute;
+  left: var(--edge-left);
+  top: var(--space-2);
+  bottom: var(--space-2);
+  width: 3px;
+  background: color-mix(in oklch, var(--paint) 25%, transparent);
+}
+
+/*
+ * The lock is the hinge of the two edges: Code's edge runs to the strip, Appearance's
+ * starts at it, and the strip carries the edge above and below the lock.
+ */
+.term-sections[data-hinge] .term-section[data-term="respond"]::before {
+  bottom: 0;
+}
+
+.term-sections[data-hinge] .term-section[data-term="look"]::before {
+  top: 0;
+}
+
+.term-sections[data-hinge="joined"] {
+  --hinge-code: color-mix(in oklch, var(--paint) 25%, transparent);
+  --hinge-look: color-mix(in oklch, var(--paint-look) 25%, transparent);
+}
+
+.term-sections[data-hinge="joined"][data-lit] {
+  --hinge-code: var(--paint);
+  --hinge-look: var(--paint-look);
+}
+
+.term-sections[data-hinge="broken"] {
+  --hinge-code: var(--line);
+  --hinge-look: var(--line);
+}
+
+.term-section[data-lit]::before {
+  background: var(--paint);
+}
+
+.term-section[data-term="look"]::before {
+  background: color-mix(in oklch, var(--paint-look) 25%, transparent);
+}
+
+.term-section[data-term="look"][data-lit]::before {
+  background: var(--paint-look);
+}
+
+.term-section[data-off] .term-select {
+  color: var(--ink-3);
+}
+
+.section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 28px;
+}
+
+/* The name and its colour swatch keep one width together, so the two sections' masks line up. */
+.section-name {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 11ch;
+}
+
+.section-head .term-select {
+  flex: 0 0 auto;
+}
+
+/*
+ * A request's colours (cards/ink-picker.tsx). The swatch beside a term's name: 16 px with
+ * a hairline edge, split corner to corner while the lock joins the two tones; 24 px with
+ * a 44 px reach for a finger.
+ */
+.ink-swatch {
+  position: relative;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: var(--space-2);
+  padding: 0;
+  border: 1px solid var(--line-2);
+  background: var(--swatch);
+  cursor: pointer;
+}
+
+/* A split swatch: the ink above the diagonal, its Appearance tone below, a triangle drawn by clip-path. */
+.ink-swatch[data-split]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--swatch-look);
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+}
+
+/* The colour picker dialog sits in the top layer so nothing behind it moves. */
+.ink-picker {
+  width: min(360px, calc(100% - 2 * var(--space-4)));
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--black);
+  color: var(--ink);
+}
+
+.ink-picker::backdrop {
+  background: var(--scrim);
+}
+
+.ink-picker-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-6);
+}
+
+.ink-picker h2 {
+  margin: 0;
+  font-size: var(--s0);
+  font-weight: 500;
+}
+
+.ink-picker-head p {
+  margin: var(--space-1) 0 0;
+}
+
+/* The pair the pick makes: the Code ink and its Appearance tone, or the one term's tone. */
+.ink-picker-preview {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.ink-sample {
+  width: 48px;
+  height: 24px;
+  background: var(--tone);
+}
+
+/* The twelve colours, two rows of six; the chosen one has the white ring. */
+.ink-palette {
+  display: grid;
+  grid-template-columns: repeat(6, 32px);
+  gap: var(--space-2);
+}
+
+.ink-palette button {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  background: var(--swatch);
+  cursor: pointer;
+}
+
+.ink-palette button[aria-checked="true"] {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.ink-free {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ink-free input[type="color"] {
+  width: 48px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--line-2);
+  background: none;
+}
+
+.ink-picker-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+@media (pointer: coarse) {
+  .ink-swatch {
+    width: 24px;
+    height: 24px;
+  }
+
+  .ink-swatch::after {
+    content: "";
+    position: absolute;
+    inset: -10px;
+  }
+
+  .ink-palette {
+    grid-template-columns: repeat(6, 44px);
+  }
+
+  .ink-palette button {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+/* A phone under 360 px: six 44 px colours do not fit, so each is drawn at 36 px and reaches 44 px. */
+@media (pointer: coarse) and (max-width: 359px) {
+  .ink-picker-body {
+    padding: var(--space-4);
+  }
+
+  .ink-palette {
+    grid-template-columns: repeat(6, 36px);
+  }
+
+  .ink-palette button {
+    width: 36px;
+    height: 36px;
+  }
+
+  .ink-palette button::after {
+    content: "";
+    position: absolute;
+    inset: -4px;
+  }
+}
+
+.section-body {
+  min-width: 0;
+}
+
+.section-body .made-from,
+.section-body .picture-strip {
+  margin: 0;
+}
+
+/* The Code section's "blocks" line (cards/code-blocks.tsx): the name, the stepper and its "?", under "made from". */
+.code-blocks {
+  margin-top: var(--space-2);
+}
+
+.code-blocks-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.code-blocks .explanation-reveal .explanation {
+  margin-top: var(--space-2);
+}
+
+/* A section's weight and switch, at the right, on the side next to the control strip. */
+.section-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+.section-controls .term-blocker {
+  margin: 0 auto 0 0;
+}
+
+/*
+ * The lock, then 12 px of hairline, then the brush. The lock stays on the first line; in a
+ * narrow card the brush shrinks and wraps its opacity and paint or erase onto a second line.
+ */
+.control-strip {
+  --strip-middle: calc(var(--space-1) + var(--brush-control) / 2);
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-1) var(--space-3) var(--space-1) 0;
+}
+
+/* The hairline runs under the lock and the brush, through the middle of the first row. */
+.control-strip::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: var(--strip-middle);
+  border-top: 1px solid var(--line);
+}
+
+/* The edge through the strip, split under the lock's middle: Code's half above, Appearance's below. */
+.term-sections[data-hinge] .control-strip::after {
+  content: "";
+  position: absolute;
+  left: var(--edge-left);
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  /* Code's colour above the middle as the top border, Appearance's below as the fill: two parts, no gradient. */
+  box-sizing: border-box;
+  border-top: var(--strip-middle) solid var(--hinge-code);
+  background: var(--hinge-look);
+}
+
+/* Over the hairline: as wide as the brush, so the hairline runs on to the strip's end. */
+.strip-brush {
+  position: relative;
+  z-index: 1;
+  flex: 0 1 auto;
+  min-width: 0;
+  padding: 0 var(--space-1);
+  background: var(--black);
+}
+
+/* Term rows */
+
+.term-row {
+  padding: var(--space-2) var(--space-3) var(--space-2) calc(var(--space-3) - 3px);
+  border-top: 1px solid var(--line);
+  border-left: 3px solid transparent;
+}
+
+.term-row.selected {
+  border-left-color: var(--paint);
+}
+
+.term-row.off .term-select {
+  color: var(--ink-3);
+}
+
+/* The line is the click target: it selects or opens the term, apart from the weight and the switch. */
+.term-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 24px;
+  cursor: pointer;
+}
+
+.term-select {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+/* "×" and the weight: a request's stepper (cards/stepper.tsx), or an Image rule's field, whose label focuses it. */
+.term-weight {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  cursor: text;
+}
+
+/* The switch: a 28 x 16 track with a knob; on fills the track white and moves the knob right. */
+.term-switch {
+  position: relative;
+  flex: none;
+  width: 28px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid var(--line-2);
+  border-radius: 0;
+  background: transparent;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.term-switch i {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 10px;
+  height: 10px;
+  background: var(--ink-3);
+}
+
+.term-switch[aria-checked="true"] {
+  border-color: var(--ink);
+  background: var(--ink);
+}
+
+.term-switch[aria-checked="true"] i {
+  background: var(--black);
+  transform: translateX(12px);
+}
+
+.term-sentence,
+.term-blocker {
+  margin: var(--space-1) 0 0;
+}
+
+.term-blocker {
+  color: var(--ink-3);
+}
+
+/* Protect's and Noise's sentences stay in place, greyed while the brush paints something else. */
+.term-row:not(.selected) > .term-sentence {
+  color: var(--ink-3);
+}
+
+/* The Image rows share the stepper's line height, so Zoom, Smoothness and Restraint keep one rhythm. */
+.image-group .term-line {
+  min-height: var(--brush-control);
+}
+
+.image-group h3 {
+  padding: var(--space-2) var(--space-3) var(--space-1);
+}
+
+/* The brush (canvas/canvas.css), under the selected term. */
+.term-row .brush-palette {
+  margin-top: var(--space-2);
+}
+
+/* Reference pictures of an Appearance term. */
+
+.picture-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+
+.picture {
+  position: relative;
+}
+
+.picture-image {
+  position: relative;
+  display: block;
+  padding: 0;
+  border: 1px solid var(--line);
+  background: var(--black);
+  overflow: clip;
+  cursor: pointer;
+}
+
+.picture-image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.window-veil {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+
+/*
+ * A reference's ×: always in the page and in the Tab order, so a keyboard reaches it; it
+ * shows while the picture is hovered or holds focus, and always on a finger.
+ */
+.picture-remove {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid var(--line-2);
+  background: var(--black);
+  color: var(--ink);
+  font-size: var(--s-1);
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.picture:focus-within .picture-remove {
+  opacity: 1;
+}
+
+/*
+ * Source window editor dialog over the Requests column: resets native dialog margins,
+ * borders, and maximum size constraints.
+ */
+.window-editor {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  width: auto;
+  height: auto;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  border: 0;
+  color: inherit;
+  padding: var(--space-4);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--black);
+}
+
+.window-editor[open] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* Modal on a phone: the page behind is inert, not dimmed; the window already covers it. */
+.window-editor::backdrop {
+  background: transparent;
+}
+
+.window-editor header,
+.window-editor footer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/*
+ * The footer's chips keep their text's width; where the three do not fit one row, the row wraps.
+ * A finger's 44 px minimum width would otherwise let a chip shrink below its text.
+ */
+.window-editor footer {
+  flex-wrap: wrap;
+}
+
+.window-editor footer .chip {
+  flex: none;
+}
+
+/* Removing the picture: set apart at the footer's end, in the danger colour. */
+.window-remove {
+  margin-left: auto;
+  color: var(--danger);
+}
+
+.window-editor header .card-remove {
+  margin-left: auto;
+  padding: 0 var(--space-1);
+  border: 0;
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.window-grid {
+  position: relative;
+  overflow: clip;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.window-grid img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  user-select: none;
+}
+
+.window-cells {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(16, 1fr);
+  grid-template-rows: repeat(16, 1fr);
+}
+
+.window-cells i {
+  background: color-mix(in oklch, var(--black) 60%, transparent);
+}
+
+.window-cells i.selected {
+  background: transparent;
+  outline: 1px solid var(--ink);
+  outline-offset: -1px;
+}
+
+@media (max-width: 759px) {
+  .window-editor {
+    position: fixed;
+    inset: var(--top) 0 0 0;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .term-line:hover .term-select {
+    color: var(--ink);
+  }
+
+  .term-switch:hover {
+    border-color: var(--ink);
+  }
+
+  .picture:hover .picture-remove {
+    opacity: 1;
+  }
+}
+
+/*
+ * On a coarse pointer each control scales as a whole: the switch grows 1.5x along with
+ * its knob travel, and its hit target reaches 44 px.
+ */
+@media (pointer: coarse) {
+  .picture-remove {
+    opacity: 1;
+    width: 24px;
+    height: 24px;
+    font-size: var(--s0);
+  }
+
+  /*
+   * A 44 px target round the × would cover a third of a card's picture, which opens the
+   * window editor: there a finger removes the picture in the editor instead.
+   * In the rail a picture does nothing, so the × reaches 44 px past its square.
+   */
+  .picture-strip[data-edits] .picture-remove {
+    display: none;
+  }
+
+  /* Above the next picture, a later sibling that would paint over the target's right side. */
+  .picture-strip:not([data-edits]) .picture-remove {
+    z-index: 1;
+  }
+
+  .picture-strip:not([data-edits]) .picture-remove::after {
+    content: "";
+    position: absolute;
+    inset: -10px;
+  }
+
+  .term-select {
+    min-height: var(--touch-target);
+  }
+
+  .term-switch {
+    width: 42px;
+    height: 24px;
+  }
+
+  .term-switch::after {
+    content: "";
+    position: absolute;
+    inset: -10px -1px;
+  }
+
+  .term-switch i {
+    top: 3px;
+    left: 3px;
+    width: 16px;
+    height: 16px;
+  }
+
+  .term-switch[aria-checked="true"] i {
+    transform: translateX(18px);
+  }
+}
+
+.term-select:active,
+.term-switch:active,
+.picture-image:active,
+.card-remove:active,
+.request-block:active {
+  opacity: 0.8;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .term-row {
+    transition:
+      background-color var(--motion),
+      border-color var(--motion),
+      color var(--motion),
+      opacity var(--motion);
+  }
+
+  .term-switch {
+    transition:
+      background-color var(--motion),
+      border-color var(--motion),
+      color var(--motion),
+      opacity var(--motion-press);
+  }
+
+  .term-select,
+  .picture-image,
+  .card-remove,
+  .request-block {
+    transition:
+      color var(--motion),
+      opacity var(--motion-press);
+  }
+
+  .term-switch i {
+    transition:
+      background-color var(--motion),
+      transform var(--motion);
+  }
+}

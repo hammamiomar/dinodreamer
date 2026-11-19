@@ -1,0 +1,212 @@
+/*
+ * Objective column (objective/objective-column.tsx): movement map, contributing term
+ * rows with sparklines and code minimaps, and the summed loss total.
+ */
+
+.objective {
+  grid-area: objective;
+  justify-self: start;
+  width: min(100%, var(--requests-width));
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-6) var(--space-4);
+  border-right: 1px solid var(--line);
+  background: var(--black);
+  user-select: none;
+}
+
+/*
+ * Movement map of the latest update at column width, with mean and history beneath it;
+ * folded under the transport below 1280 px, the map narrows to 256 px.
+ */
+.objective-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+/* The total under the rows, after a rule, as in a sum written by hand. */
+.objective-total {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line-2);
+}
+
+/* Sized to fit the column without overflowing the display scale from styles.css. */
+.objective-total .display {
+  font-size: 40px;
+  line-height: 44px;
+}
+
+.objective-total .sparkline {
+  width: 100%;
+  height: 28px;
+}
+
+.objective-movement {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  width: 100%;
+}
+
+.movement-figure {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  white-space: nowrap;
+}
+
+.objective-movement .sparkline {
+  width: 100%;
+  height: 20px;
+}
+
+.movement-map {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  border: 1px solid var(--line);
+  image-rendering: pixelated;
+  background: var(--black);
+}
+
+.objective-legend {
+  margin: 0 0 var(--space-3);
+}
+
+.objective-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* A row: name, weight and value on one line; its history and, for Code, the minimap under. The whole row is clickable. */
+.objective-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "main main" "objective-history map";
+  gap: var(--space-1) var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border-left: 3px solid var(--paint);
+  cursor: pointer;
+}
+
+.objective-row.pending {
+  opacity: 0.45;
+}
+
+.objective-row.selected {
+  background: var(--line-faint);
+}
+
+/* Name, weight and value on one line; a row too narrow for them puts the weight and value under the name, never over it. */
+.row-main {
+  grid-area: main;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.row-name {
+  flex: 1 0 auto;
+  max-width: 100%;
+}
+
+.row-value {
+  min-width: 48px;
+  text-align: right;
+}
+
+.objective-row .sparkline {
+  grid-area: objective-history;
+  align-self: end;
+  width: 100%;
+  height: 20px;
+}
+
+.objective-row .minimap {
+  grid-area: map;
+}
+
+@media (max-width: 1279px) {
+  .objective {
+    justify-self: stretch;
+    width: auto;
+    overflow-y: visible;
+    border-right: 0;
+    border-top: 1px solid var(--line);
+  }
+
+  /* Folded under the transport, rows sit side by side where each keeps a row's width. */
+  .objective-rows {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+    gap: var(--space-2) var(--space-4);
+  }
+
+  /* The map keeps a column's width. */
+  .objective-movement {
+    width: 256px;
+  }
+}
+
+@media (max-width: 759px) {
+  .objective-movement {
+    width: 100%;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .objective-row:hover .row-main {
+    color: var(--ink);
+  }
+
+  .objective-row:hover {
+    background: var(--line-faint);
+  }
+}
+
+@media (pointer: coarse) {
+  .row-main {
+    min-height: var(--touch-target);
+  }
+}
+
+.row-main:active {
+  opacity: 0.8;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .objective-row {
+    transition:
+      background-color var(--motion),
+      border-color var(--motion),
+      color var(--motion),
+      opacity var(--motion);
+  }
+
+  .row-main {
+    transition:
+      color var(--motion),
+      opacity var(--motion-press);
+  }
+}

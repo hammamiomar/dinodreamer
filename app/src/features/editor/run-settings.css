@@ -1,0 +1,182 @@
+/*
+ * Run settings (run-settings.tsx): sits below the transport note at the canvas width.
+ * Each setting is one line of at least 44 px on coarse pointers and narrow widths, or
+ * three columns on fine pointers at 440 px and wider.
+ *
+ * Opened explanations stack in click order (--stack-order) without shifting the canvas.
+ * On wide layouts (1280 px and wider), the stack sits below the settings in the remaining
+ * stage height (--texts-room), or above the settings as a panel (data-place="above") when
+ * room is too short. Below 1280 px, each explanation follows its own line (--line-order).
+ */
+
+.run-settings {
+  --run-setting-band: 32px;
+  container: run-settings / inline-size;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  column-gap: var(--space-6);
+}
+
+/* The settings' choices are 32 px high, two patches, with no padding of their own. */
+.run-settings .segmented {
+  padding: 0;
+}
+
+.run-settings .segmented > button {
+  min-height: 32px;
+}
+
+.run-setting {
+  display: flex;
+  flex-basis: 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  /* No space between a setting's 16 px name and its 32 px choice, so the choice starts on 16. */
+  gap: 0 var(--space-1);
+  min-height: var(--touch-target);
+}
+
+.run-setting + .run-setting {
+  margin-top: var(--space-3);
+}
+
+/* A control that does not fit beside its name goes under it, at the right. */
+.run-setting > :last-child {
+  margin-inline-start: auto;
+}
+
+.run-setting-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.run-setting-texts {
+  display: flex;
+  flex-basis: 100%;
+  flex-direction: column;
+}
+
+.run-setting-texts > .explanation-reveal {
+  order: var(--stack-order);
+}
+
+/* The space above a text is inside it, so a shut text takes none. */
+.run-setting-texts .explanation p {
+  padding-top: var(--space-3);
+}
+
+.run-setting-name {
+  margin-inline-end: var(--space-2);
+  color: var(--ink);
+}
+
+@media (min-width: 1280px) {
+  .run-settings {
+    position: relative;
+  }
+
+  .run-setting-texts {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    max-height: var(--texts-room, 0px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  /*
+   * When the room below cannot hold all three explanations, they open above the settings
+   * without moving the canvas. With none open, the panel becomes transparent and passes
+   * pointer events through to the transport underneath.
+   */
+  .run-setting-texts[data-place="above"] {
+    top: auto;
+    bottom: calc(100% + var(--space-2));
+    z-index: 1;
+    max-height: none;
+    overflow: visible;
+    padding: 0 var(--space-3) var(--space-3);
+    border: 1px solid var(--line-2);
+    background: var(--black);
+  }
+
+  .run-setting-texts[data-place="above"]:not(:has(.explanation-reveal[data-open])) {
+    border-color: transparent;
+    background: transparent;
+    pointer-events: none;
+  }
+}
+
+/* The panel's frame fades on the same curve as its explanations. */
+@media (min-width: 1280px) and (prefers-reduced-motion: no-preference) {
+  .run-setting-texts[data-place="above"] {
+    transition:
+      background-color var(--motion-move-out),
+      border-color var(--motion-move-out);
+  }
+
+  .run-setting-texts[data-place="above"]:has(.explanation-reveal[data-open]) {
+    transition:
+      background-color var(--motion-move),
+      border-color var(--motion-move);
+  }
+}
+
+@media (max-width: 1279px) {
+  .run-setting-texts {
+    display: contents;
+  }
+
+  .run-setting,
+  .run-setting-texts > .explanation-reveal {
+    order: var(--line-order);
+  }
+
+  .run-setting-name {
+    display: none;
+  }
+}
+
+@media (pointer: fine), (pointer: none) {
+  @container run-settings (width >= 440px) {
+    .run-setting {
+      flex-basis: auto;
+      flex-direction: column;
+      flex-wrap: nowrap;
+      align-items: flex-start;
+      min-height: 0;
+      order: 0;
+    }
+
+    .run-setting + .run-setting {
+      margin-top: 0;
+    }
+
+    .run-setting > :last-child {
+      margin-inline-start: 0;
+    }
+
+    /* The switch sits in the middle of the segments' band, not at its top. */
+    .run-setting > .term-switch {
+      margin-block: calc((var(--run-setting-band) - 16px) / 2);
+    }
+
+    /* A row keeps its texts in the stack under it, also where the stage flows. */
+    .run-setting-texts {
+      display: flex;
+    }
+
+    .run-setting-texts > .explanation-reveal {
+      order: var(--stack-order);
+    }
+
+    .run-setting-name {
+      display: inline;
+    }
+  }
+}

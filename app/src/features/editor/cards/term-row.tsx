@@ -7,6 +7,7 @@ import type { CSSProperties } from "react";
 import { NumberInput } from "./number-input";
 import { fill } from "../../../app/site-words";
 import { CREATE_TEXT } from "../create-text";
+import "./cards.css";
 
 export function TermRow({
   name,

@@ -301,6 +301,16 @@ describe("the site's Train run (train-run.ts)", () => {
     expect(run.state().shownOnPage).toBe(true);
     expect(changes).toHaveBeenCalledTimes(1);
   });
+
+  it("notifies state subscribers once when starting a run", () => {
+    const { run } = store();
+    const changes = vi.fn();
+    run.subscribe(changes);
+    run.start(request, choices);
+    expect(changes).toHaveBeenCalledTimes(1);
+    run.start({ ...request, block: 9759 }, choices);
+    expect(changes).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe("a page's own run (sameTarget)", () => {

@@ -53,6 +53,7 @@ import {
   applyRequestStroke,
   createPaintedRequest,
   createRecipe,
+  parseRequestTermId,
   removeReference,
   removeRequest,
   retargetRequest,
@@ -117,7 +118,7 @@ export interface EditorState {
   /** Null: the brush is off and the canvas shows the clean picture (canvas/overlay.ts). */
   selectedTerm: Selection | null;
   /** The next grid click chooses this path anchor, without painting. */
-  anchorPick?: { requestId: number; endpoint: 0 | 1 } | null;
+  anchorPick: { requestId: number; endpoint: 0 | 1 } | null;
   /** The brush's size, opacity and erase toggle, for every area the visitor paints. */
   brush: Brush;
   /**
@@ -213,6 +214,7 @@ export function createEditorState(release: string): EditorState {
     revision: 0,
     opened: 0,
     selectedTerm: null,
+    anchorPick: null,
     brush: EDITOR_DEFAULTS.brush,
     zoomWhenOn: EDITOR_DEFAULTS.zoomWhenOn,
     refusal: null,
@@ -299,18 +301,8 @@ export type EditorAction =
 
 export function editorReducer(state: EditorState, action: EditorAction): EditorState {
   switch (action.type) {
-    case "removeRequest": {
-      const next = withRecipe(state, removeRequest(state.recipe, action.requestId));
-      if (next === state) return state;
-      return {
-        ...next,
-        selectedTerm: selectionOn(state.selectedTerm, action.requestId) ? null : state.selectedTerm,
-        anchorPick: state.anchorPick?.requestId === action.requestId ? null : state.anchorPick,
-        // Request ids can return after a removal; a new request starts linked, in its default colours.
-        separateAreas: state.separateAreas.filter((id) => id !== action.requestId),
-        inks: forgetInk(state.inks, action.requestId),
-      };
-    }
+    case "removeRequest":
+      return removeRequestState(state, action.requestId);
     case "holdRequest":
       return holdRequest(state, action.handoff);
     case "releaseHeld":
@@ -344,8 +336,11 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return selectEditedTerm(withRecipe(state, setTermEnabled(state.recipe, action.termId, action.enabled)), action.termId);
     case "setTermWeight":
       return selectEditedTerm(withRecipe(state, setTermWeight(state.recipe, action.termId, action.weight)), action.termId);
-    case "setCodeTarget":
-      return { ...withRecipe(state, setCodeTarget(state.recipe, action.requestId, action.target)), anchorPick: null };
+    case "setCodeTarget": {
+      const next = withRecipe(state, setCodeTarget(state.recipe, action.requestId, action.target));
+      if (next === state && state.anchorPick === null) return state;
+      return { ...next, anchorPick: null };
+    }
     case "setCodeRadius":
       return withRecipe(state, setCodeRadius(state.recipe, action.requestId, action.radius));
     case "pickPathAnchor":
@@ -356,7 +351,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return { ...withRecipe(state, setPathAnchor(state.recipe, requestId, endpoint, action.cell)), anchorPick: null };
     }
     case "cancelPathAnchor":
-      return { ...state, anchorPick: null };
+      return state.anchorPick === null ? state : { ...state, anchorPick: null };
     case "setCodeBlocks":
       return withRecipe(state, setCodeBlockCount(state.recipe, action.requestId, action.count, action.address));
     case "retargetRequest":
@@ -374,28 +369,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case "cancelOpen":
       return state.pendingOpen?.ticket === action.ticket ? { ...state, pendingOpen: null } : state;
     case "openRecipe":
-      // A late load: a newer open began, or the visitor changed the creation meanwhile.
-      if (!openStillWanted(state, action.ticket)) return state;
-      return {
-        ...state,
-        pendingOpen: null,
-        title: action.title,
-        savedId: action.source.kind === "saved" ? action.source.id : undefined,
-        fromGallery: action.source.kind === "gallery",
-        recipe: action.recipe,
-        revision: state.revision + 1,
-        opened: state.opened + 1,
-        // A zooming recipe brings its amount; one without zoom keeps the session's.
-        zoomWhenOn: action.recipe.motion.zoomPerUpdate > 0 ? action.recipe.motion.zoomPerUpdate : state.zoomWhenOn,
-        selectedTerm: null,
-        anchorPick: null,
-        refusal: null,
-        heldRequest: null,
-        // A Saved record's colours come back; a request with its own Appearance colour reopens unlocked.
-        inks: action.inks ?? NO_INK_CHOICES,
-        separateAreas: unlockedByInks(action.inks ?? NO_INK_CHOICES).filter((id) => action.recipe.requests.some((request) => request.id === id)),
-        openedPicture: action.picture ? { ...action.picture, opened: state.opened + 1, revision: state.revision + 1 } : null,
-      };
+      return openCreation(state, action);
     case "clear":
       return clearCreation(state, action.release);
     case "changeImage":
@@ -434,6 +408,46 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       if (action.opened !== state.opened || action.savedId === state.savedId) return state;
       return { ...state, savedId: action.savedId };
   }
+}
+
+/** Remove a request and clear any selection, anchor pick, unlink state, or custom ink tied to it. */
+function removeRequestState(state: EditorState, requestId: number): EditorState {
+  const next = withRecipe(state, removeRequest(state.recipe, requestId));
+  if (next === state) return state;
+  return {
+    ...next,
+    selectedTerm: selectionOn(state.selectedTerm, requestId) ? null : state.selectedTerm,
+    anchorPick: state.anchorPick?.requestId === requestId ? null : state.anchorPick,
+    // Request ids can return after a removal; a new request starts linked, in its default colours.
+    separateAreas: state.separateAreas.filter((id) => id !== requestId),
+    inks: forgetInk(state.inks, requestId),
+  };
+}
+
+/** Replace the current creation with an opened saved record or gallery entry if its ticket is still active. */
+function openCreation(state: EditorState, action: Extract<EditorAction, { type: "openRecipe" }>): EditorState {
+  if (!openStillWanted(state, action.ticket)) return state;
+  const inks = action.inks ?? NO_INK_CHOICES;
+  return {
+    ...state,
+    pendingOpen: null,
+    title: action.title,
+    savedId: action.source.kind === "saved" ? action.source.id : undefined,
+    fromGallery: action.source.kind === "gallery",
+    recipe: action.recipe,
+    revision: state.revision + 1,
+    opened: state.opened + 1,
+    // A zooming recipe brings its amount; one without zoom keeps the session's.
+    zoomWhenOn: action.recipe.motion.zoomPerUpdate > 0 ? action.recipe.motion.zoomPerUpdate : state.zoomWhenOn,
+    selectedTerm: null,
+    anchorPick: null,
+    refusal: null,
+    heldRequest: null,
+    // A Saved record's colours come back; a request with its own Appearance colour reopens unlocked.
+    inks,
+    separateAreas: unlockedByInks(inks).filter((id) => action.recipe.requests.some((request) => request.id === id)),
+    openedPicture: action.picture ? { ...action.picture, opened: state.opened + 1, revision: state.revision + 1 } : null,
+  };
 }
 
 /**
@@ -596,7 +610,7 @@ function select(state: EditorState, selection: Selection): EditorState {
   return selectTerm(state, selection.requestId, selection.term);
 }
 
-/** Selects one term of a request (computation.md §11). */
+/** Selects one term of a request. */
 function selectTerm(state: EditorState, requestId: number, term: AreaTerm): EditorState {
   if (!state.recipe.requests.some((request) => request.id === requestId)) return state;
   const current = state.selectedTerm;
@@ -621,9 +635,9 @@ function firstAreaTerm(request: Request): AreaTerm {
 
 /** Editing a request term's switch or weight selects that term; other terms leave the selection alone. */
 function selectEditedTerm(state: EditorState, termId: TermId): EditorState {
-  const match = /^request:(\d+):(respond|look)$/.exec(termId);
-  if (!match) return state;
-  return selectTerm(state, Number(match[1]), match[2] as AreaTerm);
+  const parsed = parseRequestTermId(termId);
+  if (!parsed) return state;
+  return selectTerm(state, parsed.requestId, parsed.row);
 }
 
 function selectionOn(selection: Selection | null, requestId: number): boolean {

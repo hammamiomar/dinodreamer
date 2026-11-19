@@ -84,6 +84,8 @@ export function useMarkDrag(points: readonly SpacePoint[], dragMark: DragMark | 
   const [moved, setMoved] = useState<number | null>(null);
   const code = dragMark?.code;
   const codeText = code ? code.join(" ") : "";
+  const codeRef = useRef(code);
+  codeRef.current = code;
   const lastCode = useRef(codeText);
   const pointsRef = useRef(points);
   pointsRef.current = points;
@@ -91,14 +93,13 @@ export function useMarkDrag(points: readonly SpacePoint[], dragMark: DragMark | 
     if (lastCode.current === codeText) return;
     lastCode.current = codeText;
     setMoved(null);
-    if (!code || droppedAt(code)) return;
-    const index = pointsRef.current.findIndex((point) => sameValues(point.code, code));
+    const currentCode = codeRef.current;
+    if (!currentCode || (dropped.current !== null && sameValues(dropped.current, currentCode))) return;
+    const index = pointsRef.current.findIndex((point) => sameValues(point.code, currentCode));
     if (index < 0) return;
     setMoved(index);
     const timer = setTimeout(() => setMoved(null), MOVED_PICTURE_MS);
     return () => clearTimeout(timer);
-    // The code's numbers are the change; a new array with the same numbers is not a move.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [codeText]);
 
   // Escape puts a lifted ring back, before anything around the view sees the key (a panel would close).

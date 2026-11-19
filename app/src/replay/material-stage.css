@@ -29,7 +29,8 @@
 .stage-loading { position: absolute; inset: auto var(--space-3) var(--space-3) var(--space-3); font-size: var(--s-1); color: var(--ink-2); }
 
 /* The brush ring: where the pointer will disturb the material, and how wide; a cursor, in the material's colour, with a dark edge for bright cells. */
-.stage-ring { position: absolute; border: 1.5px solid var(--sampled, var(--ink)); border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; outline: 1px solid rgb(0 0 0 / 0.5); }
+.stage-ring { position: absolute; border: 1.5px solid var(--sampled, var(--ink)); border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; outline: 1px solid rgb(0 0 0 / 0.5); visibility: hidden; }
+.stage-ring[data-visible="true"] { visibility: visible; }
 
 /* The bar: equal outlined playback buttons, then the sliders as label, rail and value. */
 .stage-controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--patch); font-size: var(--s-1); }
@@ -125,9 +126,11 @@
    */
   /* The column is at least a 512 frame's width (544), so the bar and the step's line hold one line each under a smaller frame. */
   .stage-instrument { position: relative; grid-template-columns: max(calc(var(--cells, 512px) + 2 * var(--patch)), 544px); row-gap: var(--patch); }
-  /* The frame keeps the cells' size (--cells, playground.css): the zoom fits this box, not the wider column. */
+  /* The frame keeps the cells' size (--cells): the zoom fits this box, not the wider column. */
   .stage-instrument .stage-fit { max-width: calc(var(--cells, 512px) + 2 * var(--patch)); }
-  .stage-instrument .stage-controls { grid-row: 2; min-height: 48px; padding-top: var(--space-2); }
+  /* A column of 544 or more holds the bar on one line. Narrower columns keep wrapping controls. */
+  .stage-instrument .stage-controls { grid-row: 2; flex-wrap: nowrap; min-height: 48px; padding-top: var(--space-2); }
+  .stage-instrument .stage-controls .slider { flex-basis: 0; }
   .stage-instrument .stage-readouts { order: 0; grid-row: 3; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--patch) var(--space-6); min-height: 40px; }
   /* The step stands as tall as the buttons, so a wrapped line keeps 40 + 16. */
   .stage-readouts dl { grid-template-columns: auto auto; align-items: center; column-gap: var(--patch); min-height: 40px; }
@@ -139,13 +142,7 @@
   .stage-readouts .stage-panel { flex-basis: 100%; order: 4; }
 }
 
-/* A column of 544 or more holds the bar on one line. Narrower columns keep wrapping controls. */
-@container stage (min-width: 544px) {
-  .stage-instrument .stage-controls { flex-wrap: nowrap; }
-  .stage-instrument .stage-controls .slider { flex-basis: 0; }
-}
-
-/* Where the shelf stands beside the stage (playground.css, 1200 px and wider), a panel opens beside the frame, on black over the shelf's edge, never over the cells. */
+/* Where the shelf stands beside the stage (1200 px and wider), a panel opens beside the frame, on black over the shelf's edge, never over the cells. */
 @media (min-width: 1200px) {
   @container stage (min-width: 544px) {
     .stage-readouts .stage-panel { position: absolute; top: 0; left: calc(100% + var(--m)); z-index: 2; width: 256px; max-height: calc(var(--cells, 512px) + 2 * var(--patch)); overflow-y: auto; overscroll-behavior: contain; padding: var(--patch); border: 1px solid var(--line); background: var(--black); }

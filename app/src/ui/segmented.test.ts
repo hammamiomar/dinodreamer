@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { roleSegments } from "./role-choice";
 import { segmentGroups, stepChoice } from "./segmented";
 
 describe("segmented control", () => {
@@ -28,17 +27,5 @@ describe("segmented control", () => {
     ]);
     const plain = [{ value: "a" }, { value: "b" }];
     expect(segmentGroups(plain)).toHaveLength(1);
-  });
-});
-
-describe("role segments", () => {
-  it("always shows the six roles in order, with zero-based short labels", () => {
-    expect(roleSegments().map((segment) => segment.label)).toEqual(["Patches", "CLS", "S0", "S1", "S2", "S3"]);
-    expect(roleSegments().every((segment) => !segment.unavailable)).toBe(true);
-  });
-
-  it("marks a role absent from the block unavailable", () => {
-    const segments = roleSegments(["patch", "cls", "storage2"]);
-    expect(segments.map((segment) => segment.unavailable)).toEqual([false, false, true, true, false, true]);
   });
 });

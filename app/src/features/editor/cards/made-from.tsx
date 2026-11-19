@@ -16,7 +16,7 @@ function meterFill(share: number): number {
   return Math.min(Math.max(share, 0), 1);
 }
 
-export function MadeFromBar({ provenance, role, numbers = true }: { provenance: Provenance; role: LibraryRole; numbers?: boolean }) {
+function MadeFromBar({ provenance, role, numbers = true }: { provenance: Provenance; role: LibraryRole; numbers?: boolean }) {
   const parts = sourceParts(provenance);
   // Unstable parts read as numbers only, where there are numbers.
   const meters = !numbers || !unstableParts(parts, role);

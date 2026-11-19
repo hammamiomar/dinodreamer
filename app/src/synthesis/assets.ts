@@ -114,7 +114,7 @@ export function assetBase(baseUrl: string, page: string | undefined = globalThis
  * (a network or CORS failure) is retried; an HTTP status is an answer, not a failure. When the
  * retry fails too, the first error is the one reported.
  */
-export async function fetchHealing(url: string): Promise<Response> {
+async function fetchHealing(url: string): Promise<Response> {
   try {
     return await fetch(url);
   } catch (error) {

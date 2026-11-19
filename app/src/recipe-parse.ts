@@ -19,6 +19,7 @@
 // The gallery Worker imports this file under Node's type stripping, so it uses
 // explicit .ts imports and no non-erasable TypeScript syntax.
 
+import { decodeArray, decodeBoolean, decodeInteger, decodeNumber, decodeObject, decodeString } from "./decode.ts";
 import {
   isOptimizerScale,
   isOptimizerStep,
@@ -221,34 +222,14 @@ function cells<T>(value: unknown, path: string, read: (value: unknown, path: str
   return values;
 }
 
-function object(value: unknown, path: string): Record<string, unknown> {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error(`${path}: expected an object`);
-  return value as Record<string, unknown>;
-}
-
-function array<T>(value: unknown, path: string, item: (value: unknown, path: string) => T): T[] {
-  if (!Array.isArray(value)) throw new Error(`${path}: expected an array`);
-  return value.map((entry, index) => item(entry, `${path}[${index}]`));
-}
-
-function string(value: unknown, path: string): string {
-  if (typeof value !== "string") throw new Error(`${path}: expected a string`);
-  return value;
-}
-
-function number(value: unknown, path: string): number {
-  if (typeof value !== "number" || !Number.isFinite(value)) throw new Error(`${path}: expected a finite number`);
-  return value;
-}
-
-function integer(value: unknown, path: string): number {
-  if (!Number.isSafeInteger(value)) throw new Error(`${path}: expected an integer`);
-  return value as number;
-}
+const object = decodeObject;
+const array = decodeArray;
+const string = decodeString;
+const number = decodeNumber;
+const integer = decodeInteger;
 
 function boolean(value: unknown, path: string): boolean {
-  if (typeof value !== "boolean") throw new Error(`${path}: expected true or false`);
-  return value;
+  return decodeBoolean(value, path, (field) => `${field}: expected true or false`);
 }
 
 function percentage(value: unknown, path: string): number {

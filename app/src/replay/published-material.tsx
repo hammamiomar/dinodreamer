@@ -2,7 +2,7 @@ import { placeOf, type MaterialEntry } from "../features/gallery/material-index"
 import { FIGURE_METHODS, FIGURE_PYRAMID_LAYOUT, methodReadsTokens, type FigureLayer, type FigureMethod } from "../materials/material-file";
 import { DEFAULT_DEPTH, DEFAULT_METHOD, depthOfLayers } from "../grow/train-method";
 
-/** Train's page continuing this definition from its own rule (Train resume, case 2): a saved file's id or a published entry's. */
+/** Route to continue training this automaton from its saved or published rule. */
 export function continueTrainingPath(entry: MaterialEntry): string {
   return `/train?continue=${encodeURIComponent(entry.id)}`;
 }

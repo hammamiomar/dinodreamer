@@ -67,7 +67,7 @@ describe("the target set's candidates", () => {
   });
 });
 
-describe("what a set method refuses or says (decision 15)", () => {
+describe("what a set method refuses or says", () => {
   const one = targetSetRecord("selection", [{ imageId: 7, patch: 35 }]);
   const two = targetSetRecord("selection", [{ imageId: 7, patch: 35 }, { imageId: 8, patch: 0 }]);
 

@@ -198,7 +198,7 @@ function cellOrigin(cell: number): { x: number; y: number } {
   return { x: (cell % GRID) * CELL_SIZE, y: Math.floor(cell / GRID) * CELL_SIZE };
 }
 
-export function areaCells(area: Area): number[] {
+function areaCells(area: Area): number[] {
   return area.flatMap((inside, cell) => (inside ? [cell] : []));
 }
 

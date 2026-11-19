@@ -18,6 +18,7 @@ import { MOVEMENT_SERIES } from "../run/movement";
 import { objectiveRows, objectiveTotal, type ObjectiveRow } from "./rows";
 import { Sparkline } from "./sparkline";
 import { CREATE_TEXT } from "../create-text";
+import "./objective.css";
 
 const WORDS = CREATE_TEXT.objective;
 

@@ -7,25 +7,27 @@
 import { openLibrary, type Library } from "../library/library";
 import { regionCodes, regionSource } from "../code-target";
 import type { Code } from "../recipe";
-import { BrowserEngine } from "dinodreamer-engine";
-import { initializeEngine } from "../app/engine-wasm";
+import type { BrowserEngine } from "dinodreamer-engine";
 import { validateRecipe, type Recipe } from "../recipe";
-import { AssetLoader, blockPath, fetchModelRelease, previewPath, type ModelRelease } from "./assets";
+import { blockPath, previewPath, type AssetLoader, type ModelRelease } from "./assets";
 import { endsSession } from "./failure";
+import { loadEncoderEngine } from "./load-encoder";
 import {
   editableCells,
   foldAddressTerms,
   neededBlocks,
   neededImages,
   objectiveSpec,
+  optimizerSpec,
   probeSpecs,
   sameEditable,
   sameObjective,
+  sameOptimizer,
   sameProbes,
   type ObjectiveSpec,
+  type OptimizerSpec,
   type ProbeSpec,
 } from "./objective";
-import { optimizerSpec, sameOptimizer, type OptimizerSpec } from "./objective";
 import { transferables, type Command, type Event, type Phase, type ReleaseLocation, type TermMeasurement } from "./protocol";
 
 /** What `BrowserEngine.step` and `measure` return; see engine/src/web.rs. */
@@ -180,35 +182,22 @@ async function load(location: ReleaseLocation): Promise<void> {
       setPhase("failed", gpu.reason);
       return;
     }
-    stage = "the engine module";
-    await initializeEngine();
-    stage = "the GPU device";
-    const engine = await BrowserEngine.create();
-    engine.on_device_lost(deviceLost);
-    stage = "the release manifest";
-    const release = await fetchModelRelease(location);
-    stage = "the asset cache";
-    const assets = new AssetLoader(location.baseUrl);
-    await assets.open();
-    const files = [...release.encoder, release.calibration];
-    const bytesTotal = files.reduce((sum, file) => sum + file.bytes, 0);
-    let bytesDone = 0;
-    for (const [index, file] of files.entries()) {
-      stage = `the download of model file ${index + 1} of ${files.length} (${file.path})`;
-      const bytes = await assets.bytes(file);
-      stage = `the engine's load of model file ${index + 1} of ${files.length} (${file.path})`;
-      if (index === 0) engine.load_stem(bytes);
-      else if (index < files.length - 1) engine.load_layer(index - 1, bytes);
-      else engine.load_calibration(bytes);
-      bytesDone += file.bytes;
-      emit({
-        type: "progress",
-        bytesDone,
-        bytesTotal,
-        cacheHits: assets.cacheHits,
-        message: `Loaded ${index + 1} of ${files.length} model files`,
-      });
-    }
+    const { engine, release, assets } = await loadEncoderEngine({
+      location,
+      onDeviceLost: deviceLost,
+      onStage: (nextStage) => {
+        stage = nextStage;
+      },
+      onFileLoaded: ({ index, files, receivedBytes, totalBytes, cacheHits }) => {
+        emit({
+          type: "progress",
+          bytesDone: receivedBytes,
+          bytesTotal: totalBytes,
+          cacheHits,
+          message: `Loaded ${index + 1} of ${files} model files`,
+        });
+      },
+    });
     loaded = { engine, release, assets, baseUrl: location.baseUrl };
   } catch (error) {
     if (error instanceof CommandError) throw error;
@@ -235,7 +224,7 @@ async function encodeReferences({ engine, release, assets }: Loaded, images: num
   const missing = engine.references_to_encode(new Float64Array(images));
   if (missing.length === 0) return;
   setPhase("preparing", `Downloading ${missing.length} reference ${missing.length === 1 ? "picture" : "pictures"}`);
-  const previews = await Promise.all(Array.from(missing, (imageId) => assets.bytes(previewPath(release, imageId))));
+  const previews = await Promise.all(Array.from(missing, (imageId: number) => assets.bytes(previewPath(release, imageId))));
   for (const [index, imageId] of missing.entries()) {
     setPhase("preparing", `Encoding reference ${index + 1} of ${missing.length}`);
     await engine.encode_reference(imageId, previews[index]);

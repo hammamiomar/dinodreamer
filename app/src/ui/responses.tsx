@@ -11,12 +11,11 @@
 // colour, so strength reads as light over the picture. The prefix swatches sit on
 // the dark interface and use the same ink with the same opacities.
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { CSSProperties, RefObject } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
+import type { RefObject } from "react";
 import { GRID, PATCH_SLOT_OFFSET } from "../recipe";
-import { PREFIX_ROLES } from "../library/roles";
 import type { TokenResponses } from "../library/records";
-import { LibraryImage, loadLibraryPicture } from "./library-image";
+import { LibraryImage } from "./library-image";
 
 /** Opacity of the weakest firing token, so it still shows. */
 export const FIRING_MIN_ALPHA = 0.12;
@@ -61,52 +60,6 @@ export function usePictureShown(src: string): { ref: RefObject<HTMLImageElement>
   return { ref, shown: shownSrc === src, onLoad: () => setShownSrc(src) };
 }
 
-/** Downloads and decodes `src` at high priority, in the mode the views read pictures; rejects when the browser cannot. */
-function decodePicture(src: string): Promise<void> {
-  return loadLibraryPicture(src, { priority: "high" }).then(() => undefined);
-}
-
-/** How long after a failed download the one retry waits: a 503 from the bucket usually clears at once. */
-const PREVIEW_RETRY_MS = 1500;
-
-/**
- * True once `src` has decoded, trying once more after a first failure; false
- * when both tries fail, so the view keeps what it shows instead of a broken image.
- */
-export async function previewDecoded(src: string, decode: (src: string) => Promise<void> = decodePicture, retryAfterMs = PREVIEW_RETRY_MS): Promise<boolean> {
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    try {
-      await decode(src);
-      return true;
-    } catch {
-      if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, retryAfterMs));
-    }
-  }
-  return false;
-}
-
-/**
- * The source to show now for a picture that paints first and sharpens later:
- * `placeholderSrc` (a thumbnail the Atlas already has) until `src` (the lossless
- * preview) has downloaded and decoded in the background, then `src`. A preview
- * that fails to download leaves the placeholder in place. Without a placeholder,
- * `src` at once.
- */
-export function useProgressivePicture(placeholderSrc: string | undefined, src: string): string {
-  const [ready, setReady] = useState<string | null>(null);
-  useEffect(() => {
-    if (!placeholderSrc) return;
-    let current = true;
-    void previewDecoded(src).then((decoded) => {
-      if (current && decoded) setReady(src);
-    });
-    return () => {
-      current = false;
-    };
-  }, [placeholderSrc, src]);
-  return !placeholderSrc || ready === src ? src : placeholderSrc;
-}
-
 /** A 16 × 16 overlay, one pixel per patch token, scaled by CSS to cover its view; drawn before it is first painted. */
 export function ResponseOverlay({ patches, scale }: { patches: TokenResponses; scale: number }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -120,28 +73,6 @@ export function ResponseOverlay({ patches, scale }: { patches: TokenResponses; s
     context.putImageData(image, 0, 0);
   }, [patches, scale]);
   return <canvas ref={canvasRef} className="response-overlay" width={GRID} height={GRID} aria-hidden="true" />;
-}
-
-/** The tint from weak to strong firing: the key's swatch, five steps of the tint over the ground. */
-export function FiringSwatch() {
-  const steps = [0.02, 0.25, 0.5, 0.75, 1].map((fraction) => `rgb(${FIRING_RGB.join(" ")} / ${firingAlpha(fraction, true, 1).toFixed(2)})`);
-  return (
-    <span className="response-legend-tint" aria-hidden="true">
-      {steps.map((colour) => (
-        <span key={colour} style={{ background: colour }} />
-      ))}
-    </span>
-  );
-}
-
-/** The one-line key under the inspector. */
-export function ResponseLegend() {
-  return (
-    <p className="response-legend muted">
-      <FiringSwatch />
-      lit = where this basis group responds in this picture
-    </p>
-  );
 }
 
 /**
@@ -190,22 +121,6 @@ export function ResponseView({
         }}
       />
       {patches && picture.shown && <ResponseOverlay patches={patches} scale={scale} />}
-    </div>
-  );
-}
-
-/** CLS and the four storage tokens as five small cells, with the same rule. */
-export function PrefixCells({ prefix, scale, highlight }: { prefix: TokenResponses; scale: number; highlight?: number }) {
-  return (
-    <div className="prefix-cells" aria-hidden="true">
-      {PREFIX_ROLES.map((role, slot) => (
-        <span
-          key={role}
-          className="prefix-cell"
-          data-highlight={slot === highlight}
-          style={{ "--alpha": firingAlpha(prefix.norm[slot]!, prefix.gated[slot]!, scale) } as CSSProperties}
-        />
-      ))}
     </div>
   );
 }

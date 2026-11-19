@@ -399,15 +399,12 @@
   row-gap: var(--patch);
 }
 
-.grow-faces {
-  display: grid;
-}
-
 /*
  * The leaving face fades out first and the arriving one fades in after it, so the two faces' words,
  * which share one place, never show together.
  */
 .grow-faces {
+  display: grid;
   --face-leave: 120ms;
 }
 

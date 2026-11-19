@@ -1,4 +1,3 @@
-import { TargetOverlay, type TargetHandles } from "./target-handles";
 // A block's code space: every point is one 3-vector code, placed by its three
 // values. The view turns in 3-D on a 2-D canvas, without a 3-D library, and it
 // behaves as maps on the web do. With a mouse, a drag turns it
@@ -42,35 +41,27 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent, PointerEvent, RefObject } from "react";
 import { CodePlane } from "./code-plane";
 import { ResetMark } from "../reset-mark";
-import { useMovingValues, usePrefersReducedMotion } from "../tween";
+import { useMovingValues, useMovingVec3, usePrefersReducedMotion } from "../tween";
 import { ringIsOn, usePointSteps } from "./point-steps";
 import { useMarkDrag } from "./mark-drag";
 import { liftedPoint, PointTooltip } from "./point-tooltip";
+import { TargetOverlay, type TargetHandles } from "./target-handles";
+import { drawSpace, readSpaceColours } from "./code-space-draw";
 import {
-  ARROW_HEAD_PX,
-  arrowNames,
-  axisDirections,
-  axisLines,
   chainCorners,
   chainOrbit,
   DEFAULT_ORBIT,
-  depthOrder,
-  edgeArrow,
   fitCodes,
   isClick,
   orbitBy,
   pickPoint,
-  placeLabel,
   projector,
   reachesDragMark,
-  RING_MARK_PX,
-  SELECTED_RING_PX,
   snapPoint,
   zoomBy,
   viewScale,
 } from "./projection";
-import type { Fit, LabelBox, Orbit, ScreenPoint, Vec3, View } from "./projection";
-import { cssColour } from "../css-colour";
+import type { Fit, Orbit, Vec3, View } from "./projection";
 import "./code-space.css";
 import { canvasPixelRatio, pagePointer } from "../page-scale";
 
@@ -158,37 +149,6 @@ export interface CodeSpaceProps {
   scene?: string;
 }
 
-/** The view's colours, from the styles.css tokens. */
-interface SpaceColours {
-  ground: string;
-  /** Points and the hover ring: measured codes (--measure). */
-  point: string;
-  /** The chosen point (--ask). */
-  selected: string;
-  /** Code values 1, 2 and 3. */
-  axes: readonly [string, string, string];
-  /** The arrows' names (--ink-2) and the halo around them (--black). */
-  label: string;
-  /** The origin a chain of arrows starts from (--ink-3). */
-  origin: string;
-  /** The house typeface, for the arrows' names. */
-  font: string;
-}
-
-function readSpaceColours(): SpaceColours {
-  return {
-    ground: cssColour("--black", "#000"),
-    point: cssColour("--measure", "#efece8"),
-    selected: cssColour("--ink", "#efece8"),
-    axes: [cssColour("--axis-1", "#fb7185"), cssColour("--axis-2", "#6ee7b7"), cssColour("--axis-3", "#7dd3fc")],
-    label: cssColour("--ink-2", "#9c9994"),
-    origin: cssColour("--ink-3", "#5e5b57"),
-    font: getComputedStyle(document.documentElement).getPropertyValue("--mono").trim() || "monospace",
-  };
-}
-const POINT_RADIUS_PX = 2.2;
-/** Arrows for marks outside the view sit this far inside its edge. */
-const EDGE_INSET_PX = 8;
 /** Delay before the hover tooltip opens, so it does not flicker while the pointer crosses the cloud. */
 const TOOLTIP_DELAY_MS = 150;
 const WHEEL_ZOOM_PER_PX = 0.0015;
@@ -328,13 +288,12 @@ function OrbitView({
   const selected = selectedKey === null ? -1 : points.findIndex((point) => point.key === selectedKey);
   // The selected point, its arrows and the stepped point as drawn: on their way to a new place, in code space, so a
   // turn of the view during a move stays true. A new scene puts them in place at once.
-  const movingSelection = useMovingValues(selected >= 0 ? points[selected]!.code : NO_VALUES, { space: scene });
+  const movingSelection = useMovingVec3(selected >= 0 ? points[selected]!.code : null, { space: scene });
   const movingVectors = useMovingValues(chain ? chain.flat() : NO_VALUES, { space: scene });
-  const movingStep = useMovingValues(steps.stepped !== null && points[steps.stepped] ? points[steps.stepped]!.code : NO_VALUES, { space: scene });
+  const movingStep = useMovingVec3(steps.stepped !== null && points[steps.stepped] ? points[steps.stepped]!.code : null, { space: scene });
   // The draggable ring as drawn: it travels to a new place, but not to the place a drop just put it.
-  const markCode = dragMark?.code;
-  const movingMark = useMovingValues(markCode ?? NO_VALUES, { space: scene, instant: markCode !== undefined && drag.droppedAt(markCode) });
-  const markDrawn = movingMark.length === 3 ? (movingMark as Vec3) : null;
+  const markCode = dragMark?.code ?? null;
+  const markDrawn = useMovingVec3(markCode, { space: scene, instant: markCode !== null && drag.droppedAt(markCode) });
   // Where the ring is, while there are points to drop it on; the touch listeners read it here.
   const markAt = markDrawn && points.length > 0 ? project(markDrawn) : null;
   const markAtRef = useRef(markAt);
@@ -345,20 +304,23 @@ function OrbitView({
     const context = canvas.current?.getContext("2d");
     if (!context || width === 0) return;
     const ratio = canvasPixelRatio(context.canvas);
-    context.canvas.width = Math.round(width * ratio);
-    context.canvas.height = Math.round(width * ratio);
+    const pixelSide = Math.round(width * ratio);
+    if (context.canvas.width !== pixelSide || context.canvas.height !== pixelSide) {
+      context.canvas.width = pixelSide;
+      context.canvas.height = pixelSide;
+    }
     context.setTransform(ratio, 0, 0, ratio, 0, 0);
     // The stepped point is ringed as the hovered one is.
-    const ringed = movingStep.length === 3 ? project(movingStep as Vec3) : hovered !== null ? (projected[hovered] ?? null) : null;
+    const ringed = movingStep !== null ? project(movingStep) : hovered !== null ? (projected[hovered] ?? null) : null;
     const drawnArrows = arrows && movingVectors.length === arrows.vectors.length * 3 ? { ...arrows, vectors: vectorsOf(movingVectors) } : arrows;
-    const selection = movingSelection.length === 3 ? (movingSelection as Vec3) : null;
     const liftedPoint = drag.lifted ? drag.lifted.point : null;
     const onPoint = liftedPoint === null ? null : (projected[liftedPoint] ?? null);
     const drawnMark = markDrawn && markColour ? { code: markDrawn, colour: markColour, onPoint, held: drag.over || onPoint !== null } : null;
     drawSpace(
       context,
       view,
-      { projected, marks, trail, arrows: drawnArrows, pointColour: pointColour ?? colours.point, selection, ringed, dragMark: drawnMark, orientationKey },
+      project,
+      { projected, marks, trail, arrows: drawnArrows, pointColour: pointColour ?? colours.point, selection: movingSelection, ringed, dragMark: drawnMark, orientationKey },
       colours,
     );
   }, [
@@ -558,7 +520,7 @@ function OrbitView({
 
   // The picture of the point a lifted ring sits on; else the stepped point's, or the hovered one's, beside it; else, for a
   // moment, the point the ring moved to without a drag.
-  const steppedOn = movingStep.length === 3 ? project(movingStep as Vec3) : null;
+  const steppedOn = movingStep !== null ? project(movingStep) : null;
   const steppedAt = steps.stepped !== null && steppedOn ? { index: steps.stepped, x: steppedOn.x, y: steppedOn.y } : null;
   const tipped = steppedAt ?? tooltip;
   let shown = liftedPoint(drag.lifted, points, projected);
@@ -637,220 +599,6 @@ export function orbitLabel(label: string, choose: boolean, place: boolean): stri
   return `${label}. ${drags} ${keys}; plus and minus zoom, 0 resets.`;
 }
 
-
-interface Scene {
-  projected: readonly ScreenPoint[];
-  marks: readonly SpaceMark[];
-  trail: SpaceTrail | undefined;
-  arrows: SpaceArrows | undefined;
-  pointColour: string;
-  /** The selected point's code where it is drawn now, or null. */
-  selection: Vec3 | null;
-  /** Where the hovered or the stepped point's ring is drawn, or null. */
-  ringed: ScreenPoint | null;
-  /** The draggable ring: its code, the point a press has lifted it onto (or null), and whether the pointer holds it or is over it. */
-  dragMark: { code: Vec3; colour: string; onPoint: ScreenPoint | null; held: boolean } | null;
-  /** The small key in the corner that names the three axes. */
-  orientationKey: boolean;
-}
-
-/** Axes behind, then points far to near, the trail, the arrows, the marks, the draggable ring, and the selection and hover rings on top. */
-function drawSpace(context: CanvasRenderingContext2D, view: View, scene: Scene, colours: SpaceColours) {
-  const { width, height } = view;
-  context.fillStyle = colours.ground;
-  context.fillRect(0, 0, width, height);
-
-  context.lineWidth = 1;
-  context.globalAlpha = 0.4;
-  for (const line of axisLines(view)) {
-    context.strokeStyle = colours.axes[line.axis]!;
-    context.beginPath();
-    context.moveTo(line.from.x, line.from.y);
-    context.lineTo(line.to.x, line.to.y);
-    context.stroke();
-  }
-
-  // Nearer points are drawn more opaque, which reads as depth.
-  context.fillStyle = scene.pointColour;
-  for (const index of depthOrder(scene.projected)) {
-    const point = scene.projected[index]!;
-    const nearness = Math.max(0, Math.min(1, (point.depth / view.fit.radius + 1) / 2));
-    context.globalAlpha = 0.3 + 0.6 * nearness;
-    context.beginPath();
-    context.arc(point.x, point.y, POINT_RADIUS_PX, 0, 2 * Math.PI);
-    context.fill();
-  }
-
-  const project = projector(view);
-  if (scene.trail && scene.trail.codes.length > 1) {
-    const steps = scene.trail.codes.map(project);
-    context.strokeStyle = scene.trail.colour;
-    context.lineWidth = 1.5;
-    for (let step = 1; step < steps.length; step += 1) {
-      context.globalAlpha = 0.15 + 0.75 * (step / (steps.length - 1));
-      context.beginPath();
-      context.moveTo(steps[step - 1]!.x, steps[step - 1]!.y);
-      context.lineTo(steps[step]!.x, steps[step]!.y);
-      context.stroke();
-    }
-  }
-
-  if (scene.arrows) drawArrows(context, project, scene.arrows, colours);
-
-  context.globalAlpha = 1;
-  for (const mark of scene.marks) {
-    const at = project(mark.followsSelection && scene.selection ? scene.selection : mark.code);
-    const arrow = edgeArrow(at, width, height, EDGE_INSET_PX);
-    if (arrow) drawEdgeArrow(context, arrow, mark.colour);
-    else drawMark(context, at, mark.shape, mark.colour);
-  }
-  if (scene.dragMark) drawDragMark(context, project, scene.dragMark, width, height);
-  if (scene.selection) drawRing(context, project(scene.selection), SELECTED_RING_PX, colours.selected, 2);
-  if (scene.ringed) drawRing(context, scene.ringed, 5, colours.point, 1.5);
-
-  if (scene.orientationKey) drawOrientationKey(context, view.orbit, { x: 22, y: height - 22 }, colours.axes);
-}
-
-/** The chain from the origin, each arrow with its head, then the names on top, each with a halo so it reads over the points. */
-function drawArrows(context: CanvasRenderingContext2D, project: (code: Vec3) => ScreenPoint, arrows: SpaceArrows, colours: SpaceColours) {
-  const corners = chainCorners(arrows.vectors).map(project);
-  const origin = corners[0]!;
-  drawRing(context, origin, 3, colours.origin, 1);
-  for (let index = 0; index < arrows.vectors.length; index += 1) {
-    const from = corners[index]!;
-    const to = corners[index + 1]!;
-    const lit = arrows.lit === index;
-    const colour = lit ? colours.selected : colours.point;
-    const length = Math.hypot(to.x - from.x, to.y - from.y);
-    context.globalAlpha = lit || arrows.lit === null ? 0.95 : 0.45;
-    context.strokeStyle = colour;
-    context.fillStyle = colour;
-    context.lineWidth = lit ? 2.5 : 1.5;
-    context.beginPath();
-    context.moveTo(from.x, from.y);
-    context.lineTo(to.x, to.y);
-    context.stroke();
-    if (length > ARROW_HEAD_PX * 1.5) {
-      const angle = Math.atan2(to.y - from.y, to.x - from.x);
-      context.save();
-      context.translate(to.x, to.y);
-      context.rotate(angle);
-      context.beginPath();
-      context.moveTo(0, 0);
-      context.lineTo(-ARROW_HEAD_PX, -ARROW_HEAD_PX / 2);
-      context.lineTo(-ARROW_HEAD_PX, ARROW_HEAD_PX / 2);
-      context.closePath();
-      context.fill();
-      context.restore();
-    }
-  }
-  context.globalAlpha = 1;
-  context.font = `10px ${colours.font}`;
-  context.textBaseline = "middle";
-  context.lineJoin = "round";
-  const placed: LabelBox[] = [];
-  for (const name of arrowNames(corners, arrows.labels, arrows.lit)) {
-    const box = placeLabel(name, context.measureText(name.text).width, placed, context.canvas.clientWidth || context.canvas.width);
-    if (!box) continue;
-    placed.push(box);
-    context.textAlign = box.align;
-    context.lineWidth = 3;
-    context.strokeStyle = colours.ground;
-    context.strokeText(name.text, box.anchor.x, box.anchor.y);
-    context.fillStyle = name.lit ? colours.selected : colours.label;
-    context.fillText(name.text, box.anchor.x, box.anchor.y);
-  }
-}
-
-/**
- * The draggable ring, as a ring mark: thicker while the pointer is over it or holds it. Lifted onto
- * a point, it is drawn there, and faint at the place it left; outside the view, at its place.
- */
-function drawDragMark(context: CanvasRenderingContext2D, project: (code: Vec3) => ScreenPoint, mark: NonNullable<Scene["dragMark"]>, width: number, height: number) {
-  const home = project(mark.code);
-  if (mark.onPoint) {
-    drawRing(context, home, RING_MARK_PX, mark.colour, 2, 0.4);
-    drawRingMark(context, mark.onPoint, mark.colour, 3);
-    return;
-  }
-  const arrow = edgeArrow(home, width, height, EDGE_INSET_PX);
-  if (arrow) drawEdgeArrow(context, arrow, mark.colour);
-  else drawRingMark(context, home, mark.colour, mark.held ? 3 : 2);
-}
-
-/** A ring with a dot at its centre: the requested code. */
-function drawRingMark(context: CanvasRenderingContext2D, at: ScreenPoint, colour: string, lineWidth: number) {
-  drawRing(context, at, RING_MARK_PX, colour, lineWidth);
-  context.fillStyle = colour;
-  context.beginPath();
-  context.arc(at.x, at.y, 1.5, 0, 2 * Math.PI);
-  context.fill();
-}
-
-function drawMark(context: CanvasRenderingContext2D, at: ScreenPoint, shape: SpaceMark["shape"], colour: string) {
-  context.strokeStyle = colour;
-  context.fillStyle = colour;
-  if (shape === "ring") {
-    drawRingMark(context, at, colour, 2);
-  } else if (shape === "dot") {
-    context.beginPath();
-    context.arc(at.x, at.y, 3, 0, 2 * Math.PI);
-    context.fill();
-  } else {
-    context.lineWidth = 2;
-    context.beginPath();
-    context.moveTo(at.x - 6, at.y);
-    context.lineTo(at.x + 6, at.y);
-    context.moveTo(at.x, at.y - 6);
-    context.lineTo(at.x, at.y + 6);
-    context.stroke();
-  }
-}
-
-/** A small triangle on the edge, pointing toward a mark outside the view. */
-function drawEdgeArrow(context: CanvasRenderingContext2D, arrow: { x: number; y: number; angle: number }, colour: string) {
-  context.save();
-  context.translate(arrow.x, arrow.y);
-  context.rotate(arrow.angle);
-  context.fillStyle = colour;
-  context.beginPath();
-  context.moveTo(6, 0);
-  context.lineTo(-5, -5);
-  context.lineTo(-5, 5);
-  context.closePath();
-  context.fill();
-  context.restore();
-}
-
-function drawRing(context: CanvasRenderingContext2D, at: { x: number; y: number }, radius: number, colour: string, lineWidth: number, alpha = 1) {
-  context.globalAlpha = alpha;
-  context.strokeStyle = colour;
-  context.lineWidth = lineWidth;
-  context.beginPath();
-  context.arc(at.x, at.y, radius, 0, 2 * Math.PI);
-  context.stroke();
-}
-
-/** Three short arrows from one corner show which way code values 1, 2 and 3 point. */
-function drawOrientationKey(context: CanvasRenderingContext2D, orbit: Orbit, origin: { x: number; y: number }, axisColours: SpaceColours["axes"]) {
-  const length = 15;
-  context.font = "10px ui-monospace, monospace";
-  context.textAlign = "center";
-  context.textBaseline = "middle";
-  context.lineWidth = 1.5;
-  for (const direction of [...axisDirections(orbit)].sort((a, b) => a.depth - b.depth)) {
-    const colour = axisColours[direction.axis]!;
-    context.globalAlpha = direction.depth < 0 ? 0.55 : 1;
-    context.strokeStyle = colour;
-    context.fillStyle = colour;
-    context.beginPath();
-    context.moveTo(origin.x, origin.y);
-    context.lineTo(origin.x + direction.dx * length, origin.y + direction.dy * length);
-    context.stroke();
-    context.fillText(String(direction.axis + 1), origin.x + direction.dx * (length + 7), origin.y + direction.dy * (length + 7));
-  }
-  context.globalAlpha = 1;
-}
 
 /** The frame's width, at most `limit`; 0 until measured. */
 function useWidth(frame: RefObject<HTMLDivElement | null>, limit: number): number {

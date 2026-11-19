@@ -14,10 +14,11 @@ import { findRequest } from "../model";
 import { palette } from "../presentation";
 import { fill } from "../../../app/site-words";
 import { CREATE_TEXT } from "../create-text";
+import "./cards.css";
 
 const WORDS = CREATE_TEXT.pictures;
 
-export const PICTURE_SIZE = 56;
+const PICTURE_SIZE = 56;
 
 /**
  * One request's reference pictures, reading the request from the editor session and
@@ -39,7 +40,7 @@ export function ReferenceStrip({ requestId, onEditWindow }: { requestId: number;
   );
 }
 
-export function PictureStrip({
+function PictureStrip({
   references,
   src,
   onRemove,

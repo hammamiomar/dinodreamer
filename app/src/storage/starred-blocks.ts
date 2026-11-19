@@ -121,10 +121,6 @@ function followOtherTabs(refresh: () => void): () => void {
 /** The app's store: this browser's localStorage, following other tabs. */
 export const starredBlocks: StarredStore = createStarredStore(pageStorage, followOtherTabs);
 
-export function readStarred(): number[] {
-  return starredBlocks.read();
-}
-
 export function toggleStar(block: number): void {
   starredBlocks.toggle(block);
 }
