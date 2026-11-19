@@ -62,9 +62,9 @@ export function testScope(diff) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  const { cargo } = testScope(readDiff(process.argv[2]));
-  console.log(JSON.stringify({ cargo }));
+  const { cargo, engineNode } = testScope(readDiff(process.argv[2]));
+  console.log(JSON.stringify({ cargo, engineNode }));
   if (process.env.GITHUB_OUTPUT) {
-    appendFileSync(process.env.GITHUB_OUTPUT, "cargo=" + cargo + "\n");
+    appendFileSync(process.env.GITHUB_OUTPUT, "cargo=" + cargo + "\nengineNode=" + engineNode + "\n");
   }
 }

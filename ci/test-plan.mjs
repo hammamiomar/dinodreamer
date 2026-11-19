@@ -125,21 +125,21 @@ export default async function planTests(diff) {
   };
 }
 
-// A single unit shard reuses the validation runner. Large suites get one runner per
+// A single unit shard reuses the planner runner. Large suites get one runner per
 // timed shard, so a CPU-bound test does not compete with the linter or another shard.
 export function scheduleJobs(plan) {
   const units = plan.jobs.filter((job) => job.kind === "unit");
-  const inline = units.length === 1 ? units : [];
-  const independent = plan.jobs.filter((job) => !inline.includes(job));
+  const inline = units.length === 1 ? units[0] : null;
   // Give the planner checks to the shortest independent unit shard, which already has Vitest.
   const shortest =
     plan.planner && units.length > 1
       ? units.reduce((a, b) => (a.milliseconds <= b.milliseconds ? a : b))
       : null;
-  const matrix = independent.map((job) => (job === shortest ? { ...job, planner: true } : job));
   return {
-    matrix,
-    validation: { jobs: inline, planner: plan.planner && !shortest, engineNode: plan.engineNode },
+    units: inline ? [] : units.map((job) => (job === shortest ? { ...job, planner: true } : job)),
+    browsers: plan.jobs.filter((job) => job.kind === "browser"),
+    inline,
+    planner: plan.planner && !shortest,
   };
 }
 
@@ -147,12 +147,13 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   const plan = await planTests(readDiff(process.argv[2]));
   console.log(JSON.stringify(plan, null, 2));
   if (process.env.GITHUB_OUTPUT) {
-    const { matrix, validation } = scheduleJobs(plan);
+    const { units, browsers, inline, planner } = scheduleJobs(plan);
     const fields = {
-      matrix: JSON.stringify({ include: matrix }),
-      tests: matrix.length > 0,
-      validation: JSON.stringify(validation),
-      inlineUnit: validation.jobs.length > 0,
+      units: JSON.stringify({ include: units }),
+      hasUnits: units.length > 0,
+      browsers: JSON.stringify({ include: browsers }),
+      inlineUnit: JSON.stringify(inline),
+      planner,
     };
     appendFileSync(
       process.env.GITHUB_OUTPUT,

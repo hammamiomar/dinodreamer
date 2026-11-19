@@ -17,10 +17,9 @@ jobs:
   plan:
     runs-on: ubuntu-24.04
     outputs:
-      matrix: ${{ steps.tests.outputs.matrix }}
-      tests: ${{ steps.tests.outputs.tests }}
-      validation: ${{ steps.tests.outputs.validation }}
-      inline-unit: ${{ steps.tests.outputs.inlineUnit }}
+      units: ${{ steps.tests.outputs.units }}
+      has-units: ${{ steps.tests.outputs.hasUnits }}
+      browsers: ${{ steps.tests.outputs.browsers }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -57,12 +56,23 @@ jobs:
           if (large.length) throw new Error(`Tracked files must be below 1,000,000 bytes: ${large.join(', ')}`);
           JS
 
-  engine:
+      - name: Exercise the selection and sharding rules
+        if: steps.tests.outputs.planner == 'true'
+        run: node --test ci/test-plan.test.mjs
+      - name: Run a small unit selection here
+        if: steps.tests.outputs.inlineUnit != 'null'
+        uses: ./.github/actions/test-shard
+        with:
+          shard: ${{ steps.tests.outputs.inlineUnit }}
+
+  web:
+    name: Web validation
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
       - name: Read the engine build version
         id: engine-version
@@ -102,38 +112,21 @@ jobs:
           name: engine-package
           path: engine/pkg/
           retention-days: 14
-
-  quality:
-    name: Web validation
-    needs: [plan, engine]
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
+      - name: Select engine Node tests
+        id: scope
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: node ci/test-scope.mjs "${BASE:---all}"
       - uses: ./.github/actions/web-dependencies
         with:
           lint-tools: 'true'
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: engine-package
-          path: engine/pkg/
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: 1.4.4
-      - name: Lint, type-check, bundle and run planned checks
+      - name: Lint, type-check and bundle against the generated engine
         env:
-          VALIDATION: ${{ needs.plan.outputs.validation }}
-          CI_RECORD_DURATIONS: ${{ github.event_name == 'push' && format('{0}/unit-durations', runner.temp) || '' }}
+          ENGINE_NODE: ${{ steps.scope.outputs.engineNode }}
         run: node ci/check-web.mjs
-      - name: Record unit durations
-        if: github.event_name == 'push' && needs.plan.outputs.inline-unit == 'true'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: test-durations-inline
-          path: ${{ runner.temp }}/unit-durations/*.json
-          if-no-files-found: error
-          retention-days: 1
 
   cargo:
     # Keep assertions and source lines while reducing the native cache and numerical test time.
@@ -167,17 +160,37 @@ jobs:
         working-directory: engine
         run: cargo "+$NATIVE_RUST" test --locked --no-default-features --features cpu
 
-  tests:
-    name: ${{ matrix.kind }} tests ${{ matrix.shard }}
-    needs: [plan, engine]
-    if: needs.plan.outputs.tests == 'true'
+  units:
+    name: unit tests ${{ matrix.shard }}
+    needs: plan
+    if: needs.plan.outputs.has-units == 'true'
     runs-on: ubuntu-24.04
-    # The official image contains the locked browsers and their Linux system libraries.
-    container: ${{ matrix.kind == 'browser' && 'mcr.microsoft.com/playwright:v1.64.1-noble-amd64@sha256:ee15712262f017b8157421b212b12099146645f44b1bc5c0514cbbe6a229b1d0' || '' }}
     timeout-minutes: 10
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+      matrix: ${{ fromJSON(needs.plan.outputs.units) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/web-dependencies
+      - uses: ./.github/actions/test-shard
+        with:
+          shard: ${{ toJSON(matrix) }}
+      - name: Exercise the selection and sharding rules
+        if: matrix.planner
+        run: node --test ci/test-plan.test.mjs
+
+  browsers:
+    name: browser tests ${{ matrix.shard }}
+    needs: [plan, web]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    container: mcr.microsoft.com/playwright:v1.64.1-noble-amd64@sha256:ee15712262f017b8157421b212b12099146645f44b1bc5c0514cbbe6a229b1d0
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.browsers) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -187,27 +200,12 @@ jobs:
         with:
           name: engine-package
           path: engine/pkg/
-      - name: Run selected files
-        env:
-          TEST_SHARD: ${{ toJSON(matrix) }}
-          CI_RECORD_DURATIONS: ${{ github.event_name == 'push' && format('{0}/test-durations', runner.temp) || '' }}
-        run: node ci/run-test-shard.mjs
-
-      - name: Exercise the selection and sharding rules
-        if: matrix.planner
-        run: node --test ci/test-plan.test.mjs
-
-      - name: Save main's measured shard durations
-        if: github.event_name == 'push'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      - uses: ./.github/actions/test-shard
         with:
-          name: test-durations-${{ matrix.kind }}-${{ matrix.shard }}
-          path: ${{ runner.temp }}/test-durations/*.json
-          if-no-files-found: error
-          retention-days: 1
+          shard: ${{ toJSON(matrix) }}
 
   durations:
-    needs: [quality, tests]
+    needs: check
     if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     steps:
@@ -223,18 +221,20 @@ jobs:
 
   check:
     if: always()
-    needs: [plan, engine, quality, cargo, tests]
+    needs: [plan, web, cargo, units, browsers]
     runs-on: ubuntu-24.04
     steps:
       - name: Require all scheduled jobs to pass
         env:
           RESULTS: ${{ toJSON(needs) }}
+          EVENT: ${{ github.event_name }}
         run: |
           node --input-type=module <<'JS'
           const jobs = JSON.parse(process.env.RESULTS);
           for (const [name, job] of Object.entries(jobs)) {
             if (job.result === 'success') continue;
-            if (name === 'tests' && job.result === 'skipped' && jobs.plan.outputs.tests === 'false') continue;
+            if (name === 'units' && job.result === 'skipped' && jobs.plan.outputs['has-units'] === 'false') continue;
+            if (name === 'browsers' && job.result === 'skipped' && process.env.EVENT === 'pull_request') continue;
             throw new Error(name + ' ended with ' + job.result);
           }
           JS

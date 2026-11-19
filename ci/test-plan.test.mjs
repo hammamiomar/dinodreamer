@@ -100,17 +100,20 @@ test("large unit suites give each project its own jobs and keep small PRs togeth
   assert.equal(unitShards([app[0], gallery[0]], {}).length, 1);
 });
 
-test("small selections share validation while larger unit shards keep separate runners", async () => {
+test("small selections share the planner while larger unit shards keep separate runners", async () => {
   const small = await planTests(changed("gallery/test/publish-library-folder.test.ts"));
-  assert.deepEqual(scheduleJobs(small).validation.jobs, small.jobs);
-  assert.deepEqual(scheduleJobs(small).matrix, []);
+  assert.deepEqual(scheduleJobs(small).inline, small.jobs[0]);
+  assert.deepEqual(scheduleJobs(small).units, []);
   const large = await planTests(changed(".github/workflows/check.yml"));
-  assert.deepEqual(scheduleJobs(large).validation.jobs, []);
+  assert.equal(scheduleJobs(large).inline, null);
   const scheduled = scheduleJobs(large);
   assert.deepEqual(
-    scheduled.matrix.map(({ files }) => files),
+    scheduled.units.map(({ files }) => files),
     large.jobs.map(({ files }) => files),
   );
-  assert.equal(scheduled.matrix.filter((job) => job.planner).length, 1);
-  assert.equal(scheduled.validation.planner, false);
+  assert.equal(scheduled.units.filter((job) => job.planner).length, 1);
+  assert.equal(scheduled.planner, false);
+  assert.deepEqual(scheduled.browsers, []);
+  const main = await planTests(null);
+  assert.deepEqual(scheduleJobs(main).browsers, main.jobs.filter((job) => job.kind === "browser"));
 });

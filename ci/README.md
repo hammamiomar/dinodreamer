@@ -18,7 +18,7 @@ Use Node 24 and the pnpm version in each project's `package.json`. Install the f
 | Run Rust CPU tests | From `engine`, run `cargo test --locked --no-default-features --features cpu`. |
 | Run the engine's Node tests | `node --test engine/tests/*.test.ts` |
 
-CI pins Bun 1.4.4. It checks that Bun's embedded TypeScript version matches each project's locked compiler before checking code. The release workflow uses each project's existing build command. Web validation runs lint alongside both type checks and the Vite bundle. A small unit selection then runs on the same machine. Large timed shards use separate runners. The Rust CPU job starts at the same time and reads the diff without installing JavaScript dependencies.
+CI pins Bun 1.4.4. It checks that Bun's embedded TypeScript version matches each project's locked compiler before checking code. The release workflow uses each project's existing build command. The planner, web validation and native Rust tests start together. Web validation restores or builds the engine, then runs lint alongside the exact type checks and Vite build. The planner runs a small unit selection on its own runner. Large timed shards start on separate runners as soon as the plan is ready. Unit tests mock the engine initializer. The bundle and browser tests use the generated package. The native job uses the pinned compiler with the CPU feature, debug assertions and source line tables.
 
 Oxlint enables all seven rule categories. The root configuration lists each exception with its reason and scope. It excludes vendored Rust, generated packages and local build output. Lint needs the engine declarations for type-aware rules.
 

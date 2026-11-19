@@ -4,11 +4,10 @@ import { resolve as resolvePath } from "node:path";
 import { unitProjects } from "./test-shards.mjs";
 
 const root = resolvePath(import.meta.dirname, "..");
-const plan = JSON.parse(process.env.VALIDATION);
 
-function run(name, executable, args, env = {}) {
+function run(name, executable, args) {
   const start = performance.now();
-  const child = spawn(executable, args, { cwd: root, stdio: "inherit", env: { ...process.env, ...env } });
+  const child = spawn(executable, args, { cwd: root, stdio: "inherit" });
   return new Promise((resolve, reject) => {
     child.once("error", reject);
     child.once("exit", (code, signal) => {
@@ -35,16 +34,10 @@ async function compileWeb() {
 }
 
 await Promise.all([run("lint", "pnpm", ["--dir", "ci", "lint"]), compileWeb()]);
-if (plan.engineNode) {
+if (process.env.ENGINE_NODE === "true") {
   const files = readdirSync(resolvePath(root, "engine/tests")).filter((name) => name.endsWith(".test.ts"));
   await run("engine Node tests", process.execPath, [
     "--test",
     ...files.map((name) => "engine/tests/" + name),
   ]);
-}
-if (plan.planner) await run("planner tests", process.execPath, ["--test", "ci/test-plan.test.mjs"]);
-for (const job of plan.jobs) {
-  await run("unit shard " + job.shard, process.execPath, ["ci/run-test-shard.mjs"], {
-    TEST_SHARD: JSON.stringify(job),
-  });
 }

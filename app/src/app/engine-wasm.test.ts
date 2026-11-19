@@ -1,20 +1,30 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { engineWasmUrl } from "./engine-wasm";
+import { initializeEngine } from "./engine-wasm";
+
+const initializeWasm = vi.hoisted(() => vi.fn());
+vi.mock("dinodreamer-engine", () => ({ default: initializeWasm }));
 
 describe("the engine's .wasm", () => {
-  afterEach(() => vi.unstubAllEnvs());
-
-  it("comes from the library bucket in a production build", () => {
-    vi.stubEnv("ASSET_BASE_URL", "https://library.computervision.vision");
-    vi.stubEnv("ASSET_ENGINE_WASM", "app/e2eb988c1c0aa25f/dinodreamer_engine_bg.wasm");
-    expect(engineWasmUrl()?.href).toBe("https://library.computervision.vision/app/e2eb988c1c0aa25f/dinodreamer_engine_bg.wasm");
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    initializeWasm.mockClear();
   });
 
-  it("is the file Vite bundles when the build names none", () => {
+  it("comes from the library bucket in a production build", async () => {
+    vi.stubEnv("ASSET_BASE_URL", "https://library.computervision.vision");
+    vi.stubEnv("ASSET_ENGINE_WASM", "app/e2eb988c1c0aa25f/dinodreamer_engine_bg.wasm");
+    await initializeEngine();
+    expect(initializeWasm).toHaveBeenCalledExactlyOnceWith({
+      module_or_path: new URL("https://library.computervision.vision/app/e2eb988c1c0aa25f/dinodreamer_engine_bg.wasm"),
+    });
+  });
+
+  it("is the file Vite bundles when the build names none", async () => {
     vi.stubEnv("ASSET_ENGINE_WASM", "");
-    expect(engineWasmUrl()).toBeUndefined();
+    await initializeEngine();
+    expect(initializeWasm).toHaveBeenCalledExactlyOnceWith(undefined);
   });
 
   // A worker that called wasm-bindgen's init() itself would load the bundled file, which a
