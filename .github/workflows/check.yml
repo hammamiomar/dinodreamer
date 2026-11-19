@@ -2,6 +2,7 @@ name: Check
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
 
@@ -163,7 +164,9 @@ jobs:
     needs: [plan, engine]
     if: needs.plan.outputs.tests == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    # The official image contains the locked browsers and their Linux system libraries.
+    container: ${{ matrix.kind == 'browser' && 'mcr.microsoft.com/playwright:v1.64.1-noble-amd64@sha256:ee15712262f017b8157421b212b12099146645f44b1bc5c0514cbbe6a229b1d0' || '' }}
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
@@ -176,20 +179,6 @@ jobs:
         with:
           name: engine-package
           path: engine/pkg/
-      - name: Cache the matching Playwright browser binaries
-        if: matrix.kind == 'browser'
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/ms-playwright
-          key: browsers-ubuntu-24.04-${{ runner.arch }}-${{ hashFiles('gallery/pnpm-lock.yaml') }}-${{ matrix.webkit }}
-      - name: Install headless browsers
-        if: matrix.kind == 'browser'
-        env:
-          WEBKIT: ${{ matrix.webkit }}
-        run: |
-          browsers=(chromium)
-          if [[ "$WEBKIT" == "true" ]]; then browsers+=(webkit); fi
-          pnpm --dir gallery exec playwright-core install --with-deps --only-shell "${browsers[@]}"
       - name: Run selected files
         env:
           TEST_SHARD: ${{ toJSON(matrix) }}
@@ -271,7 +260,7 @@ jobs:
   preview:
     name: Preview (optional)
     needs: check
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name == 'pull_request' && !github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:

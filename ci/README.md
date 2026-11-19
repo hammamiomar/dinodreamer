@@ -1,6 +1,6 @@
 # Continuous integration
 
-The required GitHub status is `check`. It collects the plan, engine build, lint, type checks, web build and scheduled tests. A failed, cancelled or unexpectedly skipped job blocks the preview.
+The required GitHub status is `check`. It collects the plan, engine build, lint, type checks, web build and scheduled tests. A failed, cancelled or unexpectedly skipped job blocks the preview. Draft pull requests run the checks. Marking a pull request ready for review enables its preview.
 
 ## Local checks
 
@@ -30,6 +30,6 @@ The planner assigns extra unit shards to the project with the most recorded work
 
 On main, the planner schedules all suites. Test shards report measured durations per file. The How layout test reports one duration for each viewport. GitHub saves these measurements together after all shards pass. A later run uses this cache or starts from the measurements in `test-durations.json`. A new file receives its suite's median duration until main records it.
 
-Browser tests start a local Vite server, serve a checked-in gallery entry and read library assets from the configured release. Install the matching browsers with `pnpm --dir gallery exec playwright-core install --with-deps --only-shell chromium webkit`. A browser test can run directly, for example `node app/tests/run-browser-tests.mjs app/tests/home-browser.test.mjs`.
+Browser tests start a local Vite server, serve a checked-in gallery entry and read library assets from the configured release. Install the matching browsers with `pnpm --dir gallery exec playwright-core install --with-deps chromium webkit`. A browser test can run directly, for example `node app/tests/run-browser-tests.mjs app/tests/home-browser.test.mjs`.
 
 CI enables the material audits for the files in the repository. The three full-cloud audit tests also require the external exports named by `FULL_CLOUD_AUDIT` and `ATLAS_ASSETS`. Vitest reports those tests as skipped when the exports are absent.

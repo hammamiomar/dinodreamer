@@ -212,20 +212,11 @@ export default async function planTests(diff) {
     ["browser", balance(browserTasks, times.browser, 5, 1)],
   ]) {
     bins.forEach(({ files, duration }, index) => {
-      const webkit =
-        kind === "browser" &&
-        files.some(
-          (file) =>
-            !file.includes("/how-layout-browser.test.mjs") &&
-            !file.endsWith("/home-replay-browser.test.mjs") &&
-            !file.endsWith("/shell-browser.test.mjs"),
-        );
       jobs.push({
         kind,
         shard: index + 1,
         files,
         milliseconds: duration,
-        webkit,
       });
     });
   }

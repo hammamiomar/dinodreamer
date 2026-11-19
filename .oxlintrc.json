@@ -1051,5 +1051,33 @@
         "import/no-anonymous-default-export": "off",
       }
     },
+    {
+      "files": ["app/src/visitor-text.test.ts", "gallery/test/materials.test.ts"],
+      "rules": {
+        // These assertions spell out each literal backslash in escaped terminal output.
+        "unicorn/prefer-string-raw": "off"
+      }
+    },
+    {
+      "files": ["gallery/test/credential-patterns.test.ts"],
+      "rules": {
+        // This fixture contains an unexpanded template expression as input data.
+        "eslint/no-template-curly-in-string": "off"
+      }
+    },
+    {
+      "files": ["gallery/src/credential-patterns.ts"],
+      "rules": {
+        // The token character class spells its slash the same way as the rest of the expression.
+        "eslint/no-useless-escape": ["error", {"allowRegexCharacters": ["/"]}]
+      }
+    },
+    {
+      "files": ["gallery/deploy.ts"],
+      "rules": {
+        // The release entry point checks the preview and production publication paths.
+        "eslint/complexity": ["error", 21]
+      }
+    },
   ]
 }
