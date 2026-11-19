@@ -172,7 +172,7 @@ input[type=number]{width:120px}output{font-variant-numeric:tabular-nums;color:va
 <button id="download" type="button">Download automaton definition</button>
 </form>
 <p id="status" role="status">Opening the automaton…</p>
-<footer>Made with Dinodreamer, computervision.vision. The automaton runs on this device with WebGPU; the page loads nothing.</footer>
+<footer>Made with DinoDreamer, computervision.vision. The automaton runs on this device with WebGPU; the page loads nothing.</footer>
 </main>
 <script type="module">
 const createReplay = ${createFigureReplay.toString()};

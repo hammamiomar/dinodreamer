@@ -16,8 +16,6 @@ import { SITE_URL } from "./site-footer";
 import { engineStartFailedForStaleBuild, reloadForStaleBuild } from "./stale-build";
 import type { PointerEvent, ReactNode, RefObject } from "react";
 
-const NAVIGATION_WORDS = { menu: "Menu", name: "Site navigation" };
-
 export function Frame() {
   const navigation = useNavigation();
   const location = useLocation();
@@ -215,9 +213,9 @@ function FrameLayout({ busy, children }: { busy: boolean; children: ReactNode })
         </NavLink>
         <button ref={menuButton} type="button" className="button frame-menu"
           aria-expanded={menuOpen} aria-controls="site-navigation" onClick={() => setMenuOpen((open) => !open)}>
-          {NAVIGATION_WORDS.menu}
+          {SITE_WORDS.header.menu}
         </button>
-        <nav id="site-navigation" className="frame-nav" aria-label={NAVIGATION_WORDS.name}
+        <nav id="site-navigation" className="frame-nav" aria-label={SITE_WORDS.header.navigationName}
           data-open={menuOpen || undefined} onClick={event => {
             const link = event.target instanceof Element && event.target.closest("a");
             if (link && link.href === window.location.href) setMenuOpen(false);

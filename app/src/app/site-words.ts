@@ -8,7 +8,7 @@ import { createElement, Fragment, type ReactNode } from "react";
 
 export const SITE_WORDS = {
   header: {
-    /** The header's four links, left to right, after the wordmark "Dinodreamer". */
+    /** The header's four links, left to right, after the wordmark "DinoDreamer". */
     explore: "Index",
     playground: "Automata",
     grow: "Train",
@@ -26,15 +26,18 @@ export const SITE_WORDS = {
     experimental: "Experimental",
     /** Its short form in the header under 832 px, as "How" is How it works's. */
     experimentalShortForm: "Lab",
+    /** On a phone, the button that opens the header's links, and the links' name for a screen reader. */
+    menu: "Menu",
+    navigationName: "Site navigation",
     /** The header's link to the author's site, at the right end of the line (in the phone menu, last); the footer has it too. */
     site: "computervision.vision",
     /** The site link's tooltip. */
-    siteTitle: "Omar Hammami's site, of which Dinodreamer is one part.",
+    siteTitle: "Omar Hammami's site, of which DinoDreamer is one part.",
   },
 
   frame: {
     /** The wordmark at the left of the header, on every page in the frame; it opens the home page. */
-    wordmark: "Dinodreamer",
+    wordmark: "DinoDreamer",
     /** What a screen reader hears while a navigation takes longer than a second (the square before the link blinks). */
     loading: "Loading",
     /** The page's one line while the library's release loads for the first time. */
@@ -697,7 +700,7 @@ export const SITE_WORDS = {
     /** The footer's one line, left to right: three links. This link opens the author's site (computervision.vision). */
     site: "computervision.vision",
     /** The site link's tooltip. */
-    siteTitle: "Omar Hammami's site, of which Dinodreamer is one part.",
+    siteTitle: "Omar Hammami's site, of which DinoDreamer is one part.",
     /** The link to this site's source code on GitHub. */
     code: "GitHub",
     /** The code link's tooltip. */
@@ -1301,21 +1304,67 @@ export const SITE_WORDS = {
   },
   /**
    * Link previews: the Open Graph and Twitter tags that the Worker writes into the page, for Messages
-   * and other link unfurlers, which run no JavaScript (gallery/src/link-preview.ts).
+   * and other link unfurlers, which run no JavaScript (gallery/src/link-preview.ts). The five top pages
+   * use their own words in pageSummaries below; these are for the other public pages and the panels.
    */
   preview: {
-    /** The home's preview title. */
-    title: "Dinodreamer",
-    /** The home's preview sentence: a first use, so it says cellular automaton in full. */
-    homeDescription: "Cellular automata trained against a vision model: one small learned model runs in every cell, trained until a basis group of a DINOv3 basis collection meets its selection target on the generated image.",
+    /** The title of a public page without words of its own: the Painter's page, Create and Picture. */
+    title: "DinoDreamer",
     /** A basis group page's preview title. {block} is its number. */
-    blockTitle: "Basis group {block} · Dinodreamer",
+    blockTitle: "Basis group {block} · DinoDreamer",
+    /** A basis group page's heading in the page's reader text (gallery/src/reader-text.ts). {block} is its number. */
+    blockHeading: "Basis group {block}",
     /** A basis group page's preview sentence when it has published automata. {block} is its number; {materials} is oneMaterial or materials. */
     blockDescription: "Basis group {block} of a basis collection of 16,384, learned from DINOv3: the patches where it is selected, and {materials} trained toward it.",
     /** A basis group page's preview sentence when it has no published automaton yet. {block} is its number. */
     blockDescriptionNoMaterial: "Basis group {block} of a basis collection of 16,384, learned from DINOv3: the patches where it is selected.",
     oneMaterial: "1 cellular automaton",
     materials: "{count} cellular automata",
+  },
+  /**
+   * The five top pages as a reader that runs no JavaScript receives them: search crawlers that do not render, AI
+   * agents and link unfurlers. The Worker writes each page's title, its description (the search and preview
+   * sentence) and its reader text, one heading and one paragraph, into the HTML (gallery/src/link-preview.ts,
+   * gallery/src/reader-text.ts). The app replaces the reader text when it starts. Words by meme, 19 November 2026,
+   * after Omar's decisions; Omar rewrites last. A title stays under 60 characters and a description under 155.
+   * In a paragraph, [words](/path) is a link.
+   */
+  pageSummaries: {
+    home: {
+      title: "DinoDreamer: cellular automata trained on DINOv3",
+      description: "A tool to see what DINOv3, a vision model from Meta, has learned. It grows images from noise with cellular automata, live in your browser.",
+      heading: "DinoDreamer",
+      paragraph: "DINOv3 is a vision model from Meta. It cuts a picture into patches and describes each one in 768 numbers. DinoDreamer reads those descriptions with a basis collection: 16,384 small learned spaces, three numbers wide, called basis groups. For a basis group it trains a cellular automaton, a grid of cells that all run the same small network, until the image the cells grow from noise is one DINOv3 reads as that group. Browse the groups in the [Index](/index), watch the [Automata](/automata) and draw on them, [Train](/train) one on your own device, or read [How it works](/how). Everything runs in your browser with WebGPU.",
+    },
+    index: {
+      title: "Index of 16,384 basis groups · DinoDreamer",
+      description: "All 16,384 basis groups learned from DINOv3, each shown on the patches of library pictures that respond to it, with its pictures and its automata.",
+      heading: "Index",
+      paragraph: "The basis collection has 16,384 basis groups. The Index shows each one on the patches of library pictures that respond to it. Open a group to see its patches placed by their three numbers, its pictures in four levels of response, and the automata trained toward it. From a group's page you can send a patch to [Train](/train). The trained ones are on [Automata](/automata), and [How it works](/how) says what a basis group is.",
+    },
+    automata: {
+      title: "Cellular automata by basis group · DinoDreamer",
+      description: "Cellular automata trained toward basis groups of DINOv3. Each grows its image from noise, live in your browser. Draw on one to disturb it.",
+      heading: "Automata",
+      paragraph: "Every automaton on this page was trained toward one basis group. It is a grid of cells that all run the same small network, and it grows its image from noise each time. A group's automata stand beside the library patches the group responds to, arranged by where they start, a noise field or a noise disc, and by training method. Draw on one and it grows back. Find a group in the [Index](/index), [Train](/train) an automaton of your own and publish it here, or read [How it works](/how).",
+    },
+    train: {
+      title: "Train a cellular automaton in your browser · DinoDreamer",
+      description: "Train a cellular automaton toward one basis group of DINOv3. It trains on your own device, in the browser, with WebGPU.",
+      heading: "Train",
+      paragraph: "Train a cellular automaton toward a basis group. It trains on your own device with WebGPU: DINOv3, the basis collection and the training all run in this tab. Pick a group in the [Index](/index) and a patch on its page. Then choose a start, a noise field or a noise disc, and one of four methods: basis-group mean matching, basis-group distribution matching, token mean matching or token distribution matching. A finished automaton can be published to [Automata](/automata) or downloaded as a shader. [How it works](/how) explains what the training asks for.",
+    },
+    how: {
+      title: "How DinoDreamer works: DINOv3, basis groups, automata",
+      description: "One picture followed through DINOv3, the basis collection that reads it, and a cellular automaton trained to grow an image DINOv3 reads the same way.",
+      heading: "How it works",
+      paragraph: "DINO is a vision transformer that learned to see without labels. It turns a picture into 256 descriptions, one for each patch. A basis collection reads each description with 16,384 small learned spaces, three numbers wide: the basis groups. A cellular automaton is then trained until DINOv3 reads the image it grows as a chosen patch. This page follows one picture of a hibiscus through all three. After it, open the [Index](/index), watch the [Automata](/automata), or [Train](/train) one. The longer account is the write-up, [Growing cellular automata to visualize DINOv3](https://computervision.vision/writing/dinodreamer/).",
+    },
+    /** The reader text's last line, on every page: the write-up, the author, the code and the featurizer (as in the site's footer). Short words: the line must fit a phone. */
+    footer: {
+      essay: "Write-up",
+      author: "Omar Hammami",
+    },
   },
 } as const;
 

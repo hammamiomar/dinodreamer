@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import worker from "../src/worker.ts";
-import { SITE_PREVIEW, previewTags, routePreview, withPreviewTags } from "../src/link-preview.ts";
+import { SITE_PREVIEW, TOP_PAGES, previewTags, routePreview, withPreviewTags } from "../src/link-preview.ts";
+import { paragraphHtml, readerText } from "../src/reader-text.ts";
+import { SITE_WORDS } from "../../app/src/app/site-words.ts";
 import { testEnv } from "./fixtures.ts";
 
 const ORIGIN = "https://dinodreamer.test";
@@ -8,21 +10,26 @@ const PAGE = `<!doctype html><html><head><meta charset="UTF-8" /><title>DinoDrea
 
 describe("shared site preview", () => {
   it("uses one media pair while retaining the shared page's title and address", () => {
-    const home = routePreview(null, `${ORIGIN}/`, ORIGIN);
-    const basis = routePreview(12002, `${ORIGIN}/basis/12002`, ORIGIN);
+    const home = routePreview("home", null, `${ORIGIN}/`, ORIGIN);
+    const basis = routePreview("index", 12002, `${ORIGIN}/index/basis/12002?sort=block`, ORIGIN);
     expect(home.media).toEqual({
       image: `${ORIGIN}${SITE_PREVIEW.image}`, video: `${ORIGIN}${SITE_PREVIEW.video}`,
       width: 1280, height: 640,
     });
     expect(basis.media).toEqual(home.media);
-    expect(home.title).toBe("Dinodreamer");
-    expect(basis.title).toBe("Basis group 12002 · Dinodreamer");
+    expect(home.title).toBe(SITE_WORDS.pageSummaries.home.title);
+    expect(basis.title).toBe("Basis group 12002 · DinoDreamer");
     expect(basis.description).toContain("Basis group 12002");
-    expect(basis.url).toBe(`${ORIGIN}/basis/12002`);
+    expect(basis.url).toBe(`${ORIGIN}/index/basis/12002?sort=block`);
+    // Search engines get one address per page: no query, and a panel's group address over any page.
+    expect(basis.canonical).toBe(`${ORIGIN}/basis/12002`);
+    expect(home.canonical).toBe(`${ORIGIN}/`);
+    expect(routePreview("how", null, `${ORIGIN}/how/`, ORIGIN).canonical).toBe(`${ORIGIN}/how`);
+    expect(routePreview(null, null, `${ORIGIN}/canvas`, ORIGIN).title).toBe(SITE_WORDS.preview.title);
   });
 
   it("serves downloadable MP4 metadata, a full-size poster and escaped text before JavaScript", () => {
-    const preview = { ...routePreview(null, `${ORIGIN}/`, ORIGIN), description: `Fires on "stripes" & <dots>` };
+    const preview = { ...routePreview("home", null, `${ORIGIN}/`, ORIGIN), description: `Fires on "stripes" & <dots>` };
     const html = withPreviewTags(PAGE, preview);
     const head = html.slice(0, html.indexOf("</head>"));
     for (const tag of ["og:image", "og:image:type", "og:video", "og:video:secure_url", "twitter:player:stream"]) {
@@ -35,7 +42,8 @@ describe("shared site preview", () => {
     expect(head).toContain('name="twitter:card" content="summary_large_image"');
     expect(head).toContain('content="Fires on &quot;stripes&quot; &amp; &lt;dots&gt;"');
     expect(html).toContain('<script type="module" src="/assets/index.js"></script>');
-    expect(html).toContain("<title>Dinodreamer</title>");
+    expect(html).toContain(`<title>${SITE_WORDS.pageSummaries.home.title}</title>`);
+    expect(head).toContain(`<link rel="canonical" href="${ORIGIN}/" />`);
     expect(previewTags(preview).match(/property="og:video"/g)).toHaveLength(1);
   });
 
@@ -66,4 +74,53 @@ describe("shared site preview", () => {
     expect(await head.text()).toBe("");
   });
 
+
+  it("gives each top page its own title, description, canonical address and reader text, and unknown addresses 404", async () => {
+    const fixture = testEnv();
+    const shell = `<!doctype html><html><head><meta name="description" content="shell" /><title>DinoDreamer</title></head><body><div id="root"></div></body></html>`;
+    const env = { ...fixture.env, ASSETS: { fetch: async () => new Response(shell, { headers: { "content-type": "text/html" } }) } };
+    const read = async (path: string) => {
+      const response = await worker.fetch(new Request(`${ORIGIN}${path}`), env);
+      return { status: response.status, body: await response.text() };
+    };
+    const paths = { home: "/", index: "/index", automata: "/automata", train: "/train", how: "/how" } as const;
+    const titles = new Set<string>();
+    for (const page of TOP_PAGES) {
+      const path = paths[page];
+      const words = SITE_WORDS.pageSummaries[page];
+      const { status, body } = await read(path);
+      expect(status, path).toBe(200);
+      expect(body, path).toContain(`<title>${words.title}</title>`);
+      expect(body, path).toContain(`<meta name="description" content="${words.description}" />`);
+      expect(body, path).not.toContain('content="shell"');
+      expect(body, path).toContain(`<link rel="canonical" href="${ORIGIN}${path}" />`);
+      expect(body, path).toContain(`<h1>${words.heading}</h1>`);
+      expect(body, path).toContain('<a href="https://computervision.vision/writing/dinodreamer/">');
+      expect(body, path).toContain(`<a href="/" class="wordmark">${SITE_WORDS.frame.wordmark}</a>`);
+      // The home keeps the app's header out of view while the entrance is on the screen.
+      expect(body.includes("data-entrance"), path).toBe(page === "home");
+      titles.add(words.title);
+    }
+    expect(titles.size).toBe(TOP_PAGES.length);
+    const panel = await read("/automata/basis/4009");
+    expect(panel.body).toContain("<h1>Basis group 4009</h1>");
+    expect(panel.body).toContain(`<link rel="canonical" href="${ORIGIN}/basis/4009" />`);
+    const unknown = await read("/no-such-page");
+    expect(unknown.status).toBe(404);
+    expect(unknown.body).toBe(shell);
+  });
+
+  it("writes a paragraph's [words](address) as links and escapes everything else", () => {
+    expect(paragraphHtml("See the [Index](/index) & <b>more</b>.")).toBe('See the <a href="/index">Index</a> &amp; &lt;b&gt;more&lt;/b&gt;.');
+    expect(paragraphHtml("[a](javascript:alert(1))")).toBe("[a](javascript:alert(1))");
+    // Every link in the words leads to a top page or to the write-up, so an edit cannot leave a broken one.
+    const pages = new Set(["/index", "/automata", "/train", "/how"]);
+    for (const page of TOP_PAGES) {
+      const { paragraph } = readerText(page, null);
+      for (const link of paragraph.matchAll(/\[([^\]]+)\]\(([^)]+)\)/g)) {
+        const address = link[2]!;
+        expect(pages.has(address) || address === "https://computervision.vision/writing/dinodreamer/", `${page}: ${address}`).toBe(true);
+      }
+    }
+  });
 });

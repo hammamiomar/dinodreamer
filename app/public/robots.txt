@@ -1,4 +1,4 @@
-# Dinodreamer. Crawlers may read the top-level pages. Every page can open a panel for each of the
+# DinoDreamer. Crawlers may read the top-level pages. Every page can open a panel for each of the
 # 16,384 basis groups (/basis/<group>, /index/basis/<group> and so on), and one panel loads about 70
 # library files. The panels, their old /block/ addresses, the paged and filtered views (an address with
 # a query) and the owner pages stay out of crawls (gallery/cloudflare-settings.md).
