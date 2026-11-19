@@ -440,10 +440,10 @@ fn compared_features(request: &FigureRequest, reading: &ViewReading, blocks: &[u
     }).collect()
 }
 
-/// Evaluates a set method's loss on one displayed picture `[1, 3, 128, 128]`: the training loss
-/// terms with that single picture in place of the eight views, over the start's scored patches
-/// (`M = 16` or `64`). Calling this across a ladder of simulation ticks selects the tick with the
-/// lowest loss.
+/// A set method's loss on one displayed picture `[1, 3, 128, 128]`: the training loss terms with that
+/// picture in place of the eight views, over the start's scored patches (`M = 16` or `64`). Read across
+/// a ladder of ticks, the lowest value selects the tick. One DINO pass at the method's layers and one
+/// readback: 22 to 25 ms natively on an M1 Max (17 November 2026).
 pub async fn own_loss(
     encoder: &Dino,
     calibration: &Calibration,

@@ -9,7 +9,7 @@
 //! not an allocator high-water mark; the update time's maximum is trimmed (the two largest
 //! of the samples dropped, which cover the first update's kernel compilation).
 //!
-//! Needs local/release assets. Run from engine/:
+//! Needs local/release (tools/local_release.py). Run from engine/:
 //!   cargo run --release --features harness --example painting_cost
 #![allow(non_snake_case)] // Tensor suffixes document axes.
 use burn::tensor::Device;

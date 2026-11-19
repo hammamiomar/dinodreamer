@@ -26,7 +26,7 @@
 //! distribution loss remains positive.
 //!
 //! GPU implementation of MMD²: both `x̂ ŷᵀ` and `x̂ x̂ᵀ` use `kernels::frozen_linear` instead of
-//! Burn's generic `matmul`, which adds roughly 25 ms per layer and update in browser WebGPU. For
+//! Burn's generic `matmul`, which cost about 25 ms (6 % of an update) per layer in Chrome (2026-11-17). For
 //! `E k(x̂, x̂')`, the pairwise distances `d_ij = ‖x̂_i‖² + ‖x̂_j‖² − 2 x̂_i·x̂_j` and the off-diagonal
 //! mask are symmetric in the two operands, so the gradient through the second operand equals the
 //! gradient through the first. Detaching the second operand lets `x̂ x̂ᵀ` run on `frozen_linear`,
@@ -413,9 +413,10 @@ mod tests {
         use serde::Deserialize;
 
         /// Float32 on both sides with different summation orders: relative error of scalar terms,
-        /// and relative RMS of means and gradients. MMD values are differences of kernel means
-        /// near 0.7 leaving roughly 0.07, so ~5e-7 absolute rounding gives ~7e-6 relative error;
-        /// a formula error shows at 1e-2 or above.
+        /// and relative RMS of means and gradients. Measured on 17 November 2026: at most 7.4e-6
+        /// and 4.1e-7. MMD values are differences of kernel means near 0.7 leaving roughly 0.07,
+        /// so ~5e-7 absolute rounding gives ~7e-6 relative error; a formula error shows at 1e-2 or
+        /// above. The test prints its largest errors (`--nocapture`), so the tolerances stay measured.
         const VALUE_TOLERANCE: f64 = 3e-5;
         const VECTOR_TOLERANCE: f64 = 1e-5;
 

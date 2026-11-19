@@ -5,7 +5,7 @@
 //! CubeCL times every kernel and writes a summary at each device sync:
 //!   CUBECL_DEBUG_LOG=local/kernels.log cargo run --release --features harness --example updates
 //! The last summary in the log covers the measured updates only.
-//! Needs local/release assets.
+//! Needs local/release (tools/local_release.py).
 use burn::tensor::Device;
 use dinodreamer_engine::{
     calibration::Calibration,

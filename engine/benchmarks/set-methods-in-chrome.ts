@@ -7,7 +7,7 @@
 //   node benchmarks/set-methods-in-chrome.ts --set tools/fixtures/target-set-12002-pole-3x3.json \
 //     --previews <folder of <imageId>.png> --output <report.json> <fixture>...
 //
-// It needs `pnpm build:engine` (pkg/) and local/release assets. The fixtures give the
+// It needs `pnpm build:engine` (pkg/) and local/release (tools/local_release.py). The fixtures give the
 // requests; the first is the reference. Chrome runs headless with its own GPU process. With
 // `--profile <prefix>` it then records a CPU profile of `--profile-updates` more updates of each method,
 // `<prefix>-<n>-<method>.cpuprofile`; `--batch 1` overrides every request's batch; `--ladder-rule

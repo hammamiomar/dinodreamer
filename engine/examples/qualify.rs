@@ -1,6 +1,7 @@
 //! Native entry point for the same qualification used in the browser harness.
 //!
-//! Needs local/release and local/reference.safetensors (tools/reference.py).
+//! Needs local/release (tools/local_release.py) and local/reference.safetensors
+//! (tools/reference.py).
 //! Run: cargo run --release --features harness --example qualify
 use burn::tensor::Device;
 use dinodreamer_engine::{
