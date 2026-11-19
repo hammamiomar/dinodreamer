@@ -32,6 +32,20 @@ export function sectionAt(tops: readonly number[], scrollY: number, line: number
   return at;
 }
 
+/**
+ * The beats whose figures may load their files, from the furthest section the reader has reached (an index
+ * into HOME_BEATS) and whether the page has scrolled at all. The entrance loads at once. After the first
+ * scroll, a beat loads while the reader is one section before it, so its figure is ready when its words
+ * arrive. A visitor who stays on the entrance downloads nothing for the sections below it.
+ */
+export function approachedBeats(furthest: number, scrolled: boolean): Record<HomeBeat, boolean> {
+  const approached = {} as Record<HomeBeat, boolean>;
+  HOME_BEATS.forEach((beat, at) => {
+    approached[beat] = at === 0 || (scrolled && at <= furthest + 1);
+  });
+  return approached;
+}
+
 /** How long a beat's figure plays once the beat has arrived, in milliseconds; 0 where there is nothing to play. */
 export const BEAT_PLAY_MS: Record<HomeBeat, number> = { entrance: 0, model: 4000, basis: 3000, automaton: 6000, end: 0 };
 
