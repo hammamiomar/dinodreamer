@@ -33,6 +33,24 @@ describe("embedded-rule shader export", () => {
     expect([0, -0.5, 1e-7, 3.4e38].map((value) => Math.fround(Number(wgslFloat(value))))).toEqual([0, -0.5, Math.fround(1e-7), Math.fround(3.4e38)]);
   });
 
+  it("keeps each free-text field on its own comment line, whatever line break it holds", () => {
+    // The loader refuses these characters; the export keeps its comments to one line without relying on that.
+    // WGSL ends a line comment at LF, VT, FF, CR, NEL, U+2028 and U+2029.
+    const breaks = [0x0a, 0x0b, 0x0c, 0x0d, 0x85, 0x2028, 0x2029].map((code) => String.fromCodePoint(code));
+    const wgslLines = /\r\n|[\n\v\f\r\u0085\u2028\u2029]/;
+    for (const material of [cell, pyramid]) {
+      for (const lineBreak of breaks) {
+        const marker = (field: string) => `${lineBreak}const INJECTED_${field}: u32 = 1u;${lineBreak}//`;
+        const file = {
+          ...material.file, name: `Scales${marker("NAME")}`, id: `seed${marker("ID")}`, trainerCommit: `abc${marker("COMMIT")}`,
+          recipe: { ...material.file.recipe, name: `figure${marker("RECIPE")}`, source: `src${marker("SOURCE")}`, sourceSha256: `0${marker("SHA")}` },
+        };
+        const code = embeddedRuleShaderSource(file, material.values).split(wgslLines).filter((line) => !line.trimStart().startsWith("//"));
+        expect(code.filter((line) => line.includes("INJECTED")), lineBreak.codePointAt(0)!.toString(16)).toEqual([]);
+      }
+    }
+  });
+
   it("records provenance and embeds the runtime step without external rule weights", () => {
     const material = cell;
     const source = embeddedRuleShaderSource(material.file, material.values);

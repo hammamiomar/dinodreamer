@@ -32,7 +32,7 @@
 
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { confirmed, openBuckets, openLocalBuckets } from "./review-cli.ts";
+import { confirmed, openBuckets, openLocalBuckets, terminalText } from "./review-cli.ts";
 import { FIGURE_PYRAMID_LAYOUT, readFigureMaterial, type FigureMaterialFile } from "../app/src/materials/material-file.ts";
 import { isMaterialEntryId, materialKey } from "../app/src/features/gallery/material-index.ts";
 import {
@@ -89,13 +89,13 @@ try {
     const reading = (entry: { fired: boolean; winnerFraction: number | null; strength: number | null }) =>
       `${entry.fired ? "fired" : "did not fire"}, wins ${entry.winnerFraction === null ? "—" : `${(entry.winnerFraction * 100).toFixed(1)}%`}, strength ${entry.strength?.toFixed(2) ?? "—"}`;
     console.log(`Pending: ${pending.length}   (pnpm run materials approve <id> | reject <id>)`);
-    for (const metadata of pending) console.log(`  ${metadata.id}  block ${metadata.block}  "${metadata.title}"  by "${metadata.credit}"  (${metadata.materialId})`);
+    for (const metadata of pending) console.log(`  ${metadata.id}  block ${metadata.block}  "${terminalText(metadata.title)}"  by "${terminalText(metadata.credit)}"  (${terminalText(metadata.materialId)})`);
     console.log(`Shown: ${published.length}, featured ${published.filter((entry) => entry.featured).length}   (hide <id> | purge <id> | feature <id> | unfeature <id>)`);
     for (const entry of published) {
-      console.log(`  ${entry.id}  block ${entry.block}  ${entry.band}  ${reading(entry)}${entry.featured ? "  featured" : ""}  "${entry.title}"`);
+      console.log(`  ${entry.id}  block ${entry.block}  ${entry.band}  ${reading(entry)}${entry.featured ? "  featured" : ""}  "${terminalText(entry.title)}"`);
     }
     console.log(`Hidden: ${hidden.length}   (restore <id> | purge <id>)`);
-    for (const entry of hidden) console.log(`  ${entry.id}  block ${entry.block}  hidden ${entry.hiddenAt}  "${entry.title}"`);
+    for (const entry of hidden) console.log(`  ${entry.id}  block ${entry.block}  hidden ${entry.hiddenAt}  "${terminalText(entry.title)}"`);
   } else if (command === "approve") {
     const entry = await approveMaterial(submissions, library, need("id"), new Date());
     console.log(`Published ${entry.id}: block ${entry.block}, ${entry.fired ? "fired" : "did not fire"}`);
@@ -119,7 +119,7 @@ try {
   } else if (command === "purge") {
     const found = await findMaterial(submissions, library, need("id"));
     if (found === null) throw new Error(`no published or hidden material ${argument}`);
-    console.log(`${found.state}: ${found.entry.id}  block ${found.entry.block}  "${found.entry.title}"`);
+    console.log(`${found.state}: ${found.entry.id}  block ${found.entry.block}  "${terminalText(found.entry.title)}"`);
     if (await confirmed("Purge its file, poster and index entry for good?")) {
       await purgeMaterial(submissions, library, found.entry.id);
       console.log(`Purged ${found.entry.id}`);
@@ -135,7 +135,7 @@ try {
       const id = projectEntryId(file.id);
       if (hidden.has(id)) continue;
       const entry = await publishMaterial(library, id, file, { title: file.name, credit: PROJECT_CREDIT }, now);
-      if (names.length <= 10) console.log(`  ${entry.id}  block ${entry.block}  ${entry.fired ? "fired" : "did not fire"}  "${entry.title}"`);
+      if (names.length <= 10) console.log(`  ${entry.id}  block ${entry.block}  ${entry.fired ? "fired" : "did not fire"}  "${terminalText(entry.title)}"`);
       seeded++;
     }
     console.log(`Seeded ${seeded} project materials${hidden.size ? `; kept ${names.length - seeded} hidden` : ""}`);

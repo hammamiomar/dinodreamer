@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import { fill, fillNodes, SITE_WORDS } from "../app/site-words";
-import { keepMaterial } from "../storage/materials";
+import { rememberSavedFrom } from "../features/gallery/publish-records";
+import { keepPublishedMaterial } from "../storage/materials";
 import type { FigureMaterial, FigureMaterialFile } from "../materials/material-file";
 
 /** Where the kept materials show: the Playground's first group. The event tells an open Playground to read them again. */
@@ -23,12 +24,16 @@ export function keptOrigin(event: Event): KeptOrigin {
 
 type KeepState = { status: "idle" } | { status: "kept" } | { status: "failed"; message: string };
 
-/** Keep the file on this device and tell an open Playground, which reads Yours again. */
-function useKeep(file: FigureMaterialFile): { state: KeepState; keep: () => void } {
+/**
+ * Keep a gallery automaton's file on this device, remember which entry it came from (publish-records.ts),
+ * and tell an open Playground, which reads Yours again. A different automaton kept under the same id stays.
+ */
+function useKeep(file: FigureMaterialFile, entryId: string): { state: KeepState; keep: () => void } {
   const [state, setState] = useState<KeepState>({ status: "idle" });
   const keep = () => {
-    keepMaterial(file).then(
+    keepPublishedMaterial(file).then(
       () => {
+        rememberSavedFrom(file.id, entryId);
         setState({ status: "kept" });
         announceKept("stage");
       },
@@ -39,8 +44,8 @@ function useKeep(file: FigureMaterialFile): { state: KeepState; keep: () => void
 }
 
 /** "Save on this device": a published automaton joins the visitor's own, under Saved automata in Automata. */
-export function KeepMaterial({ material }: { material: FigureMaterial }) {
-  const { state, keep } = useKeep(material.file);
+export function KeepMaterial({ material, entryId }: { material: FigureMaterial; entryId: string }) {
+  const { state, keep } = useKeep(material.file, entryId);
   if (state.status === "kept") {
     return <span role="status">{fillNodes(SITE_WORDS.stage.kept, { yours: <Link to={YOURS_PATH}>{SITE_WORDS.stage.yoursLink}</Link> })}</span>;
   }
@@ -51,8 +56,8 @@ export function KeepMaterial({ material }: { material: FigureMaterial }) {
 }
 
 /** Automata's quiet "Save": one word, then "Saved"; the tile appears under Saved automata on the same page. */
-export function KeepWord({ material, className }: { material: FigureMaterial; className: string }) {
-  const { state, keep } = useKeep(material.file);
+export function KeepWord({ material, entryId, className }: { material: FigureMaterial; entryId: string; className: string }) {
+  const { state, keep } = useKeep(material.file, entryId);
   const words = SITE_WORDS.playground;
   if (state.status === "kept") return <span className={className} role="status">{words.kept}</span>;
   return <>

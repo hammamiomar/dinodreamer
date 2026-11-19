@@ -1201,6 +1201,8 @@ export const SITE_WORDS = {
     /** In place of the page while the automata and the runs load, and when the owner API fails. {message} is the error. */
     loading: "Loading the automata and the research runs…",
     failed: "The owner API refused or failed: {message}. Open the owner page first to sign in.",
+    /** In place of the view when another page shows it inside a frame. */
+    framed: "The owner's view opens only in its own tab.",
     /** The line over the wall and over a group's pane: the view's name, then how many automata a visitor sees. */
     heading: "Owner's view",
     counts: "{shown} shown of {all}",

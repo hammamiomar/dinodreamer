@@ -5,7 +5,7 @@
 
 import { SITE_WORDS, fill } from "../app/site-words";
 import { useMaterialIndex } from "../features/gallery/material-gallery";
-import { publishState, readSubmittedMaterials } from "../features/gallery/publish-material";
+import { publishState, readPublishRecords } from "../features/gallery/publish-records";
 import type { FigureMaterialFile } from "../materials/material-file";
 import { stepChoiceOpen } from "./grow-view";
 import type { TrainLadder } from "./protocol";
@@ -48,11 +48,11 @@ export function StepChoices({ ladder, open, onKeep }: {
 
 /**
  * The choice for a held run's kept file: open until that file is sent to the gallery (grow-view.ts
- * stepChoiceOpen), which the published index and this browser's record of what it sent tell.
+ * stepChoiceOpen), which the published index and this browser's records tell (publish-records.ts).
  */
 export function KeptStepChoices({ ladder, file, onKeep }: { ladder: TrainLadder; file: FigureMaterialFile | undefined; onKeep: (step: number) => void }) {
   const published = useMaterialIndex();
-  const publishedIds = new Set(published.index.entries.map((entry) => entry.materialId));
-  const open = file === undefined || stepChoiceOpen(publishState(file, publishedIds, readSubmittedMaterials()));
+  const publishedIds = new Set(published.index.entries.map((entry) => entry.id));
+  const open = file === undefined || stepChoiceOpen(publishState(file, publishedIds, readPublishRecords()));
   return <StepChoices ladder={ladder} open={open} onKeep={onKeep} />;
 }

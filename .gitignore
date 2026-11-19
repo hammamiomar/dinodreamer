@@ -12,3 +12,8 @@ local/
 *.pack
 .wrangler/
 .dev.vars
+# Local environment and key files: Vite would inline an .env.local value into the public bundle.
+.env.local
+.env.*.local
+*.pem
+*.key

@@ -3,8 +3,11 @@
 // its answers and checks them once, with the same readers the Worker uses.
 
 import { readFigureMaterial, type FigureMaterial } from "../../materials/material-file";
+import { materialFileUrl } from "../gallery/material-gallery";
 import { materialEntry, type MaterialEntry } from "../gallery/material-index";
-import { readResearchManifest, stillName, type ResearchManifest, type ResearchRun } from "./research-runs";
+import {
+  definitionRule, promotedRunEntries, readResearchManifest, stillName, type DefinitionRule, type ResearchManifest, type ResearchRun,
+} from "./research-runs";
 
 const API = "/admin/api/research";
 
@@ -36,6 +39,25 @@ export async function fetchResearchMaterial(run: ResearchRun, fetcher: typeof fe
   const material = readFigureMaterial(await response.json());
   const entry = materialEntry(run.id, material.file, { title: material.file.name, credit: "" }, "");
   return { entry, material };
+}
+
+/**
+ * The runs an earlier promotion published under a submission's id (research-runs.ts
+ * promotedRunEntries), with their rules read from a run's file in the owner API and an automaton's
+ * published file. It reads files only for an entry whose own id claims a run that has no entry.
+ */
+export function fetchPromotedRunEntries(
+  runs: readonly ResearchRun[], entries: readonly MaterialEntry[], fetcher: typeof fetch = fetch,
+): Promise<Map<string, string>> {
+  const ruleAt = async (url: string): Promise<DefinitionRule | null> => {
+    const response = await fetcher(url, { headers: { accept: "application/json" } });
+    return response.ok ? definitionRule(await response.json()) : null;
+  };
+  return promotedRunEntries(
+    runs, entries,
+    (id) => ruleAt(`${API}/runs/${encodeURIComponent(id)}/material.json`),
+    (id) => ruleAt(materialFileUrl(id, "material.json")),
+  );
 }
 
 async function answerError(response: Response): Promise<string> {

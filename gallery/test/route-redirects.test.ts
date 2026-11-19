@@ -30,6 +30,18 @@ describe("old page redirects", () => {
     expect(response.headers.get("location")).toBe(`https://app.test${current}`);
   });
 
+  it.each([
+    ["/ADMIN/automata?group=pending&material=20261118-221005-8afe5fcd", "/admin/automata?group=pending&material=20261118-221005-8afe5fcd"],
+    ["/%61dmin/automata", "/admin/automata"],
+    ["/Admin", "/admin"],
+    ["/admin%2Fautomata", "/admin/automata"],
+  ])("sends another spelling of the owner's path %s to the canonical one, where the owner check and the frame rule apply", async (previous, current) => {
+    const { env } = testEnv();
+    env.ASSETS = { fetch: async () => { throw new Error("the static assets must not answer an owner path"); } };
+    const response = await worker.fetch(new Request(`https://app.test${previous}`), env);
+    expect([response.status, response.headers.get("location")]).toEqual([301, `https://app.test${current}`]);
+  });
+
   it("preserves a non-GET method when redirecting", async () => {
     const { env } = testEnv();
     const response = await worker.fetch(new Request("https://app.test/grow", { method: "POST" }), env);

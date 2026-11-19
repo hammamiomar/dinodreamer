@@ -9,16 +9,16 @@
 
 import { readFigureMaterial, type FigureMaterialFile } from "../../app/src/materials/material-file.ts";
 import {
-  entryIdOfRun, placeOfRun, readResearchManifest, RESEARCH_MANIFEST_BYTES, RESEARCH_MANIFEST_KEY, researchRunKey, stillName,
-  type ResearchManifest, type ResearchRun,
+  definitionRule, entryIdOfRun, placeOfRun, promotedRunEntries, readResearchManifest, RESEARCH_MANIFEST_BYTES, RESEARCH_MANIFEST_KEY,
+  researchRunKey, stillName, type ResearchManifest, type ResearchRun,
 } from "../../app/src/features/research/research-runs.ts";
 import type { GalleryPlace } from "../../app/src/features/gallery/gallery-place.ts";
-import type { MaterialEntry } from "../../app/src/features/gallery/material-index.ts";
+import { materialKey, type MaterialEntry } from "../../app/src/features/gallery/material-index.ts";
 import {
-  checkedMaterial, hiddenMaterialKey, MATERIAL_DICTIONARIES, MATERIAL_LIMITS, PROJECT_CREDIT, publishMaterials, readMaterials,
+  checkedMaterial, hiddenMaterials, MATERIAL_DICTIONARIES, MATERIAL_LIMITS, PROJECT_CREDIT, publishMaterials, readMaterials,
   replaceMaterialFiles, setGalleryPlaces, type MaterialToPublish, type ReplacedMaterialFiles,
 } from "./material-review.ts";
-import { isPng, listKeys, requiredObject, type Bucket } from "./storage.ts";
+import { isPng, requiredObject, type Bucket } from "./storage.ts";
 
 /** Uploads in flight at once: the REST bucket answers each put in about a quarter of a second. */
 const CONCURRENT_UPLOADS = 8;
@@ -170,19 +170,33 @@ export async function showStoredRuns(submissions: Bucket, library: Bucket, ids: 
  * that is not on the page changes nothing there.
  */
 export async function republishRereadRuns(submissions: Bucket, library: Bucket, runs: readonly ResearchRun[]): Promise<ReplacedMaterialFiles> {
-  const entries = (await readMaterials(library)).entries;
-  const shown = new Set(entries.map((entry) => entry.id));
-  // A run that an earlier promotion published under a submission's id: its file's own id is the run's.
-  const promoted = new Map(entries.map((entry) => [entry.materialId, entry.id]));
+  const entries = [...(await readMaterials(library)).entries, ...(await hiddenMaterials(submissions))];
+  // A re-read keeps the run's rule (rereadProblem), so an earlier promotion still matches the new file.
+  const promoted = await promotedRuns(submissions, library, runs, entries);
   const files = new Map<string, FigureMaterialFile>();
   for (const run of runs) {
-    const ownId = entryIdOfRun(run);
-    const id = shown.has(ownId) ? ownId : promoted.get(run.id) ?? ownId;
+    const id = promoted.get(run.id) ?? entryIdOfRun(run);
     const checked = checkedMaterial(await (await requiredObject(submissions, researchRunKey(run.id, "material.json"))).text());
     if ("error" in checked) throw new Error(`${run.id}: ${checked.error}`);
     files.set(id, checked.file);
   }
   return replaceMaterialFiles(submissions, library, files);
+}
+
+/**
+ * The runs an earlier promotion published under a submission's id (research-runs.ts
+ * promotedRunEntries), with rules read from the run's private file and the automaton's public one.
+ */
+function promotedRuns(submissions: Bucket, library: Bucket, runs: readonly ResearchRun[], entries: readonly MaterialEntry[]): Promise<Map<string, string>> {
+  const ruleAt = async (bucket: Bucket, key: string) => {
+    const stored = await bucket.get(key);
+    return stored === null ? null : definitionRule(JSON.parse(await stored.text()));
+  };
+  return promotedRunEntries(
+    runs, entries,
+    (id) => ruleAt(submissions, researchRunKey(id, "material.json")),
+    (id) => ruleAt(library, materialKey(id, "material.json")),
+  );
 }
 
 /** What showResearchRuns did, or in a dry run would do, by entry id. */
@@ -209,20 +223,20 @@ export async function showResearchRuns(
   submissions: Bucket, library: Bucket, runs: readonly ResearchRun[], now: Date, write: boolean,
 ): Promise<ShownRuns> {
   const entries = (await readMaterials(library)).entries;
+  const hiddenRecords = await hiddenMaterials(submissions);
   const shown = new Set(entries.map((entry) => entry.id));
-  // A run that an earlier promotion published under a submission's id: its file's own id is the run's.
-  const promoted = new Map(entries.map((entry) => [entry.materialId, entry.id]));
-  const hidden = new Set(await listKeys(submissions, "hidden/materials/"));
+  const hidden = new Set(hiddenRecords.map((entry) => entry.id));
+  const promoted = await promotedRuns(submissions, library, runs, [...entries, ...hiddenRecords]);
   const result: ShownRuns = { published: [], placed: [], keptHidden: [], withoutPlace: [] };
   const toPublish: MaterialToPublish[] = [];
   const places = new Map<string, GalleryPlace>();
   for (const run of runs) {
-    const ownId = entryIdOfRun(run);
-    const id = shown.has(ownId) ? ownId : promoted.get(run.id) ?? ownId;
+    // The run's own entry when it has one, shown or hidden; else an earlier promotion's, by rule; else a new entry.
+    const id = promoted.get(run.id) ?? entryIdOfRun(run);
     const place = placeOfRun(run);
     if (place === null) {
       result.withoutPlace.push(run.id);
-    } else if (hidden.has(hiddenMaterialKey(id))) {
+    } else if (hidden.has(id)) {
       result.keptHidden.push(id);
     } else if (shown.has(id)) {
       places.set(id, place);

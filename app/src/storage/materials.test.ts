@@ -2,7 +2,7 @@ import "fake-indexeddb/auto";
 import { readFileSync } from "node:fs";
 import { expect, it } from "vitest";
 import { readFigureMaterial } from "../materials/material-file";
-import { deleteMaterial, keepMaterial, keptMaterials, openMaterialDatabase } from "./materials";
+import { deleteMaterial, keepMaterial, keepPublishedMaterial, keptMaterials, openMaterialDatabase } from "./materials";
 
 it("keeps one file per material id, restores exact weights and supports local deletion", async () => {
   const database = openMaterialDatabase(`material-test-${crypto.randomUUID()}`);
@@ -55,4 +55,23 @@ it("isolates unreadable records without changing or deleting them", async () => 
   expect(stored).toContainEqual(old);
   expect(stored).toContainEqual(corrupt);
   opened.close();
+});
+
+it("Save of a gallery automaton never replaces a different automaton kept under the same id", async () => {
+  const database = openMaterialDatabase(`material-test-${crypto.randomUUID()}`);
+  const own = JSON.parse(readFileSync(new URL("../../fixtures/materials/block-12002-figure-strongest-mean-seed-1.material.json", import.meta.url), "utf8"));
+  // Another visitor's approved file that claims the same id with other weights.
+  const values = readFigureMaterial(own).values.map((value) => -value);
+  const bytes = new Uint8Array(values.buffer.slice(0));
+  const other = { ...own, engine: "another visitor", rule: { ...own.rule, values: btoa(String.fromCharCode(...bytes)) } };
+  await keepMaterial(own, database);
+  await expect(keepPublishedMaterial(other, database)).rejects.toThrow("keeps a different automaton under the same name");
+  const [kept] = await keptMaterials(undefined, database);
+  expect([kept!.file.engine, kept!.file.rule.values]).toEqual([own.engine, own.rule.values]);
+  await keepPublishedMaterial(own, database);
+  expect(await keptMaterials(undefined, database)).toHaveLength(1);
+  await deleteMaterial(own.id, database);
+  await keepPublishedMaterial(other, database);
+  expect((await keptMaterials(undefined, database))[0]!.file.engine).toBe("another visitor");
+  (await database).close();
 });

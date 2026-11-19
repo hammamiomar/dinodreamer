@@ -5,7 +5,7 @@
 // before it asks the CDN what this machine's edge still serves (src/cdn-check.ts).
 
 import { readFileSync } from "node:fs";
-import { confirmed, idArgument, openBuckets } from "./review-cli.ts";
+import { confirmed, idArgument, openBuckets, terminalText } from "./review-cli.ts";
 import { APP_ORIGIN, PURGE_BY_PREFIX_PLACE, checkCopies, curlCommand, purgePrefix } from "./src/cdn-check.ts";
 import { findEntry, purge } from "./src/review.ts";
 import { PUBLISHED_FILES, publishedKey } from "./src/storage.ts";
@@ -26,7 +26,7 @@ if (found === null) {
   console.error(`no published or hidden entry ${id}`);
   process.exit(1);
 }
-console.log(`${found.state}: ${id}  "${found.entry.title}"  by "${found.entry.credit}"  published ${found.entry.publishedAt}`);
+console.log(`${found.state}: ${id}  "${terminalText(found.entry.title)}"  by "${terminalText(found.entry.credit)}"  published ${found.entry.publishedAt}`);
 console.log(`Purge deletes its image, thumbnail, recipe and index entry. It cannot be undone; pnpm run recover ${id} keeps a copy first.`);
 if (!(await confirmed("Purge it?"))) {
   console.log("Nothing deleted");

@@ -86,6 +86,25 @@ describe("figure material file (format 4)", () => {
     expect(() => readFigureMaterial({ ...file, block: -1 })).toThrow("basis group");
   });
 
+  it("refuses a control character or line separator in any string or key, wherever the file holds it", () => {
+    // Built at run time so that this file holds none of these characters.
+    const [escape, lineFeed, nextLine, csi, lineSeparator] = [0x1b, 0x0a, 0x85, 0x9b, 0x2028].map((code) => String.fromCodePoint(code));
+    const cases: [string, (file: FigureMaterialFile) => void][] = [
+      ["id", (file) => { file.id = `seed${escape}[2K`; }],
+      ["name", (file) => { file.name = `Scales${lineFeed}const X: u32 = 1u;`; }],
+      ["recipe.source", (file) => { file.recipe.source += `${nextLine}x`; }],
+      ["trainerCommit", (file) => { file.trainerCommit += `${lineSeparator}x`; }],
+      ["recipe.settings.statistic", (file) => { file.recipe.settings = { ...file.recipe.settings, statistic: `mean${csi}x` }; }],
+      ["unknownField", (file) => { Object.assign(file, { unknownField: `${escape}]52;c;x` }); }],
+    ];
+    for (const [path, edit] of cases) {
+      const file = kept();
+      edit(file);
+      expect(() => readFigureMaterial(file), path).toThrow(`${path} holds a control character or a line separator`);
+    }
+    expect(readFigureMaterial(kept()).file.id).toBe("block-12002-figure-strongest-mean-seed-1");
+  });
+
   it("refuses a file whose claims disagree with its numbers", () => {
     const change = (edit: (file: FigureMaterialFile) => void) => { const file = kept(); edit(file); return () => readFigureMaterial(file); };
     expect(change((file) => { file.anchor.band = "strongly"; })).toThrow(/response level must follow/);
