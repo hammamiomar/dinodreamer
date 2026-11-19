@@ -28,11 +28,23 @@ The zone is on the Free plan. The rules below apply to the whole zone unless an 
 | Name | Expression | Action |
 | --- | --- | --- |
 | library immutable | `(http.host eq "library.computervision.vision" and (starts_with(http.request.uri.path, "/web/v2/") or starts_with(http.request.uri.path, "/model/") or starts_with(http.request.uri.path, "/app/")))` | Eligible for cache. Edge TTL and browser TTL from the object's `Cache-Control`. |
-| library release manifest | `(http.host eq "library.computervision.vision" and starts_with(http.request.uri.path, "/releases/") and ends_with(http.request.uri.path, ".json"))` | Eligible for cache. Edge TTL 2 hours, ignoring `Cache-Control` (the Free plan's minimum). |
+| library release manifest | `(http.host eq "library.computervision.vision" and starts_with(http.request.uri.path, "/releases/") and ends_with(http.request.uri.path, ".json"))` | Eligible for cache. Edge TTL 2 hours, ignoring `Cache-Control` (the Free plan's minimum). Browser TTL respects the origin, so browsers receive the object's `no-cache`. |
+| library automata versions | `(http.host eq "library.computervision.vision" and http.request.uri.query eq "" and (http.request.uri.path strict wildcard "/gallery/materials/*/versions/*/material.json" or http.request.uri.path strict wildcard "/gallery/materials/*/versions/*/poster.png"))` | Eligible for cache. Edge TTL from `Cache-Control` when present, otherwise bypass. Browser TTL respects the origin. Default cache key. Placed after any general library bypass rule (`material-delivery.md`). |
 | full clouds (older rule) | `(http.host eq "library.computervision.vision" and starts_with(http.request.uri.path, "/web/v2/readouts/5e2791a38795e8cc07b301307d137224d40d12a318547a038e49003ac29ed139/clouds/full/") and ends_with(http.request.uri.path, ".bin"))` | Not cached. The action is not recorded; the responses are `DYNAMIC`. |
+
+The automata versions rule may have been entered in this equivalent form. It matches the same keys that
+the publisher writes, `/gallery/materials/<entry-id>/versions/<fileRevision>/material.json` and `poster.png`:
+
+```text
+(http.host eq "library.computervision.vision" and http.request.uri.query eq "" and
+ starts_with(http.request.uri.path, "/gallery/materials/") and contains(http.request.uri.path, "/versions/") and
+ (ends_with(http.request.uri.path, "/material.json") or ends_with(http.request.uri.path, "/poster.png")))
+```
 
 Without a Cache Rule, Cloudflare does not cache JSON, `.wasm` or `.safetensors` files. Every key under
 `/web/v2/`, `/model/` and `/app/` names its content, and its object says `immutable`, so the edge may keep it.
+So does every versioned automaton file. The stable aliases under `/gallery/materials/<entry-id>/` stay outside
+the rules because a new reading replaces them.
 
 ### Security rules
 
@@ -76,16 +88,12 @@ the new manifest. Without the purge, a visitor can read the old manifest for up 
 | Request | Answer |
 | --- | --- |
 | An encoder file, a group cloud JSON and the engine, twice | `MISS`, then `HIT` |
-| `releases/pass-003.json` | `HIT`, `Cache-Control: max-age=14400` |
+| `releases/pass-003.json`, after its browser TTL was set to respect the origin | `HIT`, `Cache-Control: no-cache` |
+| A versioned automaton's `material.json` and `poster.png`, twice | `MISS`, then `HIT` |
 | `clouds/full/4009.bin` | `DYNAMIC` |
 
-Two answers differ from the intended settings:
+One answer differs from the intended settings:
 
-- **The manifest's browser lifetime.** Browsers receive `max-age=14400` (4 hours) instead of the object's
-  `no-cache`. The likely cause is the zone's browser cache lifetime, which now applies because the
-  manifest is cached. The app's `no-cache` requests still revalidate it. Another reader of the manifest can keep a copy for 4 hours.
-  To restore `no-cache`, set the release manifest rule's browser TTL to the origin's `Cache-Control`,
-  then check the header again.
 - **The full clouds stay uncached.** The older rule still takes effect for them, so each basis-group
   panel makes 8 Range requests to R2. Before you remove it, test one uncached file: a Range request, then a
   whole-file GET. Both must return the same bytes (206 and 200), and a repeat must answer `HIT`.
