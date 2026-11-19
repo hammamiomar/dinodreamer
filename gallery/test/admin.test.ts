@@ -159,7 +159,7 @@ describe("the local owner under wrangler dev", () => {
     expect((await ask("http://localhost:8791/admin", local)).status).toBe(200);
     // The var alone opens nothing on a public host.
     expect((await ask("https://computervision.vision/admin/api/entries", local)).status).toBe(403);
-    expect((await ask("https://dinodreamer-public.omi27000.workers.dev/admin", local)).status).toBe(403);
+    expect((await ask("https://dinodreamer-public.example.workers.dev/admin", local)).status).toBe(403);
     // This machine alone opens nothing without the var.
     expect((await ask("http://127.0.0.1:8791/admin/api/entries", env)).status).toBe(403);
   });

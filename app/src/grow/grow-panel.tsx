@@ -115,7 +115,7 @@ function MethodChoices({ method, depth, open, fixedMethod, onChange, onDepth }: 
   </div>;
 }
 
-/** The batch size's hint: at 1, a set method's says the research has no reference for it (Omar's decision 8). */
+/** The batch size's hint: at 1, a set method's says the research has no reference for it. */
 function batchHint(batch: BatchSize, method: FigureMethod): string {
   if (batch === RECIPE_BATCH) return WORDS.batchRecipe;
   return methodNeedsSet(method) ? WORDS.batchLightSet : WORDS.batchLight;

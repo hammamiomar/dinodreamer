@@ -13,7 +13,7 @@ export type TrainComparison = "mean" | "distribution";
 export const TRAIN_SPACES: readonly TrainSpace[] = ["basis-group", "token"];
 export const TRAIN_COMPARISONS: readonly TrainComparison[] = ["mean", "distribution"];
 
-/** Omar's decision 4 (17 November 2026): Train's default stays basis-group mean matching. */
+/** Train's default method: basis-group mean matching. */
 export const DEFAULT_METHOD: FigureMethod = "basis-group-mean";
 
 export function methodOf(space: TrainSpace, comparison: TrainComparison): FigureMethod {
@@ -29,10 +29,10 @@ export function comparisonOf(method: FigureMethod): TrainComparison {
 }
 
 /**
- * How deep a token method compares DINO's tokens (Omar, 17 November 2026, evening, on meme's advice from
- * the research): four layers, the patch tokens after zero-based blocks 3, 6 and 9 and the final layer,
- * averaged in the loss (sweep T2), the default for both token methods; or the final layer alone, the
- * tokens the basis groups read. A basis-group method reads the final layer's codes and has no depth.
+ * How deep a token method compares DINO's tokens, as the research does: four layers, the patch tokens after
+ * zero-based blocks 3, 6 and 9 and the final layer, averaged in the loss (sweep T2), the default for both token
+ * methods; or the final layer alone, the tokens the basis groups read. A basis-group method reads the final
+ * layer's codes and has no depth.
  */
 export type TokenDepth = "four-layers" | "final-layer";
 export const TOKEN_DEPTHS: readonly TokenDepth[] = ["four-layers", "final-layer"];
@@ -61,7 +61,7 @@ export function depthFromSearch(search: URLSearchParams): TokenDepth {
 }
 
 /**
- * How a training of this method runs and what it keeps (Omar's decision 3, 17 November 2026).
+ * How a training of this method runs and what it keeps.
  * Basis-group mean matching trains up to `runs` seeds: a run whose final rule misses the selection
  * target is followed by the next seed, and the first checkpoint that meets it is kept as it comes.
  * A set method trains one seed to the end and keeps its final rule; the selection is a reading only.
