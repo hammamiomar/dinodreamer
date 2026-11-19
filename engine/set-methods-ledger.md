@@ -90,7 +90,7 @@ The research's sample is published: `clouds/<block>.json` in the readouts public
 sample (SHA-256 equal for 13633 and 12002). The app already reads and decodes this file for the Index (`LookFixture`),
 in row order. It is 823 KB, 255 KB compressed. So the browser can take the research's 33 with the same rule: public rows,
 a stable sort by norm, descending, the first row of each distinct picture, the first 33. Which set the browser uses is
-Omar's decision.
+a product decision.
 
 Pixels. No picture of the six strongest-file sets lacks a PNG preview (0 of 198). Every preview is 256 × 256, 8-bit RGB,
 with no gamma or colour-profile chunk, so the engine's PNG decoder and PIL give the same bytes. The tolerance on the
@@ -162,8 +162,8 @@ of the median norm.
 | 13633 token distribution, strongest file's set | 0.75, 1.48 | 1.00, 1.30 | 0.00, 0.16 | Forehead skin and one brow, a flat skin-coloured field by 2,000 |
 
 The research's caveat holds: with token distribution matching the 12002 figure is clearest near tick 200 and fades. At
-update 1,000 it has faded by tick 600, which the site reads; at update 750 it still read 0.75 there. The product answer
-is Omar's. On 13633 the two sets give different pictures from the same seed: the research's set grows eyebrows, the
+update 1,000 it has faded by tick 600, which the site reads; at update 750 it still read 0.75 there. Which tick the site
+reads is a product decision. On 13633 the two sets give different pictures from the same seed: the research's set grows eyebrows, the
 strongest file's set grows forehead skin. A single seed per set separates them by eye only, not as a measured effect.
 
 ## Evening studies for the decisions of 17 November (12, 16, 17)
@@ -177,7 +177,7 @@ Each final rule above was read on the replay grid at ticks 100 to 2,000 (`exampl
 tick the study records the run's own loss on that one picture (`figure::own_loss`: the training's terms with the picture
 in place of the eight views, on the 16 scored patches) and the site's reading. The lowest own loss picked tick 150 to
 400 and landed on a clear figure in all seven runs. The highest selection share often tied at 1.00, and the tie-break by
-strength then favoured the earliest ticks. Omar chose the own loss. `figure_own_loss` takes about 21 ms per reading in
+strength then favoured the earliest ticks. The site uses the own loss. `figure_own_loss` takes about 21 ms per reading in
 Chrome and 22 to 25 ms natively, after a first reading that compiles the kernels (0.6 s). Chrome agrees with native
 within 2e-6.
 

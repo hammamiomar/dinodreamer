@@ -4,10 +4,10 @@ import {
 } from "../materials/material-file";
 import type { MaterialPoint, StrengthCuts } from "../recipe";
 
-// The target set of a set method (Omar, 17 November 2026, evening): the patches the visitor selected on a
+// The target set of a set method: the patches the visitor selected on a
 // group's page and sent to Train; with no selection, the group's strongest pictures in its public sample
-// cloud, which is the research's own set. Either way the research's rule picks the pictures (meme, from
-// research/given-set: selection.Band(block, "pole"), given_set.build with "3x3"). The page resolves the set
+// cloud, which is the research's own set. Either way the research's rule picks the pictures (its given-set
+// selection: selection.Band(block, "pole"), given_set.build with "3x3"). The page resolves the set
 // and shows it; the worker fetches the pictures and has the engine prepare them once per run.
 
 /** The research's standard set: at most this many pictures. Fewer is allowed, down to one. */
