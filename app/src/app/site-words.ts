@@ -1263,9 +1263,11 @@ export const SITE_WORDS = {
     purgeForGood: "Purge for good",
     keepIt: "Keep it",
     purgeWarning: "Purge deletes the automaton's public file, its poster and its index entry. A research run stays in the private store.",
+    clearCachedFiles: "Clear the cached files for these prefixes.",
+    cacheCleared: "Cache cleared",
     /** On the line under the stage's bar after an action. */
     results: {
-      show: "Shown. A visitor sees it now.",
+      show: "Shown. The public index updates within one minute.",
       hide: "Hidden.",
       "cell-picture": "It is the picture of its cell.",
       "group-picture": "It is the picture of the group.",

@@ -5,7 +5,7 @@ import { useMaterialRequest, type MaterialRequestOrigin } from "../app/material-
 import { SITE_WORDS, fill } from "../app/site-words";
 import type { MaterialAnchor, MaterialRequest } from "../recipe";
 import { useObjectUrl } from "../ui/files";
-import { fetchPublishedMaterial } from "../features/gallery/material-gallery";
+import { fetchPublishedMaterialById } from "../features/gallery/material-gallery";
 import { WARNED_BELOW } from "../features/look/grow-from-picture";
 import { STRENGTH_BANDS, sampleStrengthCuts, type BandIndex } from "../features/look/strength-bands";
 import { anchorToken, bandRequest, strongestBandRequest } from "../features/look/strongest-request";
@@ -141,7 +141,7 @@ function ContinuedOccurrence({ source, anchor, onLevel }: {
 /** A definition saved on this device by its id, else a published one by its entry id. */
 async function loadDefinition(id: string): Promise<FigureMaterial> {
   const saved = (await keptMaterials()).find((material) => material.file.id === id);
-  return saved ?? fetchPublishedMaterial(id);
+  return saved ?? fetchPublishedMaterialById(id);
 }
 
 /** The definition a /train?continue=<id> address names, as Train continues it, or why it cannot. */

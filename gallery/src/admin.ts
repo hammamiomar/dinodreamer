@@ -37,7 +37,7 @@
 // README's "run one owner command at a time": each action rewrites the published index.
 
 import { checkOwner, type OwnerAccessEnv } from "./access.ts";
-import { PURGE_BY_PREFIX_PLACE, purgePrefix } from "./cdn-check.ts";
+import { materialCdnPurge, PURGE_BY_PREFIX_PLACE, purgePrefix } from "./cdn-check.ts";
 import { approveAll, galleryEntries, hide, pendingBlocks, purge, reject, restore } from "./review.ts";
 import {
   approveMaterial, hideMaterial, materialEntries, pendingMaterialKey, purgeMaterial, restoreMaterial, setCellPicture, setGroupPicture, setMaterialFeatured,
@@ -235,7 +235,10 @@ function materialPost(action: string, id: unknown, env: OwnerEnv, now: Date): Pr
   }
   if (action === "cell-picture") return run(async () => ({ entries: await setCellPicture(env.SUBMISSIONS, env.LIBRARY, id) }));
   if (action === "group-picture") return run(async () => ({ entries: await setGroupPicture(env.SUBMISSIONS, env.LIBRARY, id) }));
-  return run(async () => { await purgeMaterial(env.SUBMISSIONS, env.LIBRARY, id); return { purged: id }; });
+  return run(async () => {
+    await purgeMaterial(env.SUBMISSIONS, env.LIBRARY, id);
+    return { purged: id, cdnPurge: env.ADMIN_LOCAL_OWNER === "yes" ? null : materialCdnPurge(env.ASSET_BASE_URL, id) };
+  });
 }
 
 /**

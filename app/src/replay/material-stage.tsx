@@ -120,15 +120,15 @@ export function recipeWord(recipe: string): string {
   return recipe.replace(/-\d{4}-\d{2}-\d{2}$/, "");
 }
 
-/** Where the stage gets a material's file and poster, and whether Keep applies: the gallery Worker unless a page says otherwise. */
+/** Where the stage gets a material's file and poster, and whether Keep applies: the published library unless a page supplies another source. */
 export interface MaterialSource {
   load: (entry: MaterialEntry) => Promise<FigureMaterial>;
   poster: (entry: MaterialEntry) => string;
   keepable: (entry: MaterialEntry) => boolean;
 }
 export const PUBLISHED_SOURCE: MaterialSource = {
-  load: (entry) => fetchPublishedMaterial(entry.id, fetch, entry.tick),
-  poster: (entry) => materialFileUrl(entry.id, "poster.png", entry.tick),
+  load: fetchPublishedMaterial,
+  poster: (entry) => materialFileUrl(entry, "poster.png"),
   keepable: () => true,
 };
 
@@ -208,7 +208,7 @@ export function MaterialStage({ entries, source = PUBLISHED_SOURCE, layout = "pa
     source.load(entry).then((loaded) => { if (current) setMaterial(loaded); })
       .catch((error: unknown) => { if (current) { setMessage(String(error)); setReplayStatus("failed"); setPlaying(false); } });
     return () => { current = false; };
-  }, [entry?.id, source]);
+  }, [entry?.id, entry?.tick, entry?.fileRevision, source]);
 
   useEffect(() => {
     if (!material || !canvas.current) return;

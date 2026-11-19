@@ -5,13 +5,14 @@
 //
 //   private bucket  pending/<id>/material.json, poster.png, meta.json        (meta.json last)
 //                   hidden/materials/<id>.json                               (a hidden entry)
-//   public bucket   gallery/materials/<id>/material.json, poster.png         (immutable once approved)
+//   public bucket   gallery/materials/<id>/versions/<revision>/material.json, poster.png
+//                   gallery/materials/<id>/material.json, poster.png         (current copies for older clients)
 //                   published/materials.json                                 (shown entries only)
 
 import { canonicalFigureFile, readFigureMaterial, readingPictureSide, type FigureMaterialFile } from "../../app/src/materials/material-file.ts";
 import {
   EMPTY_MATERIAL_INDEX, MATERIAL_INDEX_KEY, isMaterialEntryId, materialEntry, materialKey, placeOf, readMaterialIndex,
-  withMaterialEntry, withoutMaterialEntry, type MaterialEntry, type MaterialIndex,
+  versionedMaterialKey, withMaterialEntry, withoutMaterialEntry, type MaterialEntry, type MaterialIndex,
 } from "../../app/src/features/gallery/material-index.ts";
 import { samePlace, type GalleryPlace } from "../../app/src/features/gallery/gallery-place.ts";
 import { MATERIAL_SUBMISSION_LIMITS } from "../../app/src/features/gallery/submission-label.ts";
@@ -111,27 +112,41 @@ function checkedEntryId(id: string): string {
 }
 
 /**
- * Publish one checked file under an entry id: the file and its poster become public immutable
- * objects, then the index gains the entry. Approval and the project's seed both come here.
- * Running it again with the same id rewrites the same objects and entry, and keeps the owner's
- * featured mark: a reseed never clears it.
+ * Publish the file and poster before adding the revision to the index.
+ * Approval and the project's seed both come here. A reseed keeps the owner's marks.
  */
 export async function publishMaterial(library: Bucket, id: string, given: FigureMaterialFile, label: { title: string; credit: string }, now: Date): Promise<MaterialEntry> {
   const published = await putMaterialObjects(library, id, given, label, now);
   const index = await readMaterials(library);
-  const entry = { ...published, featured: index.entries.find((shown) => shown.id === id)?.featured ?? false };
+  const existing = index.entries.find((shown) => shown.id === id);
+  const entry = existing ? entryWithFile(existing, published) : published;
   await writeMaterials(library, withMaterialEntry(index, entry));
   return entry;
 }
 
-/** A material's two public objects, the canonical file and its poster, and the entry that names them. */
+/** A revision is complete once both objects are written. The digest covers the PNG embedded in the definition. */
+async function putMaterialVersion(library: Bucket, id: string, definition: Uint8Array<ArrayBuffer>, poster: Uint8Array): Promise<string> {
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", definition));
+  const revision = Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  await library.put(versionedMaterialKey(id, revision, "material.json"), definition, {
+    httpMetadata: { contentType: "application/json", cacheControl: CACHE_IMMUTABLE },
+  });
+  await library.put(versionedMaterialKey(id, revision, "poster.png"), poster, {
+    httpMetadata: { contentType: "image/png", cacheControl: CACHE_IMMUTABLE },
+  });
+  return revision;
+}
+
+/** Keep the stable objects for existing readers. Publish the revision only after both pairs are complete. */
 async function putMaterialObjects(library: Bucket, id: string, given: FigureMaterialFile, label: { title: string; credit: string }, now: Date): Promise<MaterialEntry> {
   const file = canonicalFigureFile(given);
   const entry = materialEntry(checkedEntryId(id), file, label, now.toISOString());
   const poster = materialPoster(file);
-  await library.put(materialKey(id, "material.json"), JSON.stringify(file), { httpMetadata: { contentType: "application/json", cacheControl: CACHE_IMMUTABLE } });
-  await library.put(materialKey(id, "poster.png"), poster, { httpMetadata: { contentType: "image/png", cacheControl: CACHE_IMMUTABLE } });
-  return entry;
+  const definition = new TextEncoder().encode(JSON.stringify(file));
+  const fileRevision = await putMaterialVersion(library, id, definition, poster);
+  await library.put(materialKey(id, "material.json"), definition, { httpMetadata: { contentType: "application/json", cacheControl: CACHE_INDEX } });
+  await library.put(materialKey(id, "poster.png"), poster, { httpMetadata: { contentType: "image/png", cacheControl: CACHE_INDEX } });
+  return { ...entry, fileRevision };
 }
 
 /**
@@ -357,6 +372,58 @@ export async function hiddenMaterials(submissions: Bucket): Promise<HiddenMateri
   return Promise.all(hiddenKeys.map(async (key) => JSON.parse(await (await requiredObject(submissions, key)).text()) as HiddenMaterial));
 }
 
+/** Preserve the exact stored bytes, including whitespace in an older definition.
+ * A separately stored PNG must match the embedded preview before its URL can share the definition's digest.
+ */
+async function copyPublishedVersion(library: Bucket, id: string): Promise<string> {
+  checkedEntryId(id);
+  const definition = new Uint8Array(await (await requiredObject(library, materialKey(id, "material.json"))).arrayBuffer());
+  const poster = new Uint8Array(await (await requiredObject(library, materialKey(id, "poster.png"))).arrayBuffer());
+  const file = readFigureMaterial(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(definition))).file;
+  const embedded = materialPoster(file);
+  if (embedded.length !== poster.length || !embedded.every((byte, index) => byte === poster[index])) {
+    throw new Error(`${id}: the stored poster differs from the definition's embedded preview`);
+  }
+  return putMaterialVersion(library, id, definition, poster);
+}
+
+/** Count older entries. With write, copy their file pairs before exposing revisions in the existing records. */
+export async function migrateMaterialVersions(submissions: Bucket, library: Bucket, write: boolean): Promise<{ shown: number; hidden: number }> {
+  const index = await readMaterials(library);
+  const shown = index.entries.filter((entry) => entry.fileRevision === undefined);
+  const hidden = (await hiddenMaterials(submissions)).filter((record) => record.fileRevision === undefined);
+  if (!write) return { shown: shown.length, hidden: hidden.length };
+
+  const activated = { shown: 0, hidden: 0 };
+  if (shown.length > 0) {
+    const revisions = new Map<string, string>();
+    for (const entry of shown) revisions.set(entry.id, await copyPublishedVersion(library, entry.id));
+    // Copying a gallery can take minutes. Merge into the current index to keep intervening owner edits.
+    const current = await readMaterials(library);
+    const entries = current.entries.map((entry) => {
+      const fileRevision = revisions.get(entry.id);
+      if (fileRevision === undefined || entry.fileRevision !== undefined) return entry;
+      activated.shown++;
+      return { ...entry, fileRevision };
+    });
+    if (activated.shown > 0) await writeMaterials(library, { entries });
+  }
+  for (const record of hidden) {
+    const fileRevision = await copyPublishedVersion(library, record.id);
+    const key = hiddenMaterialKey(record.id);
+    const stored = await submissions.get(key);
+    // The owner can restore the entry while the migration copies files.
+    if (stored === null) continue;
+    const current = JSON.parse(await stored.text()) as HiddenMaterial;
+    if (current.fileRevision !== undefined) continue;
+    await submissions.put(key, JSON.stringify({ ...current, fileRevision }, null, 2), {
+      httpMetadata: { contentType: "application/json" },
+    });
+    activated.hidden++;
+  }
+  return activated;
+}
+
 /** Shown, hidden and pending materials: everything the owner can act on. */
 export async function materialEntries(submissions: Bucket, library: Bucket): Promise<{ pending: MaterialSubmissionMetadata[]; published: MaterialEntry[]; hidden: HiddenMaterial[] }> {
   const pending = await pendingMaterials(submissions);
@@ -440,7 +507,12 @@ export async function addFeaturedMarks(submissions: Bucket, library: Bucket, wri
 export async function purgeMaterial(submissions: Bucket, library: Bucket, id: string): Promise<void> {
   const found = await findMaterial(submissions, library, id);
   if (found === null) throw new Error(`no published or hidden automaton definition ${id}`);
-  await library.delete(await listKeys(library, `gallery/materials/${id}/`));
+  // R2 accepts at most 1,000 keys in one delete. List first so deletion cannot change a subsequent list page.
+  const keys = await listKeys(library, `gallery/materials/${id}/`);
+  const deleteLimit = 1000;
+  for (let first = 0; first < keys.length; first += deleteLimit) {
+    await library.delete(keys.slice(first, first + deleteLimit));
+  }
   // Its link-preview poster and video (link-preview.ts), when it has them: a purge leaves no public picture.
   const preview = previewKeys(id);
   await library.delete([preview.image, preview.video]);

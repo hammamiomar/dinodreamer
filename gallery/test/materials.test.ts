@@ -10,7 +10,7 @@ import {
 } from "../src/material-review.ts";
 import { galleryEntries, pendingSubmissions } from "../src/review.ts";
 import { canonicalFigureFile, readFigureMaterial } from "../../app/src/materials/material-file.ts";
-import { materialKey, readMaterialIndex } from "../../app/src/features/gallery/material-index.ts";
+import { materialKey, readMaterialIndex, versionedMaterialKey } from "../../app/src/features/gallery/material-index.ts";
 import { TEST_TURNSTILE_TOKEN, submit, testEnv } from "./fixtures.ts";
 import { terminalText } from "../review-cli.ts";
 import type { Env } from "../src/worker.ts";
@@ -134,7 +134,7 @@ describe("material review", () => {
     const entry = await approveMaterial(submissions, library, id, new Date("2026-10-23T03:00:00Z"));
     const file = readFigureMaterial(JSON.parse(text(firedName))).file;
     expect(entry).toMatchObject({ id, title: "Scales", block: 12002, materialId: file.id, band: "strongest", fired: true, winnerFraction: 1, tick: 600 });
-    expect(library.objects.get(materialKey(id, "poster.png"))!.httpMetadata.cacheControl).toContain("immutable");
+    expect(library.objects.get(versionedMaterialKey(id, entry.fileRevision!, "poster.png"))!.httpMetadata.cacheControl).toContain("immutable");
     expect(JSON.parse(new TextDecoder().decode(library.objects.get(materialKey(id, "material.json"))!.body))).toEqual(file);
     expect([...submissions.objects.keys()].some((key) => key.startsWith(`pending/${id}/`))).toBe(false);
     expect(await approveMaterial(submissions, library, id, new Date())).toEqual(entry);

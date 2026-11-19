@@ -4,22 +4,13 @@
 // cannot purge that cache. So the command always prints the manual cache purge for the entry,
 // before it asks the CDN what this machine's edge still serves (src/cdn-check.ts).
 
-import { readFileSync } from "node:fs";
-import { confirmed, idArgument, openBuckets, terminalText } from "./review-cli.ts";
+import { confirmed, idArgument, libraryCdnBaseUrl, openBuckets, terminalText } from "./review-cli.ts";
 import { APP_ORIGIN, PURGE_BY_PREFIX_PLACE, checkCopies, curlCommand, purgePrefix } from "./src/cdn-check.ts";
 import { findEntry, purge } from "./src/review.ts";
 import { PUBLISHED_FILES, publishedKey } from "./src/storage.ts";
 
-/** The public bucket's CDN host, as the app build reads it (app/.env). */
-function assetBaseUrl(): string {
-  const env = readFileSync(new URL("../app/.env", import.meta.url), "utf8");
-  const line = env.split("\n").find((setting) => setting.startsWith("ASSET_BASE_URL="));
-  if (line === undefined) throw new Error("app/.env has no ASSET_BASE_URL");
-  return line.slice("ASSET_BASE_URL=".length).trim();
-}
-
 const id = idArgument("purge");
-const base = assetBaseUrl();
+const base = libraryCdnBaseUrl();
 const { submissions, library } = openBuckets();
 const found = await findEntry(submissions, library, id);
 if (found === null) {

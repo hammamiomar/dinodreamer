@@ -5,7 +5,7 @@
 // rule itself is the published definition, fetched as the player fetches it.
 import { RELEASE_LOCATION } from "../../app/config";
 import { fill, SITE_WORDS } from "../../app/site-words";
-import { fetchPublishedMaterial } from "../gallery/material-gallery";
+import { fetchPublishedMaterialById } from "../gallery/material-gallery";
 import { recordedSource, releaseDictionary, type DictionaryFiles, type HowSource } from "./how-source";
 import { decodeGrid, readRecord } from "./recorded";
 
@@ -123,7 +123,7 @@ export function loadAutomatonRecord(): Promise<AutomatonRecord> {
     const [history, dino, material] = await Promise.all([
       json("history.json", readHistory),
       json("record.json", readRecord),
-      fetchPublishedMaterial(replay.definition),
+      fetchPublishedMaterialById(replay.definition),
     ]);
     const dictionary = releaseDictionary(RELEASE_LOCATION);
     return {

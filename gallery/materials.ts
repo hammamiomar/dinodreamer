@@ -11,6 +11,9 @@
 //   add-featured [--write]
 //                        count the index entries and hidden records without a
 //                        featured mark; with --write, give each featured: false. Without it a dry run
+//   version-files [--write]
+//                        count shown and hidden records that lack a file revision. With --write, copy their
+//                        existing files to versioned library keys and update the records.
 //   seed <folder>        publish every *.material.json in the folder as a project entry, except the
 //                        hidden ones: a reseed does not undo the owner's hide or featured mark. The entry id
 //                        is the file's id with every character that an entry id refuses made a hyphen
@@ -32,11 +35,12 @@
 
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { confirmed, openBuckets, openLocalBuckets, terminalText } from "./review-cli.ts";
+import { confirmed, libraryCdnBaseUrl, openBuckets, openLocalBuckets, terminalText } from "./review-cli.ts";
+import { materialCdnPurge } from "./src/cdn-check.ts";
 import { FIGURE_PYRAMID_LAYOUT, readFigureMaterial, type FigureMaterialFile } from "../app/src/materials/material-file.ts";
 import { isMaterialEntryId, materialKey } from "../app/src/features/gallery/material-index.ts";
 import {
-  addFeaturedMarks, approveMaterial, checkedMaterial, findMaterial, hideMaterial, materialEntries, PROJECT_CREDIT, publishMaterial, publishMaterials,
+  addFeaturedMarks, approveMaterial, checkedMaterial, findMaterial, hideMaterial, materialEntries, migrateMaterialVersions, PROJECT_CREDIT, publishMaterial, publishMaterials,
   purgeMaterial, readMaterials, replaceMaterialFiles, restoreMaterial, setMaterialFeatured, type MaterialToPublish,
 } from "./src/material-review.ts";
 import { reject } from "./src/review.ts";
@@ -116,6 +120,10 @@ try {
     const missing = await addFeaturedMarks(submissions, library, write);
     console.log(`Without a featured mark: ${missing.entries} index entries, ${missing.hidden} hidden records`);
     console.log(write ? "Each now has featured: false." : "Dry run: nothing was written. Add --write to give each featured: false.");
+  } else if (command === "version-files") {
+    const write = args.includes("--write");
+    const { shown, hidden } = await migrateMaterialVersions(submissions, library, write);
+    console.log(`${shown} shown and ${hidden} hidden automata ${write ? "received versioned library files." : "need versioned library files. Add --write to copy them."}`);
   } else if (command === "purge") {
     const found = await findMaterial(submissions, library, need("id"));
     if (found === null) throw new Error(`no published or hidden material ${argument}`);
@@ -123,6 +131,10 @@ try {
     if (await confirmed("Purge its file, poster and index entry for good?")) {
       await purgeMaterial(submissions, library, found.entry.id);
       console.log(`Purged ${found.entry.id}`);
+      if (!persistTo) {
+        const cdn = materialCdnPurge(libraryCdnBaseUrl(), found.entry.id);
+        console.log(`Remove the cached copies at ${cdn.place}\n${cdn.prefixes.join("\n")}`);
+      }
     } else console.log("Nothing deleted");
   } else if (command === "seed") {
     const folder = need("folder");
@@ -188,7 +200,7 @@ try {
     }
   } else {
     console.error("usage: pnpm run materials <list | approve <id> | reject <id> | hide <id> | restore <id> | purge <id> | feature <id> | unfeature <id> | "
-      + "add-featured [--write] | seed <folder> | seed-production <persist dir> [--production]> [--local <dir>]");
+      + "add-featured [--write] | version-files [--write] | reread <folder> [--write] | seed <folder> | seed-production <persist dir> [--production]> [--local <dir>]");
     process.exitCode = 2;
   }
 } finally {

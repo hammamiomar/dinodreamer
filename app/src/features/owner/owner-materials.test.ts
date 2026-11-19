@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MaterialEntry } from "../gallery/material-index";
-import { fetchOwnerMaterials, readOwnerMaterials, sendOwnerAction } from "./owner-materials";
+import { fetchOwnerMaterials, purgeOwnerMaterial, readOwnerMaterials, sendOwnerAction } from "./owner-materials";
 
 const base: MaterialEntry = {
   id: "block-12002-figure-strongest-seed-1", title: "12002 · strongest · seed 1", credit: "DinoDreamer project", publishedAt: "2026-10-23T00:00:00Z",
@@ -40,14 +40,15 @@ describe("the owner API's client", () => {
     expect(await sendOwnerAction("hide", base.id, answering({ hidden: { ...base, hiddenAt: "2026-10-26T10:00:00Z" } }).fetcher)).toMatchObject({ id: base.id });
     expect(await sendOwnerAction("restore", base.id, answering({ restored: base }).fetcher)).toMatchObject({ id: base.id });
     expect(await sendOwnerAction("approve", submission.id, answering({ entry: { ...base, id: submission.id } }).fetcher)).toMatchObject({ id: submission.id });
-    // Purge and Reject answer only the id.
-    expect(await sendOwnerAction("purge", base.id, answering({ purged: base.id }).fetcher)).toBeNull();
+    const cdnPurge = { place: "Purge by Prefix", prefixes: [`library.test/gallery/materials/${base.id}/`, `library.test/previews/${base.id}/`] };
+    expect(await purgeOwnerMaterial(base.id, answering({ purged: base.id, cdnPurge }).fetcher)).toEqual(cdnPurge);
+    expect(await purgeOwnerMaterial(base.id, answering({ purged: base.id, cdnPurge: null }).fetcher)).toBeNull();
     expect(await sendOwnerAction("reject", submission.id, answering({ rejected: submission.id }).fetcher)).toBeNull();
   });
 
   it("reports the Worker's own refusal", async () => {
     const refused = answering({ error: "owner access refused: no Access token" }, 403);
-    await expect(sendOwnerAction("purge", base.id, refused.fetcher)).rejects.toThrow("owner access refused: no Access token");
+    await expect(purgeOwnerMaterial(base.id, refused.fetcher)).rejects.toThrow("owner access refused: no Access token");
     await expect(fetchOwnerMaterials(refused.fetcher)).rejects.toThrow("owner access refused");
     const hidden = answering({ error: `${base.id} is hidden: show it first` }, 409);
     await expect(sendOwnerAction("feature", base.id, hidden.fetcher)).rejects.toThrow("is hidden: show it first");

@@ -47,7 +47,9 @@ export async function fetchResearchMaterial(run: ResearchRun, fetcher: typeof fe
  * published file. It reads files only for an entry whose own id claims a run that has no entry.
  */
 export function fetchPromotedRunEntries(
-  runs: readonly ResearchRun[], entries: readonly MaterialEntry[], fetcher: typeof fetch = fetch,
+  runs: readonly ResearchRun[],
+  entries: readonly Pick<MaterialEntry, "id" | "materialId" | "tick" | "fileRevision">[],
+  fetcher: typeof fetch = fetch,
 ): Promise<Map<string, string>> {
   const ruleAt = async (url: string): Promise<DefinitionRule | null> => {
     const response = await fetcher(url, { headers: { accept: "application/json" } });
@@ -56,7 +58,7 @@ export function fetchPromotedRunEntries(
   return promotedRunEntries(
     runs, entries,
     (id) => ruleAt(`${API}/runs/${encodeURIComponent(id)}/material.json`),
-    (id) => ruleAt(materialFileUrl(id, "material.json")),
+    (id) => ruleAt(materialFileUrl(entries.find((entry) => entry.id === id) ?? id, "material.json")),
   );
 }
 

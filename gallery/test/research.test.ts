@@ -240,9 +240,10 @@ describe("a run read again at another step", () => {
     expect(before).toMatchObject({ tick: 600, publishedAt: "2026-11-10T20:00:00.000Z" });
     expect(await republishRereadRuns(env.SUBMISSIONS, env.LIBRARY, [run])).toEqual({ shown: [RUN_ID], hidden: [], absent: [] });
     const [after] = (await readMaterials(env.LIBRARY)).entries;
-    expect(after).toEqual({ ...before, tick: 300, strength: 2.5, winnerFraction: 1, fired: true });
-    const published = JSON.parse(await (await env.LIBRARY.get(`gallery/materials/${RUN_ID}/material.json`))!.text());
-    expect(published.reading.tick).toBe(300);
+    const published = await (await env.LIBRARY.get(`gallery/materials/${RUN_ID}/material.json`))!.text();
+    const fileRevision = createHash("sha256").update(published).digest("hex");
+    expect(after).toEqual({ ...before, tick: 300, strength: 2.5, winnerFraction: 1, fired: true, fileRevision });
+    expect(JSON.parse(published).reading.tick).toBe(300);
   });
 
   it("a hidden automaton's file and recovery record take it, so a restore shows the new reading", async () => {

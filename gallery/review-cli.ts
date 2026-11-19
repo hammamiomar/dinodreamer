@@ -2,12 +2,21 @@
 // the id argument, the y/N question before a command that cannot be undone, and the one way
 // they print a visitor's text.
 
+import { readFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 import { RestBucket, wranglerToken } from "./src/rest-bucket.ts";
 import { PUBLIC_BUCKET, SUBMISSIONS_BUCKET, type Bucket } from "./src/storage.ts";
 import { escapedText } from "../app/src/visitor-text.ts";
+
+/** The public bucket's CDN host, as the app build reads it (app/.env). */
+export function libraryCdnBaseUrl(): string {
+  const env = readFileSync(new URL("../app/.env", import.meta.url), "utf8");
+  const line = env.split("\n").find((setting) => setting.startsWith("ASSET_BASE_URL="));
+  if (line === undefined) throw new Error("app/.env has no ASSET_BASE_URL");
+  return line.slice("ASSET_BASE_URL=".length).trim();
+}
 
 /** Cloudflare's two buckets, with wrangler's login, renewed when a long run outlives it (rest-bucket.ts). */
 export function openBuckets(): { submissions: RestBucket; library: RestBucket } {
