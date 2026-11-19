@@ -6,6 +6,7 @@ import { balance, unitShards } from "./test-shards.mjs";
 
 const changed = (file) => [{ status: "M", file }];
 const filesOf = (plan) => plan.jobs.flatMap((job) => job.files);
+const unitFilesOf = (plan) => plan.jobs.filter((job) => job.kind === "unit").flatMap((job) => job.files);
 
 test("shards preserve every file once, including new untimed files", () => {
   const bins = balance(["a", "b", "c", "d", "e"], { a: 30, b: 20, c: 10, d: 10 }, 2, 1);
@@ -27,7 +28,7 @@ test("a documentation change schedules no tests", async () => {
 
 test("a changed unit test schedules that file alone", async () => {
   const file = "app/src/features/automata/deck-level-swipe.test.ts";
-  assert.deepEqual(filesOf(await planTests(changed(file))), [file]);
+  assert.deepEqual(unitFilesOf(await planTests(changed(file))), [file]);
 });
 
 test("shared app modules reach gallery tests and the app source audit", async () => {
@@ -49,14 +50,19 @@ test("main runs every browser viewport and broad PR changes run every unit test"
     changed(".github/workflows/check.yml"),
   ]) {
     const plan = await planTests(changes);
-    assert.deepEqual(filesOf(plan).sort(), discovered);
+    assert.deepEqual(unitFilesOf(plan).sort(), discovered);
     assert(plan.cargo);
   }
 });
 
-test("browser changes wait for main, which runs all browser suites and viewports", async () => {
+test("a change that reaches the browsers runs every suite and viewport before it merges, as main does", async () => {
   const file = "app/tests/how-layout-browser.test.mjs";
-  assert.deepEqual(filesOf(await planTests(changed(file))), []);
+  const browserTasks = (plan) => filesOf(plan).filter((task) => task.includes("-browser.test.mjs")).sort();
+  const main = browserTasks(await planTests(null));
+  for (const change of [file, "app/src/features/home/home-material.ts", "gallery/src/worker.ts", "engine/src/lib.rs"]) {
+    assert.deepEqual(browserTasks(await planTests(changed(change))), main, change);
+  }
+  assert.deepEqual(browserTasks(await planTests(changed("README.md"))), []);
   const browsers = filesOf(await planTests(null)).filter((task) => task.includes("-browser.test.mjs"));
   const distinct = [...new Set(browsers.map((task) => task.split("#")[0]))].sort();
   const suites = readdirSync("app/tests").filter((name) => name.endsWith("-browser.test.mjs"));
@@ -100,11 +106,11 @@ test("small selections share the planner while larger unit shards keep separate 
   const scheduled = scheduleJobs(large);
   assert.deepEqual(
     scheduled.units.map(({ files }) => files),
-    large.jobs.map(({ files }) => files),
+    large.jobs.filter((job) => job.kind === "unit").map(({ files }) => files),
   );
   assert.equal(scheduled.units.filter((job) => job.planner).length, 1);
   assert.equal(scheduled.planner, false);
-  assert.deepEqual(scheduled.browsers, []);
+  assert.deepEqual(scheduled.browsers, large.jobs.filter((job) => job.kind === "browser"));
   const main = await planTests(null);
   assert.deepEqual(scheduleJobs(main).browsers, main.jobs.filter((job) => job.kind === "browser"));
 });

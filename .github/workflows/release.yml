@@ -6,6 +6,8 @@ on:
 
 permissions:
   contents: write
+  # Read main's check of the tagged commit (ci/require-green-main.mjs).
+  actions: read
 
 concurrency:
   group: production-release
@@ -14,11 +16,17 @@ concurrency:
 jobs:
   release:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 65
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # A release deploys only a commit whose full check on main passed, browser suites included. A check still
+      # running is waited for, up to 20 minutes; a failed one stops the release before anything is built.
+      - name: Require main's check of this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node ci/require-green-main.mjs
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '24'

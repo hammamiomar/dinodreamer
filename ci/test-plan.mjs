@@ -93,6 +93,15 @@ async function relatedUnits({ paths, runtime }) {
   return [...new Set(files)];
 }
 
+/**
+ * Whether a change reaches the browser suites. They load the app, its engine package and the gallery's test
+ * entry, so a pull request that changes any of them runs every suite and viewport, as main does: a change is
+ * known to integrate before it merges. A documentation change or a Rust test runs none.
+ */
+function reachesBrowsers(scope) {
+  return scope.full || scope.runtime || scope.paths.some((file) => file.startsWith("app/") || file.startsWith("gallery/"));
+}
+
 export default async function planTests(diff) {
   const scope = testScope(diff);
   const units = scope.full
@@ -103,7 +112,7 @@ export default async function planTests(diff) {
         }).map((file) => project + "/" + file),
       )
     : await relatedUnits(scope);
-  const browsers = diff === null ? browserFiles : [];
+  const browsers = reachesBrowsers(scope) ? browserFiles : [];
   const browserTasks = browsers.flatMap((file) =>
     file.endsWith("/how-layout-browser.test.mjs")
       ? layoutViewports.map(({ width, height }) => file + "#" + width + "-" + height)
@@ -159,6 +168,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
       units: JSON.stringify({ include: units }),
       hasUnits: units.length > 0,
       browsers: JSON.stringify({ include: browsers }),
+      hasBrowsers: browsers.length > 0,
       inlineUnit: JSON.stringify(inline),
       planner,
     };
