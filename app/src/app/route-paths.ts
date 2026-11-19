@@ -8,12 +8,31 @@ const RENAMED_PAGES = [
 
 const PANEL_PATH = /^\/(index|automata|train|picture|how|create|admin\/materials)\/block(?=\/|$)/;
 
-/** Translate an old page or panel path without changing API paths or partial name matches. */
+/**
+ * The owner's pages answer only at the lower-case, unencoded /admin, where the Worker checks the owner
+ * and forbids framing (gallery/src/admin.ts). The app's router matches a path without regard to case
+ * and after percent-decoding, so /ADMIN/automata or /%61dmin/automata names the same view: such a
+ * first segment is spelled as the Worker serves it.
+ */
+function canonicalOwnerSegment(pathname: string): string {
+  const slash = pathname.indexOf("/", 1);
+  const first = slash === -1 ? pathname.slice(1) : pathname.slice(1, slash);
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(first);
+  } catch {
+    return pathname;
+  }
+  if (!/^admin(?:\/|$)/i.test(decoded)) return pathname;
+  return `/admin${decoded.slice("admin".length)}${slash === -1 ? "" : pathname.slice(slash)}`;
+}
+
+/** Translate an old page or panel path, and another spelling of /admin, without changing API paths or partial name matches. */
 export function canonicalPathname(pathname: string): string {
-  let canonical = pathname;
+  let canonical = canonicalOwnerSegment(pathname);
   for (const [previous, current] of RENAMED_PAGES) {
-    if (pathname === previous || pathname.startsWith(`${previous}/`)) {
-      canonical = current + pathname.slice(previous.length);
+    if (canonical === previous || canonical.startsWith(`${previous}/`)) {
+      canonical = current + canonical.slice(previous.length);
       break;
     }
   }

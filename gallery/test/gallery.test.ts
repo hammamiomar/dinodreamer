@@ -544,6 +544,22 @@ it("sends a request again after the API's rate limit or a server error, and give
   expect(limited).toBe(6);
 });
 
+it("a refused token is renewed once and the request sent again; a fixed token is not", async () => {
+  const seen: string[] = [];
+  const fetcher = (async (_url: string, init: RequestInit) => {
+    const authorization = (init.headers as Record<string, string>).authorization;
+    seen.push(authorization);
+    return new Response("{}", { status: authorization === "Bearer old" ? 401 : 200 });
+  }) as unknown as typeof fetch;
+  const tokens = ["old", "fresh"];
+  const bucket = new RestBucket("dinodreamer-library", () => tokens.shift()!, fetcher, () => 0);
+  await bucket.put("a.json", "{}");
+  expect(seen).toEqual(["Bearer old", "Bearer fresh"]);
+  await bucket.put("b.json", "{}");
+  expect(seen.at(-1)).toBe("Bearer fresh");
+  await expect(new RestBucket("dinodreamer-library", "old", fetcher, () => 0).put("c.json", "{}")).rejects.toThrow(/HTTP 401/);
+});
+
 it("wrangler.jsonc binds the buckets the scripts write, and routes /api/*, /assets/* and /admin to the Worker", () => {
   const config = readFileSync(new URL("../wrangler.jsonc", import.meta.url), "utf8");
   expect(config).toContain(`"binding": "SUBMISSIONS", "bucket_name": "${SUBMISSIONS_BUCKET}"`);

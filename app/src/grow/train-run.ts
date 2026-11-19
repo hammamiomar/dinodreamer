@@ -3,7 +3,7 @@ import { RELEASE_LOCATION } from "../app/config";
 import type { MaterialRequestOrigin, MaterialRequestPicture } from "../app/material-request";
 import type { MaterialRequest } from "../recipe";
 import { announceKept } from "../replay/keep-material";
-import { readSubmittedMaterials } from "../features/gallery/publish-material";
+import { readSubmittedMaterials } from "../features/gallery/publish-records";
 import { keepMaterial } from "../storage/materials";
 import { methodReadsTokens, readFigureMaterial, type FigureMaterialFile, type FigureMethod, type FigureTargetSet } from "../materials/material-file";
 import type { ReleaseLocation } from "../synthesis/protocol";

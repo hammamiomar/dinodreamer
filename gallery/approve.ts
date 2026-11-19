@@ -1,7 +1,7 @@
 // Publish pending submissions to the gallery: pnpm run approve <id>
 // or, after a y/N question that shows them, every pending one: pnpm run approve --all
 
-import { confirmed, idArgument, openBuckets } from "./review-cli.ts";
+import { confirmed, idArgument, openBuckets, terminalText } from "./review-cli.ts";
 import { approve, approveAll, pendingSubmissions } from "./src/review.ts";
 import { sharpThumbnail } from "./src/thumbnail-sharp.ts";
 
@@ -12,7 +12,7 @@ if (process.argv[2] === "--all") {
     console.log("0 pending");
     process.exit(0);
   }
-  for (const metadata of pending) console.log(`  ${metadata.id}  "${metadata.title}"  by "${metadata.credit}"`);
+  for (const metadata of pending) console.log(`  ${metadata.id}  "${terminalText(metadata.title)}"  by "${terminalText(metadata.credit)}"`);
   if (!(await confirmed(`Publish these ${pending.length}?`))) {
     console.log("Nothing published");
     process.exit(1);

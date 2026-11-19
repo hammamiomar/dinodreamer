@@ -3,7 +3,9 @@
 // CI builds engine/pkg first. Local runs build in a separate worktree.
 // Engine publication belongs to GPU qualification: this script only checks its public URL.
 // Releases require engine/qualified-engine.json to match the built WASM exactly.
-// A preview uploads a Worker version without changing production traffic.
+// A preview uploads a Worker version without changing production traffic. In GitHub it reports its alias
+// only: the address holds the account's workers.dev subdomain, which Cloudflare takes from the account's
+// email, and the repository's logs and comments are public.
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -58,6 +60,13 @@ export async function publishedEngineExists(url: string, fetcher: typeof fetch =
 }
 
 /** Wrangler writes one JSON object per line; use its alias URL rather than its console format. */
+/** The account's workers.dev subdomain in a Worker address such as https://pr-7-dinodreamer-public.<subdomain>.workers.dev. */
+export function workersSubdomain(url: string): string {
+  const subdomain = /\.([a-z0-9-]+)\.workers\.dev$/.exec(new URL(url).hostname)?.[1];
+  if (subdomain === undefined) throw new Error(`Not a workers.dev address: ${url}`);
+  return subdomain;
+}
+
 export function previewUrl(output: string): string {
   const record = output.trim().split(/\r?\n/).map((line) => JSON.parse(line)).reverse().find((entry) => entry.type === "version-upload");
   const url = record?.preview_alias_url;
@@ -142,11 +151,9 @@ function answerBefore(path: string, deadline: number, read: boolean): Promise<{ 
   });
 }
 
-function reportPreview(message: string, url?: string): void {
+function reportPreview(message: string): void {
   console.log(message);
-  if (process.env.GITHUB_OUTPUT) {
-    appendFileSync(process.env.GITHUB_OUTPUT, `message=${message}\n${url ? `url=${url}\n` : ""}`);
-  }
+  if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `message=${message}\n`);
 }
 
 async function main(): Promise<void> {
@@ -190,11 +197,15 @@ async function main(): Promise<void> {
     const temporary = mkdtempSync(join(tmpdir(), "dinodreamer-preview-"));
     try {
       const output = join(temporary, "wrangler.jsonl");
-      console.log(run("pnpm", ["exec", "wrangler", "versions", "upload", "--preview-alias", alias, "--message", message], gallery, {
+      const uploaded = run("pnpm", ["exec", "wrangler", "versions", "upload", "--preview-alias", alias, "--message", message], gallery, {
         WRANGLER_OUTPUT_FILE_PATH: output,
-      }));
+      });
       const url = previewUrl(readFileSync(output, "utf8"));
-      reportPreview(`Preview: ${url}`, url);
+      const inGitHub = process.env.GITHUB_ACTIONS === "true";
+      // GitHub replaces a masked text with *** in every later line of the log.
+      if (inGitHub) console.log(`::add-mask::${workersSubdomain(url)}`);
+      console.log(uploaded);
+      reportPreview(inGitHub ? `Preview ${alias} is ready behind Cloudflare Access.` : `Preview: ${url}`);
     } finally {
       rmSync(temporary, { recursive: true, force: true });
     }

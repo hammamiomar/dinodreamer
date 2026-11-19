@@ -2,7 +2,7 @@
 // of the window. A deck under the eye is seen straight on and hides its plates; a deck away from it shows
 // their edges, as a stack on a table shows its side to someone standing off it. Scrolling moves the wall
 // under the eye, so the decks' sides change gently as they pass. The eye does not follow the pointer:
-// it turned every deck on the wall at each move of the mouse (Omar, 18 November 2026: "less shaky").
+// it turned every deck on the wall at each move of the mouse, and the wall looked shaky.
 //
 // The eye is written on the wall as two CSS lengths in the wall's own page pixels (--eye-x, --eye-y),
 // once a frame at most. While the wall is not displayed it writes nothing. With reduced motion the wall

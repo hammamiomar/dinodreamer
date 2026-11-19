@@ -151,7 +151,7 @@ async function main(): Promise<void> {
   if (args.includes("--verify")) {
     process.exitCode = (await verify(files, prefix)) ? 0 : 1;
   } else {
-    const bucket = new RestBucket(PUBLIC_BUCKET, wranglerToken(dirname(fileURLToPath(import.meta.url))));
+    const bucket = new RestBucket(PUBLIC_BUCKET, () => wranglerToken(dirname(fileURLToPath(import.meta.url))));
     const { missing, different, present } = plan(files, await storedObjects(bucket, prefix));
     console.log(`The bucket holds ${present} of them already; ${missing.length} to upload; ${different.length} differ`);
     if (different.length) throw new Error(`These objects exist with other bytes; nothing was uploaded: ${different.slice(0, 5).join(", ")}`);

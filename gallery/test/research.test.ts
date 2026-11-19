@@ -171,6 +171,43 @@ describe("showing research runs on the Automata page", () => {
     expect((await readMaterials(env.LIBRARY)).entries.map((entry) => [entry.id, entry.gallery])).toEqual([[pending.id, { start: "circle", method: "token-distribution" }]]);
   });
 
+  /** A visitor's own automaton, approved, whose file claims the run's id: other weights, the same top-level id. */
+  async function approveClaimant(env: Env): Promise<string> {
+    const visitorFile = JSON.parse(readFileSync(new URL("../seed/materials/block-12002-figure-weak-seed-0.material.json", import.meta.url), "utf8"));
+    const checked = checkedMaterial(JSON.stringify({ ...visitorFile, id: RUN_ID }));
+    if ("error" in checked) throw new Error(checked.error);
+    const claim = { file: checked.file, text: JSON.stringify(checked.file), poster: materialPoster(checked.file), title: "Mine now", credit: "A visitor" };
+    const pending = await storeMaterialSubmission(env.SUBMISSIONS, "20261118-221005-8afe5fcd", claim, new Date("2026-11-18T22:10:05Z"));
+    await approveMaterial(env.SUBMISSIONS, env.LIBRARY, pending.id, new Date("2026-11-18T22:11:00Z"));
+    return pending.id;
+  }
+
+  it("a visitor's automaton whose file claims an unshown run's id stays the visitor's: Show publishes the run under its own id", async () => {
+    const env = await storeWithRun();
+    const visitor = await approveClaimant(env);
+    const [run] = manifestOf([{ id: RUN_ID, gallery: PLACE }]).runs;
+    const result = await showResearchRuns(env.SUBMISSIONS, env.LIBRARY, [run!], new Date(), true);
+    expect(result).toEqual({ published: [RUN_ID], placed: [], keptHidden: [], withoutPlace: [] });
+    const entries = (await readMaterials(env.LIBRARY)).entries;
+    expect(entries.map((entry) => [entry.id, entry.credit, entry.gallery ?? null])).toEqual([
+      [RUN_ID, "DinoDreamer project", { start: "circle", method: "token-distribution" }], [visitor, "A visitor", null],
+    ]);
+  });
+
+  it("keeps a hidden run hidden when a visitor's copy claims its id, and refuses to approve that copy", async () => {
+    const env = await storeWithRun();
+    const [run] = manifestOf([{ id: RUN_ID, gallery: PLACE }]).runs;
+    await showResearchRuns(env.SUBMISSIONS, env.LIBRARY, [run!], new Date(), true);
+    await hideMaterial(env.SUBMISSIONS, env.LIBRARY, RUN_ID, new Date());
+    // The hidden run's public file stays readable; a copy of it claims the run's id and has the run's rule.
+    const copy = checkedMaterial(new TextDecoder().decode(MATERIAL));
+    if ("error" in copy) throw new Error(copy.error);
+    const pending = await storeMaterialSubmission(env.SUBMISSIONS, "20261118-221006-01020304",
+      { file: copy.file, text: JSON.stringify(copy.file), poster: materialPoster(copy.file), title: "Copy", credit: "A visitor" }, new Date());
+    await expect(approveMaterial(env.SUBMISSIONS, env.LIBRARY, pending.id, new Date())).rejects.toThrow(`the hidden automaton ${RUN_ID} already has the file id ${RUN_ID}`);
+    expect(await showResearchRuns(env.SUBMISSIONS, env.LIBRARY, [run!], new Date(), true)).toEqual({ published: [], placed: [], keptHidden: [RUN_ID], withoutPlace: [] });
+  });
+
   it("leaves a hidden automaton hidden, and does not publish a run the grid has no place for", async () => {
     const env = await storeWithRun();
     const runs = manifestOf([{ id: RUN_ID, gallery: PLACE }, { id: "no-row", gallery: { ...PLACE, start: null } }, { id: "old-export" }]).runs;
@@ -215,6 +252,24 @@ describe("a run read again at another step", () => {
     expect((await readMaterials(env.LIBRARY)).entries).toEqual([]);
     const record = JSON.parse(await (await env.SUBMISSIONS.get(`hidden/materials/${RUN_ID}.json`))!.text());
     expect(record).toMatchObject({ tick: 300, hiddenAt: "2026-11-12T10:00:00.000Z", gallery: { start: "circle", method: "token-distribution" }, featuredInBlock: true });
+  });
+
+  it("writes nothing over a visitor's automaton that claims the run's id, when the run is not on the page", async () => {
+    const { env } = testEnv();
+    const first = manifestText([{ id: RUN_ID }]);
+    await writeResearch(env.SUBMISSIONS, first, checkedResearchManifest(first).runs, () => FILES);
+    const visitorFile = JSON.parse(readFileSync(new URL("../seed/materials/block-12002-figure-weak-seed-0.material.json", import.meta.url), "utf8"));
+    const checked = checkedMaterial(JSON.stringify({ ...visitorFile, id: RUN_ID }));
+    if ("error" in checked) throw new Error(checked.error);
+    const pending = await storeMaterialSubmission(env.SUBMISSIONS, "20261118-221005-8afe5fcd",
+      { file: checked.file, text: JSON.stringify(checked.file), poster: materialPoster(checked.file), title: "Mine now", credit: "A visitor" }, new Date());
+    await approveMaterial(env.SUBMISSIONS, env.LIBRARY, pending.id, new Date());
+    const visitorObject = (env.LIBRARY as MemoryBucket).objects.get(`gallery/materials/${pending.id}/material.json`);
+    const next = manifestText([{ id: RUN_ID, materialSha256: REREAD_SHA256 }]);
+    const [run] = checkedResearchManifest(next).runs;
+    await writeResearch(env.SUBMISSIONS, next, [run!], () => REREAD_FILES);
+    expect(await republishRereadRuns(env.SUBMISSIONS, env.LIBRARY, [run!])).toEqual({ shown: [], hidden: [], absent: [RUN_ID] });
+    expect((env.LIBRARY as MemoryBucket).objects.get(`gallery/materials/${pending.id}/material.json`)).toBe(visitorObject);
   });
 
   it("a run that is not on the page changes nothing there", async () => {

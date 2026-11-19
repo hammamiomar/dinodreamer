@@ -375,6 +375,11 @@
   height: 100%;
 }
 
+/* The chosen word's line lies on that rule, which is drawn just under the box: 1 px over the rule, 1 px above it. */
+.grow-field .segmented > button::before {
+  bottom: -1px;
+}
+
 .grow-hint,
 .grow-time {
   margin: 0;
@@ -398,17 +403,25 @@
   display: grid;
 }
 
+/*
+ * The leaving face fades out first and the arriving one fades in after it, so the two faces' words,
+ * which share one place, never show together.
+ */
+.grow-faces {
+  --face-leave: 120ms;
+}
+
 .grow-faces > .grow-face {
   grid-area: 1 / 1;
   opacity: 0;
   visibility: hidden;
-  transition: opacity var(--motion-move), visibility 0s linear 240ms;
+  transition: opacity var(--face-leave) ease-out, visibility 0s linear var(--face-leave);
 }
 
 .grow-faces > .grow-face[data-shown] {
   opacity: 1;
   visibility: visible;
-  transition: opacity var(--motion-move), visibility 0s;
+  transition: opacity var(--motion-move) var(--face-leave), visibility 0s;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -423,6 +436,13 @@
   display: flex;
   gap: var(--patch) calc(2 * var(--patch));
   flex-wrap: wrap;
+}
+
+/* On the narrowest phones the longest method's toggle and Advanced keep one line only with one patch between them. */
+@media (max-width: 359px) {
+  .grow-face-toggles {
+    column-gap: var(--patch);
+  }
 }
 
 /*
@@ -545,6 +565,11 @@
   align-items: center;
   min-height: 2lh;
   color: var(--ink-3);
+}
+
+/* The method's sentence is the longest hint: it takes three lines in the narrow panel beside the canvas and on a phone. */
+.grow-comparison .grow-hint {
+  min-height: 3lh;
 }
 
 .grow-time {

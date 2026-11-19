@@ -9,9 +9,11 @@
   "main": "src/worker.ts",
   "compatibility_date": "2026-09-01",
   "account_id": "ca9d38a784a1dbc033775ecfd6551682",
-  "workers_dev": true,
+  // The Worker's own workers.dev address is off: its name is the account's subdomain, which Cloudflare takes
+  // from the account's email. Pull request previews stay on workers.dev, behind Cloudflare Access.
+  "workers_dev": false,
   "preview_urls": true,
-  // Production. The workers.dev address stays on as staging.
+  // Production.
   "routes": [{ "pattern": "dinodreamer.computervision.vision", "custom_domain": true }],
   "assets": {
     "directory": "../app/dist",

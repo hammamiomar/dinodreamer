@@ -44,6 +44,7 @@ describe("the owner's automata", () => {
       { id: "7178-private-run" },
       { id: "7178-old-start", gallery: { start: null, method: "basis-group-mean", target: "other", shown: false } },
     ]),
+    promotions: new Map(),
   };
   const { automata, unfiled } = ownerAutomata(read, PICTURES);
   const of = (id: string) => automata.find((automaton) => automaton.id === id)!;
@@ -64,12 +65,22 @@ describe("the owner's automata", () => {
     expect(onSite.pictureUrl).toBe("/poster/block-7178-on-the-site");
   });
 
-  it("a run that an earlier promotion published under a submission's id is that automaton, once", () => {
+  it("a run that an earlier promotion published under a submission's id is that automaton, once, when its rule matched", () => {
     const promoted = entry("20261102-153012-a1b2c3d4", { materialId: "7178-private-run" });
-    const once = ownerAutomata({ ...read, shown: [...read.shown, promoted] }, PICTURES).automata;
+    const promotions = new Map([["7178-private-run", "20261102-153012-a1b2c3d4"]]);
+    const once = ownerAutomata({ ...read, shown: [...read.shown, promoted], promotions }, PICTURES).automata;
     const found = once.filter((automaton) => automaton.run?.id === "7178-private-run");
     expect(found.map((automaton) => [automaton.id, automaton.state])).toEqual([["20261102-153012-a1b2c3d4", "shown"]]);
     expect(once.filter((automaton) => automaton.id === "20261102-153012-a1b2c3d4")).toHaveLength(1);
+  });
+
+  it("a visitor's automaton whose file claims a run's id stays a visitor's, and the run stays not shown with its Show action", () => {
+    const claimant = entry("20261118-221005-8afe5fcd", { materialId: "7178-private-run", credit: "A visitor" });
+    const both = ownerAutomata({ ...read, shown: [...read.shown, claimant] }, PICTURES).automata;
+    const run = both.find((automaton) => automaton.run?.id === "7178-private-run")!;
+    expect([run.id, run.state, run.entry]).toEqual(["7178-private-run", "not-shown", null]);
+    expect(actionsFor(run)).toEqual(["show"]);
+    expect(both.find((automaton) => automaton.id === "20261118-221005-8afe5fcd")?.run).toBeNull();
   });
 
   it("a run that was never shown shows its last still and no entry; a visitor's automaton has no run", () => {
@@ -104,7 +115,7 @@ describe("the owner's actions", () => {
     const a = entry("a");
     const b = entry("b");
     const c = entry("c");
-    const read: OwnerRead = { shown: [a, b], hidden: [c], manifest: null };
+    const read: OwnerRead = { shown: [a, b], hidden: [c], manifest: null, promotions: new Map() };
     const hiddenA = { ...a, hiddenAt: "2026-11-10T21:00:00.000Z" };
     const afterHide = afterChange(read, { hidden: [hiddenA] });
     expect([afterHide.shown, afterHide.hidden]).toEqual([[b], [c, hiddenA]]);

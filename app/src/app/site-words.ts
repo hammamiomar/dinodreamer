@@ -818,7 +818,7 @@ export const SITE_WORDS = {
     batchRecipe: "The recipe: four grids per update. Needs 1.5 to 1.8 GB of GPU memory.",
     /** Under it, for batch size 1: 0.8 to 0.9 GB, and 0.29 to 0.31 of the time per update, in the same measurements. */
     batchLight: "Half the memory and a third of the time of 4. It may meet the selection target less often.",
-    /** The same for the methods that compare with the set (Omar's decision 8, 17 November 2026): the research ran them at 4 only. */
+    /** The same for the methods that compare with the set : the research ran them at 4 only. */
     batchLightSet: "Half the memory and a third of the time of 4. The research has no reference for this method at 1.",
     /** Why a continuation's batch size cannot change. */
     continuedBatch: "A continued automaton keeps its batch size.",
@@ -1110,7 +1110,7 @@ export const SITE_WORDS = {
     methodsTitle: "What it is asked for",
     /** What a screen reader hears for the grid as a whole. {group} is the number. */
     gridName: "The automata of basis group {group}, by where they start and what they were asked for",
-    /** The rows' names: the state an automaton starts from. Noise field and Noise disc are Train's names for the same starts (grow/material-kind.ts), by Omar's choice of 17 November 2026. */
+    /** The rows' names: the state an automaton starts from. Noise field and Noise disc are Train's names for the same starts (grow/material-kind.ts). */
     starts: {
       noise: "Noise field",
       circle: "Noise disc",
@@ -1201,6 +1201,8 @@ export const SITE_WORDS = {
     /** In place of the page while the automata and the runs load, and when the owner API fails. {message} is the error. */
     loading: "Loading the automata and the research runs…",
     failed: "The owner API refused or failed: {message}. Open the owner page first to sign in.",
+    /** In place of the view when another page shows it inside a frame. */
+    framed: "The owner's view opens only in its own tab.",
     /** The line over the wall and over a group's pane: the view's name, then how many automata a visitor sees. */
     heading: "Owner's view",
     counts: "{shown} shown of {all}",

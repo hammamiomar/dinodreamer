@@ -16,6 +16,17 @@ const materials = [
 const pyramid = readMaterial("block-4009-figure-pyramid-strongest-seed-0");
 
 describe("Shadertoy export", () => {
+  it("keeps the id and trainer revision on their comment lines, whatever line break they hold", () => {
+    const { file, values } = materials[0];
+    for (const code of [0x0a, 0x0d, 0x85, 0x2028, 0x2029]) {
+      const lineBreak = String.fromCodePoint(code);
+      const source = shadertoyShaderSource({ ...file, id: `seed${lineBreak}INJECTED_ID`, trainerCommit: `abc${lineBreak}INJECTED_COMMIT` }, values);
+      const lines = source.split(/\r\n|[\n\r\u0085\u2028\u2029]/);
+      expect(lines.filter((line) => line.includes("INJECTED")).every((line) => line.startsWith("//")), code.toString(16)).toBe(true);
+    }
+  });
+
+
   it("round-trips every float32 weight in the three supported material kinds", () => {
     for (const { file, values } of materials) {
       const { common } = shadertoySections(file, values);

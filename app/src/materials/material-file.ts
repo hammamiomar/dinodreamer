@@ -1,5 +1,6 @@
 import type { MaterialAnchor, StrengthBand, StrengthCuts } from "../recipe";
 import { STRENGTH_BANDS, bandIndex } from "../features/look/strength-bands.ts";
+import { escapedText, firstUnsafeString } from "../visitor-text.ts";
 
 // Format-4 figure definitions are validated and their float32 weights decoded once on load.
 
@@ -444,6 +445,9 @@ export function readFigureMaterial(value: unknown, dictionaryId?: string): Figur
   const file = record(value, "top-level value");
   if (file.format === 1 || file.format === 2) throw new Error("This app cannot play E1 automata (formats 1 and 2).");
   if (file.format !== 4) throw new Error("Unsupported automaton definition format");
+  // A definition is a visitor's text that others print: in pages, in the owner's terminal, in exported shader comments.
+  const unsafe = firstUnsafeString(file);
+  if (unsafe !== null) throw new Error(`The automaton definition's ${escapedText(unsafe)} holds a control character or a line separator`);
   readCommon(file, dictionaryId);
   if (file.mode !== "fill") throw new Error("The figure training procedure trains automata for area simulation only");
   text(file.engine, "engine build");

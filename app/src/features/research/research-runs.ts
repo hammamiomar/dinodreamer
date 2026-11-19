@@ -5,6 +5,7 @@
 // or React imports.
 
 import { isGalleryMethod, isGalleryStart, type GalleryMethod, type GalleryPlace, type GalleryStart } from "../gallery/gallery-place.ts";
+import type { MaterialEntry } from "../gallery/material-index.ts";
 
 /** The run index in the private bucket. Each run's files are under research/runs/<id>/. */
 export const RESEARCH_MANIFEST_KEY = "research/manifest.json";
@@ -150,6 +151,55 @@ export interface ResearchManifest {
  */
 export function entryIdOfRun(run: Pick<ResearchRun, "id" | "siteMaterials">): string {
   return run.siteMaterials[0] ?? run.id;
+}
+
+/** The fields that make two definitions one automaton: the rule's layout and its float32 weights. */
+export interface DefinitionRule {
+  layout: string;
+  values: string;
+}
+
+/** A definition's rule as its JSON holds it, or null when the JSON has none. */
+export function definitionRule(value: unknown): DefinitionRule | null {
+  const rule = (value as { rule?: { layout?: unknown; values?: unknown } } | null)?.rule;
+  return typeof rule?.layout === "string" && typeof rule.values === "string" ? { layout: rule.layout, values: rule.values } : null;
+}
+
+/** Reads one definition's rule by id: a run's private file, or a shown or hidden automaton's published one. Null when it is not there. */
+export type RuleReader = (id: string) => Promise<DefinitionRule | null>;
+
+/**
+ * The runs that an earlier promotion published under a submission's id, as run id to entry id. An
+ * entry whose file names a run's id (its materialId) is only a candidate: the submitter chose that id.
+ * It holds the run only when its published rule is the run's own rule, which a visitor cannot know
+ * for a run that was never shown. A run whose own entry (entryIdOfRun) is among the entries needs no
+ * promotion, and nothing is read for it. The Worker (gallery/src/research.ts) and the owner's page
+ * (research-api.ts) answer with this one rule, each with its own readers.
+ */
+export async function promotedRunEntries(
+  runs: readonly ResearchRun[],
+  entries: readonly Pick<MaterialEntry, "id" | "materialId">[],
+  readRunRule: RuleReader,
+  readEntryRule: RuleReader,
+): Promise<Map<string, string>> {
+  const entryIds = new Set(entries.map((entry) => entry.id));
+  const claimants = new Map<string, string[]>();
+  for (const entry of entries) claimants.set(entry.materialId, [...(claimants.get(entry.materialId) ?? []), entry.id]);
+  const promoted = new Map<string, string>();
+  for (const run of runs) {
+    const candidates = claimants.get(run.id) ?? [];
+    if (entryIds.has(entryIdOfRun(run)) || candidates.length === 0) continue;
+    const runRule = await readRunRule(run.id);
+    if (runRule === null) continue;
+    for (const id of candidates) {
+      const rule = await readEntryRule(id);
+      if (rule !== null && rule.layout === runRule.layout && rule.values === runRule.values) {
+        promoted.set(run.id, id);
+        break;
+      }
+    }
+  }
+  return promoted;
 }
 
 /** A run's place in its basis group's grid, or null for a run the grid has no place for (an older export, or a start outside the grid). */

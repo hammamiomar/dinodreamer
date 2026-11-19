@@ -7,7 +7,7 @@ import {
 } from "./train-method";
 
 describe("Train's method", () => {
-  it("defaults to basis-group mean matching (Omar's decision 4)", () => {
+  it("defaults to basis-group mean matching", () => {
     expect(DEFAULT_METHOD).toBe("basis-group-mean");
     expect(methodFromSearch(new URLSearchParams("block=12002"))).toBe("basis-group-mean");
     expect(methodFromSearch(new URLSearchParams("block=12002&method=token-distribution"))).toBe("token-distribution");
@@ -41,7 +41,7 @@ describe("Train's method", () => {
   });
 });
 
-describe("the keep rule (Omar's decision 3)", () => {
+describe("the keep rule", () => {
   const rows = [
     // method, continued, runs, keeps the first fire, publishes only a fired result
     ["basis-group-mean", false, RUNS, true, true],

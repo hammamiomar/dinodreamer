@@ -1,5 +1,5 @@
 import { methodNeedsSet, type FigureMethod } from "../materials/material-file";
-import type { PublishState } from "../features/gallery/publish-material";
+import type { PublishState } from "../features/gallery/publish-records";
 import type { CoSelection } from "./co-selection";
 import { RESUME_UPDATES, type KeptStage } from "./figure-recipe";
 import type { GrowEvent, StartupProgress } from "./protocol";

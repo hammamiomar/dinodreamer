@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readResearchManifest, researchRunKey, stillName, type ResearchOutcome } from "./research-runs";
+import { definitionRule, promotedRunEntries, readResearchManifest, researchRunKey, stillName, type DefinitionRule, type ResearchOutcome } from "./research-runs";
 
 const NO_OUTCOME: ResearchOutcome = {
   releasedAtUpdate: null, requestLoss: null, centreSelected: null, naturalRouteKept: null,
@@ -113,5 +113,43 @@ describe("a run's files", () => {
   it("names a run's files", () => {
     expect(researchRunKey("r-1", "material.json")).toBe("research/runs/r-1/material.json");
     expect(researchRunKey("r-1", stillName(200))).toBe("research/runs/r-1/still-0200.png");
+  });
+});
+
+describe("the run an earlier promotion published under a submission's id", () => {
+  const runs = readResearchManifest(manifest([run("7178-private-run"), run("7178-shown-run"), run("7178-on-site", { siteMaterials: ["block-7178-site"] })])).runs;
+  const rule = (values: string): DefinitionRule => ({ layout: "figure-cell-12-96-v1", values });
+  const reader = (rules: Record<string, DefinitionRule>) => {
+    const asked: string[] = [];
+    return { asked, read: async (id: string) => { asked.push(id); return rules[id] ?? null; } };
+  };
+
+  it("links a run to an entry under another id only when the entry's published rule is the run's", async () => {
+    const runRules = reader({ "7178-private-run": rule("RUN") });
+    const entryRules = reader({ "20261102-153012-a1b2c3d4": rule("RUN"), "20261118-221005-8afe5fcd": rule("VISITOR") });
+    const promoted = await promotedRunEntries(runs, [
+      { id: "20261118-221005-8afe5fcd", materialId: "7178-private-run" },
+      { id: "20261102-153012-a1b2c3d4", materialId: "7178-private-run" },
+    ], runRules.read, entryRules.read);
+    expect([...promoted]).toEqual([["7178-private-run", "20261102-153012-a1b2c3d4"]]);
+  });
+
+  it("never links a file that only claims the run's id, and reads nothing for a run with an entry of its own", async () => {
+    const runRules = reader({ "7178-private-run": rule("RUN"), "7178-shown-run": rule("SHOWN") });
+    const entryRules = reader({ "20261118-221005-8afe5fcd": rule("VISITOR"), "20261118-221006-01020304": rule("SHOWN") });
+    const promoted = await promotedRunEntries(runs, [
+      { id: "20261118-221005-8afe5fcd", materialId: "7178-private-run" },
+      { id: "7178-shown-run", materialId: "7178-shown-run" },
+      { id: "20261118-221006-01020304", materialId: "7178-shown-run" },
+      { id: "block-7178-site", materialId: "block-7178-site" },
+    ], runRules.read, entryRules.read);
+    expect(promoted.size).toBe(0);
+    expect(runRules.asked).toEqual(["7178-private-run"]);
+    expect(entryRules.asked).toEqual(["20261118-221005-8afe5fcd"]);
+  });
+
+  it("reads a rule from a definition's JSON, and nothing from JSON without one", () => {
+    expect(definitionRule({ rule: { layout: "figure-cell-12-96-v1", values: "AAAA", fireRate: 0.5 } })).toEqual(rule("AAAA"));
+    expect([definitionRule(null), definitionRule({}), definitionRule({ rule: { layout: 1, values: "AAAA" } })]).toEqual([null, null, null]);
   });
 });
