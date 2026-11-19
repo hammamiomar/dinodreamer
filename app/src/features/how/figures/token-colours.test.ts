@@ -19,7 +19,9 @@ function plantedTokens(): Float32Array {
   return tokens;
 }
 
-describe("the principal colours of a picture's patches", () => {
+// Each test runs a full principal-component analysis of 257 tokens of 768 values: about 1 s here, past the default
+// 5 s on a loaded shared CI runner.
+describe("the principal colours of a picture's patches", { timeout: 20_000 }, () => {
   it("finds orthogonal components whose scores separate planted families", () => {
     const scores = principalScores(plantedTokens());
     const dot = (a: number, b: number) => {
