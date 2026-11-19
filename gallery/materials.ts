@@ -34,76 +34,21 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { confirmed, libraryCdnBaseUrl, openBuckets, openLocalBuckets, terminalText } from "./review-cli.ts";
 import { materialCdnPurge } from "./src/cdn-check.ts";
-import { FIGURE_PYRAMID_LAYOUT, readFigureMaterial, type FigureMaterialFile } from "../app/src/materials/material-file.ts";
-import { isMaterialEntryId, materialKey } from "../app/src/features/gallery/material-index.ts";
+import { FIGURE_PYRAMID_LAYOUT, type FigureMaterialFile } from "../app/src/materials/material-file.ts";
+import { materialKey } from "../app/src/features/gallery/material-index.ts";
 import {
-  approveMaterial, checkedMaterial, findMaterial, hideMaterial, materialEntries, migrateMaterialVersions, PROJECT_CREDIT, publishMaterials,
-  purgeMaterial, readMaterials, replaceMaterialFiles, restoreMaterial, setMaterialFeatured, type MaterialToPublish,
+  approveMaterial, checkedMaterial, findMaterial, hideMaterial, materialEntries, migrateMaterialVersions, publishMaterials,
+  purgeMaterial, readMaterials, replaceMaterialFiles, restoreMaterial, setMaterialFeatured,
 } from "./src/material-review.ts";
 import { reject } from "./src/review.ts";
 import { rereadProblem } from "./src/research.ts";
-import type { Bucket } from "./src/storage.ts";
-
+import { localSeedMaterials, seedMaterialFolder } from "./material-seed.ts";
 
 /** A material's kind in the site's words: the rule (fine, or coarse + fine), the start and the picture. */
 function kindName(file: FigureMaterialFile): string {
   const rule = file.rule.layout === FIGURE_PYRAMID_LAYOUT ? "coarse + fine" : "fine";
   const start = file.start?.kind === "centre-disc" ? "seeded" : "noise";
   return `${rule} · ${start}${file.picture?.pixelsPerCell === 2 ? " · 2 px per cell" : ""}`;
-}
-
-/** A project entry's id from its file's id: the selection-margin files name δ with a decimal point. */
-function projectEntryId(fileId: string): string {
-  const id = fileId.replace(/[^a-z0-9-]+/g, "-");
-  if (!isMaterialEntryId(id)) throw new Error(`"${fileId}" gives no valid entry id`);
-  return id;
-}
-
-/** Publish every *.material.json in a folder in one index write while preserving hidden entries and owner marks. */
-async function seedFolder(submissions: Bucket, library: Bucket, folder: string): Promise<void> {
-  const names = readdirSync(folder).filter((name) => name.endsWith(".material.json")).sort();
-  const current = await materialEntries(submissions, library);
-  const hidden = new Set(current.hidden.map((entry) => entry.id));
-  const shownById = new Map(current.published.map((entry) => [entry.id, entry]));
-  const toPublish: MaterialToPublish[] = [];
-  for (const name of names) {
-    const { file } = readFigureMaterial(JSON.parse(readFileSync(join(folder, name), "utf8")));
-    const id = projectEntryId(file.id);
-    if (hidden.has(id)) continue;
-    const existing = shownById.get(id);
-    toPublish.push({
-      id,
-      file,
-      label: { title: file.name, credit: PROJECT_CREDIT },
-      hidden: false,
-      featured: existing?.featured === true,
-      ...(existing?.featuredInBlock === undefined ? {} : { featuredInBlock: existing.featuredInBlock }),
-      ...(existing?.gallery === undefined ? {} : { gallery: existing.gallery }),
-    });
-  }
-  if (toPublish.length > 0) await publishMaterials(submissions, library, toPublish, new Date());
-  if (names.length <= 10) {
-    const entriesById = new Map((await readMaterials(library)).entries.map((entry) => [entry.id, entry]));
-    for (const item of toPublish) {
-      const entry = entriesById.get(item.id);
-      if (entry) console.log(`  ${entry.id}  block ${entry.block}  ${entry.fired ? "fired" : "did not fire"}  "${terminalText(entry.title)}"`);
-    }
-  }
-  const skipped = names.length - toPublish.length;
-  console.log(`Seeded ${toPublish.length} project materials${skipped > 0 ? `; kept ${skipped} hidden` : ""}`);
-}
-
-/** The local store's shown and hidden materials, each with its checked file, to copy to Cloudflare. */
-async function localMaterials(local: { submissions: Bucket; library: Bucket }): Promise<{ materials: MaterialToPublish[]; pending: number }> {
-  const { pending, published, hidden } = await materialEntries(local.submissions, local.library);
-  const marked = [...published.map((entry) => ({ entry, hidden: false })), ...hidden.map((entry) => ({ entry, hidden: true }))];
-  const materials = await Promise.all(marked.map(async ({ entry, hidden: isHidden }) => {
-    const stored = await local.library.get(materialKey(entry.id, "material.json"));
-    if (stored === null) throw new Error(`${entry.id}: the local store has no material.json`);
-    const { file } = readFigureMaterial(JSON.parse(await stored.text()));
-    return { id: entry.id, file, label: { title: entry.title, credit: entry.credit }, hidden: isHidden, featured: entry.featured === true };
-  }));
-  return { materials, pending: pending.length };
 }
 
 const args = process.argv.slice(2);
@@ -163,7 +108,15 @@ try {
       }
     } else console.log("Nothing deleted");
   } else if (command === "seed") {
-    await seedFolder(submissions, library, need("folder"));
+    const { publishedIds, keptHidden } = await seedMaterialFolder(submissions, library, need("folder"));
+    if (publishedIds.length > 0 && publishedIds.length + keptHidden <= 10) {
+      const entries = new Map((await readMaterials(library)).entries.map((entry) => [entry.id, entry]));
+      for (const id of publishedIds) {
+        const entry = entries.get(id)!;
+        console.log(`  ${id}  block ${entry.block}  ${entry.fired ? "fired" : "did not fire"}  "${terminalText(entry.title)}"`);
+      }
+    }
+    console.log(`Seeded ${publishedIds.length} project materials${keptHidden ? `; kept ${keptHidden} hidden` : ""}`);
   } else if (command === "reread") {
     const folder = need("folder");
     const write = args.includes("--write");
@@ -192,7 +145,7 @@ try {
     if (persistTo) throw new Error("seed-production reads the local store named by its argument and writes Cloudflare; drop --local");
     const local = await openLocalBuckets(need("local persist dir"));
     try {
-      const { materials, pending } = await localMaterials(local);
+      const { materials, pending } = await localSeedMaterials(local);
       const shown = materials.filter((material) => !material.hidden).length;
       console.log(`Local store: ${shown} shown, ${materials.length - shown} hidden${pending ? `, ${pending} pending (not copied)` : ""}`);
       const kinds = new Map<string, number>();
