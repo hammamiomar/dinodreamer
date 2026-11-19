@@ -5,8 +5,8 @@
 
 import { SITE_WORDS } from "./site-words";
 
-/** The author's site, of which this app is one part. */
-const SITE_URL = "https://computervision.vision";
+/** The author's site, of which this app is one part; the header links it too (frame.tsx). */
+export const SITE_URL = "https://computervision.vision";
 /** The source code of the site, the engine and the Worker. */
 const CODE_URL = "https://github.com/hammamiomar/dinodreamer";
 /** The block sparse featurizer as trained, published with its loader and card (Apache-2.0). */

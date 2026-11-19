@@ -26,6 +26,10 @@ export const SITE_WORDS = {
     experimental: "Experimental",
     /** Its short form in the header under 832 px, as "How" is How it works's. */
     experimentalShortForm: "Lab",
+    /** The header's link to the author's site, at the right end of the line (in the phone menu, last); the footer has it too. */
+    site: "computervision.vision",
+    /** The site link's tooltip. */
+    siteTitle: "Omar Hammami's site, of which Dinodreamer is one part.",
   },
 
   frame: {
@@ -695,11 +699,11 @@ export const SITE_WORDS = {
     /** The site link's tooltip. */
     siteTitle: "Omar Hammami's site, of which Dinodreamer is one part.",
     /** The link to this site's source code on GitHub. */
-    code: "Code",
+    code: "GitHub",
     /** The code link's tooltip. */
     codeTitle: "The source code of this site, its engine and its Worker, on GitHub.",
     /** The link to the block sparse featurizer on Hugging Face. */
-    featurizer: "Featurizer",
+    featurizer: "Hugging Face",
     /** The featurizer link's tooltip. */
     featurizerTitle: "The block sparse featurizer on Hugging Face, with its card and loader.",
   },

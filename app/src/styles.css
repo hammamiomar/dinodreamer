@@ -415,6 +415,7 @@ select {
  */
 .frame-nav {
   display: flex;
+  flex: 1;
   align-self: stretch;
   align-items: stretch;
   gap: 32px;
@@ -433,6 +434,11 @@ select {
 
 .frame-nav-short {
   display: none;
+}
+
+/* The author's site leaves this one: it stands apart, at the right end of the header's line. */
+.frame-nav-site {
+  margin-left: auto;
 }
 
 .frame-nav a.active {
@@ -1146,11 +1152,19 @@ html {
 }
 
 /*
- * Below 832 px, use the short How and Experimental labels. The full text needs
- * about 781 px including gaps and padding; this threshold leaves room for a scrollbar and
- * aligns to the 16 px grid. Below 640 px, the menu shows the full destination names.
+ * Below 1056 px, use the short How and Experimental labels. The full text and the author's site at the
+ * line's end need 1,036 px including gaps and padding (measured 19 November 2026); this threshold leaves
+ * room for a scrollbar and aligns to the 16 px grid. The short labels and the site need 873 px, so below
+ * 896 px the site leaves the header line and stays in the footer. Below 640 px, the menu shows the full
+ * destination names and the site as its last line.
  */
-@media (max-width: 831px) {
+@media (min-width: 641px) and (max-width: 895px) {
+  .frame-nav a.frame-nav-site {
+    display: none;
+  }
+}
+
+@media (max-width: 1055px) {
   .frame-nav-full {
     display: none;
   }
@@ -1226,6 +1240,11 @@ html {
 
   .frame-nav .frame-nav-short {
     display: none;
+  }
+
+  /* In the menu the author's site is its last line, under the site's own pages. */
+  .frame-nav .frame-nav-site {
+    margin-left: 0;
   }
 }
 

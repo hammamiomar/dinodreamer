@@ -12,6 +12,7 @@ import { LibraryDock } from "./library-dock";
 import { TrainTray } from "../grow/train-tray";
 import { SiteFooter } from "./site-footer";
 import { SITE_WORDS } from "./site-words";
+import { SITE_URL } from "./site-footer";
 import { engineStartFailedForStaleBuild, reloadForStaleBuild } from "./stale-build";
 import type { PointerEvent, ReactNode, RefObject } from "react";
 
@@ -239,6 +240,9 @@ function FrameLayout({ busy, children }: { busy: boolean; children: ReactNode })
             <span className="frame-nav-full">{SITE_WORDS.header.experimental}</span>
             <span className="frame-nav-short" aria-hidden="true">{SITE_WORDS.header.experimentalShortForm}</span>
           </NavLink>
+          <a href={SITE_URL} className="frame-nav-site" target="_blank" rel="noreferrer" title={SITE_WORDS.header.siteTitle}>
+            {SITE_WORDS.header.site}
+          </a>
         </nav>
         <span className="visually-hidden" aria-live="polite">
           {busy ? SITE_WORDS.frame.loading : ""}
