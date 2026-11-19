@@ -61,7 +61,7 @@ export function HomeMaterial({
   material,
   initialState,
   playing = true,
-  posterUrl = materialFileUrl(entry.id, "poster.png", entry.tick),
+  posterUrl = materialFileUrl(entry, "poster.png"),
   speed = REPLAY_DEFAULT_SPEED,
   drawRatio = Number.POSITIVE_INFINITY,
   posterWhileRunning = true,

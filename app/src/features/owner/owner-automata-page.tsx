@@ -28,14 +28,14 @@ import {
   actionsFor, afterChange, ownerAutomata, ownerCounts, requiresConfirmation,
   type OwnerAutomaton, type OwnerAutomatonAction, type OwnerChange, type OwnerRead,
 } from "./owner-automata";
-import { fetchOwnerMaterials, sendGroupName, sendOwnerAction, sendPictureMark, showResearchRuns, type PendingSubmission } from "./owner-materials";
+import { fetchOwnerMaterials, purgeOwnerMaterial, sendGroupName, sendOwnerAction, sendPictureMark, showResearchRuns, type MaterialCdnPurge, type PendingSubmission } from "./owner-materials";
 import { PENDING_GROUP, PendingScreen } from "./owner-pending";
 import "../automata/automata.css";
 import "./owner-automata.css";
 
 const WORDS = SITE_WORDS.automataOwner;
 const PICTURES = {
-  poster: (entry: MaterialEntry) => materialFileUrl(entry.id, "poster.png", entry.tick),
+  poster: (entry: MaterialEntry) => materialFileUrl(entry, "poster.png"),
   still: (run: ResearchRun) => lastStillUrl(run) ?? "",
 };
 
@@ -52,7 +52,7 @@ const VIEWS = [
 ] as const;
 
 /** One owner operation on one automaton, and what its answer changes on the page. */
-async function send(action: OwnerAutomatonAction, automaton: OwnerAutomaton): Promise<OwnerChange> {
+async function send(action: Exclude<OwnerAutomatonAction, "purge">, automaton: OwnerAutomaton): Promise<OwnerChange> {
   switch (action) {
     case "show":
       // A hidden automaton keeps its record and comes back as it was; a run that was never shown is published now.
@@ -66,9 +66,6 @@ async function send(action: OwnerAutomatonAction, automaton: OwnerAutomaton): Pr
     case "feature":
     case "unfeature":
       return { shown: [(await sendOwnerAction(action, automaton.id))!] };
-    case "purge":
-      await sendOwnerAction("purge", automaton.id);
-      return { gone: [automaton.id] };
   }
 }
 
@@ -132,13 +129,20 @@ function OwnerGallery({ read, pending, onChange, onReviewed }: {
   // The last action's result, or the question Purge asks, on the line under the stage's bar.
   const [result, setResult] = useState<{ id: string; text: string } | null>(null);
   const [asking, setAsking] = useState<string | null>(null);
+  const [cdn, setCdn] = useState<MaterialCdnPurge | null>(null);
 
   const act = async (action: OwnerAutomatonAction, automaton: OwnerAutomaton) => {
     if (busy) return;
     setBusy(true);
     setAsking(null);
     try {
-      onChange(await send(action, automaton));
+      if (action === "purge") {
+        const purge = await purgeOwnerMaterial(automaton.id);
+        if (purge) setCdn((previous) => ({ place: purge.place, prefixes: [...new Set([...(previous?.prefixes ?? []), ...purge.prefixes])] }));
+        onChange({ gone: [automaton.id] });
+      } else {
+        onChange(await send(action, automaton));
+      }
       setResult({ id: automaton.id, text: WORDS.results[action] });
     } catch (error) {
       setResult({ id: automaton.id, text: fill(WORDS.actionFailed, { action: WORDS.actions[action], message: error instanceof Error ? error.message : String(error) }) });
@@ -149,19 +153,26 @@ function OwnerGallery({ read, pending, onChange, onReviewed }: {
 
   const counts = ownerCounts(automata);
   const ownerLine = (
-    <div className="owner-automata-line">
-      <p>
-        <span className="label">{WORDS.heading}</span>
-        <span>{fill(WORDS.counts, { shown: counts.shown.toLocaleString(), all: counts.all.toLocaleString() })}</span>
-        {unfiled > 0 && <span>{fill(WORDS.unfiled, { count: unfiled })}</span>}
-        {pending.length > 0 && (
-          <Link className="link-control owner-automata-pending" to={{ search: `?group=${PENDING_GROUP}` }}>
-            {pending.length === 1 ? WORDS.pendingOne : fill(WORDS.pending, { count: pending.length })}
-          </Link>
-        )}
-      </p>
-      <Segmented<OwnerView> label={WORDS.viewsName} segments={VIEWS} value={view} onChange={setView} />
-    </div>
+    <>
+      <div className="owner-automata-line">
+        <p>
+          <span className="label">{WORDS.heading}</span>
+          <span>{fill(WORDS.counts, { shown: counts.shown.toLocaleString(), all: counts.all.toLocaleString() })}</span>
+          {unfiled > 0 && <span>{fill(WORDS.unfiled, { count: unfiled })}</span>}
+          {pending.length > 0 && (
+            <Link className="link-control owner-automata-pending" to={{ search: `?group=${PENDING_GROUP}` }}>
+              {pending.length === 1 ? WORDS.pendingOne : fill(WORDS.pending, { count: pending.length })}
+            </Link>
+          )}
+        </p>
+        <Segmented<OwnerView> label={WORDS.viewsName} segments={VIEWS} value={view} onChange={setView} />
+      </div>
+      {cdn && <section aria-label={WORDS.clearCachedFiles}>
+        <p role="status">{WORDS.clearCachedFiles} {cdn.place}</p>
+        <ul>{cdn.prefixes.map((prefix) => <li key={prefix}><code>{prefix}</code></li>)}</ul>
+        <button className="link-control" type="button" onClick={() => setCdn(null)}>{WORDS.cacheCleared}</button>
+      </section>}
+    </>
   );
   const panelOutlet = useMemo<BasisGroupPanelOutlet>(() => ({ referencePatch: async () => null }), []);
   const panel: ReactNode = <Outlet context={panelOutlet} />;
@@ -254,7 +265,7 @@ function OwnerStage({ automaton, actions, notice }: { automaton: OwnerAutomaton;
   const { entry, run } = automaton;
   const privateFile = useLoaded(entry === null && run !== null ? run.id : null, () => (entry === null && run !== null ? fetchResearchMaterial(run) : null));
   const source = useMemo<MaterialSource>(() => ({
-    load: (played) => (privateFile.status === "ready" ? Promise.resolve(privateFile.value.material) : fetchPublishedMaterial(played.id, fetch, played.tick)),
+    load: (played) => (privateFile.status === "ready" ? Promise.resolve(privateFile.value.material) : fetchPublishedMaterial(played)),
     poster: () => automaton.pictureUrl,
     keepable: () => false,
   }), [privateFile, automaton.pictureUrl]);

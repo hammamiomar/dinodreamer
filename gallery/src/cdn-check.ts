@@ -29,6 +29,12 @@ export function purgePrefix(assetBaseUrl: string, id: string): string {
   return `${new URL(assetBaseUrl).host}/gallery/${id}/`;
 }
 
+/** One prefix covers every reading and its stable aliases. Earlier link-preview recordings have their own prefix. */
+export function materialCdnPurge(assetBaseUrl: string, id: string) {
+  const host = new URL(assetBaseUrl).host;
+  return { place: PURGE_BY_PREFIX_PLACE, prefixes: [`${host}/gallery/materials/${id}/`, `${host}/previews/${id}/`] };
+}
+
 /** The command that asks the CDN for one copy again; after the purge it must print 404. */
 export function curlCommand(url: string, origin?: string): string {
   const originOption = origin === undefined ? "" : ` -H 'origin: ${origin}'`;

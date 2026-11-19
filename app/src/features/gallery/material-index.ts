@@ -18,6 +18,8 @@ export type MaterialFileName = (typeof MATERIAL_FILES)[number];
 /** One published material, with the readouts a tile shows without opening the file. */
 export interface MaterialEntry {
   id: string;
+  /** SHA-256 of the published definition bytes, including the embedded poster. Older entries lack a revision. */
+  fileRevision?: string;
   /** A creative title, or empty to display the recipe. Existing research titles remain valid. */
   title: string;
   credit: string;
@@ -90,6 +92,15 @@ export const EMPTY_MATERIAL_INDEX: MaterialIndex = { entries: [] };
 /** Bucket keys of a published material's files, relative to the public bucket. */
 export function materialKey(id: string, file: MaterialFileName): string {
   return `gallery/materials/${id}/${file}`;
+}
+
+/** A definition and its matching poster keep these immutable keys through later readings. */
+export function versionedMaterialKey(id: string, revision: string, file: MaterialFileName): string {
+  return `gallery/materials/${id}/versions/${revision}/${file}`;
+}
+
+export function isMaterialFileRevision(value: unknown): value is string {
+  return typeof value === "string" && /^[0-9a-f]{64}$/.test(value);
 }
 
 /** An entry id is a submission id or a project seed's slug: safe in keys and URLs. */
@@ -169,6 +180,7 @@ export function readMaterialIndex(value: unknown): MaterialIndex {
     check(typeof entry === "object" && entry !== null, "entry");
     check(typeof entry.id === "string" && isMaterialEntryId(entry.id) && !ids.has(entry.id), "entry id");
     ids.add(entry.id);
+    check(entry.fileRevision === undefined || isMaterialFileRevision(entry.fileRevision), "file revision");
     for (const key of ["title", "credit", "publishedAt", "materialId", "recipe", "engine", "trainerCommit"] as const) {
       check(typeof entry[key] === "string", key);
     }

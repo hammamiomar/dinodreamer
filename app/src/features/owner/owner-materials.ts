@@ -10,7 +10,7 @@ import { fill, SITE_WORDS } from "../../app/site-words";
 const WORDS = SITE_WORDS.owner;
 
 /** The owner's operations on one automaton (POST /admin/api/materials/<action> { id }). */
-export type OwnerAction = "hide" | "restore" | "feature" | "unfeature" | "purge" | "approve" | "reject";
+export type OwnerAction = "hide" | "restore" | "feature" | "unfeature" | "approve" | "reject";
 
 /** A submission awaiting review, as GET /admin/api/materials lists it. */
 export interface PendingSubmission {
@@ -66,20 +66,31 @@ export async function fetchPendingMaterial(submission: PendingSubmission, fetche
 
 /**
  * One owner operation on one automaton. The answer is the entry as the Worker now holds it (the
- * hidden record without its time for Hide); Reject and Purge answer only the id, so null. The
+ * hidden record without its time for Hide); Reject answers only the id, so null. The
  * Worker answers 409 with its own message when it cannot act.
  */
 export async function sendOwnerAction(action: OwnerAction, id: string, fetcher: typeof fetch = fetch): Promise<MaterialEntry | null> {
+  const answer = await postMaterialAction(action, id, fetcher);
+  if (action === "reject") return null;
+  return readMaterialIndex({ entries: [answeredEntry(action, answer)] }).entries[0]!;
+}
+
+export interface MaterialCdnPurge { place: string; prefixes: string[] }
+
+/** Production removal also returns the library prefixes the owner must clear from Cloudflare. */
+export async function purgeOwnerMaterial(id: string, fetcher: typeof fetch = fetch): Promise<MaterialCdnPurge | null> {
+  return (await postMaterialAction("purge", id, fetcher)).cdnPurge ?? null;
+}
+
+async function postMaterialAction(action: OwnerAction | "purge", id: string, fetcher: typeof fetch): Promise<ActionAnswer> {
   const response = await fetcher(`/admin/api/materials/${action}`, {
     method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id }),
   });
   if (!response.ok) throw new Error(await ownerError(response));
-  const answer = (await response.json()) as ActionAnswer;
-  if (action === "reject" || action === "purge") return null;
-  return readMaterialIndex({ entries: [answeredEntry(action, answer)] }).entries[0]!;
+  return response.json();
 }
 
-type ActionAnswer = { entry?: unknown; hidden?: unknown; restored?: unknown };
+type ActionAnswer = { entry?: unknown; hidden?: unknown; restored?: unknown; cdnPurge?: MaterialCdnPurge | null };
 
 /** Where an action's answer holds the entry: Hide in `hidden`, Restore in `restored`, the others in `entry`. */
 function answeredEntry(action: OwnerAction, answer: ActionAnswer): unknown {

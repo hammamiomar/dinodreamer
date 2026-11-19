@@ -51,7 +51,7 @@ function MaterialTile({ entry }: { entry: MaterialEntry }) {
   return (
     <li>
       <Link className="look-material" to={groupPath(entry.block, entry.id)} data-fired={entry.fired || undefined}>
-        <img src={materialFileUrl(entry.id, "poster.png", entry.tick)} width={entry.side} height={entry.side} alt="" loading="lazy" />
+        <img src={materialFileUrl(entry, "poster.png")} width={entry.side} height={entry.side} alt="" loading="lazy" />
         <span className="look-material-name">
           <span>{entry.pixelsPerCell === 2 ? LOOK_TEXT.materials.twoPixels(rule) : rule}</span>
           <span>{start}</span>

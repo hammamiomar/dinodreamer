@@ -22,12 +22,12 @@ test("recorded grids resume at their tick and match the poster and CPU update", 
     await page.goto(base);
     const result = await page.evaluate(async () => {
       const { loadAutomatonState, AUTOMATON_RECORD_FOLDER } = await import("/src/features/how/automaton-record.ts");
-      const { fetchPublishedMaterial } = await import("/src/features/gallery/material-gallery.ts");
+      const { fetchPublishedMaterialById } = await import("/src/features/gallery/material-gallery.ts");
       const { createFigureReplay } = await import("/src/replay/figure-replay.ts");
       const { FIGURE_SHADERS } = await import("/src/replay/figure-shaders.ts");
       const { referencePyramidStep, startState, COARSE_NOISE_KEY } = await import("/src/replay/figure-reference.ts");
       const record = await loadAutomatonState();
-      const material = await fetchPublishedMaterial(record.replay.definition);
+      const material = await fetchPublishedMaterialById(record.replay.definition);
       const adapter = await navigator.gpu.requestAdapter();
       if (!adapter || !`${adapter.info.architecture} ${adapter.info.description}`.toLowerCase().includes("swiftshader")) throw new Error("Expected CPU SwiftShader.");
       const device = await adapter.requestDevice();

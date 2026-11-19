@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { fetchPromotedRunEntries } from "./research-api";
 import { definitionRule, promotedRunEntries, readResearchManifest, researchRunKey, stillName, type DefinitionRule, type ResearchOutcome } from "./research-runs";
 
 const NO_OUTCOME: ResearchOutcome = {
@@ -132,6 +133,22 @@ describe("the run an earlier promotion published under a submission's id", () =>
       { id: "20261102-153012-a1b2c3d4", materialId: "7178-private-run" },
     ], runRules.read, entryRules.read);
     expect([...promoted]).toEqual([["7178-private-run", "20261102-153012-a1b2c3d4"]]);
+  });
+
+  it("compares a private run with the indexed revision of its public definition", async () => {
+    const id = "20261102-153012-a1b2c3d4";
+    const fileRevision = "a".repeat(64);
+    const entry = { id, materialId: "7178-private-run", tick: 600, fileRevision };
+    const requested: string[] = [];
+    const promoted = await fetchPromotedRunEntries(runs, [entry], async (url) => {
+      requested.push(String(url));
+      return Response.json({ rule: rule("RUN") });
+    });
+    expect(requested).toEqual([
+      "/admin/api/research/runs/7178-private-run/material.json",
+      `${import.meta.env.ASSET_BASE_URL}/gallery/materials/${id}/versions/${fileRevision}/material.json`,
+    ]);
+    expect(promoted.get(entry.materialId)).toBe(id);
   });
 
   it("never links a file that only claims the run's id, and reads nothing for a run with an entry of its own", async () => {

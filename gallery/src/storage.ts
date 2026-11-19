@@ -12,7 +12,8 @@ export const PUBLIC_BUCKET = "dinodreamer-library";
 
 export const CACHE_IMMUTABLE = "public, max-age=31536000, immutable";
 /** The published index changes with each approval; viewers see it within a minute. */
-export const CACHE_INDEX = "public, max-age=60";
+export const INDEX_MAX_AGE_SECONDS = 60;
+export const CACHE_INDEX = `public, max-age=${INDEX_MAX_AGE_SECONDS}`;
 
 export const INDEX_KEY = "published/index.json";
 

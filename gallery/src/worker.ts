@@ -8,7 +8,7 @@
 //                           The form is checked first, so a refused form does not spend the token.
 //   GET  /api/gallery       the published index from the public bucket, cached for a minute
 //   GET  /api/materials     the published materials index (material-review.ts), cached for a minute
-//   GET  /api/materials/<id>/material.json | poster.png   a published material's file, immutable
+//   GET  /api/materials/<id>/material.json | poster.png   a current file or an exact revision
 //   GET  /api/basis-groups  the owner's names for the basis groups (basis-group-names.ts), cached for a minute
 //   GET  /assets/*          a file missing from the current build (404)
 //   /admin, /admin/*        the owner page and its API, behind Cloudflare Access (admin.ts)
@@ -17,11 +17,11 @@
 import ownerPage from "./admin-page.html";
 import { isOwnerPath, ownerRequest, type OwnerEnv } from "./admin.ts";
 import { EMPTY_INDEX } from "./gallery-index.ts";
-import { CACHE_IMMUTABLE, CACHE_INDEX, INDEX_KEY, submissionId, type Bucket } from "./storage.ts";
+import { CACHE_IMMUTABLE, CACHE_INDEX, INDEX_KEY, INDEX_MAX_AGE_SECONDS, submissionId, type Bucket } from "./storage.ts";
 import { readCreationForm, readForm, readMaterialForm, storeSubmission, type ReleaseBlocks } from "./submission.ts";
 import { readMaterials, storeMaterialSubmission } from "./material-review.ts";
 import { storedNames } from "./basis-group-names.ts";
-import { isMaterialEntryId, materialKey, MATERIAL_FILES, type MaterialFileName } from "../../app/src/features/gallery/material-index.ts";
+import { isMaterialEntryId, isMaterialFileRevision, materialKey, versionedMaterialKey, MATERIAL_FILES, type MaterialFileName } from "../../app/src/features/gallery/material-index.ts";
 import { verifyTurnstile } from "./turnstile.ts";
 import { routePreview, withPreviewTags } from "./link-preview.ts";
 import { canonicalPathname } from "../../app/src/app/route-paths.ts";
@@ -101,25 +101,42 @@ async function previewPage(request: Request, env: Env, block: number | null): Pr
   return new Response(body, { status: 200, headers });
 }
 
-async function materials(env: Env): Promise<Response> {
-  return new Response(JSON.stringify(await readMaterials(env.LIBRARY)), { headers: { "content-type": "application/json", "cache-control": CACHE_INDEX } });
+interface WorkerContext {
+  waitUntil(operation: Promise<unknown>): void;
+}
+
+/** The public index has one expiry across the edge and browser. Owner operations read the bucket directly. */
+async function materials(url: URL, library: Bucket, context?: WorkerContext): Promise<Response> {
+  const key = new URL("/api/materials", url).href;
+  const cache = (globalThis.caches as (CacheStorage & { default?: Cache }) | undefined)?.default;
+  const cached = await cache?.match(key);
+  if (cached) return cached;
+
+  const expires = new Date(Date.now() + INDEX_MAX_AGE_SECONDS * 1000).toUTCString();
+  const response = new Response(JSON.stringify(await readMaterials(library)), {
+    headers: { "content-type": "application/json", "cache-control": "public, must-revalidate", expires },
+  });
+  if (cache && context) context.waitUntil(cache.put(key, response.clone()));
+  return response;
 }
 
 async function basisGroupNames(env: Env): Promise<Response> {
   return new Response(JSON.stringify(await storedNames(env.LIBRARY)), { headers: { "content-type": "application/json", "cache-control": CACHE_INDEX } });
 }
 
-/** A published material's file or poster from the public bucket; immutable once approved. */
-async function materialFile(env: Env, id: string, file: string): Promise<Response> {
+/** Local gallery reads can select an exact revision. Older links resolve to the current files. */
+async function materialFile(env: Env, id: string, file: string, revision: string | null): Promise<Response> {
   if (!isMaterialEntryId(id) || !MATERIAL_FILES.includes(file as MaterialFileName)) return json({ error: "not found" }, 404);
-  const stored = await env.LIBRARY.get(materialKey(id, file as MaterialFileName));
+  if (revision !== null && !isMaterialFileRevision(revision)) return json({ error: "not found" }, 404);
+  const key = revision === null ? materialKey(id, file as MaterialFileName) : versionedMaterialKey(id, revision, file as MaterialFileName);
+  const stored = await env.LIBRARY.get(key);
   if (stored === null) return json({ error: "not found" }, 404);
   const type = file === "poster.png" ? "image/png" : "application/json";
-  return new Response(await stored.arrayBuffer(), { headers: { "content-type": type, "cache-control": CACHE_IMMUTABLE } });
+  return new Response(await stored.arrayBuffer(), { headers: { "content-type": type, "cache-control": revision === null ? CACHE_INDEX : CACHE_IMMUTABLE } });
 }
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, context?: WorkerContext): Promise<Response> {
     const url = new URL(request.url);
     const { pathname } = url;
     const canonical = canonicalPathname(pathname);
@@ -135,13 +152,13 @@ export default {
       return request.method === "GET" ? gallery(env) : json({ error: "use GET" }, 405, { allow: "GET" });
     }
     if (pathname === "/api/materials") {
-      return request.method === "GET" ? materials(env) : json({ error: "use GET" }, 405, { allow: "GET" });
+      return request.method === "GET" ? materials(url, env.LIBRARY, context) : json({ error: "use GET" }, 405, { allow: "GET" });
     }
     if (pathname === "/api/basis-groups") {
       return request.method === "GET" ? basisGroupNames(env) : json({ error: "use GET" }, 405, { allow: "GET" });
     }
     const published = pathname.match(/^\/api\/materials\/([^/]+)\/([^/]+)$/);
-    if (published !== null && request.method === "GET") return materialFile(env, published[1]!, published[2]!);
+    if (published !== null && request.method === "GET") return materialFile(env, published[1]!, published[2]!, url.searchParams.get("revision"));
     if (pathname.startsWith("/api/")) return json({ error: "not found" }, 404);
     // Existing build files bypass this Worker. A stale tab can request a file from an earlier build.
     if (pathname.startsWith("/assets/")) {

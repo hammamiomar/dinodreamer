@@ -69,6 +69,24 @@ async function entries(env: Env, token: string | null, fetcher: typeof fetch) {
 describe("owner access: the Worker's own check of the Access token", () => {
   const { fetcher } = certsEndpoint([teamKey]);
 
+  it("returns both library purge prefixes after the owner removes an automaton", async () => {
+    const env = accessEnv();
+    const id = "hidden-automaton";
+    await env.SUBMISSIONS.put(`hidden/materials/${id}.json`, JSON.stringify({ id }));
+    const origin = "https://app.test";
+    const request = new Request(`${origin}/admin/api/materials/purge`, {
+      method: "POST",
+      headers: { origin, "content-type": "application/json", [ACCESS_TOKEN_HEADER]: await accessToken(teamKey) },
+      body: JSON.stringify({ id }),
+    });
+    const response = await ownerRequest(request, env, PAGE, fetcher);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      purged: id,
+      cdnPurge: { place: PURGE_BY_PREFIX_PLACE, prefixes: [`library.test/gallery/materials/${id}/`, `library.test/previews/${id}/`] },
+    });
+  });
+
   it("admits a token signed by the team's key, for this application, within its lifetime", async () => {
     const answer = await entries(accessEnv(), await accessToken(teamKey), fetcher);
     expect(answer.status).toBe(200);

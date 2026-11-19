@@ -1,29 +1,36 @@
 // The app's side of the material gallery (gallery/src/worker.ts):
 //   GET  /api/materials                         the published index, checked by readMaterialIndex
-//   GET  /api/materials/<id>/material.json      a published material file, checked by readFigureMaterial
-//   GET  /api/materials/<id>/poster.png         its poster, one pixel per cell
+//   Versioned entries select their definition and poster on the public library.
+//   Older entries and unlisted ids use the gallery Worker.
 //   POST /api/submissions  kind=material         the format-4 file, title, credit and the human check
 // The file is the only thing sent: the site makes shaders from weights, never from uploads.
 
 import { useEffect, useState } from "react";
+import { ASSET_BASE_URL } from "../../app/config";
 import { readFigureMaterial, type FigureMaterial, type FigureMaterialFile } from "../../materials/material-file";
 import { useLoaded, type Loaded } from "../../ui/use-loaded";
 import { refusal } from "./gallery-api";
-import { EMPTY_MATERIAL_INDEX, readMaterialIndex, type MaterialEntry, type MaterialFileName, type MaterialIndex } from "./material-index";
+import { EMPTY_MATERIAL_INDEX, readMaterialIndex, versionedMaterialKey, type MaterialEntry, type MaterialFileName, type MaterialIndex } from "./material-index";
 
 type Fetch = typeof fetch;
 export { MATERIAL_SUBMISSION_LIMITS } from "./submission-label";
 
-/**
- * The address of a published automaton's file or poster. `step` is the entry's reading step, when the
- * caller has the entry: these objects are served as immutable, and a research automaton read again at
- * another step keeps its id (gallery/src/research.ts), so the step in the address makes its new file a
- * new address for a browser that holds the old one. The server ignores it.
- */
-export function materialFileUrl(id: string, file: MaterialFileName, step?: number): string {
-  const address = `/api/materials/${encodeURIComponent(id)}/${file}`;
-  return step === undefined ? address : `${address}?step=${step}`;
+type MaterialFileReference = Pick<MaterialEntry, "id" | "tick" | "fileRevision"> | string;
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
+/** A local Worker can hold files that have never been published to the library CDN. */
+export function materialFileUrl(reference: MaterialFileReference, file: MaterialFileName, libraryBase = ASSET_BASE_URL): string {
+  const id = typeof reference === "string" ? reference : reference.id;
+  const apiPath = `/api/materials/${encodeURIComponent(id)}/${file}`;
+  if (typeof reference === "string") return apiPath;
+  if (reference.fileRevision === undefined) return `${apiPath}?step=${reference.tick}`;
+  if (LOOPBACK_HOSTS.has(globalThis.location?.hostname)) return `${apiPath}?revision=${reference.fileRevision}`;
+  return `${libraryBase}/${versionedMaterialKey(id, reference.fileRevision, file)}`;
 }
+
+// The index and the published files are shared by the readers on a page.
+let sharedIndex: Promise<MaterialIndex> | undefined;
+const publishedFiles = new Map<string, Promise<FigureMaterial>>();
 
 export async function fetchMaterialIndex(fetcher: Fetch = fetch): Promise<MaterialIndex> {
   const response = await fetcher("/api/materials");
@@ -32,18 +39,28 @@ export async function fetchMaterialIndex(fetcher: Fetch = fetch): Promise<Materi
   return readMaterialIndex(await response.json());
 }
 
-const publishedFiles = new Map<string, Promise<FigureMaterial>>();
+/** Open the current index once for all readers, including id-only links. */
+export function loadMaterialIndex(): Promise<MaterialIndex> {
+  if (sharedIndex) return sharedIndex;
+  const reading = fetchMaterialIndex();
+  sharedIndex = reading;
+  void reading.catch(() => { if (sharedIndex === reading) sharedIndex = undefined; });
+  return reading;
+}
 
 /**
- * Readers of the same published file share its load. A new reading step selects a different file.
+ * Readers of the same URL share its load. A new revision selects a new URL, even at the same reading step.
  */
-export function fetchPublishedMaterial(id: string, fetcher: Fetch = fetch, step?: number): Promise<FigureMaterial> {
-  const url = materialFileUrl(id, "material.json", step);
+export function fetchPublishedMaterial(reference: MaterialFileReference, fetcher: Fetch = fetch): Promise<FigureMaterial> {
+  const url = materialFileUrl(reference, "material.json");
   const cached = fetcher === fetch ? publishedFiles.get(url) : undefined;
   if (cached) return cached;
   const loading = (async () => {
     const response = await fetcher(url);
-    if (!response.ok) throw new Error(`Automaton ${id} answered ${response.status}.`);
+    if (!response.ok) {
+      const id = typeof reference === "string" ? reference : reference.id;
+      throw new Error(`Automaton ${id} answered ${response.status}.`);
+    }
     return readFigureMaterial(await response.json());
   })();
   if (fetcher === fetch) {
@@ -53,10 +70,17 @@ export function fetchPublishedMaterial(id: string, fetcher: Fetch = fetch, step?
   return loading;
 }
 
+/** A continuation or recorded replay names only the id. Reuse the page's index when available. */
+export async function fetchPublishedMaterialById(id: string): Promise<FigureMaterial> {
+  const index = await sharedIndex?.catch(() => null);
+  const entry = index?.entries.find((candidate) => candidate.id === id);
+  return fetchPublishedMaterial(entry ?? id);
+}
+
 /** Load the indexed version for playback. A still view passes null. */
-export function usePublishedMaterial(entry: Pick<MaterialEntry, "id" | "tick"> | null): Loaded<FigureMaterial> {
-  const url = entry && materialFileUrl(entry.id, "material.json", entry.tick);
-  return useLoaded(url, () => entry && fetchPublishedMaterial(entry.id, fetch, entry.tick));
+export function usePublishedMaterial(entry: MaterialEntry | null): Loaded<FigureMaterial> {
+  const url = entry && materialFileUrl(entry, "material.json");
+  return useLoaded(url, () => entry && fetchPublishedMaterial(entry));
 }
 
 export async function submitMaterial(file: FigureMaterialFile, label: { title: string; credit: string }, turnstileToken: string | null,
@@ -79,13 +103,11 @@ export type MaterialIndexState =
   | { status: "ready"; index: MaterialIndex }
   | { status: "failed"; index: MaterialIndex; message: string };
 
-// One read per page load, shared by every reader; a reload after an approval shows the change.
-let shared: Promise<MaterialIndex> | undefined;
 const listeners = new Set<() => void>();
 
 /** Read the index again, as after a submission or an approval in another tab. */
 export function refreshMaterialIndex(): void {
-  shared = undefined;
+  sharedIndex = undefined;
   listeners.forEach((listener) => listener());
 }
 
@@ -100,8 +122,7 @@ export function useMaterialIndex(): MaterialIndexState {
   }, []);
   useEffect(() => {
     let current = true;
-    shared ??= fetchMaterialIndex().catch((error: unknown) => { shared = undefined; throw error; });
-    shared.then(
+    loadMaterialIndex().then(
       (index) => { if (current) setState({ status: "ready", index }); },
       (error: unknown) => { if (current) setState({ status: "failed", index: EMPTY_MATERIAL_INDEX, message: String(error instanceof Error ? error.message : error) }); },
     );
