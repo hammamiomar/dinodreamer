@@ -75,28 +75,6 @@
   color: var(--ink-3);
 }
 
-/* A group's heading line: the word, the count, a link at the end. */
-.look-group-head {
-  display: flex;
-  align-items: baseline;
-  gap: 16px;
-  height: 16px;
-  margin-bottom: 16px;
-}
-
-.look-group-head h2 {
-  margin: 0;
-}
-
-.look-count {
-  font-size: var(--s-1);
-  color: var(--ink-2);
-}
-
-.look-all {
-  font-size: var(--s-1);
-}
-
 /* 2 · The Level 4 pictures; the current one's action is a word at the end of the heading line. */
 /* The 32 px between the Strongest pictures and the materials is half each section's, so both boxes end on the module. */
 .look-fires {
@@ -120,8 +98,7 @@
   visibility: visible;
 }
 
-.look-pictures,
-.look-material-tiles {
+.look-pictures {
   display: grid;
   grid-template-columns: repeat(8, 144px);
   gap: 16px;
@@ -139,83 +116,11 @@
   cursor: pointer;
 }
 
-/* The current picture, and the one Grow a material grows toward while it is hovered: an outline on the black margin. */
+/* The current picture, and the one Train aims at while hovered: an outline on the black margin. */
 .look-picture[data-current],
 .look-picture[data-lit] {
   outline: 1px solid var(--ink);
   outline-offset: 2px;
-}
-
-/* 3 · The materials: boxless tiles. The section holds four modules (one without tiles), so the cloud starts on one. */
-.look-materials {
-  min-height: var(--m);
-  padding-top: 16px;
-}
-
-.look-materials:has(.look-material-tiles) {
-  min-height: calc(4 * var(--m));
-}
-
-.look-materials > .muted {
-  margin: 0;
-  line-height: 16px;
-}
-
-.look-material {
-  display: grid;
-  gap: 8px;
-  color: var(--ink-2);
-  font-size: var(--s-1);
-  text-decoration: none;
-}
-
-.look-material img {
-  display: block;
-  width: 100%;
-  height: auto;
-  aspect-ratio: 1;
-  image-rendering: pixelated;
-}
-
-/* Three 16 px lines and the rule above them: the tile is 208 px, thirteen patches. */
-.look-material-name {
-  display: grid;
-  padding-top: 7px;
-  border-top: 1px solid var(--line);
-  line-height: 16px;
-}
-
-.look-material-name > span {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.look-material-reading {
-  color: var(--ink);
-  font-variant-numeric: tabular-nums;
-}
-
-.look-material:not([data-fired]) .look-material-reading {
-  color: var(--ink-3);
-}
-
-.look-material:not([data-fired]) {
-  color: var(--ink-3);
-}
-
-.look-material:not([data-fired]) img {
-  opacity: 0.5;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .look-material:hover {
-    color: var(--ink);
-  }
-
-  .look-material:hover .look-material-name {
-    border-top-color: var(--ink);
-  }
 }
 
 /* 4 · The cloud: the view and the picked patch in one frame. */
@@ -812,8 +717,7 @@
  * Pictures pack left with 16 px gaps; keepOnModule aligns section tops to the 64 px module.
  */
 @container look (max-width: 1279px) {
-  .look-pictures,
-  .look-material-tiles {
+  .look-pictures {
     grid-template-columns: repeat(8, minmax(0, 1fr));
     grid-template-columns: repeat(8, min(144px, round(down, (100% - 7 * 16px) / 8, 8px)));
     justify-content: start;
@@ -846,14 +750,6 @@
 
   .look-pictures {
     grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
-  .look-material-tiles {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
-  .look-materials:has(.look-material-tiles) {
-    min-height: 0;
   }
 
   .look-workspace {
@@ -934,17 +830,6 @@
     grid-template-columns: repeat(4, min(80px, round(down, (100% - 24px) / 4, 8px)));
     justify-content: space-between;
     gap: 8px;
-  }
-
-  .look-material-tiles {
-    grid-template-columns: repeat(3, minmax(0, 112px));
-    grid-template-columns: repeat(3, min(112px, round(down, (100% - 16px) / 3, 8px)));
-    justify-content: space-between;
-    gap: 16px 8px;
-  }
-
-  .look-material-tiles > li:nth-child(n + 4) {
-    display: none;
   }
 
   .look-band {

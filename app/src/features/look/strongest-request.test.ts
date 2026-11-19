@@ -4,7 +4,7 @@ import { MATERIAL_REQUEST_MAX_POINTS, type StrengthCuts } from "../../recipe";
 import { pageToken, prepareCloud } from "./cloud-geometry";
 import { evenSubsample, makeMaterialRequest } from "./material-request";
 import { bandSelection } from "./request-anchor";
-import { anchorToken, growPath, strongestBandRequest } from "./strongest-request";
+import { anchorToken, strongestBandRequest, trainPath } from "./strongest-request";
 import { STRONGEST } from "./strength-bands";
 
 // Ring 4, maximum 12: cuts at 6, 8 and 10; Strongest from norm 10.
@@ -98,7 +98,7 @@ it("gives a request's anchor back as the patch the Look components draw", () => 
   expect(anchorToken({ source: "upload", code: [1, 2, 2], slot: 30, norm: 3, band: "barely", strength })).toEqual({ source: "upload", code: [1, 2, 2], slot: 30, norm: 3 });
 });
 
-it("links a block to the Grow page, keeping the fake engine", () => {
-  expect(growPath(12182, "")).toBe("/train?block=12182");
-  expect(growPath(12182, "?engine=fake&page=2")).toBe("/train?block=12182&engine=fake");
+it("links a basis group to the Train page, preserving the fake engine flag", () => {
+  expect(trainPath(12182, "")).toBe("/train?block=12182");
+  expect(trainPath(12182, "?engine=fake&page=2")).toBe("/train?block=12182&engine=fake");
 });

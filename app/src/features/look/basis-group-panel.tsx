@@ -187,7 +187,7 @@ function PanelHead({ block }: { block: number }) {
       <header className="look-head">
         <h1 className="display">{block}</h1>
       </header>
-      <LoadingIndicator>Loading basis group…</LoadingIndicator>
+      <LoadingIndicator>{LOOK_TEXT.panel.loading}</LoadingIndicator>
     </div>
   );
 }

@@ -19,7 +19,7 @@ import { useChoose, useOpenGroup } from "../automata/automata-page";
 import { arrangeGroups, neighboursOf, shownCount, type GalleryCell, type GalleryGroup } from "../automata/gallery";
 import { gridNoteOf, GroupScreen } from "../automata/group-screen";
 import { GroupWall } from "../automata/group-wall";
-import { nameOf } from "../gallery/basis-groups";
+import { NAME_CHARACTERS, nameOf } from "../gallery/basis-groups";
 import { fetchPublishedMaterial, materialFileUrl } from "../gallery/material-gallery";
 import type { MaterialEntry } from "../gallery/material-index";
 import { fetchPromotedRunEntries, fetchResearchManifest, fetchResearchMaterial, lastStillUrl } from "../research/research-api";
@@ -121,6 +121,11 @@ function OwnerGallery({ read, pending, onChange, onReviewed }: {
   const [search] = useSearchParams();
   const [view, setView] = useState<OwnerView>("every");
   const { automata, unfiled } = useMemo(() => ownerAutomata(read, PICTURES), [read]);
+  const groupTotals = useMemo(() => {
+    const totals = new Map<number, number>();
+    for (const automaton of automata) totals.set(automaton.group, (totals.get(automaton.group) ?? 0) + 1);
+    return totals;
+  }, [automata]);
   const visible = useMemo(() => (view === "visitor" ? automata.filter((automaton) => automaton.shown) : automata), [automata, view]);
   const groups = useMemo(() => arrangeGroups(visible), [visible]);
   const { group, playing } = useOpenGroup(groups);
@@ -181,7 +186,7 @@ function OwnerGallery({ read, pending, onChange, onReviewed }: {
 
   if (group === null || playing === null) {
     return (
-      <GroupWall groups={groups} names={names} status={null} lead={ownerLine} markOf={(each) => <GroupMark group={each} all={automata} />}>
+      <GroupWall groups={groups} names={names} status={null} lead={ownerLine} markOf={(each) => <GroupMark group={each} total={groupTotals.get(each.group) ?? 0} />}>
         {panel}
       </GroupWall>
     );
@@ -206,10 +211,9 @@ function OwnerGallery({ read, pending, onChange, onReviewed }: {
   );
 }
 
-/** Under a card on the owner's wall: how many of the group's automata a visitor sees, of how many. */
-function GroupMark({ group, all }: { group: GalleryGroup<OwnerAutomaton>; all: readonly OwnerAutomaton[] }) {
-  const ofGroup = all.filter((automaton) => automaton.group === group.group).length;
-  return <span>{fill(WORDS.shownOf, { shown: shownCount(group.automata), all: ofGroup })}</span>;
+/** Per-group published vs total count displayed on each owner wall card. */
+function GroupMark({ group, total }: { group: GalleryGroup<OwnerAutomaton>; total: number }) {
+  return <span>{fill(WORDS.shownOf, { shown: shownCount(group.automata), all: total })}</span>;
 }
 
 /** Under a cell's picture in the owner's grid: how many of its automata a visitor sees. */
@@ -243,7 +247,7 @@ function NameField({ block, name }: { block: number; name: string }) {
   return (
     <span className="owner-name-field">
       {/* Two lines, as the name stands for a visitor; Enter stores it and does not break the line. */}
-      <textarea className="heading" rows={2} value={text} maxLength={80} aria-label={WORDS.nameLabel} placeholder={WORDS.namePlaceholder}
+      <textarea className="heading" rows={2} value={text} maxLength={NAME_CHARACTERS} aria-label={WORDS.nameLabel} placeholder={WORDS.namePlaceholder}
         onChange={(event) => { setText(event.target.value.replace(/\n/g, " ")); setTyped(true); setNote(""); }}
         onBlur={store}
         onKeyDown={(event) => {

@@ -3,14 +3,13 @@
 // shows the row directly. Opening the deck carries the face and its plates to the group's stage.
 
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode, type RefObject } from "react";
-import { flushSync } from "react-dom";
 import { Link, NavLink, useNavigation } from "react-router";
+import { SiteNavLinks } from "../../app/frame";
 import { fill, SITE_WORDS } from "../../app/site-words";
 import { useLibrary } from "../../app/library-session";
 import type { AtlasBand } from "../../library/atlas-cloud";
 import type { FigureMaterial } from "../../materials/material-file";
-import { PATCH_SLOT_OFFSET } from "../../recipe";
-import { explorePath } from "../atlas/atlas-position";
+import { GRID, PATCH_SLOT_OFFSET } from "../../recipe";
 import { ATLAS_TEXT } from "../atlas/atlas-text";
 import { nameOf, type BasisGroupNames } from "../gallery/basis-groups";
 import { BAND_COLOURS } from "../look/strength-bands";
@@ -24,13 +23,11 @@ import { FROM_WALL } from "./group-screen";
 import { openLiveFace, type LiveFace } from "./live-faces";
 import { listenForLevelSwipe } from "./deck-level-swipe";
 import { useWallEye } from "./wall-eye";
-import { levelPassage, openedLast, rememberOpened, STAGE_PASSAGE } from "./wall-passage";
+import { levelPassage, rememberOpened, STAGE_PASSAGE, useOpenedGroup } from "./wall-passage";
 
 const WORDS = SITE_WORDS.automata;
-/** The plates of a deck, the deepest first: the barely responding level at the bottom, the strongest under the face. */
 const LEVELS_DEEPEST_FIRST: readonly AtlasBand[] = [0, 1, 2, 3];
 const STRONGEST: AtlasBand = 3;
-const PATCHES_PER_SIDE = 16;
 /** A face file can exceed 100 kB. Keep route transfers and visible posters ahead of the remaining reads. */
 const CONCURRENT_FACE_FILES = 2;
 /** Time to inspect the current row before hover advances to the next weaker level. */
@@ -187,7 +184,7 @@ function DeckPlates({ block, wanted, carried, preview, advance, deck, levelDescr
             return (
               <span key={position} className="automata-level-picture">
                 <LibraryImage {...{ fetchpriority: "low" }} src={library.thumbnailUrl(slot.picture.imageId)} alt={ATLAS_TEXT.pictureName(block, ATLAS_TEXT.bands[band])} />
-                <i style={{ left: `${((patch % PATCHES_PER_SIDE) / PATCHES_PER_SIDE) * 100}%`, top: `${(Math.floor(patch / PATCHES_PER_SIDE) / PATCHES_PER_SIDE) * 100}%` }} />
+                <i style={{ left: `${((patch % GRID) / GRID) * 100}%`, top: `${(Math.floor(patch / GRID) / GRID) * 100}%` }} />
               </span>
             );
           })}
@@ -232,7 +229,7 @@ function Deck<T extends GalleryAutomaton>({ group, name, mark, loadFace, forward
       <Link className="automata-deck-link" to={{ search: addressSearch({ group: group.group, automaton: null }) }} state={FROM_WALL} viewTransition
         data-preview-layout={touchPreview || forward || undefined}
         aria-describedby={forward || touchPreview ? levelDescription : undefined}
-        aria-label={fill(WORDS.cardName, { group: group.group, name: name ?? "" }).trim()} onClick={onOpen}
+        aria-label={fill(WORDS.cardName, { group: group.group, name: name ?? "" }).trim()} onPointerDown={onOpen} onClick={onOpen}
         onFocus={() => onFocus(true)} onBlur={() => onFocus(false)}>
         <DeckPlates deck={self} levelDescription={levelDescription} block={group.group} wanted={visible && photosReady} carried={carried} preview={visible && (forward || touchPreview)} advance={advance} />
         <span className="automata-deck-body">
@@ -318,8 +315,7 @@ export function GroupWall<T extends GalleryAutomaton>({ groups, names, status, a
   const [hovered, setHovered] = useState<number | null>(null);
   const [focused, setFocused] = useState<number | null>(null);
   const forward = admitting ? hovered ?? focused : null;
-  // Apply transition names before following the link.
-  const [, setMarked] = useState(0);
+  const openedGroup = useOpenedGroup();
   const entering = useRef(0);
   useEffect(() => () => window.clearTimeout(entering.current), []);
   useEffect(() => {
@@ -347,9 +343,8 @@ export function GroupWall<T extends GalleryAutomaton>({ groups, names, status, a
   };
   const open = (group: number) => {
     rememberOpened(group);
-    flushSync(() => setMarked((count) => count + 1));
   };
-  const carried = hidden ? null : openedLast();
+  const carried = hidden ? null : openedGroup;
 
   return (
     <main className="page automata-wall" hidden={hidden}>
@@ -387,14 +382,7 @@ export function GroupWall<T extends GalleryAutomaton>({ groups, names, status, a
       {ordered.length > 0 && (
         <nav className="automata-wall-navigation" aria-label={WORDS.wallNavigation}>
           <NavLink to="/" end>{WORDS.homeLink}</NavLink>
-          <NavLink to={explorePath()}>{SITE_WORDS.header.explore}</NavLink>
-          <NavLink to="/automata">{SITE_WORDS.header.playground}</NavLink>
-          <NavLink to="/train">{SITE_WORDS.header.grow}</NavLink>
-          <NavLink to="/how" aria-label={SITE_WORDS.header.how}>
-            <span className="frame-nav-full">{SITE_WORDS.header.how}</span>
-            <span className="frame-nav-short">{SITE_WORDS.header.howShortForm}</span>
-          </NavLink>
-          <NavLink to="/canvas">{SITE_WORDS.header.experimental}</NavLink>
+          <SiteNavLinks />
         </nav>
       )}
       {children}

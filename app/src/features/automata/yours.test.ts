@@ -5,29 +5,27 @@ import { keptEntry, withKept } from "./yours";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-/** A published seed file of the gallery, read as a kept file would be. */
 function keptSeed(): FigureMaterialFile {
   const path = fileURLToPath(new URL("../../../../gallery/seed/materials/block-12002-figure-strongest-mean-seed-1.material.json", import.meta.url));
   return JSON.parse(readFileSync(path, "utf8")) as FigureMaterialFile;
 }
 
-describe("a kept material on the shelf", () => {
+describe("saved material entries", () => {
   const file = keptSeed();
   const material = readFigureMaterial(file);
 
-  test("reads as the index would record it, under the file's own id and name", () => {
+  test("builds an index entry under the file's own id and name", () => {
     expect(material.file.format).toBe(4);
     const entry = keptEntry(material);
     expect(entry).toMatchObject({ id: file.id, title: file.name, block: 12002, layout: FIGURE_LAYOUT, start: "noise", pixelsPerCell: 1, fired: true, credit: "" });
     expect(entry.side).toBe(file.reading.side);
     expect(entry.materialId).toBe(file.id);
-    // The entry carries the measurement's direction, which names the stored value on the stage.
     expect(entry.measurementDirection).toBeUndefined();
     const onTarget = { ...file, recipe: { ...file.recipe, settings: { ...file.recipe.settings, measurementDirection: "training target" } } };
     expect(keptEntry(readFigureMaterial(onTarget)).measurementDirection).toBe("training target");
   });
 
-  test("the stage's source answers a kept material from memory and asks the gallery for the rest", async () => {
+  test("resolves saved entries from memory and falls back to the published source", async () => {
     const figures = [{ entry: keptEntry(material), material }];
     const asked: string[] = [];
     const published = {

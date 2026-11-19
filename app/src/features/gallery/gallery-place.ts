@@ -14,10 +14,8 @@ export const GALLERY_STARTS = ["noise", "circle", "circle-on-noise", "circle-any
 export type GalleryStart = (typeof GALLERY_STARTS)[number];
 
 /**
- * What the training asked for, in the method names of 3 November 2026: the space the comparison is
- * made in (the basis group's three numbers, or DINO's whole token) and the comparison (the mean, or
- * the distribution). Basis-group mean matching also exists with a guide on DINO units. The last two
- * are research variants: a mixture of mean and distribution matching, and an objective on one DINO unit.
+ * Training objective categories: comparison space (the basis group's three coordinates or the full
+ * DINO token) and comparison type (mean or distribution), plus guided mean and research variants.
  */
 export const GALLERY_METHODS = [
   "basis-group-mean",

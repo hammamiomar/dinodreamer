@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { explorePath, recallAtlasPosition, rememberAtlasPosition } from "./atlas-position";
+import { indexPath, recallAtlasPosition, rememberAtlasPosition } from "./atlas-position";
 
 function memoryStorage(): Storage {
   const items = new Map<string, string>();
@@ -13,13 +13,13 @@ function memoryStorage(): Storage {
   };
 }
 
-describe("the Explore position left", () => {
-  it("is the last position remembered, and Explore itself before any", () => {
+describe("the Index position left", () => {
+  it("is the last position remembered, and Index itself before any", () => {
     const storage = memoryStorage();
-    expect(explorePath(storage)).toBe("/index");
+    expect(indexPath(storage)).toBe("/index");
     rememberAtlasPosition("?role=cls&sort=block&page=12", storage);
     expect(recallAtlasPosition(storage)).toBe("?role=cls&sort=block&page=12");
-    expect(explorePath(storage)).toBe("/index?role=cls&sort=block&page=12");
+    expect(indexPath(storage)).toBe("/index?role=cls&sort=block&page=12");
   });
 
   it("survives a storage that refuses", () => {

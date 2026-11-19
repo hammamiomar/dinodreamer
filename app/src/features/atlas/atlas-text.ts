@@ -50,6 +50,7 @@ export const ATLAS_TEXT = {
   pictureName: (block: number, band: string) =>
     `${band} patch of basis group ${block}`,
   stripBar: "Level widths show the number of patches",
+  loadingCard: "Loading basis group…",
   failed: "This response plot could not be loaded.",
   retry: "Try again",
   emptyCloud: "No selected patches in this sample.",

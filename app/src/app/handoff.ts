@@ -100,12 +100,6 @@ export function isTokenReference(value: unknown): value is TokenReference {
   );
 }
 
-export function isTokenHandoff(value: unknown): value is TokenHandoff {
-  if (!isTokenReference(value) || value.code === undefined) return false;
-  const { strongExamples: examples } = value as Partial<TokenHandoff>;
-  return examples === undefined || (Array.isArray(examples) && examples.every((token) => typeof token === "object" && token !== null && isValidToken(token)));
-}
-
 function isCode(value: unknown): value is Code {
   return Array.isArray(value) && value.length === 3 && value.every((entry) => typeof entry === "number" && Number.isFinite(entry));
 }

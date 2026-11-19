@@ -37,12 +37,19 @@ export interface CloudViewHandle {
 }
 
 const EMPTY = new Set<number>();
-/** An arrow key acts as a short drag in its direction: it turns, or pans while Shift is held. */
 const KEY_DRAGS: Record<string, Position> = { ArrowLeft: { x: -1, y: 0 }, ArrowRight: { x: 1, y: 0 }, ArrowUp: { x: 0, y: -1 }, ArrowDown: { x: 0, y: 1 } };
 const KEY_TURN_PX = 15;
 const KEY_PAN_PX = 40;
+const KEY_ZOOM_FACTOR = 1.2;
+const WHEEL_ZOOM_SENSITIVITY = 0.0015;
+const LASSO_MIN_STEP_PX = 2;
 const POINT_PICTURE_SIZE = 128;
 const POINT_PICTURE_GAP = 12;
+const NARROW_VIEW_WIDTH_PX = 640;
+const MIN_VIEW_HEIGHT_PX = 320;
+const MAX_VIEW_HEIGHT_PX = 576;
+const MODULE_PX = 64;
+const VIEW_ASPECT_RATIO = 0.6;
 
 /** Place the patch picture beside its dot, inside the visible part of the plot. */
 export function placeCloudPicture(at: Position, bounds: { left: number; top: number; right: number; bottom: number }): Position & { size: number } {
@@ -58,13 +65,10 @@ export function placeCloudPicture(at: Position, bounds: { left: number; top: num
   };
 }
 
-/**
- * The view's height for its width: on the 64 px module, 60 % of the width at most 576 px
- * (nine modules) beside the picked patch at 1440, and square on a phone, never under 320.
- */
+/** Snap the plot height to the 64 px module on desktop and stay square on narrow viewports. */
 function viewHeight(width: number): number {
-  if (width < 640) return Math.max(320, width);
-  return Math.min(576, Math.max(320, Math.round((width * 0.6) / 64) * 64));
+  if (width < NARROW_VIEW_WIDTH_PX) return Math.max(MIN_VIEW_HEIGHT_PX, width);
+  return Math.min(MAX_VIEW_HEIGHT_PX, Math.max(MIN_VIEW_HEIGHT_PX, Math.round((width * VIEW_ASPECT_RATIO) / MODULE_PX) * MODULE_PX));
 }
 
 export const CloudView = forwardRef<CloudViewHandle, {
@@ -207,24 +211,21 @@ export const CloudView = forwardRef<CloudViewHandle, {
     const wheel = (event: WheelEvent) => {
       if (event.ctrlKey || event.metaKey || document.activeElement === element) {
         event.preventDefault();
-        zoomRef.current(pagePointer(event, element), Math.exp(-event.deltaY * 0.0015));
+        zoomRef.current(pagePointer(event, element), Math.exp(-event.deltaY * WHEEL_ZOOM_SENSITIVITY));
       }
     };
     element.addEventListener("wheel", wheel, { passive: false });
     return () => element.removeEventListener("wheel", wheel);
   }, []);
 
-  function frameBand(band: BandIndex) {
-    const members = codes.filter((_, index) => bands[index] === band);
-    setCamera((current) => frameCodes(current, frame, members));
-  }
   useImperativeHandle(ref, () => ({
     showBand(band) {
-      frameBand(band);
+      const members = codes.filter((_, index) => bands[index] === band);
+      setCamera((current) => frameCodes(current, frame, members));
       const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       frameElement.current?.scrollIntoView({ block: "nearest", behavior: reducedMotion ? "instant" : "smooth" });
     },
-  }));
+  }), [codes, bands, frame]);
 
   function flatten(value: PrincipalPlane) {
     setPlane(value);
@@ -285,7 +286,7 @@ export const CloudView = forwardRef<CloudViewHandle, {
     current.dragged = true;
     if (current.gesture === "turn") turn(at.x - current.last.x, at.y - current.last.y);
     else if (current.gesture === "pan") pan(at.x - current.last.x, at.y - current.last.y);
-    else if (Math.hypot(at.x - current.last.x, at.y - current.last.y) >= 2) {
+    else if (Math.hypot(at.x - current.last.x, at.y - current.last.y) >= LASSO_MIN_STEP_PX) {
       current.path.push(at);
       setLasso([...current.path]);
     }
@@ -295,7 +296,7 @@ export const CloudView = forwardRef<CloudViewHandle, {
     if (!pointPicture) return;
     const box = element.getBoundingClientRect();
     const scale = box.width / width;
-    const headerHeight = parseFloat(getComputedStyle(element).getPropertyValue("--top"));
+    const headerHeight = parseFloat(getComputedStyle(element).getPropertyValue("--top")) || 0;
     const visible = {
       left: 0,
       right: width,
@@ -345,7 +346,6 @@ export const CloudView = forwardRef<CloudViewHandle, {
           style={{ width: "100%", height }}
           data-tool={tool}
           data-plane={plane ?? "3d"}
-          data-view={JSON.stringify(view)}
           onPointerDown={down}
           onPointerMove={move}
           onPointerUp={up}
@@ -356,8 +356,8 @@ export const CloudView = forwardRef<CloudViewHandle, {
             const drag = KEY_DRAGS[event.key];
             if (drag && event.shiftKey) pan(drag.x * KEY_PAN_PX, drag.y * KEY_PAN_PX);
             else if (drag) turn(drag.x * KEY_TURN_PX, drag.y * KEY_TURN_PX);
-            else if (event.key === "+" || event.key === "=") zoomToward(middle, 1.2);
-            else if (event.key === "-") zoomToward(middle, 1 / 1.2);
+            else if (event.key === "+" || event.key === "=") zoomToward(middle, KEY_ZOOM_FACTOR);
+            else if (event.key === "-") zoomToward(middle, 1 / KEY_ZOOM_FACTOR);
             else if (event.key === "Escape" && (press.current !== null || lasso.length > 0 || shownPicture !== null)) {
               press.current = null;
               held.current.clear();

@@ -16,10 +16,10 @@
 // with no record starts new. An unchanged Gallery entry has no record, so a reload does
 // not bring it back.
 
-import { createContext, useContext, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useReducer, useState } from "react";
 import type { Dispatch, ReactNode } from "react";
 import { useLocation } from "react-router";
-import { areasLinked, canHoldRequest, createEditorState, editorReducer, paintableSelection, requestBlocks } from "../features/editor/state";
+import { areasLinked, canHoldRequest, createEditorState, editorReducer, paintableSelection } from "../features/editor/state";
 import { inkTable, type InkTable } from "../features/editor/inks";
 import { defaultInkPairs } from "../features/editor/presentation";
 import type { EditorAction, EditorState } from "../features/editor/state";
@@ -54,25 +54,17 @@ const EditorSessionContext = createContext<EditorSession | null>(null);
  */
 const EditorDispatchContext = createContext<Dispatch<EditorAction> | null>(null);
 
-/**
- * What the library screens show of the creation's requests: their blocks (the Atlas's "In
- * use") and whether a reference patch has room (look/look-page.tsx). The value changes only
- * when one of them does, so those screens do not re-render on every frame either.
- */
-interface CreationRequests {
-  blocks: readonly number[];
-  canHold: boolean;
-}
-const CreationRequestsContext = createContext<CreationRequests>({ blocks: [], canHold: true });
+/** Whether the current creation can accept another request without re-rendering on every frame. */
+const CanHoldRequestContext = createContext<boolean>(true);
 
 export function EditorSessionProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(editorReducer, RELEASE_NAME, createEditorState);
   useRestoreLastCreation(dispatch);
-  // A tap outside what is selected clears the selection, on every screen (the deselect rule).
+  // A tap outside what is selected clears the selection on every screen.
   const paints = paintableSelection(state.recipe, state.selectedTerm) !== null;
   useTapDeselect(state.selectedTerm, paints, () => dispatch({ type: "deselect" }));
   const { pathname } = useLocation();
-  // Once wanted, the engine stays.
+  // Once wanted, the engine stays mounted.
   const [started, setStarted] = useState(false);
   const wanted = started || engineWanted(pathname, state.recipe.requests.length);
   useEffect(() => {
@@ -83,27 +75,18 @@ export function EditorSessionProvider({ children }: { children: ReactNode }) {
   const dormant = useDormantRun(state);
   const run = useImageCommands(running ?? dormant, dispatch);
   const save = useCreationAutosave(state, run.session, dispatch, run.engine);
-  const blocks = useSameNumbers(requestBlocks(state));
   const canHold = canHoldRequest(state);
-  const requests = useMemo(() => ({ blocks, canHold }), [blocks, canHold]);
   const { recipe, inks: choices, separateAreas } = state;
   const inks = useMemo(() => inkTable(recipe, choices, (id) => areasLinked({ separateAreas }, id), defaultInkPairs()), [recipe, choices, separateAreas]);
+  const session = useMemo(() => ({ state, dispatch, run, save, inks }), [state, dispatch, run, save, inks]);
   return (
     <EditorDispatchContext.Provider value={dispatch}>
       {wanted && <RunSource state={state} onHandle={setRunning} />}
-      <CreationRequestsContext.Provider value={requests}>
-        <EditorSessionContext.Provider value={{ state, dispatch, run, save, inks }}>{children}</EditorSessionContext.Provider>
-      </CreationRequestsContext.Provider>
+      <CanHoldRequestContext.Provider value={canHold}>
+        <EditorSessionContext.Provider value={session}>{children}</EditorSessionContext.Provider>
+      </CanHoldRequestContext.Provider>
     </EditorDispatchContext.Provider>
   );
-}
-
-/** The previous list while `numbers` holds the same values in the same order, so its identity marks a change. */
-function useSameNumbers(numbers: number[]): readonly number[] {
-  const kept = useRef<readonly number[]>(numbers);
-  const same = kept.current.length === numbers.length && kept.current.every((value, index) => value === numbers[index]);
-  if (!same) kept.current = numbers;
-  return kept.current;
 }
 
 /**
@@ -200,14 +183,9 @@ export function useEditorSession(): EditorSession {
   return session;
 }
 
-/** The blocks of the creation's requests and of the held token, in order, each once; the same array until they change. */
-export function useRequestBlocks(): readonly number[] {
-  return useContext(CreationRequestsContext).blocks;
-}
-
-/** Whether a clicked token can be held: the creation has room for one more request. */
+/** Whether a clicked token can be held because the creation has room for another request. */
 export function useCanHoldRequest(): boolean {
-  return useContext(CreationRequestsContext).canHold;
+  return useContext(CanHoldRequestContext);
 }
 
 export function useEditorDispatch(): Dispatch<EditorAction> {

@@ -16,7 +16,7 @@ export function rememberAtlasPosition(search: string, storage: Storage | undefin
   }
 }
 
-/** The search of the position the visitor left, or null before any Explore visit. */
+/** The search of the position the visitor left, or null before any Index visit. */
 export function recallAtlasPosition(storage: Storage | undefined = sessionStorageOrNone()): string | null {
   try {
     const stored = storage?.getItem(KEY) ?? null;
@@ -26,8 +26,8 @@ export function recallAtlasPosition(storage: Storage | undefined = sessionStorag
   }
 }
 
-/** Return to the last Atlas position, or its default cloud view. */
-export function explorePath(storage?: Storage): string {
+/** Return to the last Index position, or its default cloud view. */
+export function indexPath(storage?: Storage): string {
   return `/index${recallAtlasPosition(storage) ?? ""}`;
 }
 

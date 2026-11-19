@@ -12,8 +12,8 @@ import "./publish-material.css";
 const WORDS = SITE_WORDS.publish;
 
 /**
- * "Publish to the gallery" for one kept figure material. The Playground's Yours group and the Grow page render this same
- * control. It sends the format-4 file only; the owner approves it from the terminal or the owner page.
+ * Publish control for a locally saved figure material, shared by Saved automata and Train.
+ * Uploads the format-4 definition for owner review.
  */
 export function PublishMaterial({ file }: { file: FigureMaterialFile }) {
   const index = useMaterialIndex();

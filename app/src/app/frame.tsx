@@ -1,7 +1,7 @@
 import { NavLink, Outlet, ScrollRestoration, useLocation, useNavigation, useRouteError } from "react-router";
 import type { Location } from "react-router";
 import { useEffect, useRef, useState } from "react";
-import { explorePath } from "../features/atlas/atlas-position";
+import { indexPath } from "../features/atlas/atlas-position";
 import { opensGroup } from "../features/automata/gallery";
 import { startLattice, type Lattice } from "../ground/lattice";
 import { keepFooterOnModule } from "../ui/module-snap";
@@ -52,14 +52,12 @@ function EngineStartRecovery() {
 }
 
 /**
- * Screens laid out to fit the window have no footer after them: the Canvas, with its block panel
- * over it, the Playground and its owner mode, where only the shelf scrolls and its last line is the
- * footer's job, Train, one screen around its material, and How it works, one screen of words and a
- * figure. Each keeps that with a basis group's panel open over it (<screen>/basis/N).
+ * Viewport-fitted screens omit the footer: Create, Train, How it works, and Automata (plus the
+ * owner view) while an individual basis group screen is open. The Automata group wall scrolls
+ * normally and keeps its footer.
  */
 export function fitsTheWindow(pathname: string, search = ""): boolean {
   const under = (screen: string) => pathname === screen || pathname.startsWith(`${screen}/`);
-  // Automata fits the window while a basis group's screen is open; its wall of groups is a page that scrolls. So does the owner's view of it.
   if (under("/automata") || under("/admin/automata")) return opensGroup(new URLSearchParams(search));
   return ["/create", "/train", "/how"].some(under);
 }
@@ -220,24 +218,7 @@ function FrameLayout({ busy, children }: { busy: boolean; children: ReactNode })
             const link = event.target instanceof Element && event.target.closest("a");
             if (link && link.href === window.location.href) setMenuOpen(false);
           }}>
-          {/*
-            Index (/index) returns to the position the visitor left (order, filters, page), or opens the first page.
-            Experimental opens the image editor and its gallery. The words are site-words.ts.
-          */}
-          <NavLink to={explorePath()}>{SITE_WORDS.header.explore}</NavLink>
-          <NavLink to="/automata">{SITE_WORDS.header.playground}</NavLink>
-          <NavLink to="/train">{SITE_WORDS.header.grow}</NavLink>
-          {/* Under 832 px the link shows the short form (styles.css); its name stays the full one. */}
-          <NavLink to="/how" aria-label={SITE_WORDS.header.how}>
-            <span className="frame-nav-full">{SITE_WORDS.header.how}</span>
-            <span className="frame-nav-short">{SITE_WORDS.header.howShortForm}</span>
-          </NavLink>
-          {/* The experiment's one page, the Painter's, which also stands for the Painter itself (/create). Under
-              832 px the link shows its short form (styles.css); its name stays the word. */}
-          <NavLink to="/canvas" className={({ isPending }) => [experimentalPage(pathname) && "active", isPending && "pending"].filter(Boolean).join(" ")} aria-label={SITE_WORDS.header.experimental}>
-            <span className="frame-nav-full">{SITE_WORDS.header.experimental}</span>
-            <span className="frame-nav-short" aria-hidden="true">{SITE_WORDS.header.experimentalShortForm}</span>
-          </NavLink>
+          <SiteNavLinks pathname={pathname} />
           <a href={SITE_URL} className="frame-nav-site" target="_blank" rel="noreferrer" title={SITE_WORDS.header.siteTitle}>
             {SITE_WORDS.header.site}
           </a>
@@ -248,5 +229,29 @@ function FrameLayout({ busy, children }: { busy: boolean; children: ReactNode })
       </header>
       {children}
     </div>
+  );
+}
+
+/** Primary destination links shared by the top header and the Automata wall footer navigation. */
+export function SiteNavLinks({ pathname }: { pathname?: string }) {
+  return (
+    <>
+      <NavLink to={indexPath()}>{SITE_WORDS.header.explore}</NavLink>
+      <NavLink to="/automata">{SITE_WORDS.header.playground}</NavLink>
+      <NavLink to="/train">{SITE_WORDS.header.grow}</NavLink>
+      {/* Below 1056 px the short label replaces the full text (styles.css); aria-label keeps the full name. */}
+      <NavLink to="/how" aria-label={SITE_WORDS.header.how}>
+        <span className="frame-nav-full">{SITE_WORDS.header.how}</span>
+        <span className="frame-nav-short">{SITE_WORDS.header.howShortForm}</span>
+      </NavLink>
+      <NavLink
+        to="/canvas"
+        className={({ isPending }) => [pathname !== undefined && experimentalPage(pathname) && "active", isPending && "pending"].filter(Boolean).join(" ")}
+        aria-label={SITE_WORDS.header.experimental}
+      >
+        <span className="frame-nav-full">{SITE_WORDS.header.experimental}</span>
+        <span className="frame-nav-short" aria-hidden="true">{SITE_WORDS.header.experimentalShortForm}</span>
+      </NavLink>
+    </>
   );
 }

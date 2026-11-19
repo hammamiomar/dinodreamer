@@ -3,7 +3,8 @@
 // use the stage pixels and recorded stills. A reserved note line prevents preparation
 // messages from moving the settings below the transport.
 
-import { fill, fillNodes } from "../../app/site-words";
+import { fillNodes } from "../../app/fill-nodes";
+import { fill } from "../../app/site-words";
 import { NumberInput } from "./cards/number-input";
 import { CREATE_TEXT } from "./create-text";
 import { ImageGlyph, VideoGlyph } from "./glyphs";

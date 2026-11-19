@@ -22,10 +22,6 @@ export function hashForSection(index: number): string {
   return index === 0 ? "" : `#${HOW_SECTIONS[index]!.id}`;
 }
 
-export function clampSection(index: number): number {
-  return Math.max(0, Math.min(HOW_SECTIONS.length - 1, Math.trunc(index)));
-}
-
 export function nextSection(index: number): number | null {
   return index + 1 < HOW_SECTIONS.length ? index + 1 : null;
 }

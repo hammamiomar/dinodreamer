@@ -4,7 +4,7 @@ import { fill, SITE_WORDS } from "../app/site-words";
 import type { MaterialEntry } from "../features/gallery/material-index";
 import { fetchPublishedMaterial, materialFileUrl } from "../features/gallery/material-gallery";
 import { figurePlayback, PICTURE_SIDES, strengthStatistic, type FigureMaterial } from "../materials/material-file";
-import { kindLine } from "../features/playground/playground";
+import { kindLine } from "../features/automata/kind-line";
 import { MaterialMetadata, metadataRows } from "./material-metadata";
 import { kindWords } from "../features/home/home-material";
 import { BAND_NAMES, STRENGTH_BANDS } from "../features/look/strength-bands";

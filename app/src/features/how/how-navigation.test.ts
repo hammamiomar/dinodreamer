@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { SITE_WORDS } from "../../app/site-words";
-import { clampSection, firstSectionOfAct, hashForSection, nextSection, previousSection, sectionIndexFromHash, sectionsOfAct } from "./how-navigation";
+import { firstSectionOfAct, hashForSection, nextSection, previousSection, sectionIndexFromHash, sectionsOfAct } from "./how-navigation";
 import { HOW_ACTS, HOW_SECTIONS, HOW_STAGES, STAGE_SECTION } from "./how-sections";
 
 describe("the section list", () => {
@@ -62,8 +62,6 @@ describe("navigation", () => {
     expect(previousSection(0)).toBeNull();
     expect(nextSection(0)).toBe(1);
     expect(nextSection(HOW_SECTIONS.length - 1)).toBeNull();
-    expect(clampSection(-3)).toBe(0);
-    expect(clampSection(99)).toBe(HOW_SECTIONS.length - 1);
   });
 
   it("groups sections by act", () => {

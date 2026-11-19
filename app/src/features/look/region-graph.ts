@@ -83,8 +83,7 @@ export function useRegionDistances(codes: readonly Vec3[], rows: number, seeds: 
       setUnavailable(true);
     }
   }, [started]);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => graph?.build(codes.slice(0, rows)), [graph, rows]);
+  useEffect(() => graph?.build(codes.slice(0, rows)), [graph, codes, rows]);
   const [result, setResult] = useState<{
     graph: RegionGraph;
     rows: number;

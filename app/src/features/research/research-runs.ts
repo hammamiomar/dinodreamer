@@ -232,7 +232,12 @@ const MOST_TEXT = 400;
 /** The library's basis groups, 0 to 16,383. */
 const GROUPS = 16384;
 
-class ManifestError extends Error {}
+class ManifestError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ManifestError";
+  }
+}
 
 function fail(where: string, problem: string): never {
   throw new ManifestError(`research manifest: ${where}: ${problem}`);

@@ -5,7 +5,7 @@
 import { fill, SITE_WORDS } from "../app/site-words";
 import { materialEntry, placeOf, type MaterialEntry } from "../features/gallery/material-index";
 import { BAND_NAMES, STRENGTH_BANDS } from "../features/look/strength-bands";
-import { tileName } from "../features/playground/playground";
+import { tileName } from "../features/automata/kind-line";
 import { strengthStatistic, type FigureMaterialFile } from "../materials/material-file";
 import "./material-metadata.css";
 

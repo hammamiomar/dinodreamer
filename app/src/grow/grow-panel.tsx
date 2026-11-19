@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from "react";
 import { Link } from "react-router";
 import { useMaterialRequest } from "../app/material-request";
-import { SITE_WORDS, fill, fillNodes } from "../app/site-words";
+import { fillNodes } from "../app/fill-nodes";
+import { SITE_WORDS, fill } from "../app/site-words";
 import { PublishMaterial } from "../features/gallery/publish-material";
 import type { MaterialRequest } from "../recipe";
 import { downloadBlob } from "../ui/files";

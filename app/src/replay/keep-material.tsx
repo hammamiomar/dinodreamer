@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router";
-import { fill, fillNodes, SITE_WORDS } from "../app/site-words";
+import { fillNodes } from "../app/fill-nodes";
+import { fill, SITE_WORDS } from "../app/site-words";
 import { rememberSavedFrom } from "../features/gallery/publish-records";
 import { keepPublishedMaterial } from "../storage/materials";
 import type { FigureMaterial, FigureMaterialFile } from "../materials/material-file";

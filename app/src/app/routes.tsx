@@ -1,7 +1,5 @@
-// The site map. Every screen renders inside the shared frame, so state held by
-// the frame survives navigation between the library, the editor and the gallery.
-// Library screens load their files in route loaders: a screen renders with its
-// data, so Back can restore the scroll position at once.
+// Application router. Every screen renders inside `Frame` so editor state and training runs
+// persist across navigation. Library routes load their index in route loaders so Back restores scroll.
 
 import { createBrowserRouter, Navigate, redirect, useLocation } from "react-router";
 import type { LoaderFunctionArgs } from "react-router";
@@ -22,13 +20,13 @@ import { BasisGroupPanel } from "../features/look/basis-group-panel";
 import { UploadedPicturePage } from "../features/look/picture-page";
 import { canonicalPathname, LEGACY_PAGE_PATHS } from "./route-paths";
 
-/** A component redirect keeps the fragment, which router loader requests omit. */
+/** Redirect legacy routes in React so URL fragments are preserved (router loaders omit hashes). */
 function LegacyRouteRedirect() {
   const { pathname, search, hash, state } = useLocation();
   return <Navigate replace to={`${canonicalPathname(pathname)}${search}${hash}`} state={state} />;
 }
 
-/** A legacy root link carrying an Index query opens the Index. */
+/** Redirect legacy root links carrying an Index query string to `/index`. */
 function HomeRoute() {
   const { search, hash, state } = useLocation();
   if (hasAtlasQuery(new URLSearchParams(search))) {
@@ -37,16 +35,14 @@ function HomeRoute() {
   return <HomePage />;
 }
 
-export const EXPLORE_ROUTE_ID = "explore";
+export const INDEX_ROUTE_ID = "index";
 
-/** One small index; each card loads its own compact cloud near the viewport. */
+/** Load the cloud atlas index in parallel with the release manifest. */
 export async function atlasLoader(): Promise<CloudAtlas> {
-  // The index is read beside the release manifest, not after it.
   const started = readCloudAtlasFiles(ASSET_BASE_URL);
   started.catch(() => {});
   return (await appLibrary()).cloudAtlas(started);
 }
-
 
 function notFoundLoader(): never {
   throw new Response(SITE_WORDS.frame.notFoundDetail, { status: 404 });
@@ -56,7 +52,6 @@ export const router = createBrowserRouter([
   {
     id: ROOT_ROUTE_ID,
     loader: rootLoader,
-    // One release per session.
     shouldRevalidate: () => false,
     element: <Frame />,
     hydrateFallbackElement: <FrameLoading />,
@@ -67,20 +62,15 @@ export const router = createBrowserRouter([
         children: [
           { path: "/", element: <HomeRoute /> },
           ...LEGACY_PAGE_PATHS.map((path) => ({ path, element: <LegacyRouteRedirect /> })),
-          // Load the Painter's landing page only when opened.
           { path: "/canvas", lazy: async () => ({ Component: (await import("../features/landing/canvas-page")).CanvasPage }) },
           {
-            // The same index serves both views and every sort/filter choice.
-            id: EXPLORE_ROUTE_ID,
+            id: INDEX_ROUTE_ID,
             loader: atlasLoader,
             shouldRevalidate: () => false,
             element: <AtlasPage />,
             children: [
-              // The Atlas alone: the layout renders it, so this leaf draws nothing of its own.
               { path: "/index", element: <></> },
-              // A basis group in the panel over the Index (basis-group-panel.tsx); the Index stays as it was under it.
               { path: "/index/basis/:id", element: <BasisGroupPanel home="/index" /> },
-              // A basis group's own address (a shared link) opens its panel over the Index: every block view is a panel.
               { path: "/basis/:id", element: <BasisGroupPanel home="/index" /> },
             ],
           },
@@ -91,7 +81,6 @@ export const router = createBrowserRouter([
           },
           {
             path: "/create",
-            // The editor and its canvas load only when a visitor opens Create; a basis group opens in its panel over it.
             lazy: async () => {
               const { CreatePage } = await import("../features/editor/create-page");
               return {
@@ -104,41 +93,32 @@ export const router = createBrowserRouter([
             },
             children: [{ index: true, element: <></> }, { path: "basis/:id", element: <BasisGroupPanel home="/create" /> }],
           },
-          // The gallery of every basis group and its automata (features/automata/); the address's query names
-          // the group and the automaton. The Canvas's pictures keep /gallery.
           {
             path: "/automata",
             element: <AutomataPage />,
-            // A basis group in the panel over Automata; the stage keeps playing under it.
             children: [{ index: true, element: <></> }, { path: "basis/:id", element: <BasisGroupPanel home="/automata" /> }],
           },
-          // Keep a legacy gallery link's entry when redirecting to the Painter.
           { path: "/gallery", loader: ({ request }: LoaderFunctionArgs) => redirect(`/canvas${new URL(request.url).search}`) },
-          // The owner's view of the Automata page: the same wall and screen over every research run (features/owner/).
-          // The Worker serves this page only after its owner check (gallery/src/admin.ts).
+          // The Cloudflare Worker gates `/admin/*` behind owner authentication (`gallery/src/admin.ts`).
           {
             path: "/admin/automata",
-            // The view runs only at that path and never inside another page's frame (features/owner/owner-placement.ts).
             lazy: async () => ({ Component: (await import("../features/owner/owner-route")).OwnerAutomataRoute }),
             children: [{ index: true, element: <></> }, { path: "basis/:id", element: <BasisGroupPanel home="/admin/automata" /> }],
           },
-          // The owner's earlier pages, the Playground's owner mode and the research page, gave way to the owner's
-          // view of the Automata page (18 November 2026): their old addresses open it.
+          // Legacy owner paths redirect to the unified owner automata view.
+          { path: "/admin", loader: () => redirect("/admin/automata") },
           { path: "/admin/materials/*", loader: () => redirect("/admin/automata") },
           { path: "/admin/research/*", loader: () => redirect("/admin/automata") },
-          // Train trains on this device; its page loads only when a visitor opens it. A basis group opens in its panel over it.
           {
             path: "/train",
             lazy: async () => ({ Component: (await import("../grow/grow-page")).GrowPage }),
             children: [{ path: "basis/:id", element: <BasisGroupPanel home="/train" /> }],
           },
-          // How it works, one screen, loaded only when a visitor opens it; a basis group opens in the panel over it.
           {
             path: "/how",
             lazy: async () => ({ Component: (await import("../features/how/how-page")).HowPage }),
             children: [{ path: "basis/:id", element: <BasisGroupPanel home="/how" /> }],
           },
-          // Redirect legacy Saved links to the saved automata.
           { path: "/saved", loader: () => redirect(YOURS_PATH) },
           { path: "*", loader: notFoundLoader },
         ],

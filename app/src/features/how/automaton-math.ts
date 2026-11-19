@@ -1,9 +1,9 @@
-// Arithmetic for the automaton diagrams; replay/figure-reference.ts defines the simulation.
+// Pixel and coordinate helpers for the automaton diagrams; replay/figure-reference.ts defines the simulation.
 import { pyramidPictureBytes, upsampleTorus } from "../../replay/figure-reference";
 import type { AutomatonGrid } from "./automaton-record";
-import { BIAS_OFFSET, CHANNELS, HIDDEN, PERCEPTION_FILTERS, PERCEPTIONS, W2_OFFSET } from "./nca-math";
+import { CHANNELS, PERCEPTION_FILTERS } from "./nca-math";
 
-/** A grid's colours as pixels: its first three channels plus 0.5, clamped, one pixel a cell. */
+/** Convert a grid's first three channels plus 0.5, clamped to [0, 1], into RGBA bytes. */
 export function gridPixels(grid: AutomatonGrid): Uint8ClampedArray<ArrayBuffer> {
   const pixels = new Uint8ClampedArray(new ArrayBuffer(grid.side * grid.side * 4));
   for (let cell = 0; cell < grid.side * grid.side; cell++) {
@@ -15,7 +15,7 @@ export function gridPixels(grid: AutomatonGrid): Uint8ClampedArray<ArrayBuffer> 
   return pixels;
 }
 
-/** The coarse grid's colours stretched to the fine grid's `side`, as the fine cells read it (the replay's upsample on the torus), plus 0.5. */
+/** Upsample the coarse grid on the torus to the fine grid's `side` and convert to RGBA bytes. */
 export function stretchedCoarsePixels(coarse: AutomatonGrid, side: number): Uint8ClampedArray<ArrayBuffer> {
   if (coarse.side * 2 !== side) throw new Error("The coarse grid has half the fine grid's side.");
   const pixels = new Uint8ClampedArray(new ArrayBuffer(side * side * 4));
@@ -30,60 +30,21 @@ export function stretchedCoarsePixels(coarse: AutomatonGrid, side: number): Uint
   return pixels;
 }
 
-/** The image a coarse + fine automaton shows: the stretched coarse grid added to the fine one, by the replay's own formula. */
+/** Combined coarse + fine RGBA image using the replay's pyramid composition. */
 export function imagePixels(fine: AutomatonGrid, coarse: AutomatonGrid): Uint8ClampedArray<ArrayBuffer> {
   return Uint8ClampedArray.from(pyramidPictureBytes(fine.state, coarse.state, fine.side));
 }
 
-export function moveAutomatonCell(cell: number, side: number, key: string): number {
-  if (key === "Home") return 0;
-  if (key === "End") return side * side - 1;
-  const offset = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -side, ArrowDown: side }[key] ?? 0;
-  return Math.max(0, Math.min(side * side - 1, cell + offset));
-}
-
-/** Mean over views of each view's squared response distance, divided by the fixed median squared. */
-export function automatonTargetLoss(meanResponses: readonly (readonly number[])[], target: readonly number[], medianNorm: number): number {
-  if (!meanResponses.length || !(medianNorm > 0)) throw new Error("The target loss requires views and a positive median response magnitude.");
-  let distance = 0;
-  for (const response of meanResponses) {
-    for (let coordinate = 0; coordinate < 3; coordinate++) distance += (response[coordinate]! - target[coordinate]!) ** 2;
-  }
-  return distance / meanResponses.length / (medianNorm * medianNorm);
-}
-
-/** The coarse rule stores W1 [96,64], b [96], and W2 [16,96]. */
-export function automatonParameter(index: number): { matrix: string; coordinate: string } {
-  if (index < BIAS_OFFSET) return { matrix: "W1", coordinate: `${Math.floor(index / PERCEPTIONS) + 1}, ${index % PERCEPTIONS + 1}` };
-  if (index < W2_OFFSET) return { matrix: "b", coordinate: String(index - BIAS_OFFSET + 1) };
-  const output = index - W2_OFFSET;
-  return { matrix: "W2", coordinate: `${Math.floor(output / HIDDEN) + 1}, ${output % HIDDEN + 1}` };
-}
-
-export function largestAbsoluteCoordinate(values: ArrayLike<number>): number {
-  let largest = 0;
-  for (let index = 1; index < values.length; index++) if (Math.abs(values[index]!) > Math.abs(values[largest]!)) largest = index;
-  return largest;
-}
-
-/** The comparison has 16 × 16 patches; its 256-pixel resize preserves the 128-cell locations. */
+/** Center cell index inside a `side x side` grid corresponding to a patch on the 16 x 16 grid. */
 export function automatonCellAtPatch(patch: number, side: number): number {
   const cellsPerPatch = side / 16;
   return (Math.floor(patch / 16) * cellsPerPatch + Math.floor(cellsPerPatch / 2)) * side
     + (patch % 16) * cellsPerPatch + Math.floor(cellsPerPatch / 2);
 }
 
-export function automatonPatchAtCell(cell: number, side: number): number {
-  const cellsPerPatch = side / 16;
-  return Math.floor(Math.floor(cell / side) / cellsPerPatch) * 16 + Math.floor((cell % side) / cellsPerPatch);
-}
-
 /**
- * The grid through each of the four detectors (nca-math.ts, PERCEPTION_FILTERS), as RGBA pictures
- * of its three colour channels: the value is the grid itself; each change detector's picture
- * is its response on the torus, divided by the filter's divisor, then stretched so the largest
- * magnitude in the picture is full white or full black about mid-grey. The rule applies the
- * same four detectors to all 16 channels; the pictures show the three a reader can see.
+ * Convolve the grid's three color channels with each perception detector on the torus.
+ * Identity returns the grid image; derivative detectors are normalized symmetrically around mid-grey.
  */
 export function detectorPictures(grid: AutomatonGrid): Uint8ClampedArray<ArrayBuffer>[] {
   const { state, side } = grid;
