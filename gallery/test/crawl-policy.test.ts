@@ -10,15 +10,28 @@ interface CrawlRule {
   path: string;
 }
 
-function rulesOf(file: URL): CrawlRule[] {
-  const rules: CrawlRule[] = [];
+/**
+ * The rules a crawler named `agent` obeys: those of the group that names it, or of the `*` group when none does
+ * (RFC 9309). A group is one or more User-agent lines followed by its rules.
+ */
+function rulesOf(file: URL, agent = "*"): CrawlRule[] {
+  const groups: { agents: string[]; rules: CrawlRule[] }[] = [];
+  let open = false;
   for (const line of readFileSync(file, "utf8").split("\n")) {
     const [field, ...rest] = line.replace(/#.*/, "").split(":");
     const value = rest.join(":").trim();
     const name = field!.trim().toLowerCase();
-    if (name === "allow" || name === "disallow") rules.push({ allow: name === "allow", path: value });
+    if (name === "user-agent") {
+      if (!open) groups.push({ agents: [], rules: [] });
+      groups.at(-1)!.agents.push(value.toLowerCase());
+      open = true;
+    } else if (name === "allow" || name === "disallow") {
+      groups.at(-1)!.rules.push({ allow: name === "allow", path: value });
+      open = false;
+    }
   }
-  return rules;
+  const own = groups.find((group) => group.agents.includes(agent.toLowerCase()));
+  return (own ?? groups.find((group) => group.agents.includes("*")))?.rules ?? [];
 }
 
 function pathPattern(path: string): RegExp {
@@ -55,6 +68,25 @@ describe("the site's crawl policy", () => {
       "/admin", "/admin/automata",
     ];
     for (const address of refused) expect(crawlable(rules, address), address).toBe(false);
+  });
+
+  test("lets the link-preview readers of X and LinkedIn read shared panel and automaton links, not the owner pages", () => {
+    for (const agent of ["Twitterbot", "LinkedInBot"]) {
+      const preview = rulesOf(new URL("../../app/public/robots.txt", import.meta.url), agent);
+      for (const address of ["/automata?group=12002&material=x", "/basis/4009", "/index/basis/4009", "/"]) {
+        expect(crawlable(preview, address), `${agent} ${address}`).toBe(true);
+      }
+      expect(crawlable(preview, "/admin"), agent).toBe(false);
+    }
+  });
+
+  test("names a sitemap whose pages are all crawlable", () => {
+    const policy = readFileSync(new URL("../../app/public/robots.txt", import.meta.url), "utf8");
+    expect(policy).toMatch(/^Sitemap: https:\/\/dinodreamer\.computervision\.vision\/sitemap\.xml$/m);
+    const sitemap = readFileSync(new URL("../../app/public/sitemap.xml", import.meta.url), "utf8");
+    const pages = [...sitemap.matchAll(/<loc>https:\/\/dinodreamer\.computervision\.vision(\/[^<]*)<\/loc>/g)].map((match) => match[1]!);
+    expect(pages).toEqual(["/", "/index", "/automata", "/train", "/how"]);
+    for (const page of pages) expect(crawlable(rules, page), page).toBe(true);
   });
 });
 

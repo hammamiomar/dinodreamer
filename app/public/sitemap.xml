@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The site's top pages. The basis-group panels stay out of crawls (robots.txt). -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://dinodreamer.computervision.vision/</loc></url>
+  <url><loc>https://dinodreamer.computervision.vision/index</loc></url>
+  <url><loc>https://dinodreamer.computervision.vision/automata</loc></url>
+  <url><loc>https://dinodreamer.computervision.vision/train</loc></url>
+  <url><loc>https://dinodreamer.computervision.vision/how</loc></url>
+</urlset>
