@@ -1,13 +1,10 @@
 import { execFileSync, spawn } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
-import { availableParallelism } from "node:os";
 import { resolve as resolvePath } from "node:path";
 import { unitProjects } from "./test-shards.mjs";
 
 const root = resolvePath(import.meta.dirname, "..");
-const plan = JSON.parse(readFileSync(process.argv[2], "utf8"));
-const shards = plan.jobs.filter((job) => job.kind === "unit");
-const workers = Math.max(1, Math.min(2, Math.floor(availableParallelism() / Math.max(1, shards.length))));
+const plan = JSON.parse(process.env.VALIDATION);
 
 function run(name, executable, args, env = {}) {
   const start = performance.now();
@@ -30,30 +27,24 @@ for (const project of unitProjects) {
   if (compiler !== locked.version) throw new Error(project + " requires TypeScript " + locked.version);
 }
 
-const checks = [
-  run("lint", "pnpm", ["--dir", "ci", "lint"]),
-  run("bundle", "pnpm", ["--dir", "app", "exec", "vite", "build"]),
-  ...unitProjects.map((project) =>
-    run(project + " types", "bun", ["check", "--no-script", "--all", "-p", project]),
-  ),
-  ...shards.map((job) =>
-    run("unit shard " + job.shard, process.execPath, ["ci/run-test-shard.mjs"], {
-      TEST_SHARD: JSON.stringify(job),
-      CI_UNIT_WORKERS: String(workers),
-    }),
-  ),
-];
+async function compileWeb() {
+  for (const project of unitProjects) {
+    await run(project + " types", "bun", ["check", "--no-script", "--all", "-p", project]);
+  }
+  await run("bundle", "pnpm", ["--dir", "app", "exec", "vite", "build"]);
+}
+
+await Promise.all([run("lint", "pnpm", ["--dir", "ci", "lint"]), compileWeb()]);
 if (plan.engineNode) {
   const files = readdirSync(resolvePath(root, "engine/tests")).filter((name) => name.endsWith(".test.ts"));
-  checks.push(
-    run("engine Node tests", process.execPath, ["--test", ...files.map((name) => "engine/tests/" + name)]),
-  );
+  await run("engine Node tests", process.execPath, [
+    "--test",
+    ...files.map((name) => "engine/tests/" + name),
+  ]);
 }
-if (plan.planner) checks.push(run("planner tests", process.execPath, ["--test", "ci/test-plan.test.mjs"]));
-const results = await Promise.allSettled(checks);
-const failures = results.filter((result) => result.status === "rejected");
-if (failures.length)
-  throw new AggregateError(
-    failures.map((result) => result.reason),
-    "Web checks failed",
-  );
+if (plan.planner) await run("planner tests", process.execPath, ["--test", "ci/test-plan.test.mjs"]);
+for (const job of plan.jobs) {
+  await run("unit shard " + job.shard, process.execPath, ["ci/run-test-shard.mjs"], {
+    TEST_SHARD: JSON.stringify(job),
+  });
+}

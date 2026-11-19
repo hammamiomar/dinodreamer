@@ -14,15 +14,55 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  web:
+  plan:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
     outputs:
-      browsers: ${{ steps.tests.outputs.browsers }}
+      matrix: ${{ steps.tests.outputs.matrix }}
+      tests: ${{ steps.tests.outputs.tests }}
+      validation: ${{ steps.tests.outputs.validation }}
+      inline-unit: ${{ steps.tests.outputs.inlineUnit }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/web-dependencies
+      - name: Restore durations recorded on main
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/test-durations
+          key: test-durations-v1-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: test-durations-v1-${{ runner.os }}-
+      - name: Select affected tests and balance their durations
+        id: tests
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          CI_PREVIOUS_DURATIONS: ${{ runner.temp }}/test-durations
+        run: node ci/test-plan.mjs "${BASE:---all}"
+      - name: Scan added commit lines for credentials
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          range="$BASE..$HEAD"
+          if [[ "$BASE" == 0000000000000000000000000000000000000000 ]]; then range="$HEAD"; fi
+          node gallery/scan-commits-for-credentials.ts . "$range"
+      - name: Enforce the tracked file size limit
+        run: |
+          node --input-type=module <<'JS'
+          import { execFileSync } from 'node:child_process';
+          import { statSync } from 'node:fs';
+          const files = execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' }).split('\0').filter(Boolean);
+          const large = files.filter(file => statSync(file).size >= 1_000_000);
+          if (large.length) throw new Error(`Tracked files must be below 1,000,000 bytes: ${large.join(', ')}`);
+          JS
+
+  engine:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
           persist-credentials: false
       - name: Read the engine build version
         id: engine-version
@@ -62,53 +102,38 @@ jobs:
           name: engine-package
           path: engine/pkg/
           retention-days: 14
+
+  quality:
+    name: Web validation
+    needs: [plan, engine]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/web-dependencies
         with:
           lint-tools: 'true'
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: engine-package
+          path: engine/pkg/
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: 1.4.4
-      - name: Restore durations recorded on main
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ runner.temp }}/test-durations
-          key: test-durations-v1-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: test-durations-v1-${{ runner.os }}-
-      - name: Select and balance tests
-        id: tests
+      - name: Lint, type-check, bundle and run planned checks
         env:
-          BASE: ${{ github.event.pull_request.base.sha }}
-          CI_PREVIOUS_DURATIONS: ${{ runner.temp }}/test-durations
-        run: node ci/test-plan.mjs "${BASE:---all}" > "$RUNNER_TEMP/test-plan.json"
-      - name: Check types, lint, bundle and run selected unit shards
-        env:
-          CI_RECORD_DURATIONS: ${{ github.event_name == 'push' && format('{0}/measured-unit-tests', runner.temp) || '' }}
-        run: node ci/check-web.mjs "$RUNNER_TEMP/test-plan.json"
-      - name: Save measured unit durations
-        if: github.event_name == 'push'
+          VALIDATION: ${{ needs.plan.outputs.validation }}
+          CI_RECORD_DURATIONS: ${{ github.event_name == 'push' && format('{0}/unit-durations', runner.temp) || '' }}
+        run: node ci/check-web.mjs
+      - name: Record unit durations
+        if: github.event_name == 'push' && needs.plan.outputs.inline-unit == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: test-durations-unit
-          path: ${{ runner.temp }}/measured-unit-tests/*.json
+          name: test-durations-inline
+          path: ${{ runner.temp }}/unit-durations/*.json
           if-no-files-found: error
           retention-days: 1
-      - name: Scan added commit lines for credentials
-        env:
-          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
-          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: |
-          range="$BASE..$HEAD"
-          if [[ "$BASE" == 0000000000000000000000000000000000000000 ]]; then range="$HEAD"; fi
-          node gallery/scan-commits-for-credentials.ts . "$range"
-      - name: Enforce the tracked file size limit
-        run: |
-          node --input-type=module <<'JS'
-          import { execFileSync } from 'node:child_process';
-          import { statSync } from 'node:fs';
-          const files = execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' }).split('\0').filter(Boolean);
-          const large = files.filter(file => statSync(file).size >= 1_000_000);
-          if (large.length) throw new Error(`Tracked files must be below 1,000,000 bytes: ${large.join(', ')}`);
-          JS
 
   cargo:
     name: Engine tests
@@ -137,16 +162,17 @@ jobs:
         working-directory: engine
         run: cargo "+$NATIVE_RUST" test --locked --no-default-features --features cpu
 
-  browsers:
-    name: Browser tests ${{ matrix.shard }}
-    needs: web
-    if: github.event_name == 'push'
+  tests:
+    name: ${{ matrix.kind }} tests ${{ matrix.shard }}
+    needs: [plan, engine]
+    if: needs.plan.outputs.tests == 'true'
     runs-on: ubuntu-24.04
-    container: mcr.microsoft.com/playwright:v1.64.1-noble-amd64@sha256:ee15712262f017b8157421b212b12099146645f44b1bc5c0514cbbe6a229b1d0
+    # The official image contains the locked browsers and their Linux system libraries.
+    container: ${{ matrix.kind == 'browser' && 'mcr.microsoft.com/playwright:v1.64.1-noble-amd64@sha256:ee15712262f017b8157421b212b12099146645f44b1bc5c0514cbbe6a229b1d0' || '' }}
     timeout-minutes: 10
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.web.outputs.browsers) }}
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -159,10 +185,11 @@ jobs:
       - name: Run selected files
         env:
           TEST_SHARD: ${{ toJSON(matrix) }}
-          CI_RECORD_DURATIONS: ${{ runner.temp }}/test-durations
+          CI_RECORD_DURATIONS: ${{ github.event_name == 'push' && format('{0}/test-durations', runner.temp) || '' }}
         run: node ci/run-test-shard.mjs
 
-      - name: Save measured browser durations
+      - name: Save main's measured shard durations
+        if: github.event_name == 'push'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: test-durations-${{ matrix.kind }}-${{ matrix.shard }}
@@ -171,7 +198,7 @@ jobs:
           retention-days: 1
 
   durations:
-    needs: [web, browsers]
+    needs: [quality, tests]
     if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     steps:
@@ -187,22 +214,21 @@ jobs:
 
   check:
     if: always()
-    needs: [web, cargo, browsers]
+    needs: [plan, engine, quality, cargo, tests]
     runs-on: ubuntu-24.04
     steps:
       - name: Require all scheduled jobs to pass
         env:
-          WEB: ${{ needs.web.result }}
-          ENGINE: ${{ needs.cargo.result }}
-          BROWSERS: ${{ needs.browsers.result }}
+          RESULTS: ${{ toJSON(needs) }}
         run: |
-          test "$WEB" = success
-          test "$ENGINE" = success
-          if [[ "$GITHUB_EVENT_NAME" == push ]]; then
-            test "$BROWSERS" = success
-          else
-            test "$BROWSERS" = skipped
-          fi
+          node --input-type=module <<'JS'
+          const jobs = JSON.parse(process.env.RESULTS);
+          for (const [name, job] of Object.entries(jobs)) {
+            if (job.result === 'success') continue;
+            if (name === 'tests' && job.result === 'skipped' && jobs.plan.outputs.tests === 'false') continue;
+            throw new Error(name + ' ended with ' + job.result);
+          }
+          JS
 
   preview:
     name: Preview (optional)

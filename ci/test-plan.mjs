@@ -125,11 +125,31 @@ export default async function planTests(diff) {
   };
 }
 
+// A single unit shard reuses the validation runner. Large suites get one runner per
+// timed shard, so a CPU-bound test does not compete with the linter or another shard.
+export function scheduleJobs(plan) {
+  const units = plan.jobs.filter((job) => job.kind === "unit");
+  const inline = units.length === 1 ? units : [];
+  const matrix = plan.jobs.filter((job) => !inline.includes(job));
+  return { matrix, validation: { jobs: inline, planner: plan.planner, engineNode: plan.engineNode } };
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const plan = await planTests(readDiff(process.argv[2]));
   console.log(JSON.stringify(plan, null, 2));
   if (process.env.GITHUB_OUTPUT) {
-    const include = plan.jobs.filter((job) => job.kind === "browser");
-    appendFileSync(process.env.GITHUB_OUTPUT, "browsers=" + JSON.stringify({ include }) + "\n");
+    const { matrix, validation } = scheduleJobs(plan);
+    const fields = {
+      matrix: JSON.stringify({ include: matrix }),
+      tests: matrix.length > 0,
+      validation: JSON.stringify(validation),
+      inlineUnit: validation.jobs.length > 0,
+    };
+    appendFileSync(
+      process.env.GITHUB_OUTPUT,
+      Object.entries(fields)
+        .map(([name, value]) => name + "=" + value + "\n")
+        .join(""),
+    );
   }
 }

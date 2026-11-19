@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readdirSync } from "node:fs";
 import { test } from "node:test";
-import planTests from "./test-plan.mjs";
+import planTests, { scheduleJobs } from "./test-plan.mjs";
 import { balance, unitShards } from "./test-shards.mjs";
 
 const changed = (file) => [{ status: "M", file }];
@@ -55,7 +55,10 @@ test("main runs every browser viewport and broad PR changes run every unit test"
     changed(".github/workflows/check.yml"),
   ]) {
     const plan = await planTests(changes);
-    assert.deepEqual(filesOf(plan).sort(), all.filter((file) => file.endsWith(".test.ts")));
+    assert.deepEqual(
+      filesOf(plan).sort(),
+      all.filter((file) => file.endsWith(".test.ts")),
+    );
     assert(plan.cargo);
   }
 });
@@ -95,4 +98,13 @@ test("large unit suites give each project its own jobs and keep small PRs togeth
   assert.deepEqual(shards.flatMap(({ files }) => files).sort(), [...app, ...gallery].sort());
   assert(shards.every(({ files }) => files.every((file) => file.split("/")[0] === files[0].split("/")[0])));
   assert.equal(unitShards([app[0], gallery[0]], {}).length, 1);
+});
+
+test("small selections share validation while larger unit shards keep separate runners", async () => {
+  const small = await planTests(changed("gallery/test/publish-library-folder.test.ts"));
+  assert.deepEqual(scheduleJobs(small).validation.jobs, small.jobs);
+  assert.deepEqual(scheduleJobs(small).matrix, []);
+  const large = await planTests(changed(".github/workflows/check.yml"));
+  assert.deepEqual(scheduleJobs(large).validation.jobs, []);
+  assert.deepEqual(scheduleJobs(large).matrix, large.jobs);
 });
