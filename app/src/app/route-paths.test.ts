@@ -20,7 +20,20 @@ describe("canonical page paths", () => {
     expect(canonicalPathname(current)).toBe(current);
   });
 
-  it.each(["/", "/growth", "/blockade/1", "/explorer", "/api/materials/block-7178", "/assets/grow.js"])(
+  it.each([
+    ["/ADMIN/automata", "/admin/automata"],
+    ["/Admin/Automata", "/admin/Automata"],
+    ["/%61dmin/automata", "/admin/automata"],
+    ["/%41DMIN", "/admin"],
+    ["/admin%2Fautomata", "/admin/automata"],
+    ["/ADMIN/api/materials/approve", "/admin/api/materials/approve"],
+    ["/ADMIN/materials/block/7178", "/admin/materials/basis/7178"],
+  ])("spells the owner's segment %s as the Worker serves it: %s", (previous, current) => {
+    expect(canonicalPathname(previous)).toBe(current);
+    expect(canonicalPathname(current)).toBe(current);
+  });
+
+  it.each(["/", "/growth", "/blockade/1", "/explorer", "/api/materials/block-7178", "/assets/grow.js", "/admin", "/admin/automata", "/administrator", "/%E0%A4", "/x/ADMIN"])(
     "preserves unrelated path %s",
     (pathname) => expect(canonicalPathname(pathname)).toBe(pathname),
   );

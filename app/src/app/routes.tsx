@@ -118,7 +118,8 @@ export const router = createBrowserRouter([
           // The Worker serves this page only after its owner check (gallery/src/admin.ts).
           {
             path: "/admin/automata",
-            lazy: async () => ({ Component: (await import("../features/owner/owner-automata-page")).OwnerAutomataPage }),
+            // The view runs only at that path and never inside another page's frame (features/owner/owner-placement.ts).
+            lazy: async () => ({ Component: (await import("../features/owner/owner-route")).OwnerAutomataRoute }),
             children: [{ index: true, element: <></> }, { path: "basis/:id", element: <BasisGroupPanel home="/admin/automata" /> }],
           },
           // The owner's earlier pages, the Playground's owner mode and the research page, gave way to the owner's
