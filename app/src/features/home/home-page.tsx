@@ -23,7 +23,7 @@ import { HOW_PICTURE } from "../how/how-source";
 import { usePrefersReducedMotion } from "../landing/motion";
 import type { HomeStill } from "./home-material-view";
 import { HomePanel, type Shown } from "./home-panel";
-import { BEAT_PLAY_MS, HOME_BEATS, NARROW_PANEL_SHARE, readingLine, sectionAt, type HomeBeat } from "./home-scroll";
+import { approachedBeats, BEAT_PLAY_MS, HOME_BEATS, NARROW_PANEL_SHARE, readingLine, sectionAt, type HomeBeat } from "./home-scroll";
 import { ResetMark } from "../../ui/reset-mark";
 import "./home.css";
 
@@ -92,8 +92,14 @@ export function HomePage() {
   const still: HomeStill = !("gpu" in navigator) || noReplay ? "no-webgpu" : reducedMotion ? "reduced-motion" : null;
   // The thread's automaton, basis group 4009's, which the beats tell and the end runs.
   const threadEntry = index.status === "ready" ? index.index.entries.find((candidate) => candidate.id === HOW_AUTOMATON) ?? null : null;
-  const threadMaterial = usePublishedMaterial(still ? null : threadEntry);
-  const recordedState = useLoaded(still === null, () => still ? null : loadAutomatonState());
+  // The furthest section the reader has reached, and whether the page has scrolled at all. The end's
+  // automaton, its recorded grids and the training strip load only as the reader approaches their
+  // sections (home-scroll.ts, approachedBeats): about 1 MB that a visitor who stays on the entrance never needs.
+  const [reached, setReached] = useState({ furthest: 0, scrolled: false });
+  const approached = approachedBeats(reached.furthest, reached.scrolled);
+  const threadMaterial = usePublishedMaterial(still || !approached.end ? null : threadEntry);
+  const endLoads = still === null && approached.end;
+  const recordedState = useLoaded(endLoads, () => (endLoads ? loadAutomatonState() : null));
   // The entrance's automaton: one of the featured pool that met its selection target, drawn per visit,
   // the arrows turning to the next or the previous.
   const pool = useMemo(() => (index.status === "ready" ? featuredMaterials(index.index.entries).filter((candidate) => candidate.fired) : []), [index]);
@@ -114,8 +120,15 @@ export function HomePage() {
       const tops = sections.current.flatMap((element) => (element ? [element.getBoundingClientRect().top + window.scrollY] : []));
       if (tops.length === 0) return;
       const line = readingLine(window.innerHeight, narrow ? NARROW_PANEL_SHARE : 0);
-      const next = { beat: HOME_BEATS[sectionAt(tops, window.scrollY, line)] ?? "entrance", scrolled: window.scrollY > 0 };
+      const at = sectionAt(tops, window.scrollY, line);
+      const next = { beat: HOME_BEATS[at] ?? "entrance", scrolled: window.scrollY > 0 };
       setPlace((previous) => (previous.beat === next.beat && previous.scrolled === next.scrolled ? previous : next));
+      // Reached sections stay reached, so a figure that has loaded is not dropped on the way back up.
+      setReached((previous) => {
+        const furthest = Math.max(previous.furthest, at);
+        const scrolled = previous.scrolled || next.scrolled;
+        return furthest === previous.furthest && scrolled === previous.scrolled ? previous : { furthest, scrolled };
+      });
     };
     read();
     window.addEventListener("scroll", read, { passive: true });
@@ -159,6 +172,7 @@ export function HomePage() {
         story={story.status === "ready" ? story.value : null}
         cloud={cloud.status === "ready" ? cloud.value : null}
         onNoReplay={replayFailed}
+        approached={approached}
       />
       <div className="home-words">
         <section ref={section(0)} className="home-entrance">

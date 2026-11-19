@@ -75,10 +75,14 @@ export interface LibraryLocation {
 
 type Fetch = typeof fetch;
 
-/** Reads the release manifest, then returns a client for that release's library. */
+/**
+ * Reads the release manifest, then returns a client for that release's library. The manifest is the one
+ * library object rewritten under its name (a later table adds a field), so the browser revalidates it on
+ * every read, whatever lifetime the CDN gives it; the engine workers read it the same way (synthesis/assets.ts).
+ */
 export async function openLibrary(location: LibraryLocation, fetcher: Fetch = fetch): Promise<Library> {
   const url = `${location.baseUrl}/releases/${location.release}.json`;
-  const release = await readFile(fetcher, url, "json", decodeRelease);
+  const release = await readFile(fetcher, url, "json", decodeRelease, { cache: "no-cache" });
   if (release.name !== location.release) {
     throw new LibraryReadError(url, null, `${url} describes release ${release.name}, not ${location.release}`);
   }
@@ -380,7 +384,7 @@ export class Library {
   private read<T>(url: string, kind: "json", decode: (value: unknown) => T): Promise<T>;
   private read<T>(url: string, kind: "bytes", decode: (value: ArrayBuffer) => T, priority?: RequestPriority): Promise<T>;
   private read<T>(url: string, kind: "json" | "bytes", decode: (value: never) => T, priority?: RequestPriority): Promise<T> {
-    return this.remember(url, () => readFile(this.fetcher, url, kind, decode, priority));
+    return this.remember(url, () => readFile(this.fetcher, url, kind, decode, priority ? { priority } : undefined));
   }
 
   /** The decoded file under `key`, loaded once; a failed load is forgotten so the next call retries. */
@@ -452,10 +456,10 @@ async function readRange(fetcher: Fetch, url: string, start: number, length: num
   }
 }
 
-async function readFile<T>(fetcher: Fetch, url: string, kind: "json" | "bytes", decode: (value: never) => T, priority?: RequestPriority): Promise<T> {
+async function readFile<T>(fetcher: Fetch, url: string, kind: "json" | "bytes", decode: (value: never) => T, init?: RequestInit): Promise<T> {
   let response: Response;
   try {
-    response = priority ? await fetcher(url, { priority }) : await fetcher(url);
+    response = init ? await fetcher(url, init) : await fetcher(url);
   } catch (error) {
     throw new LibraryReadError(url, null, `could not reach ${url}: ${errorMessage(error)}`);
   }
