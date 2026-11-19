@@ -71,13 +71,12 @@ pub fn sample(image_1CHW: Tensor<4>, matrix: [f32; 4], shift: [i32; 2]) -> Tenso
 #[cfg(all(test, feature = "gpu"))]
 mod tests {
     use super::*;
-    use burn::tensor::Device;
 
     /// On the GPU: the view's resample runs a GPU-only kernel (kernels::resample).
     #[test]
     #[ignore = "requires a GPU adapter"]
     fn an_unrotated_unscaled_view_is_the_torus_roll() {
-        let device = Device::default().autodiff();
+        let device = crate::test_gpu_device().autodiff();
         let side = 4;
         let values: Vec<f32> = (0..3 * side * side).map(|value| value as f32).collect();
         let image_1CHW = Tensor::<4>::from_data(TensorData::new(values.clone(), [1, 3, side, side]), &device);

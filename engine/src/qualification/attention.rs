@@ -131,7 +131,7 @@ mod tests {
     #[test]
     #[ignore = "requires a GPU adapter"]
     fn attention_outputs_and_input_gradients() {
-        let device = burn::tensor::Device::wgpu_options().init().unwrap().autodiff();
+        let device = crate::test_gpu_device().autodiff();
         let checks = pollster::block_on(super::check_attention(&device)).unwrap();
         for check in checks {
             assert!(check.passed, "{check:?}");

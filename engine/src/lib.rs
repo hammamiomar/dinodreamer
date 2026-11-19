@@ -24,3 +24,12 @@ pub mod kernels;
 #[cfg(target_arch = "wasm32")]
 mod web;
 
+/// The wgpu device of the GPU unit tests. Burn initializes a wgpu runtime once per process and
+/// refuses a second `init`, so every GPU test takes a clone of this one device.
+#[cfg(all(test, feature = "gpu"))]
+pub(crate) fn test_gpu_device() -> burn::tensor::Device {
+    static DEVICE: std::sync::OnceLock<burn::tensor::Device> = std::sync::OnceLock::new();
+    DEVICE
+        .get_or_init(|| burn::tensor::Device::wgpu_options().init().expect("a GPU adapter"))
+        .clone()
+}
