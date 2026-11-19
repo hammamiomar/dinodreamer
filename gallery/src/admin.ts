@@ -73,9 +73,15 @@ export async function ownerRequest(request: Request, env: OwnerEnv, fetcher: typ
   if (OWNER_APP_PAGE.test(pathname)) {
     return request.method === "GET" ? appPage(request, env) : jsonResponse({ error: "use GET" }, 405, { allow: "GET" });
   }
-  if (request.method === "GET") return ownerGet(pathname, env, owner.owner);
-  if (request.method === "POST") return ownerPost(request, pathname, env, now);
-  return jsonResponse({ error: "use GET or POST" }, 405, { allow: "GET, POST" });
+  try {
+    if (request.method === "GET") return await ownerGet(pathname, env, owner.owner);
+    if (request.method === "POST") return await ownerPost(request, pathname, env, now);
+    return jsonResponse({ error: "use GET or POST" }, 405, { allow: "GET, POST" });
+  } catch (error) {
+    if (error instanceof ConflictError) return jsonResponse({ error: error.message }, 409);
+    console.error(`Owner API ${request.method} ${pathname} failed`, error);
+    return jsonResponse({ error: "internal server error" }, 500);
+  }
 }
 
 /** Owner views rendered by the app router: the Automata view and its basis group panel. */
@@ -225,17 +231,8 @@ function materialPost(action: string, id: unknown, env: OwnerEnv, now: Date): Pr
   });
 }
 
-/**
- * Run one review operation. Expected domain state conflicts return 409 with their message;
- * unexpected storage or runtime errors return 500.
- */
 async function run(operation: () => Promise<unknown>): Promise<Response> {
-  try {
-    return jsonResponse(await operation());
-  } catch (error) {
-    if (error instanceof ConflictError) return jsonResponse({ error: error.message }, 409);
-    return jsonResponse({ error: "internal server error" }, 500);
-  }
+  return jsonResponse(await operation());
 }
 
 function textPage(text: string, status: number): Response {
