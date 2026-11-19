@@ -4,8 +4,9 @@
 //
 //   GITHUB_REPOSITORY=owner/name GITHUB_SHA=<commit> GH_TOKEN=<token> node ci/require-green-main.mjs
 
-import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
+import { setTimeout as sleep } from "node:timers/promises";
+import { pathToFileURL } from "node:url";
 
 /** How long a release waits for main's check of its commit. A full check takes about five minutes. */
 const LONGEST_WAIT_MS = 20 * 60_000;
@@ -16,7 +17,7 @@ const POLL_MS = 30_000;
  * comparison of main with the commit ("identical" or "behind" when main holds it); `run` is the latest push run of
  * check.yml on main for the commit, or undefined before it starts.
  */
-export function verdict(onMain, run) {
+export default function verdict(onMain, run) {
   if (!["identical", "behind"].includes(onMain)) return { stop: "the tagged commit is not on main; tag a commit on main" };
   if (run === undefined || run.status !== "completed") return { wait: run === undefined ? "has not started" : `is ${run.status}` };
   if (run.conclusion === "success") return { deploy: true };
@@ -45,7 +46,7 @@ async function main() {
     if (answer.stop) throw new Error(`Nothing was deployed: ${answer.stop}.`);
     if (Date.now() > deadline) throw new Error(`Nothing was deployed: main's check of ${sha} ${answer.wait} after ${LONGEST_WAIT_MS / 60_000} minutes.`);
     console.log(`main's check of ${sha} ${answer.wait}; waiting`);
-    await new Promise((settle) => setTimeout(settle, POLL_MS));
+    await sleep(POLL_MS);
   }
 }
 
