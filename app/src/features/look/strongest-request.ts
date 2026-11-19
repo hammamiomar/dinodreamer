@@ -39,8 +39,8 @@ export function bandRequest(cloud: BlockCloud, strength: StrengthCuts, band: Ban
   });
 }
 
-/** The Grow page for a block, keeping the explicit engine choice of the current address. */
-export function growPath(block: number, search: string): string {
+/** Link to the Train page for a basis group, preserving an explicit fake-engine query parameter. */
+export function trainPath(block: number, search: string): string {
   const engine = new URLSearchParams(search).get("engine");
   return `/train?block=${block}${engine === "fake" ? "&engine=fake" : ""}`;
 }

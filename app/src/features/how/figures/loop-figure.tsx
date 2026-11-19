@@ -10,7 +10,7 @@ import { useLoaded } from "../../../ui/use-loaded";
 import { useMaterialIndex, usePublishedMaterial } from "../../gallery/material-gallery";
 import { materialsOfBlock } from "../../gallery/material-index";
 import { HomeMaterial, type HomeStill } from "../../home/home-material-view";
-import { usePrefersReducedMotion } from "../../landing/motion";
+import { usePrefersReducedMotion } from "../../../ui/tween";
 import { BAND_NAMES, STRENGTH_BANDS } from "../../look/strength-bands";
 import { PictureWithPatches } from "../how-figures";
 import { tokenName } from "../how-names";

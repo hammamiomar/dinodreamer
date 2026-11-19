@@ -95,11 +95,11 @@ function folded(cells: FigureReplayState, side: number): Float32Array {
 }
 
 /**
- * Two grids from one, with the same picture: the coarse grid is the mean of each 2 × 2 fine cells
- * (all 16 values), and its colour, upsampled, is taken out of the fine colour. A coarse grid of zeros
- * would show the same picture too, but measured on the 14 automata featured on the Automata page
- * (2026-11-18), a coarse + fine rule then often settles into one background colour instead of
- * growing its figure.
+ * Split a single grid into coarse and fine grids with the same composite image.
+ * The coarse grid takes the 2x2 block average of all 16 channels, and its upsampled RGB
+ * is subtracted from the fine grid. Starting with an all-zero coarse grid displays the same
+ * initial image, but coarse + fine rules then often collapse to a uniform background instead
+ * of growing their figure.
  */
 function split(fine_NC: Float32Array, side: number): { fine: Float32Array; coarse: Float32Array } {
   const coarse_NC = halved(fine_NC, side);
@@ -109,12 +109,9 @@ function split(fine_NC: Float32Array, side: number): { fine: Float32Array; coars
 }
 
 /**
- * The cells of an automaton with grids `from`, as an automaton with grids `to` takes them, showing
- * the same picture or nearly. Cells that fit are returned as they are. Otherwise they become one grid
- * (`folded`), are resampled by two when the sides differ (up bilinearly on the torus, which is how a
- * file at 2 px per cell draws its picture, or down by the mean of each 2 × 2, which loses detail),
- * and become two grids again where the next rule has a coarse grid (`split`). Null for sides that
- * differ by another factor: the next automaton then starts from its own start.
+ * Convert `cells` from layout `from` to layout `to` while preserving the rendered image.
+ * Returns null if grid sides differ by a factor other than 1 or 2 so the next automaton
+ * restarts from its own initial state.
  */
 export function cellsForGrids(cells: FigureReplayState, from: Grids, to: Grids): FigureReplayState | null {
   if (from.side === to.side && from.coarse === to.coarse) return cells;
@@ -125,25 +122,17 @@ export function cellsForGrids(cells: FigureReplayState, from: Grids, to: Grids):
   return to.coarse ? { tick: cells.tick, ...split(fine_NC, to.side) } : { tick: cells.tick, fine: fine_NC };
 }
 
-/**
- * A field grown from another automaton's cells reads its picture this often, in ticks (1 s at the
- * home's 60 ticks a second), to see whether the rule has left it flat.
- */
+/** Tick interval between flat-field checks on relayed automata (1 s at 60 ticks/s). */
 export const FLAT_CHECK_EVERY_TICKS = 60;
 
 /**
- * A picture whose spread is below this is flat: one colour to the eye (the essay's bound, about 5
- * levels of 255). Measured on 2026-11-18 over the 306 turns between the entrance's 18 automata, each
- * 600 ticks after the last one's start: the 7 turns that end flat (all into 2632) fall below it and
- * restart 120 to 900 ticks after the turn; none of the 299 that regrow stay below it at two checks.
- * Some flat fields creep upward by 0.001 in 10 s, so the rule does not ask for a falling spread.
+ * Mean per-channel RGB standard deviation below which a field appears uniform (~5 of 255 levels).
+ * Flat fields can drift slightly upward, so detection compares directly against this bound instead
+ * of requiring a strictly decreasing spread.
  */
 const FLAT_BELOW = 0.02;
 
-/**
- * The spread of a picture of RGBA bytes: the standard deviation of each colour channel over the
- * pixels, on a scale of 0 to 1, averaged over the three channels.
- */
+/** Mean per-channel standard deviation over RGBA pixel bytes, normalized to [0, 1]. */
 export function pictureSpread(pixels_N4: Uint8ClampedArray): number {
   const count = pixels_N4.length / 4;
   let spread = 0;
@@ -161,21 +150,14 @@ export function pictureSpread(pixels_N4: Uint8ClampedArray): number {
   return spread / COLOUR_CHANNELS;
 }
 
-/**
- * Whether a field grown from another automaton's cells starts again from its own automaton's start:
- * its picture was flat at two checks in a row, as in the essay. A rule can fail to grow from another
- * rule's cells and leave one colour; one flat reading is not enough, since a field can be one colour
- * for a moment while it changes. `spreadBefore` is null at the first check.
- */
+/** Restart from the automaton's own initial state after two consecutive flat-field readings. */
 export function startsAgain(spreadBefore: number | null, spreadNow: number): boolean {
   return spreadBefore !== null && spreadBefore < FLAT_BELOW && spreadNow < FLAT_BELOW;
 }
 
 /**
- * The automaton the entrance runs, from the visitor's choice, the state of its file and the automaton
- * the field runs now: the choice once its file is ready; the running automaton while the choice's
- * file loads, so that its cells go to the choice's rule when the file is ready; else the choice
- * alone, with no file (none loaded yet, a still, a failed read), so the field shows its poster.
+ * Select the automaton displayed on the entrance: use `choice` once loaded, keep `running` while
+ * the next file downloads so cells relay smoothly, or fall back to the `choice` poster.
  */
 export function entranceAutomaton(choice: MaterialEntry | null, file: Loaded<FigureMaterial>, running: Shown | null): Shown | null {
   if (!choice) return null;

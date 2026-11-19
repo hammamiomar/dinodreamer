@@ -6,7 +6,7 @@ import { useUploadedPicture } from "../../app/uploaded-picture";
 import { useLoaded } from "../../ui/use-loaded";
 import { PATCH_SLOT_OFFSET } from "../../recipe";
 import { ResponseOverlay, ResponseView, usePictureShown } from "../../ui/responses";
-import { explorePath } from "../atlas/atlas-position";
+import { indexPath } from "../atlas/atlas-position";
 import { BasisGroupLink } from "./basis-group-panel";
 import { BasisGroupLinkLabel } from "../../ui/basis-group-link-label";
 import { LOOK_TEXT } from "./look-text";
@@ -15,7 +15,7 @@ import { pictureGrowRequest } from "./grow-from-picture";
 import type { PictureBlock, PictureReadout } from "./picture-readout";
 import { BandChip } from "./strength-display";
 import { bandIndex, sampleStrengthCuts, strengthCuts } from "./strength-bands";
-import { growPath } from "./strongest-request";
+import { trainPath } from "./strongest-request";
 import "./picture.css";
 
 const text = LOOK_TEXT.picturePage;
@@ -30,7 +30,7 @@ export function UploadedPicturePage() {
     <main className="picture-page">
       <header className="picture-head">
         <div><p className="label">{text.label}</p><h1 className="heading">{upload.picture?.name ?? text.untitled}</h1></div>
-        <Link className="link-control" to={explorePath()}>{text.chooseAnother}</Link>
+        <Link className="link-control" to={indexPath()}>{text.chooseAnother}</Link>
       </header>
       {upload.picture && upload.previewUrl ? (
         <PictureContent key={upload.revision} previewUrl={upload.previewUrl} readout={upload.readout} />
@@ -38,7 +38,7 @@ export function UploadedPicturePage() {
         <div className="picture-empty">
           {upload.phase === "empty" && <p>{text.empty}</p>}
           <PictureStatus />
-          {upload.phase !== "preparing" && <Link className="button" to={explorePath()}>{text.toExplore}</Link>}
+          {upload.phase !== "preparing" && <Link className="button" to={indexPath()}>{text.toExplore}</Link>}
         </div>
       )}
       {/* A basis group opens in its panel over this page (basis-group-panel.tsx). */}
@@ -133,7 +133,7 @@ function useGrowFromPicture() {
         return;
       }
       setRequest(grow.request, upload.picture ? { name: upload.picture.name, preview: upload.picture.preview } : null);
-      navigate(growPath(entry.block, search));
+      navigate(trainPath(entry.block, search));
     } catch (error) {
       if (current === operation.current) setProblem(String(error instanceof Error ? error.message : error));
     } finally {

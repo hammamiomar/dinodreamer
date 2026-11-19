@@ -76,7 +76,7 @@ export function cloudSearch(query: CloudQuery, engine?: string | null): string {
  */
 export function visibleClouds(
   entries: readonly AtlasIndexEntry[],
-  query: CloudQuery,
+  query: Omit<CloudQuery, "page">,
   materials: ReadonlyMap<number, MaterialCount>,
   starred: ReadonlySet<number>,
   categories: ReadonlyMap<number, string>,

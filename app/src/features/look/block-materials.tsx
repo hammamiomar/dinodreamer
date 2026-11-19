@@ -6,7 +6,7 @@ import { RULE_CHOICES, START_WORDS } from "../../grow/material-kind";
 import { materialFileUrl, type MaterialIndexState } from "../gallery/material-gallery";
 import { materialsOfBlock, type MaterialEntry } from "../gallery/material-index";
 import { groupPath } from "../automata/gallery";
-import { entryKind } from "../playground/playground";
+import { entryKind } from "../automata/kind-line";
 import { LOOK_TEXT } from "./look-text";
 
 /** One row of the module grid: eight tiles at 1440 (fewer show on a phone, by CSS). */

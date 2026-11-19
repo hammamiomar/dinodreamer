@@ -8,14 +8,15 @@ import { useLibrary } from "../../../app/library-session";
 import { fill, SITE_WORDS } from "../../../app/site-words";
 import { FIRE_KEY, fires } from "../../../replay/figure-reference";
 import { AtlasCloudFigure } from "../../../ui/atlas-cloud-figure";
+import { cssColour } from "../../../ui/css-colour";
 import { ResetMark } from "../../../ui/reset-mark";
 import { Slider } from "../../../ui/slider";
+import { usePrefersReducedMotion } from "../../../ui/tween";
 import { useLoaded } from "../../../ui/use-loaded";
 import { useMaterialIndex, usePublishedMaterial } from "../../gallery/material-gallery";
 import { materialsOfBlock } from "../../gallery/material-index";
 import { HomeMaterial, type HomeStill } from "../../home/home-material-view";
 import { STORY_FOLDER } from "../training-story";
-import { usePrefersReducedMotion } from "../../landing/motion";
 import { BlockMaterials } from "../../look/block-materials";
 import { automatonCellAtPatch, detectorPictures, gridPixels, imagePixels, stretchedCoarsePixels } from "../automaton-math";
 import { loadAutomatonRecord, type AutomatonGrid, type AutomatonRecord } from "../automaton-record";
@@ -31,9 +32,11 @@ import { useSourced } from "../use-sourced";
 import { HOW_AUTOMATON, loadHowStory } from "./figure-data";
 import { FigureCaption } from "./figure-caption";
 import { FigureReadout } from "./figure-readout";
-import "../../look/look.css";
+import "../../look/block-materials.css";
 import "./figures.css";
 
+type TrainingFrame = Awaited<ReturnType<typeof loadHowStory>>["training"]["frames"][number];
+const NO_FRAMES: readonly TrainingFrame[] = [];
 const WORDS = SITE_WORDS.how.figures;
 export type AutomatonMode = "cells" | "scales" | "signal" | "updates" | "local-global" | "kinds";
 /** The patch of the grown picture the local-global section opens on: row 8, column 9, near the middle. */
@@ -65,12 +68,24 @@ export function AutomatonFigure({ mode }: { mode: AutomatonMode }) {
   );
 }
 
-/** Draw a grid in the CSS-sized canvas. The backing resolution is set by useFigureCanvas. */
+const scratchBySide = new Map<number, { canvas: OffscreenCanvas; context: OffscreenCanvasRenderingContext2D }>();
+
+function scratchFor(side: number) {
+  let entry = scratchBySide.get(side);
+  if (!entry) {
+    const canvas = new OffscreenCanvas(side, side);
+    entry = { canvas, context: canvas.getContext("2d")! };
+    scratchBySide.set(side, entry);
+  }
+  return entry;
+}
+
+/** Draw a grid into a CSS-sized canvas using a reused offscreen scratch canvas per grid side. */
 function drawPixels(context: CanvasRenderingContext2D, pixels: Uint8ClampedArray<ArrayBuffer>, side: number, size: number) {
-  const source = new OffscreenCanvas(side, side);
-  source.getContext("2d")!.putImageData(new ImageData(pixels, side, side), 0, 0);
+  const scratch = scratchFor(side);
+  scratch.context.putImageData(new ImageData(pixels, side, side), 0, 0);
   context.imageSmoothingEnabled = false;
-  context.drawImage(source, 0, 0, size, size);
+  context.drawImage(scratch.canvas, 0, 0, size, size);
 }
 
 /** Pixels in a stack layer. CSS owns its square; the observer only redraws its backing pixels. */
@@ -88,15 +103,16 @@ function PixelGrid({ pixels, side, marked, onHover, onPick, label }: {
   onPick?: (cell: number) => void;
   label: string;
 }) {
+  const ink = useMemo(() => cssColour("--ink", "#efece8"), []);
   const canvas = useFigureCanvas((context, width) => {
     drawPixels(context, pixels, side, width);
     if (marked !== null) {
       const cell = width / side;
-      context.strokeStyle = "#efece8";
+      context.strokeStyle = ink;
       context.lineWidth = 1;
       context.strokeRect((marked % side) * cell - 1.5, Math.floor(marked / side) * cell - 1.5, cell + 3, cell + 3);
     }
-  }, [pixels, side, marked]);
+  }, [pixels, side, marked, ink]);
   return (
     <canvas ref={canvas} className="how-grid" role="img" aria-label={label}
       onPointerMove={onHover && ((event) => onHover(figureCellAt(event, side)))}
@@ -271,10 +287,13 @@ function Signal({ record }: { record: AutomatonRecord }) {
       code[0]! * a2[0] + code[1]! * a2[1] + code[2]! * a2[2],
     ];
     const codes: [number, number, number][] = [];
-    for (let patch = 0; patch < 256; patch++) {
+    const calibrated_D = new Float32Array(WIDTH);
+    for (let patch = 0; patch < PATCHES; patch++) {
       const at = (PREFIX + patch) * WIDTH;
-      const calibrated = Float32Array.from({ length: WIDTH }, (_, channel) => scale * (tokens.value[at + channel]! - mean[channel]!));
-      codes.push(projectBasis(calibrated, frame.value));
+      for (let channel = 0; channel < WIDTH; channel++) {
+        calibrated_D[channel] = scale * (tokens.value[at + channel]! - mean[channel]!);
+      }
+      codes.push(projectBasis(calibrated_D, frame.value));
     }
     const average = [0, 1, 2].map((axis) => codes.reduce((sum, code) => sum + code[axis]!, 0) / codes.length);
     return {
@@ -324,14 +343,14 @@ function Signal({ record }: { record: AutomatonRecord }) {
 function Updates({ record }: { record: AutomatonRecord }) {
   const story = useLoaded("story", loadHowStory);
   const report = useReportFacts();
-  const frames = story.status === "ready" ? story.value.training.frames : [];
+  const frames = story.status === "ready" ? story.value.training.frames : NO_FRAMES;
   const [at, setAt] = useState<number | null>(null);
   const shown = at ?? Math.max(0, frames.length - 1);
   const frame = frames[shown] ?? null;
-  const readings = frames.map((entry) => ({
+  const readings = useMemo(() => frames.map((entry) => ({
     selection: fill(WORDS.updateReadout.selectionValue, { wins: Math.round(100 * entry.winnerFraction) }),
     strength: fill(WORDS.updateReadout.strengthValue, { strength: entry.strength.toFixed(2) }),
-  }));
+  })), [frames]);
   const reading = readings[shown];
   useEffect(() => {
     const last = frames[frames.length - 1];
@@ -341,12 +360,20 @@ function Updates({ record }: { record: AutomatonRecord }) {
   const chartHeight = 192;
   const margin = { left: 40, right: 40, top: 12, bottom: 24 };
   const updates = record.history.updates;
-  const lastUpdate = updates[updates.length - 1]?.[0] ?? 1;
-  const topLoss = Math.max(...updates.map((row) => row[1]));
+  const { lastUpdate, topLoss, path } = useMemo(() => {
+    const last = updates[updates.length - 1]?.[0] ?? 1;
+    const peak = Math.max(...updates.map((row) => row[1]));
+    const plotX = (update: number) => margin.left + ((update - 1) / Math.max(1, last - 1)) * (chartWidth - margin.left - margin.right);
+    const plotY = (loss: number) => margin.top + (1 - loss / peak) * (chartHeight - margin.top - margin.bottom);
+    return {
+      lastUpdate: last,
+      topLoss: peak,
+      path: updates.map((row, index) => `${index === 0 ? "M" : "L"}${plotX(row[0]).toFixed(1)} ${plotY(row[1]).toFixed(1)}`).join(" "),
+    };
+  }, [updates, chartWidth, chartHeight, margin.left, margin.right, margin.top, margin.bottom]);
   const x = (update: number) => margin.left + ((update - 1) / Math.max(1, lastUpdate - 1)) * (chartWidth - margin.left - margin.right);
   const yLoss = (loss: number) => margin.top + (1 - loss / topLoss) * (chartHeight - margin.top - margin.bottom);
   const ySelection = (share: number) => margin.top + (1 - share) * (chartHeight - margin.top - margin.bottom);
-  const path = updates.map((row, index) => `${index === 0 ? "M" : "L"}${x(row[0]).toFixed(1)} ${yLoss(row[1]).toFixed(1)}`).join(" ");
   if (story.status === "failed") return <p className="how-caption" role="alert">{fill(SITE_WORDS.how.failed, { message: story.message })}</p>;
   return (
     <div className="how-updates">

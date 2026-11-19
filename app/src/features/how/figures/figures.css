@@ -60,7 +60,7 @@
   max-width: 512px;
 }
 
-.how-visual > :is(.how-picture, .how-picture-wrap, .how-colors, .how-field, .home-material, .how-grown, .how-painted, .how-strip) {
+.how-visual > :is(.how-picture, .how-picture-wrap, .how-colors, .how-field, .home-material, .how-painted, .how-strip) {
   width: 100%;
   height: auto;
   aspect-ratio: 1;
@@ -530,16 +530,6 @@
   width: 100%;
   height: auto;
   aspect-ratio: 1;
-}
-
-.how-pixels,
-.how-grown {
-  display: block;
-  image-rendering: pixelated;
-}
-
-.how-grown {
-  image-rendering: auto;
 }
 
 /*

@@ -12,7 +12,7 @@ import { MaterialStage, PUBLISHED_SOURCE } from "../../replay/material-stage";
 import { deleteMaterial, keepMaterial, keptMaterials } from "../../storage/materials";
 import { PublishMaterial } from "../gallery/publish-material";
 import { placeOf, type MaterialEntry } from "../gallery/material-index";
-import { keptEntry, withKept } from "../playground/yours";
+import { keptEntry, withKept } from "./yours";
 import { addressSearch, SAVED_GROUP } from "./gallery";
 
 const WORDS = SITE_WORDS.automata;

@@ -65,16 +65,23 @@ export function AtlasPage() {
     filterProblem = categoryFile.status === "failed" ? categoryFile.message : ATLAS_TEXT.categoryUnavailable;
   }
   if (query.hasMaterial && materialIndex.status === "failed") filterProblem = materialIndex.message;
+  const { order, category, hasMaterial, starred: starredOnly, search: blockSearch } = query;
   const shown = useMemo(() => {
     if (waitingForFilters || filterProblem) return [];
-    return visibleClouds(entries, query, materials, new Set(starred), categories ?? NO_CATEGORIES);
+    return visibleClouds(
+      entries,
+      { order, category, hasMaterial, starred: starredOnly, search: blockSearch },
+      materials,
+      new Set(starred),
+      categories ?? NO_CATEGORIES,
+    );
   }, [
     entries,
-    query.order,
-    query.category,
-    query.hasMaterial,
-    query.starred,
-    query.search,
+    order,
+    category,
+    hasMaterial,
+    starredOnly,
+    blockSearch,
     materials,
     starred,
     categories,

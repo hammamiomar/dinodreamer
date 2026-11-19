@@ -6,17 +6,12 @@ import { fired } from "../../materials/material-file";
 import type { MaterialEntry } from "../gallery/material-index";
 import type { MaterialSource } from "../../replay/material-stage";
 
-/** A kept figure material with the entry the shelf and the stage read it by. */
 export interface KeptFigure {
   entry: MaterialEntry;
   material: FigureMaterial;
 }
 
-/**
- * The shelf's record of a kept file: the index entry's fields read from the file, as the gallery
- * builds them for a published one (material-index.ts, materialEntry), without the id rule of a
- * published slug, since a kept file's id is whatever its maker gave it.
- */
+/** Build a `MaterialEntry` from a locally saved figure material, keeping its original id. */
 export function keptEntry(material: FigureMaterial): MaterialEntry {
   const { file } = material;
   const { experiment, measurementDirection } = file.recipe.settings;
@@ -46,7 +41,7 @@ export function keptEntry(material: FigureMaterial): MaterialEntry {
   };
 }
 
-/** A stage source that answers a kept material from memory and anything else from `published`. */
+/** Wrap a published `MaterialSource` so locally saved entries resolve from memory. */
 export function withKept(figures: readonly KeptFigure[], published: MaterialSource): MaterialSource {
   const byId = new Map(figures.map((figure) => [figure.entry.id, figure.material]));
   return {
@@ -55,7 +50,6 @@ export function withKept(figures: readonly KeptFigure[], published: MaterialSour
       return kept ? Promise.resolve(kept) : published.load(entry);
     },
     poster: (entry) => byId.get(entry.id)?.file.preview ?? published.poster(entry),
-    // A kept material is kept already; the Keep control shows for the others where the page allows it.
     keepable: (entry) => !byId.has(entry.id) && published.keepable(entry),
   };
 }

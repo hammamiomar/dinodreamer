@@ -52,16 +52,11 @@ export interface MaterialEntry {
    * file, which trained toward its target set: its `gallery` place names the method.
    */
   loss?: MaterialLossKind;
-  /** The research experiment that trained the rule (E18 to E21); absent for a rule grown in the browser. */
+  /** Research experiment identifier when trained offline; absent for browser-trained rules. */
   experiment?: string;
-  /** The direction the measurement projects on, from the file's settings: "training target", or absent for the main direction. */
+  /** Projection direction stored in settings ("training target"), or absent for the main direction. */
   measurementDirection?: string;
-  /**
-   * The owner's site mark, the second of two levels: featured materials are the home's pool and the
-   * Automata page's first group. Not the visitor's starred blocks of Explore. The gallery writes it on
-   * every entry; absent in an older index, which means false. A site-featured material is featured in
-   * its basis group too (featuredInBlock).
-   */
+  /** Site-wide featured flag used by the home entrance pool and Featured ordering. */
   featured?: boolean;
   /**
    * The owner's first mark: featured within its basis group. The Automata page takes the group's
@@ -220,10 +215,4 @@ export function materialCounts(index: MaterialIndex): Map<number, { total: numbe
 export function materialsOfBlock(index: MaterialIndex, block: number): MaterialEntry[] {
   return index.entries.filter((entry) => entry.block === block)
     .sort((a, b) => Number(b.fired) - Number(a.fired) || (b.strength ?? -Infinity) - (a.strength ?? -Infinity) || a.id.localeCompare(b.id));
-}
-
-/** Every block with a material, in number order, each with its materials in materialsOfBlock's order. */
-export function materialsByBlock(index: MaterialIndex): { block: number; materials: MaterialEntry[] }[] {
-  const blocks = [...new Set(index.entries.map((entry) => entry.block))].sort((a, b) => a - b);
-  return blocks.map((block) => ({ block, materials: materialsOfBlock(index, block) }));
 }

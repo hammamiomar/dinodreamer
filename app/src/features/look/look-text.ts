@@ -94,10 +94,9 @@ export const LOOK_TEXT = {
 
   // The basis group panel over any page (basis-group-panel.tsx).
   panel: {
-    /** The panel's name for a screen reader. */
     name: (block: number) => `Basis group ${block}`,
-    /** The way back to the page under the panel, at the panel's top right. */
     close: "Close",
+    loading: "Loading basis group…",
   },
 
   // The automaton's reference patch, first in the basis group panel opened from Automata (look-page.tsx, OriginPlace).

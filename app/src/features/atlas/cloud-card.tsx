@@ -26,7 +26,7 @@ import { CardLoader, LoadQueue, PICTURE_LOADS_AT_ONCE, pictureSlots, SCREEN_ONLY
 import { ATLAS_TEXT } from "./atlas-text";
 import { BAND_COLOURS, bandColours } from "../look/strength-bands";
 import { LOOK_TEXT } from "../look/look-text";
-import { growPath } from "../look/strongest-request";
+import { trainPath } from "../look/strongest-request";
 
 const NO_SLOTS: readonly (readonly PictureSlot[])[] = [[], [], [], []];
 
@@ -152,7 +152,7 @@ export function CloudBlockCard({
       <header className="atlas-cloud-identity">
         <BasisGroupLink className="atlas-block-number heading" block={entry.block} aria-label={ATLAS_TEXT.openBlock(entry.block)} />
         {category !== null && <span className="atlas-cloud-category">{ATLAS_TEXT.category.card(categoryName(category))}</span>}
-        <Link className="atlas-grow" to={growPath(entry.block, engine === "fake" ? "?engine=fake" : "")}>
+        <Link className="atlas-grow" to={trainPath(entry.block, engine === "fake" ? "?engine=fake" : "")}>
           {LOOK_TEXT.grow}
         </Link>
       </header>
@@ -188,7 +188,7 @@ export function CloudBlockCard({
               <BandStrip block={entry.block} counts={entry.counts} total={entry.total} slots={NO_SLOTS} highlight={null} onHighlight={() => {}} skeleton />
             )}
           </div>
-          {content.status !== "failed" && <div className="atlas-cloud-loading"><LoadingIndicator>Loading basis group…</LoadingIndicator></div>}
+          {content.status !== "failed" && <div className="atlas-cloud-loading"><LoadingIndicator>{ATLAS_TEXT.loadingCard}</LoadingIndicator></div>}
           {content.status === "failed" && (
             <div className="atlas-cloud-failed" role="status">
               <p>{ATLAS_TEXT.failed}</p>
@@ -348,7 +348,11 @@ function BandStrip({
     return () => observer.disconnect();
   }, [skeleton]);
   const width = Math.max(1, geometry.width - 16);
-  let before = 0;
+  const segments = counts.map((count, band) => {
+    let offset = 8;
+    for (let prior = 0; prior < band; prior++) offset += (counts[prior]! / total) * width;
+    return { left: offset, segmentWidth: (count / total) * width };
+  });
   return (
     <div
       ref={self}
@@ -417,12 +421,9 @@ function BandStrip({
           role="img"
           aria-label={ATLAS_TEXT.stripBar}
         >
-          {counts.map((count, band) => {
-            const segmentWidth = (count / total) * width;
+          {segments.map(({ left, segmentWidth }, band) => {
             const start = geometry.centres[band];
-            const left = 8 + before;
             const centre = left + segmentWidth / 2;
-            before += segmentWidth;
             const visible = highlight === null || highlight === band;
             return (
               <g key={band} opacity={visible ? 1 : 0.2}>

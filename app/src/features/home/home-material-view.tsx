@@ -143,23 +143,24 @@ function openFieldRun(request: RunRequest): FieldRun {
         }
         const { replay, loop } = session;
         if (!replay || !loop) return;
-        // The line's colour, read back from the replay every SAMPLE_EVERY_TICKS ticks (ui/sampled-accent.ts).
+        // Coalesce accent sampling and flat-field detection into a single GPU readback when both land on the same tick.
         const due = Math.floor(tick / SAMPLE_EVERY_TICKS);
-        if (due !== sampledAt) {
-          sampledAt = due;
-          loop.hold(() => replay.readPixels()).then((pixels_N4) => request.onAccent(sampledAccent(pixels_N4, replay.pictureSide)), () => {});
-        }
-        // Another automaton's cells that this rule leaves flat: it starts again from its own start.
+        const sampleDue = due !== sampledAt;
         const flatDue = Math.floor(tick / FLAT_CHECK_EVERY_TICKS);
-        if (run.carried && flatDue !== flatCheckedAt) {
-          flatCheckedAt = flatDue;
+        const flatCheckDue = run.carried && flatDue !== flatCheckedAt;
+        if (sampleDue || flatCheckDue) {
+          if (sampleDue) sampledAt = due;
+          if (flatCheckDue) flatCheckedAt = flatDue;
           loop.hold(() => replay.readPixels()).then((pixels_N4) => {
-            const spread = pictureSpread(pixels_N4);
-            if (run.carried && startsAgain(spreadBefore, spread)) {
-              run.carried = false;
-              session.reseed(seed);
+            if (sampleDue) request.onAccent(sampledAccent(pixels_N4, replay.pictureSide));
+            if (flatCheckDue) {
+              const spread = pictureSpread(pixels_N4);
+              if (run.carried && startsAgain(spreadBefore, spread)) {
+                run.carried = false;
+                session.reseed(seed);
+              }
+              spreadBefore = spread;
             }
-            spreadBefore = spread;
           }, () => {});
         }
         if (tick >= request.regrowAtTick) {

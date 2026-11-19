@@ -10,17 +10,18 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { useLibrary } from "../../app/library-session";
-import { fill, fillNodes, SITE_WORDS } from "../../app/site-words";
+import { fillNodes } from "../../app/fill-nodes";
+import { fill, SITE_WORDS } from "../../app/site-words";
 import { useMediaMatch } from "../../ui/media-match";
+import { usePrefersReducedMotion } from "../../ui/tween";
 import { useLoaded, type Loaded } from "../../ui/use-loaded";
-import { explorePath } from "../atlas/atlas-position";
+import { indexPath } from "../atlas/atlas-position";
 import { useMaterialIndex, usePublishedMaterial } from "../gallery/material-gallery";
 import type { MaterialEntry } from "../gallery/material-index";
 import type { FigureMaterial } from "../../materials/material-file";
 import { HOW_AUTOMATON, loadHowStory } from "../how/figures/figure-data";
 import { loadAutomatonState } from "../how/automaton-record";
 import { HOW_PICTURE } from "../how/how-source";
-import { usePrefersReducedMotion } from "../landing/motion";
 import type { HomeStill } from "./home-material-view";
 import { HomePanel, type Shown } from "./home-panel";
 import { ENTRANCE_AUTOMATA, entrancePool, shuffled } from "./home-material";
@@ -155,7 +156,7 @@ export function HomePage() {
     sections.current[at] = element;
   };
 
-  const failedLoad = [index, chosenMaterial, threadMaterial, recordedState].find((loaded) => loaded.status === "failed");
+  const failedLoad = [index, chosenMaterial, threadMaterial, recordedState, story, cloud].find((loaded) => loaded.status === "failed");
   let problem: string | null = null;
   if (failedLoad) problem = fill(WORDS.materialFailed, { message: failedLoad.message });
   else if (index.status === "ready" && (!threadEntry || !chosenEntry)) {
@@ -164,7 +165,7 @@ export function HomePage() {
   const shown = (entry: MaterialEntry | null, loaded: typeof chosenMaterial): Shown | null => (entry ? { entry, material: loaded.status === "ready" ? loaded.value : null } : null);
   const links = (
     <nav className="home-links" aria-label={WORDS.linksName}>
-      <Link to={explorePath()}>{HEADER.explore}</Link>
+      <Link to={indexPath()}>{HEADER.explore}</Link>
       <Link to="/automata">{HEADER.playground}</Link>
       <Link to="/train">{HEADER.grow}</Link>
       <Link to="/how">{HEADER.how}</Link>

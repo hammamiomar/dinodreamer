@@ -21,7 +21,8 @@ import { codeStats, type Code } from "../readout/readout";
 import type { EditorAction } from "../state";
 import { pointToken, useBlockCloud } from "./block-cloud";
 import { randomPoint, retargetAction } from "./retarget";
-import { fill, fillNodes } from "../../../app/site-words";
+import { fillNodes } from "../../../app/fill-nodes";
+import { fill } from "../../../app/site-words";
 import { CREATE_TEXT } from "../create-text";
 
 const WORDS = CREATE_TEXT.codeSpace;

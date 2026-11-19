@@ -1,6 +1,6 @@
 // The Painter's gallery, a section of its page (features/landing/canvas-page.tsx): approved
 // creations, a detail view that opens a recipe in the Painter, and the form that submits one of
-// the visitor's saved creations. Materials have their own page, the Playground.
+// the visitor's saved creations. Automata live on `/automata`.
 // The selected entry lives in the URL (?entry=<id>), so Back closes it.
 
 import { useEffect, useId, useRef, useState } from "react";

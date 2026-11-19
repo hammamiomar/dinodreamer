@@ -156,11 +156,9 @@ body,
 }
 
 /*
- * While a modal overlay is open, the page behind it does not scroll: the block panel (over
- * the Atlas or Create) or a modal dialog (a Gallery entry). The page keeps its place. The
- * scrollbar's gutter stays reserved, so locking the page does not move it sideways where
- * scrollbars take room (Windows, Linux). The overlays' own scrollers keep a scroll at their
- * end to themselves (overscroll-behavior in block.css and gallery.css).
+ * Lock background scrolling while a basis group panel or modal dialog is open.
+ * Reserve the scrollbar gutter so opening an overlay does not shift the page horizontally;
+ * each overlay contains its own overscroll (`basis-group-panel.css` and `gallery.css`).
  */
 html {
   scrollbar-gutter: stable;
@@ -795,28 +793,6 @@ select {
   }
 }
 
-.explanation-terms {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  margin: 0;
-}
-
-.explanation-terms div {
-  display: grid;
-  grid-template-columns: 13ch minmax(0, 1fr);
-  gap: var(--space-2);
-}
-
-.explanation-terms dt {
-  color: var(--ink);
-}
-
-.explanation-terms dd {
-  margin: 0;
-}
-
-
 /* A text link or button: an order, Random, Close, a secondary action. The current one is white. */
 .link-control {
   padding: 0;
@@ -1152,11 +1128,10 @@ html {
 }
 
 /*
- * Below 1056 px, use the short How and Experimental labels. The full text and the author's site at the
- * line's end need 1,036 px including gaps and padding (measured 19 November 2026); this threshold leaves
- * room for a scrollbar and aligns to the 16 px grid. The short labels and the site need 873 px, so below
- * 896 px the site leaves the header line and stays in the footer. Below 640 px, the menu shows the full
- * destination names and the site as its last line.
+ * Below 1056 px, use the short How and Experimental labels. The full labels and author site link
+ * need 1,036 px including gaps and padding; this threshold leaves room for a scrollbar on the 16 px
+ * grid. Below 896 px, the site link moves to the footer only. Below 640 px, the menu disclosure
+ * lists the full destination names and site link.
  */
 @media (min-width: 641px) and (max-width: 895px) {
   .frame-nav a.frame-nav-site {
@@ -1319,13 +1294,9 @@ html {
 }
 
 /*
- * The dock (app/library-dock.tsx): in a
- * block panel's rail column, or a tray at the window's bottom-right corner, flush with
- * both edges, over a block panel without a rail. A tray is never in a page's flow, so
- * nothing moves when it shows, opens or folds. Its tab sits on its top edge at the right
- * (features/editor/dock-canvas.css); only the tab and the tray take the pointer, not the
- * space beside the tab. The tray is above the block panel's content: it is in the panel's
- * dialog (features/look/basis-group-panel.css).
+ * Floating editor dock (`app/library-dock.tsx`): fixed to the bottom-right corner inside the open
+ * basis group panel dialog (`features/look/basis-group-panel.css`). Only the tab and tray receive
+ * pointer events so content beside the tab stays interactive.
  */
 
 .library-dock[data-placement="float"] {
@@ -1344,8 +1315,8 @@ html {
 }
 
 /*
- * The tab's height: what shows of a folded tray. While a tray floats over a block panel,
- * the panel keeps that height clear at its bottom (--dock-inset-bottom, block.css).
+ * Height of the collapsed dock tab. When a floating dock is mounted, expose this height via
+ * `--dock-inset-bottom` so panels can reserve space at the bottom.
  */
 :root {
   --dock-tab-height: 36px;

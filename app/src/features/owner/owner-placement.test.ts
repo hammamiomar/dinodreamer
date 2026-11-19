@@ -24,7 +24,8 @@ describe("where the owner's view runs", () => {
   });
 
   it("reloads a view that a client navigation brought into a document served for another page", () => {
-    // /ADMIN/materials is answered by the static assets; the app's earlier-page route then navigates to /admin/automata.
+    // /ADMIN and /ADMIN/materials are answered by static assets; the app router then redirects to /admin/automata.
+    expect(at("/ADMIN", "/admin/automata")).toEqual({ kind: "reload", to: "/admin/automata" });
     expect(at("/ADMIN/materials/x", "/admin/automata")).toEqual({ kind: "reload", to: "/admin/automata" });
     expect(at("/index", "/admin/automata", false, "?group=7178")).toEqual({ kind: "reload", to: "/admin/automata?group=7178" });
     expect(at("/%E0%A4", "/%E0%A4")).toEqual({ kind: "reload", to: "/admin/automata" });

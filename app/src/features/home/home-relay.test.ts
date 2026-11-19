@@ -108,7 +108,7 @@ describe("a rule that cannot grow from the cells", () => {
   });
 
   test("starts again when a flat field creeps upward, and leaves a field above the bound to grow", () => {
-    // Measured (2026-11-18): 12240 to 2632 creeps at 0.0105 to 0.0107 and stays flat to the eye.
+    // A flat field can creep slightly upward while remaining uniform to the eye.
     expect(startsAgain(0.0105, 0.0107)).toBe(true);
     expect(startsAgain(0.0232, 0.0123)).toBe(false);
   });

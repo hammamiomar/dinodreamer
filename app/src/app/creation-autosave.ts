@@ -227,9 +227,7 @@ export function useCreationAutosave(state: EditorState, session: RunState, dispa
   // A different creation starts with its own status and no image saved yet.
   useEffect(() => {
     savedImage.current = undefined;
-    setStatus(state.savedId ? { kind: "saved", at: performance.now() } : { kind: "unsaved" });
-    // Only a change of creation resets the status; its savedId arriving later does not.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setStatus(latest.current.state.savedId ? { kind: "saved", at: performance.now() } : { kind: "unsaved" });
   }, [state.opened]);
 
   // Numerical edits, title changes, colour picks, and a Gallery entry's first change.

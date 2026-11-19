@@ -1,79 +1,44 @@
-// Every word of the header, the home page, the Train page and the footer, in one place, so the site's owner can
-// write them without reading the components. Each string says where it shows. Keep the
-// placeholders ({block}, {blocks}) where a number or a name is filled in; the components replace
-// them. Plain sentences; the technical nouns (basis group, cellular automaton, selection target)
-// are used the same way everywhere and are defined once, where they first matter.
-
-import { createElement, Fragment, type ReactNode } from "react";
+// UI copy for the shell, home page, explanation, stage, training, automata gallery, owner view,
+// and server-rendered previews. Keep `{placeholder}` tokens intact so components can substitute values.
 
 export const SITE_WORDS = {
   header: {
-    /** The header's four links, left to right, after the wordmark "DinoDreamer". */
     explore: "Index",
     playground: "Automata",
     grow: "Train",
     how: "How it works",
-    /**
-     * The short form of "How it works" (under 832 px, where the full header does not fit its one
-     * line); a screen reader still hears "How it works".
-     */
+    /** Short label below 1056 px; assistive technology keeps the full label. */
     howShortForm: "How",
-    /**
-     * The header's last link, after How it works: the Painter's page (/canvas), the one experiment,
-     * whose first line says Painter · experimental. Under 832 px the link shows three small squares,
-     * and this word stays its name for a screen reader.
-     */
     experimental: "Experimental",
-    /** Its short form in the header under 832 px, as "How" is How it works's. */
+    /** Short label below 1056 px; assistive technology keeps the full label. */
     experimentalShortForm: "Lab",
-    /** On a phone, the button that opens the header's links, and the links' name for a screen reader. */
     menu: "Menu",
     navigationName: "Site navigation",
-    /** The header's link to the author's site, at the right end of the line (in the phone menu, last); the footer has it too. */
     site: "computervision.vision",
-    /** The site link's tooltip. */
     siteTitle: "Omar Hammami's site, of which DinoDreamer is one part.",
   },
 
   frame: {
-    /** The wordmark at the left of the header, on every page in the frame; it opens the home page. */
     wordmark: "DinoDreamer",
-    /** What a screen reader hears while a navigation takes longer than a second (the square before the link blinks). */
     loading: "Loading",
-    /** The page's one line while the library's release loads for the first time. */
     loadingLibrary: "Loading the library…",
-    /** The heading when the library's release could not be read, so no page can start; the error follows it. */
     libraryFailed: "The library is not available",
-    /** The heading when a page, or a part of the frame, failed to load; the error follows it. */
     pageFailed: "This page could not load",
-    /** The button under the frame's error: loads the page again. */
     tryAgain: "Try again",
-    /** A page's error heading when its basis group or picture is not in this data release. */
     notInRelease: "Not in this release",
-    /** A page's error heading for an address that is not a page, and the sentence under it. */
     notFound: "Page not found",
     notFoundDetail: "There is no page at this address.",
-    /** The button under a page's error. */
     backToExplore: "Back to Index",
+    dockLabel: "Your image",
   },
 
   home: {
-    // The home (features/home/): the entrance, the automaton live beside the four links, then three
-    // beats down the page, the model, the basis collection and the automaton, each a few sentences
-    // beside a figure that follows the scroll, then the end. The links
-    // are the header's words (header.*).
-
-    /** The four links' name for a screen reader. */
     linksName: "Where to go",
-    /** The arrows under the links, which turn the entrance's automaton to another of the featured pool; their names for a screen reader. */
     turnName: "Another automaton",
     previousAutomaton: "Previous automaton",
     nextAutomaton: "Next automaton",
-    /** The reset between the arrows: the entrance's automaton grows again from noise. */
     resetAutomaton: "Grow it again",
-    /** The chevron at the entrance's foot, the hint that the page goes on; its name for a screen reader. */
     nextSection: "Next section",
-    /** The three beats, in order: the label over the heading, the heading, the sentences. */
     beats: {
       model: {
         label: "The model",
@@ -100,64 +65,37 @@ export const SITE_WORDS = {
         ],
       },
     },
-    /** The model's figure: the layer the attention is read at, and the followed patch's share outside its own 3 × 3. */
     layerLine: "Layer {layer} of 12",
     outsideLine: "{outside}% of the patch's attention falls outside its 3 × 3 neighborhood.",
-    /** The cloud's lit point, and its caption: {group} is the basis group's number, {patches} how many library patches it collects. */
     cloudLabel: "this patch",
     cloudLine: "Basis group {group}: {patches} library patches, placed by their three coordinates.",
-    /** Under a training readout: the optimizer update it shows and the image's median response in m, the group's median selected response; at the fire, the share of the image's patches that selected the group. */
     readoutLine: "Update {update} · median response {strength} m",
     firedLine: "Update {update} · the group selected on {wins}% of the patches: the selection target is met.",
-    /** The end, over the automaton running again: where all of it runs. */
     end: "Everything runs on WebGPU in your browser, training included, on a Rust engine built with {burn}.",
-    /** The link in the end sentence, to burn.dev. */
     burn: "Burn.rs",
-    /** The hibiscus's alt text. */
     pictureAlt: "A hibiscus, the library picture the automaton was trained toward, under the reader's 16 × 16 patch grid",
-    /** An automaton's kind, in its label on the Automata stage. {rule} is Train's name of its grids in lower case ("coarse + fine"); {pixels} is kindTwoPixels or nothing; {start} is kindNoise or kindSeed. */
     kind: "{rule} automaton{pixels}, {start}",
-    /** Added after the grids for an automaton whose picture has 2 px per cell. */
     kindTwoPixels: " at 2 px per cell",
-    /** An automaton started from noise in every cell. */
     kindNoise: "from a noise field",
-    /** An automaton started from central noise initialization. */
     kindSeed: "from a noise disc",
-    /** The running automaton's name for a screen reader. {block} is the basis group's number. */
     canvasLabel: "Automaton of basis group {block}, running; draw on it to disturb it",
-    /** The same canvas where the page gives no brush. */
     canvasStill: "Automaton of basis group {block}, running",
-    /** At the end, in place of its sentence, when the browser has no WebGPU: the automaton is its poster. */
     noWebGpu: "This browser has no WebGPU, so the automaton is a still image. A browser with WebGPU runs it.",
-    /** The same when the visitor's system asks for reduced motion. */
     reducedMotion: "Reduced motion is on, so the automaton is a still image. The Automata page runs it when you press Play.",
-    /** Under the links when the automaton could not be read; {message} is the error. */
     materialFailed: "The automaton could not be read: {message}",
   },
 
   how: {
-    // How it works (features/how/): one screen, the card of words at the left, the model map and the
-    // figure at the right. The sections are in reading order in how-sections.ts; each section's words
-    // are under `sections` by its id. The numbers in braces are filled in
-    // by the figures from the recorded data ({outside}, {rank}, ...).
-
-    /** The page's name, for assistive technology; the card's first heading is the visible one. */
     title: "How it works",
-    /** The card and the map, for a screen reader. */
     cardName: "The explanation",
     stepsName: "Sections of this act",
-    /** A step's name for a screen reader. {step} counts from 1; {heading} is the section's heading. */
     stepName: "Section {step}: {heading}",
-    /** Above the heading: the act and the section's place in it. */
     stepOf: "{act} · {step} of {total}",
     stepPosition: "{step} of {total}",
     previousStep: "Previous step",
     nextStep: "Next step",
     back: "Back",
-    /** A figure not built yet: {figure} is its name. */
-    figurePending: "Figure: {figure}",
 
-    /** The act tabs at the top of the card. */
     acts: {
       overview: "Overview",
       model: "The vision transformer",
@@ -167,10 +105,8 @@ export const SITE_WORDS = {
       glossary: "Glossary",
     },
 
-    /** The model map (how-map.tsx): each stage's name and its one-line detail inside its box. */
     map: {
       name: "The model map",
-      /** A stage's accessible name; {stage} is its name. */
       open: "Go to {stage}",
       stages: {
         automaton: "automaton",
@@ -194,13 +130,7 @@ export const SITE_WORDS = {
       },
     },
 
-    /**
-     * The sections. heading: the card's title. claim: the one-sentence takeaway under it. paragraphs:
-     * two or three short ones; what the figure shows is said by the figure's own captions.
-     * next: the Continue button's words, naming what comes next. A citation is written
-     * [the words](key): the words are highlighted and link to the reference with that key below
-     * (its `link`, the page the reader should land on, else its `url`).
-     */
+    /** Section prose keyed by section id in `how-sections.ts`. `[label](key)` links to `references`. */
     sections: {
       overview: {
         heading: "How it works",
@@ -414,40 +344,31 @@ export const SITE_WORDS = {
       { key: "rosetta", text: "Schnaus et al. Shared Geometry as a Rosetta Stone. 2026. The form of the page.", url: "https://dominik-schnaus.github.io/unpaired-rosetta/" },
     ],
 
-    /** The figures' captions and controls (figures/). */
+    /** Figure captions and controls (`features/how/figures/`). */
     figures: {
-      /** The picture, for a screen reader. {image} is the library picture's number. */
       pictureAlt: "The hibiscus, library picture {image}, with its 256 patches",
-      /** Under the picture. {patch} is the followed patch, "patch 4, 7". */
       following: "Following {patch}. Hover another patch to follow it.",
-      /** Under the coloured patches. */
       coloursCaption: "The same patches, colored by the three main directions of their tokens.",
-      /** Under the attention heat. {patch} is the followed patch; {layer} the layer shown. */
       attentionCaption: "Where {patch} reads from at layer {layer}. Brighter patches are read more; the dashed box is its 3\u00a0×\u00a03 neighborhood.",
       layer: "Layer",
       layerValue: "{layer} of 12",
-      /** The shares of the followed patch's attention at the shown layer: one row each, the percentage first. In this figure, non-breaking spaces keep "3 × 3" on one line. */
       shares: {
         value: "{share}%",
         outside: "outside its 3\u00a0×\u00a03 neighborhood",
         inside: "inside it",
         prefix: "to the class token and the four registers",
       },
-      /** Under the twelve bars; each bar is labelled with its layer. */
       byLayer: "The share outside the 3\u00a0×\u00a03 neighborhood at each layer.",
       layerAxis: "Layer",
 
-      /** Act 2. The drawing of where the basis sits (basis-schematic.tsx). */
       schematicName: "A sparse autoencoder beside the block sparse featurizer",
       saeTitle: "Sparse autoencoder",
       saeNote: "One number per feature.",
       bsfTitle: "Block sparse featurizer",
       bsfNote: "Three numbers per group: a point in a small space.",
       tokenLabel: "token · 768",
-      /** Under the field. {patch} is the followed patch; {group} the boxed group. */
       fieldCaption: "All 16,384 groups in number order. The 32 selected by {patch} are lit; group {group} is boxed.",
       barsName: "The 32 selected groups",
-      /** Above the bars: the group under the pointer, or the page's group, with its rank and response magnitude. */
       rankReadout: {
         group: "Basis group",
         rank: "rank",
@@ -456,19 +377,15 @@ export const SITE_WORDS = {
       },
       openGroup: "Open basis group {group}",
       barsCaption: "The 32 selected groups by response magnitude. Hover one to find it in the field; click to open it.",
-      /** At the lit point of the cloud. */
       cloudThis: "This patch",
-      /** Under the cloud. {drawn} points of {patches} library patches. */
       cloudCaption: "Every library patch that selects group {group}, placed by its three numbers and projected onto a plane: {drawn} of {patches} drawn. The ring is the median response magnitude.",
       strongestCaption: "Patches sampled from the strongest response level, each marked on its picture.",
-      /** The rebuilding. */
       groupsAdded: "Groups added",
       groupsValue: "{count} of 32",
       rebuildReadout: {
         explained: "of the token's energy explained",
       },
       rebuildCaption: "How much of the token's energy the groups explain as they are added, largest response first.",
-      /** The training: the followed patch read through the featurizer as it was at the end of each pass. */
       passFieldCaption: "The 32 groups {patch} selected after pass {pass}; group {group} is boxed.",
       passSlider: "Pass",
       passValue: "{pass} of {total}",
@@ -479,11 +396,9 @@ export const SITE_WORDS = {
       },
       passesCaption: "The token's energy explained as the 32 groups are added back, after each training pass. The chosen pass is drawn strong.",
 
-      /** Act 3. The player and the cell opened. */
       playerCaption: "The automaton of group {group}, growing from noise. Draw on it to disturb the cells.",
       coarseCaption: "The coarse grid, 64 × 64 cells, at step 600.",
       fineCaption: "The fine grid, 128 × 128 cells, at step 600.",
-      /** The two grids stacked (the Coarse + fine section): the stack as a button, its three labels, and the caption in each state. */
       stackName: "The coarse grid and the fine grid at step 600, stacked into the image or lifted apart",
       stackCoarseLabel: "coarse grid · 64 × 64 cells",
       stackFineLabel: "fine grid · 128 × 128 cells",
@@ -493,28 +408,22 @@ export const SITE_WORDS = {
       cellCaption: "Hover a picture to mark the same cell in all four.",
       cellFires: "fires this step",
       cellHolds: "holds this step",
-      /** The cells section's player, without the brush. {group} is the basis group. */
       cellsPlayerCaption: "The automaton of group {group}, growing from noise.",
-      /** The grid through each detector, for a screen reader. {detector} is the detector's name. */
       detectorPictureName: "The coarse grid at step 600 through the detector {detector}",
       detectorPicturesCaption: "The grid at step 600 through each detector, for its three color numbers; the rule applies them to all 16. The change pictures are stretched to fit.",
-      /** The detectors by the filter's name (nca-math.ts, PERCEPTION_FILTERS), under each picture's stencil. */
       detectors: {
         identity: "the value",
         sobelX: "left to right",
         sobelY: "top to bottom",
         laplacian: "from the average",
       },
-      /** Under a stencil whose sum is divided: "÷ 8". */
       detectorDivisor: "÷ {divisor}",
-      /** The signal. */
       grownCaption: "The image at step 600, as DINO reads it.",
       spaceCaption: "Group {group}'s cloud again, with the grown image's 256 patches landed in it: each patch a point, their mean, and the hibiscus patch the rule was trained toward. The loss is the line from the mean to the target. Hover a patch of the image to find it.",
       signalLine: "The mean is {distance} m from the target",
       signalDistance: "{distance} m",
       targetLabel: "target",
       meanLabel: "mean",
-      /** The training. */
       updateSlider: "Update",
       stripCaption: "The image at step 600 in 16 selected readouts, to the first accepted checkpoint.",
       updateReadout: {
@@ -524,36 +433,27 @@ export const SITE_WORDS = {
         strengthValue: "{strength} m",
       },
       lossCaption: "The loss at every update, and the readouts' selection fractions as dots; a filled dot met the target.",
-      /** Local and global. */
       heatCaption: "Where {patch} of the grown image reads from at layer 12: {outside}% from outside its 3 × 3. Hover a patch.",
       cellsCaption: "The cell under that patch and its eight neighbors; it also reads the coarse cells around it.",
-      /** The bridge to the automata: the patch, then the two pictures the Painter grew from noise toward its point. {patch} is "patch 4, 7". */
       visualizationPatch: "The hibiscus, {patch}: the point to reach.",
       visualizationNoise: "Grown from noise toward it, nothing else given. Click to grow again.",
       visualizationReference: "The same, the hibiscus lending its colors as the appearance term. Click to grow again.",
-      /** The painted picture as a button, for a screen reader. */
       visualizationReplay: "Play the growth from noise again",
-      /** The results. */
       trainDoor: "Train your own",
       indexDoor: "Open the Index",
-      /** The overview's loop: three captions. {patch} is "patch 4, 7"; {group} the basis group. */
       loopPatch: "The hibiscus, {patch}.",
       loopCloud: "Its point in basis group {group}.",
       loopAutomaton: "An automaton trained toward that point, growing.",
     },
 
-    /** Record-loader failures (automaton-record.ts, featurizer-passes-source.ts). {status} is the HTTP status. */
     automatonRecordReadFailed: "The automaton record could not be read (HTTP {status}).",
-    automatonRecordDownloadFailed: "The automaton record could not be downloaded. Check the connection and reload this page.",
     automatonRecordInvalid: "The automaton record contains invalid data.",
     basisTrainingReadFailed: "The featurizer's training record could not be read (HTTP {status}).",
     basisTrainingDownloadFailed: "The featurizer's training record could not be downloaded. Check the connection and reload this page.",
     basisTrainingInvalid: "The featurizer's training record contains invalid data.",
-    /** In place of a figure while its numbers load, and when they could not be read. {message} is the error. */
     loading: "Computing…",
     failed: "This figure could not be computed: {message}",
 
-    /** The names the figures give a token and a cell, counted from 1 (how-names.ts). */
     tokenClass: "class",
     tokenRegister: "register {index}",
     tokenPatch: "patch {row}, {column}",
@@ -561,25 +461,20 @@ export const SITE_WORDS = {
   },
 
   stage: {
-    /** The automaton stage (the basis group's page, the owner's view): its name for a screen reader. */
     name: "Automata of this basis group",
-    /** The line under the variation's name, its parts in this order and joined by " · ": "Basis group 12002 · figure · trained toward a Level 4 reference patch · projection on the target 2.39 m · selection fraction 100% · selection target met". {band} names the response level of the one patch the automaton was trained toward. */
     readingBlock: "Basis group {block}",
     readingToward: "trained toward a {band} reference patch",
-    /** The stored value, named by what it holds (strengthStatistic): the mean projection on the training target's direction (Train) or on the main direction (E18, E19 and earlier Train runs), the median response magnitude that the E20 and E21 conversions recorded, or neither name when the experiment is not known. Format 4 stores every one of them in m. */
+    /** Labels keyed by `strengthStatistic`, all reported in multiples of the group median response (`m`). */
     readingStrength: "projection on the target {strength} m",
     readingMainDirection: "projection on the main direction {strength} m",
     readingMedian: "median response magnitude {strength} m",
     readingRecorded: "recorded measurement {strength} m",
     readingWins: "selection fraction {percent}%",
-    /** In place of the selection fraction for central noise initialization, measured on the central 4 × 4 patches. */
     readingCentreWins: "central selection fraction {percent}%",
     fired: "selection target met",
     didNotFire: "selection target not met",
-    /** The metadata table in the Options panel and on the publish form (material-metadata.tsx): its labels, the stored value's names (strengthStatistic) and the target's two states. Grids and Start reuse the Automata choices' labels. */
     metadata: {
       title: "Title",
-      /** What the automaton's training asked for: the method's name, as the Automata page's grid names it. */
       method: "Asked for",
       reference: "Reference patch",
       projection: "Projection on the target",
@@ -593,94 +488,59 @@ export const SITE_WORDS = {
       notMet: "not met",
       updates: "Updates",
     },
-    /** After the measurement line: the person who trained it. {credit} is the name. */
     by: "by {credit}",
-    /** The trainer when none is named. */
     anonymous: "an anonymous trainer",
-    /** The link at the end of that line: opens Train on this basis group and kind. */
     growAnother: "Train another variation",
-    /** Beside it: Train continues this automaton definition from its own rule. */
     continueTraining: "Continue training",
-    /** The frame's upper left corner: the basis group and the kind, "12002 · fine automaton, from noise". */
     frameLabel: "{block} · {kind}",
-    /** The frame's lower right corner: the grid, "128 × 128 cells". */
     frameGrid: "{side} × {side} cells",
-    /** In the cells before the automaton's first image frame. {name} is the variation's name. */
     loading: "Loading {name}…",
-    /** The canvas, for a screen reader. {title} is the automaton's title. */
     canvasName: "{title}, running; draw on it to disturb it",
-    /** The bar under the frame, for a screen reader. */
     controls: "Replay controls",
-    /** The first button of the bar, for a screen reader: what it does now. */
     play: "Play",
     pause: "Pause",
-    /** The Reset button's word, and its full name for a screen reader and the tooltip. */
     reset: "Reset",
     resetName: "Reset to step 0",
-    /** The two sliders' labels. */
     speed: "Speed",
     brush: "Brush",
-    /** The cells' size on screen, "4 px", and its name for a screen reader (the stage's size follows the window). */
     pixelsPerCell: "{pixels} px",
     pixelsPerCellName: "Pixels per cell",
-    /** The two panel buttons at the end of the bar, for a screen reader. */
     downloads: "Downloads",
     options: "Options",
-    /** In the Downloads panel. The automaton definition keeps its .material.json name. */
     downloadMaterial: "Download automaton definition",
     downloadPage: "Download page",
-    /** The WGSL compute module of the rule with its weights, for WebGPU projects. */
     downloadShader: "Download WGSL shader",
-    /** Shadertoy's Common, four buffers and Image tabs in one text file. */
     downloadShadertoy: "Download Shadertoy shader",
-    /** Disabled export for the two-grid rule. */
     shadertoyUnavailable: "Shadertoy export is not yet available for coarse + fine automata.",
-    /** In the Downloads panel: the video, {seconds} long, and its settings. */
     video: "Video · {seconds} s",
     videoSettings: "Video settings",
     fromTick: "From step",
     seconds: "Seconds",
     framesPerSecond: "Frames per second",
     ticksPerFrame: "Steps per frame",
-    /** Under the bar while the video records. {seconds} is its length. */
     recording: "Recording {seconds} s…",
-    /** In the Options panel: the seed, its button, and the grid. The button restarts the replay; it does not train. */
     seed: "Seed",
     growFromSeed: "Restart from this seed",
     grid: "Grid",
-    /** A grid option: "128 cells". */
     gridOption: "{cells} cells",
-    /** The column of the basis group's other automata beside the stage, for a screen reader. */
     thumbnails: "This basis group's automata",
-    /** In the Downloads panel: saves the automaton on this device, under Saved automata in Automata. */
     keep: "Save on this device",
-    /** In its place once saved. {yours} is the link "Saved automata" to the first group in Automata. */
     kept: "Saved. It is under {yours} in Automata.",
     yoursLink: "Saved automata",
-    /** Beside it when the automaton could not be saved. {message} is the error. */
     keepFailed: "It could not be saved: {message}",
   },
 
   owner: {
-    // The owner API's client (features/owner/owner-materials.ts): its refusals, for the owner's Automata page.
-    /** When the owner API refuses a request without its own words. {status} is the HTTP status. */
     apiAnswered: "the owner API answered {status}",
-    /** When the answer lists a hidden automaton without the time it was hidden. */
     noHidingTime: "A hidden automaton has no hiding time",
-    /** When the answer lists a pending submission without one of its fields. */
     badPending: "A pending submission lacks one of its fields",
   },
 
   publish: {
-    /** The button under a saved automaton (Saved automata in Automata, the Train page): opens the form. */
     open: "Publish to the gallery",
-    /** In its place once the automaton is shown in the gallery. */
     published: "Published in the gallery",
-    /** In its place once sent, until the owner approves it. */
     awaiting: "Sent to the gallery · waiting for the owner's approval",
-    /** The form's two fields, and the hint inside the second. */
     title: "Title",
-    /** Draft: a creative title is optional; the saved recipe remains visible. */
     titleHint: "Your title, optional",
     titleHelp: "Up to {limit} characters. Leave blank to use the recipe as the name.",
     recipe: "Recipe",
@@ -688,384 +548,201 @@ export const SITE_WORDS = {
     labelControlCharacters: "Remove control characters from this field.",
     credit: "Credit",
     creditHint: "Your name, optional",
-    /** Under the fields: what the gallery receives and when it shows. */
     whatIsSent: "The gallery receives the automaton definition only: its weights, measurements and preview. It appears after the owner approves it.",
-    /** The form's primary button, its word while sending, and the way out. */
     send: "Send",
     sending: "Sending…",
     cancel: "Cancel",
   },
 
   footer: {
-    /** The footer's one line, left to right: three links. This link opens the author's site (computervision.vision). */
     site: "computervision.vision",
-    /** The site link's tooltip. */
     siteTitle: "Omar Hammami's site, of which DinoDreamer is one part.",
-    /** The link to this site's source code on GitHub. */
     code: "GitHub",
-    /** The code link's tooltip. */
     codeTitle: "The source code of this site, its engine and its Worker, on GitHub.",
-    /** The link to the block sparse featurizer on Hugging Face. */
     featurizer: "Hugging Face",
-    /** The featurizer link's tooltip. */
     featurizerTitle: "The block sparse featurizer on Hugging Face, with its card and loader.",
   },
 
   grow: {
-    /** The display at the top of the Train panel. The basis group's number follows it on its own line. */
     title: "Train",
-    /** Beside the occurrence's picture, when the reference patch is in a library picture. */
     towardLibrary: "Trains toward the marked patch of a library picture.",
-    /** Beside the occurrence's picture, when the reference patch is in the visitor's own picture. */
     towardUpload: "Trains toward the marked patch of your picture.",
-    /** Beside a library picture, when the visitor chose the lift from their own patch: the nearest Level 4 library patch in its direction. */
     towardNearest: "Trains toward the nearest Level 4 library patch in your patch's direction.",
-    /** Under the response level when the reference patch is at Level 1 or Level 2. */
     weakReference: "This patch is near the ring. In the training tests so far, automata trained toward a patch here did not meet the selection target; automata trained toward Level 3 and Level 4 patches did.",
-    /** The link under the occurrence to the basis group's page, where the visitor picks another patch. */
     pickAnother: "Pick another patch",
-    /**
-     * In place of the occurrence's sentence when Train continues a saved definition (/train?continue=): {update} is
-     * the optimizer update it was saved at.
-     */
     continuing: "Continues this automaton from optimizer update {update}, toward the marked patch.",
-    /** The response levels a continuation can aim at instead of the definition's own reference patch (its accessible name). */
     continuedLevels: "Response level to train toward",
-    /** Why the grids cannot change when Train continues a definition, shown on the unavailable choice. */
     continuedRule: "A continued automaton keeps its grids.",
-    /** In place of the occurrence while the page finds a Level 4 reference patch. {block} is the basis group's number. */
     choosing: "Choosing a Level 4 reference patch of basis group {block}.",
-    /** In place of the occurrence when the basis group has no Level 4 patch to aim at. {block} is the basis group's number. */
     noStrongest: "Basis group {block} has no Level 4 patch with a public picture. Pick a patch on its page.",
-    /** The panel when /train names no basis group; the primary under it opens the Index. */
     nothing: "Nothing to train yet. Pick a basis group in the Index, then a patch on its page.",
-    /** The primary when /train names no basis group. */
     exploreLink: "Index",
-    /** Under the occurrence when the training target asks for a localized activity simulation (the older plant mode). */
     plant: "Localized activity simulation is not available yet. Your selection is retained.",
-    /** In place of the occurrence when the training target names no reference patch (a selection from before reference patches); Train stays off. */
     noAnchor: "This selection has no reference patch, so Train has nothing to aim at. Open the basis group's page, select its patches and press Send to Train: the page then names the reference patch and its response level.",
-    /** The label over the first choice (Fine, Coarse + fine); each option's hint is in grow/material-kind.ts. */
     rule: "Grids",
-    /** The label over the second choice (Noise field, Noise disc). */
     start: "Start",
-    /** The label over the third choice: the space training compares in (grow/train-method.ts). */
     space: "Space",
-    /** Its two options: the 3 numbers a basis group reads from a token, or DINO's 768 numbers for a patch. */
     spaces: { "basis-group": "Basis group", token: "Token" },
-    /** The label over the fourth choice: what training compares, the average or the spread. */
     comparison: "Comparison",
-    /** Its two options. */
     comparisons: { mean: "Mean", distribution: "Distribution" },
-    /**
-     * Under the two choices, the method they make: its fixed name (automata.methods) and what it asks of the
-     * canvas. "The set" is the basis group's 33 strongest pictures, with the 3 × 3 patches around each marked patch.
-     */
     methodHints: {
       "basis-group-mean": "the average of the basis group's 3 numbers over the picture, toward the marked patch",
       "token-mean": "the average of DINO's tokens over the picture, toward the average of the set",
       "basis-group-distribution": "the basis group's 3 numbers spread over the picture as they spread over the set",
       "token-distribution": "DINO's tokens spread over the picture as they spread over the set",
     },
-    /** The label over the token methods' depth: which of DINO's layers they compare (grow/train-method.ts). Shown only for the Token space. */
     depth: "Depth",
-    /** Its two options: blocks 3, 6 and 9 and the final layer, averaged; or the final layer alone. */
     depths: { "four-layers": "Four layers", "final-layer": "Final layer" },
-    /** Why the space and the comparison cannot change when Train continues a definition. */
     continuedMethod: "A continued automaton keeps its method.",
-    /** In place of the stop check for the methods that compare with the set: they train every update and keep the last cellular model. One line. */
     trainsToEnd: "Trains all {updates} updates; keeps the last model.",
-    /** Added after the update counter for the methods that compare with the set: the loss the update descends, {loss} with 4 significant digits. */
     methodLoss: "loss {loss}",
-    /** Status, first line, after a run of a method that compares with the set: its final cellular model is saved, whatever its selection. */
     finalSaved: "Optimizer update {update} · the final cellular model is saved, read at step {tick}",
-    /** The check above the primary. The first accepted checkpoint: the first checkpoint whose cellular model meets the selection target at simulation step 600, and for a noise start again at step 2,000. */
     stopAtFirstFire: "Stop at the first accepted checkpoint",
-    /**
-     * The toggle under the two choices that shows the method's two choices in their place (grow-panel.tsx
-     * ChoiceFaces): the chosen method, short, so the closed toggle says which it is. One line beside Advanced.
-     */
     methodToggle: {
       "basis-group-mean": "Basis-group mean",
       "token-mean": "Token mean",
       "basis-group-distribution": "Basis-group distribution",
       "token-distribution": "Token distribution",
     },
-    /**
-     * In place of the marked patch's sentence for the methods that compare with the set, beside the set's pictures,
-     * which show the 3 × 3 patches around each picture's strongest patch. {count} is the number of pictures (33, fewer
-     * when some could not be read). At most four lines beside the pictures.
-     */
     towardSet: "Trains toward this group's {count} strongest pictures.",
-    /** The same when the visitor sent a selection from the group's page: the set is its strongest pictures, one patch each. */
     towardSelection: "Trains toward the {count} strongest pictures of your selection.",
-    /** The same when the selection holds fewer than 33 pictures (decision 15): Train uses all of them, and says how many. */
+    /** Shown when the selection contains fewer than 33 pictures. */
     towardWholeSelection: "Your selection holds {count} pictures. Train uses all {count}, one patch each.",
-    /** For a distribution method and a selection of one picture (decision 15): Train is off. */
+    /** Shown when a distribution method receives a single-picture selection. */
     setOnePicture: "One picture is not a distribution. Select more pictures on the group's page, or choose Mean.",
-    /** Under the set's sentence when the selection is Level 1 or Level 2 only (decision 15). */
+    /** Shown when the selection contains only Level 1 or Level 2 patches. */
     weakSet: "A weak level tends to grow what surrounds the group's subject, not the subject.",
-    /** In place of the pictures when the visitor's selection holds no library picture with a public preview (only their own picture's patches). */
     setEmpty: "Your selection has no library picture to train toward. Select patches of library pictures on the group's page, then send them to Train.",
-    /** Under it, in the response level's place: what each picture brings to the set. */
     setPatches: "3 × 3 patches each",
-    /** Under that, in the place of "Pick another patch": the basis group's page, where its strongest pictures show large. */
     setLink: "See the group's pictures",
-    /** The same for a continued automaton of such a method: {update} is the optimizer update it was saved at. */
     continuingSet: "Continues this automaton from update {update}, toward the {count} pictures it trained toward.",
-    /** The pictures' name for a screen reader. */
     setPictures: "The {count} pictures of the set",
-    /** In place of the pictures while they load. */
     setLoading: "Finding the strongest pictures of basis group {block}.",
-    /** The closed section under the two choices, for settings most people never change (grow-panel.tsx). */
     advanced: "Advanced",
-    /** Its one setting: the grids grown per optimizer update. */
     batchSize: "Batch size",
-    /** Under it, for batch size 4. GPU memory measured on an RTX 2080 Super in Chromium 155, 2026-10-30. */
     batchRecipe: "The recipe: four grids per update. Needs 1.5 to 1.8 GB of GPU memory.",
-    /** Under it, for batch size 1: 0.8 to 0.9 GB, and 0.29 to 0.31 of the time per update, in the same measurements. */
     batchLight: "Half the memory and a third of the time of 4. It may meet the selection target less often.",
-    /** The same for the methods that compare with the set : the research ran them at 4 only. */
     batchLightSet: "Half the memory and a third of the time of 4. The research has no reference for this method at 1.",
-    /** Why a continuation's batch size cannot change. */
     continuedBatch: "A continued automaton keeps its batch size.",
-    /** In place of the hint when Train fell back to batch size 1 because a run at 4 took the page down. */
     fallbackReload: "A run at batch size 4 stopped this page, likely for lack of memory. Train now uses 1.",
-    /** In the start dialog when the browser gives Train no GPU (protocol.ts adapterUnavailable), with a Reload button. */
     noAdapter: "The browser gave Train no GPU. This can happen just after a run stopped the page. Reload the page, then press Train again.",
     reload: "Reload",
-    /** The same when a run at 4 lost the graphics device. */
     fallbackDevice: "A run at batch size 4 lost the graphics device, likely for lack of memory. Train now uses 1.",
-    /** The time line before a run. {updates} is a number of optimizer updates, {duration} the time ("6.6 min"). */
     timeBefore: "about {updates} updates · {duration}",
-    /** The time line while a run trains. */
     timeLeft: "{updates} updates left · {duration}",
-    /** The time line after a run. */
     timeTaken: "{updates} updates · {duration}",
-    /** Ends the time while it comes from this device's own updates. */
     onThisDevice: "on this device",
-    /** Ends the time before this device has trained 25 updates: the estimate uses measurements from an Apple M1 Max. */
     onReference: "on an M1 Max",
-    /** The primary before a run, and after one when the visitor chose another kind. */
     grow: "Train",
-    /** The primary while a run trains or waits. Stop holds the run: Resume trains it on. */
     stop: "Stop",
-    /** The primary after Stop: trains the held run on from its update. */
     resume: "Resume",
-    /** The primary after a run whose last update did not meet the selection target: trains the next seed. */
     restart: "Restart from the next seed",
-    /** Beside it, under the time: holds that run's final cellular model as the result instead, as a run that has ended. */
     keepRun: "Keep this automaton",
-    /** Beside Publish after a run has ended: trains it {updates} more updates. */
     trainFurther: "Train {updates} more updates",
-    /** The primary after a run: opens the saved automaton in Automata. */
     open: "Open in Automata",
-    // The corner tray (train-tray.tsx): the run, shown on every other page while it trains.
-    /** The tray's name for a screen reader. */
     trayName: "The training run",
-    /** The tray's tab, folded or open. {block} is the basis group's number. */
     trayTab: "Train {block}",
-    /** The tray's way back to the Train page with this run. */
     trayBack: "Back to Train",
-    /** Ends a held or failed run from the tray; its saved automata stay saved. */
     trayClose: "Close",
-    /** The mark at the end of the status row, lit once an automaton that met the selection target is saved on this device. */
     kept: "Saved",
-    /** Status while the models load. */
     loading: "Loading the models on this device.",
-    /**
-     * Status, first line, while a run starts and the model downloads: {file} of {files} model files, {received} of
-     * {total} megabytes. Stop stands beside it, on the page and in the corner tray.
-     */
     startupDownload: "Downloading the model · {received} of {total} MB",
-    /** Status, second line, while a run starts: the page does not hold the visitor. */
     startupNote: "The first start downloads the model to this device. You can read other pages meanwhile; the corner keeps the run.",
-    /** Status, first line, while training: the update counter. {update} is the optimizer update. */
     update: "Optimizer update {update}",
-    /** Status, first line, after Stop: the held update. */
     stopped: "Stopped at optimizer update {update}",
-    /** Added to the update counter from the second run on. */
     run: "run {run} of {runs}",
-    /** Added after the update counter once the run's first accepted checkpoint is saved (the Saved mark lights). {update} is its optimizer update. */
     firstFire: "first accepted checkpoint at update {update}",
-    /** Added after the update counter while the final cellular model runs to simulation step 600 to be measured. */
     finishing: "measuring the final cellular model",
-    /**
-     * Status, first line, after a run whose automaton met the selection target (the Saved mark is lit). {update} is the optimizer
-     * update of the saved model, {tick} the step it was read at: 600, or for the set methods the step of their lowest own loss.
-     */
     fired: "Optimizer update {update} · selection target met at simulation step {tick}",
-    /** Status, first line, after three runs that did not meet the selection target. {runs} is the number of runs. */
     noneFired: "None of the {runs} runs met the selection target. The last cellular model is saved.",
-    /** Status, first line, after the person keeps a run that did not meet the selection target, with runs still to try. */
     keptUnfired: "The final cellular model is saved. It did not meet the selection target.",
-    /** Status, first line, after a run whose last update did not meet the selection target, while its final cellular model runs and the person decides. */
     retry: "The final cellular model did not meet the selection target. Restart from the next seed, or keep this automaton.",
-    /** Status, second line, before the image analyzer has loaded. {loaded} and {all} count its basis partitions. */
     readerLoading: "Loading the image analyzer: {loaded} of {all}.",
-    /** The row of basis groups selected on the read patches at the latest measurement, as pictures, in the choices' place while training runs. */
     coSelected: "What DINO sees",
-    /** Under it, what the row and the map count, with every count's unit said. {patches} read patches, {group} the requested basis group, {needed} the selection target's count. */
     coSelectedHint: "DINO sees 32 basis groups on each of the picture's {patches} patches; these are the ones it sees most often. The run meets its target when {group} is among them on {needed} patches or more.",
-    /** The same for central noise initialization, which is measured on the central 4 × 4 patches only. */
     coSelectedHintCentre: "DINO sees 32 basis groups on each of the central {patches} patches; these are the ones it sees most often. The run meets its target when {group} is among them on {needed} patches or more.",
-    /** The same two for a run that compares with a set, which has no selection target. */
     coSelectedHintSet: "DINO sees 32 basis groups on each of the picture's {patches} patches; these are the ones it sees most often.",
     coSelectedHintSetCentre: "DINO sees 32 basis groups on each of the central {patches} patches; these are the ones it sees most often.",
-    /** The measurement, second line: the selection fraction as a count of the read patches, and the count the selection target needs. The projection on the target is in the saved automaton's note, not here. */
     reading: "DINO sees {group} on {selected} of the {patches} patches. The target is {needed} patches.",
-    /** The same for central noise initialization, which is measured on the central 4 × 4 patches only. */
     readingCentre: "DINO sees {group} on {selected} of the central {patches} patches. The target is {needed} patches.",
-    /** The measurement of a run that compares with a set: the count alone, since such a run has no selection target. */
     readingSet: "DINO sees {group} on {selected} of the {patches} patches.",
     readingSetCentre: "DINO sees {group} on {selected} of the central {patches} patches.",
-    /** Added to the measurement on the second line while training goes on after the first accepted checkpoint. */
     trainingOn: "training on",
-    /** A time under a minute and a half, in the time line: "40 s". */
     seconds: "{seconds} s",
-    /** A longer time: "6.6 min", or "12 min" from ten minutes on. */
     minutes: "{minutes} min",
-    /** When Save could not store an automaton on this device; a Download button follows. */
     keepFailed: "The automaton is ready, but it could not be saved on this device. Download its automaton definition.",
     download: "Download",
-    /** The lower corner of the frame: the live grid's simulation step. */
     tick: "step {tick}",
-    /** The running automaton's name for a screen reader. {block} is the basis group's number. */
     canvasLabel: "Automaton of basis group {block}, running: draw on it to damage it",
-    /** The start's still picture, for a screen reader. */
     stillLabel: "The start of the automaton, before training",
-    /**
-     * The reading step's choice (step-choices.tsx), a strip under the cells after a run that compares with a
-     * set: the automaton's picture at each step it was read at, the kept step marked; a click keeps it at another.
-     */
     step: {
-      /** The strip's name for a screen reader. */
       label: "Reading step",
-      /** Under the pictures while the kept step is the one of the lowest loss. */
       lowest: "The automaton is read at step {step}, where its own loss is lowest.",
-      /** After the person chose another step. {lowest} is the step of the lowest loss. */
       chosen: "The automaton is read at step {step}. Its own loss is lowest at step {lowest}.",
-      /** Once the automaton is sent to the gallery, its step cannot change. */
       closed: "The automaton is read at step {step}. The step is fixed once it is sent to the gallery.",
-      /** One picture's name for a screen reader. {loss} has four significant digits. */
       picture: "Step {step}, own loss {loss}",
     },
-    /** The live map (live-map.tsx), in the choices' place while a run trains: the canvas's 64 patches as points among the group's patches. */
     map: {
-      /** The label above it. */
       heading: "The canvas in the group's space",
-      /** Its name for a screen reader. {block} is the basis group. */
       label: "The canvas's 64 patches as points among the patches of basis group {block}; drag or use the arrow keys to rotate",
-      /** Under it for a mean method. {distance} is in m, the group's median selected response magnitude, with two decimals. */
       meanLine: "The mean of the canvas's patches is {distance} m from the target.",
-      /** Under it for a distribution method. */
       spreadLine: "Each point is a patch of the canvas. The squares are the set's patches.",
-      /** Under it before the run's first reading. */
       waiting: "The canvas's patches appear here at the first reading.",
-      /** Added for a token method: the map shows a part of what the run compares. */
       shadow: "The map shows each patch's three numbers for this group. The run compares all 768.",
-      /** The toggle under the map that shows the groups DINO sees in its place, and back. */
       toggle: "What DINO sees",
     },
   },
 
+  /** Stage readout, metadata, and saved-automata controls shared by the Automata view and replay stage. */
   playground: {
-    /** The page's line while the index loads, in place of the automaton. */
     loading: "Reading the automata…",
-    /** The same place when the index could not be read. {message} is the error. */
     failed: "The automata could not be read: {message}",
-    /** The same place when the index is empty. */
     nothingPublished: "No automaton is published yet.",
 
-    /** An automaton's kind, in the head beside the basis group's number and on a tile's two lines: its grids, then the start. */
     ruleFine: "fine",
     ruleCoarseFine: "coarse + fine",
     startNoise: "noise field",
     startSeeded: "noise disc",
     startSeededField: "seeded field",
-    /** After the grids on a tile, for an automaton at 2 px per cell: "fine · 2 px". */
     twoPixelsShort: "2 px",
-    /** After the grids in the head, for the same automaton: "fine · 2 px per cell · noise". */
     twoPixels: "2 px per cell",
 
-    /** The column of measurements beside the frame, for a screen reader. */
     readoutsName: "Measurements",
-    /** The one measurement beside the frame: the simulation step, its label. */
     tick: "Step",
-    /** Under a tile: the stored value in m, multiples of the basis group's median selected response magnitude: "1.49 m". {strength} has two decimals. It is a projection or a median response magnitude by the experiment (strengthStatistic); the tile does not name it. */
     strengthInM: "{strength} m",
-    /** The quiet words at the foot of the measurements: save on this device, the downloads, the seed and the grid. */
     keep: "Save",
-    /** In place of "Save" once saved: the tile is under Saved automata. */
     kept: "Saved",
     keepFailed: "It could not be saved: {message}",
     export: "Export",
     options: "Options",
-    /** The one outlined button, under the quiet words: opens Train on this basis group and kind. */
     growVariation: "Train a variation",
 
-    /**
-     * The shelf's first group when the owner has featured automata: their label line, over their
-     * tiles.
-     */
     featured: "Featured",
-    /** What a screen reader hears for the count at the end of the Featured line, and of the owner mode's group lines. {count} is the number. */
-    groupCount: "{count} automata",
-    /** The saved automata's line, first on the shelf when nothing is featured. */
     yours: "Saved automata, on this device",
-    /** Beside "Saved automata" when nothing is saved. */
     yoursEmpty: "nothing saved yet",
-    /** At the end of the Saved automata line: opens an automaton definition from the device. */
     import: "Import",
-    /** Under the Saved automata line when they could not be read. {message} is the error. */
     yoursFailed: "Your saved automata could not be read: {message}",
-    /** Under the saved tiles while one of them plays, after its name: the actions on it. */
     publish: "Publish",
     remove: "Remove",
-    /** The confirmation that replaces "Remove": remove, or keep it. */
     removeConfirm: "Remove it",
     removeCancel: "Keep it",
 
-    /** The choices' line: each word opens its row. "any" is the value when nothing is chosen. */
     rule: "Grids",
     start: "Start",
     family: "Category",
     any: "any",
-    /** The first option of each row. */
-    anyOption: "Any",
-    /** What a screen reader hears for the number at the end of the choices' line. {count} is the number. */
-    matching: "{count} automata match",
-    /** Under the choices when no automaton matches them. */
-    noMatch: "No automaton matches these choices.",
-
-    /** What a screen reader hears for the count at the end of a basis group's heading. {count} is the number. */
-    blockCount: "{count} automata",
-    /** The preview's line while the basis group's pictures load. {block} is the number. */
-    peekLoading: "Reading basis group {block}…",
-    /** The preview's line when the basis group's pictures could not be read. */
-    peekFailed: "The basis group's pictures could not be read.",
-    /** The preview's link to the basis group's page. */
     openBlock: "Open the basis group",
-    /** Closes the preview's sheet on a phone. */
     close: "Close",
   },
-  /**
-   * The Automata page as the gallery of every basis group (features/automata/): the wall of groups, one
-   * group's screen with its pictures by level and its grid, and the saved automata. The stage's own
-   * words (Step, Save, Export, Options, Train a variation) stay under `playground` above.
-   */
+
+  /** Copy for `/automata` (`features/automata/`). Stage controls remain under `playground`. */
   automata: {
-    /** The wall's heading, on /automata. */
     wallTitle: "The automata of each basis group",
-    /** The navigation following the last deck uses the header’s destination names. */
     wallNavigation: "Site navigation at the end of the Automata wall",
     homeLink: "Home",
-    /** The wall's find field: its name for a screen reader, and what it shows while empty. */
     find: "Find a basis group by its name or number",
     findPlaceholder: "Name or number",
-    /** In the decks' place when the find field's words match no group. {words} is what was typed. */
     findNothing: "No basis group has “{words}” in its name or number. Type fewer letters, or clear the field.",
-    /** The wall's order: the menu's label and its choices. */
     sort: "Sort",
     sorts: {
       featured: "Featured first",
@@ -1074,25 +751,19 @@ export const SITE_WORDS = {
       number: "By number",
       name: "By name",
     },
-    /** Under a card on the wall: the number of automata the group holds. {count} is the number. */
     cardCount: "{count} automata",
     cardCountOne: "1 automaton",
-    /** A card's name for a screen reader. {group} is the number, {name} the owner's name or nothing. */
     cardName: "Basis group {group} {name}",
-    /** The wall's line while the automata load, when they could not be read, and when none is published. {message} is the error. */
     loading: "Reading the automata…",
     failed: "The automata could not be read: {message}",
     nothingPublished: "No automaton is published yet.",
-    /** In the place of a group's screen when the address names a group that holds no automaton. {group} is the number. */
     unknownGroup: "Basis group {group} has no automaton yet.",
 
-    /** The line above a group's number: back to the wall, and the neighbouring groups in the wall's order. */
     allGroups: "All basis groups",
     previousGroup: "Previous",
     nextGroup: "Next",
 
-    /** Beside the group title: the selected start, training method and try in this grid cell. */
-    stageTry: "Try {at}/{count}",
+    stageTry: "Try\u00a0{at}/{count}",
     stageMethods: {
       "basis-group-mean": "basis-group mean",
       "basis-group-mean-guided": "guided basis-group mean",
@@ -1102,22 +773,15 @@ export const SITE_WORDS = {
       "mean-distribution-mix": "mean/distribution mix",
       "unit-activation": "one DINO unit",
     },
-    /** The frame's lower corner: the automaton's grids, then the grid's size. {side} is the cells along a side. */
     gridsFine: "fine · {side} × {side} cells",
     gridsCoarseFine: "coarse + fine · {side} × {side} cells",
 
-    /** The heading of the group's pictures by level, for a screen reader. */
     levelsName: "The basis group's own patches, by response level",
-    /** While a group's pictures load, and when they could not be read. */
-    levelsLoading: "Reading the basis group's pictures…",
     levelsFailed: "The basis group's pictures could not be read.",
 
-    /** The grid's two titles: over its rows' names, and over its columns'. */
     startsTitle: "Where it starts",
     methodsTitle: "What it is asked for",
-    /** What a screen reader hears for the grid as a whole. {group} is the number. */
     gridName: "The automata of basis group {group}, by where they start and what they were asked for",
-    /** The rows' names: the state an automaton starts from. Noise field and Noise disc are Train's names for the same starts (grow/material-kind.ts). */
     starts: {
       noise: "Noise field",
       circle: "Noise disc",
@@ -1125,7 +789,6 @@ export const SITE_WORDS = {
       "circle-anywhere": "Noise disc placed anywhere",
       drawn: "A drawn start",
     },
-    /** The start as it appears inside a sentence or a material record. */
     startsInLine: {
       noise: "noise field",
       circle: "noise disc",
@@ -1133,13 +796,11 @@ export const SITE_WORDS = {
       "circle-anywhere": "noise disc placed anywhere",
       drawn: "a drawn start",
     },
-    /** The two bands over the columns: the space the comparison is made in. */
     methodSpaces: {
       "basis-group": "Basis-group matching",
       token: "Token matching",
       other: "Research variants",
     },
-    /** A column's own word under its band: the comparison. */
     methodColumns: {
       "basis-group-mean": "mean",
       "basis-group-mean-guided": "mean, with a guide",
@@ -1149,7 +810,6 @@ export const SITE_WORDS = {
       "mean-distribution-mix": "mean and distribution",
       "unit-activation": "one DINO unit",
     },
-    /** A method's full name for the grid cell's accessible label. */
     methods: {
       "basis-group-mean": "basis-group mean matching",
       "basis-group-mean-guided": "basis-group mean matching with a guide",
@@ -1159,14 +819,10 @@ export const SITE_WORDS = {
       "mean-distribution-mix": "a mixture of mean and distribution matching",
       "unit-activation": "the activation of one DINO unit",
     },
-    /** A cell's name for a screen reader. {start} and {method} are the names above; {count} the number of tries. */
     cellName: "{start}, {method}: {count}",
-    /** An empty cell's name for a screen reader: nothing was grown that way for this group. */
     cellEmpty: "{start}, {method}: no automaton",
     cellEmptyMark: "—",
-    /** Under a cell's picture when the cell holds more than one automaton. {count} is the number. */
     cellTries: "{count} tries",
-    /** The "?" beside the grid's titles opens this explanation, a few short paragraphs. */
     gridExplainSubject: "the grid",
     gridExplanation: [
       "A row is the state an automaton starts from: a noise field, with noise in every cell, or a noise disc at the center, alone or on faint noise.",
@@ -1175,87 +831,58 @@ export const SITE_WORDS = {
       "A dash means that no automaton was trained that way for this basis group.",
     ],
 
-    /** The line over the strip of a cell's tries: its title, then which one plays. {at} and {count} are numbers. */
     triesTitle: "Tries",
     triesPlace: "{at} of {count}",
-    /** After the place, when the cell holds one automaton. */
     triesOne: "This is the only one grown this way.",
-    /** After the place, when the cell holds several. */
     triesMany: "The same start and the same request, trained again.",
-    /** A try's name for a screen reader. {at} and {count} are numbers. */
     tryName: "Try {at} of {count}",
 
-    /**
-     * A phone's choice under the automaton, which stays at the top of the window: the group's pictures
-     * and its grid, or the stage's controls (speed, brush, Save, Export, Options, Train a variation).
-     */
     phoneViewsName: "What shows under the automaton",
     phoneGallery: "Automata",
     phoneControls: "Controls",
 
-    /** The saved automata's screen (/automata?group=yours): its heading in the place of a group's number. */
     savedTitle: "Saved",
-    /** At the right of the wall's heading: the way to the saved automata, without and with their number. {count} is the number. */
     savedLine: "Saved automata, on this device",
     savedLineCount: "Saved automata, on this device ({count})",
   },
-  /**
-   * The owner's view of the Automata page (/admin/automata, features/owner/owner-automata-page.tsx): the
-   * same wall and screen over every research run. Only the owner reads these words, so they may use
-   * the research's own names.
-   */
+
+  /** Copy for `/admin/automata` (`features/owner/owner-automata-page.tsx`). */
   automataOwner: {
-    /** In place of the page while the automata and the runs load, and when the owner API fails. {message} is the error. */
     loading: "Loading the automata and the research runs…",
     failed: "The owner API refused or failed: {message}. Open the owner page first to sign in.",
-    /** In place of the view when another page shows it inside a frame. */
     framed: "The owner's view opens only in its own tab.",
-    /** The line over the wall and over a group's pane: the view's name, then how many automata a visitor sees. */
     heading: "Owner's view",
     counts: "{shown} shown of {all}",
-    /** After the counts, when some runs have no place in the grid. {count} is their number. */
     unfiled: "{count} runs have no place in the grid",
-    /** After the counts, when submitted automata wait for review: the way to their screen. {count} is their number. */
     pending: "{count} wait for review",
     pendingOne: "1 waits for review",
-    /** The review's screen (/admin/automata?group=pending): its heading in the place of a group's number, and its line over the pictures. */
     pendingTitle: "Review",
     pendingLine: "Submitted automata, waiting for review",
     pendingNone: "Nothing waits for review.",
-    /** Under a submission's picture: its basis group, then where it starts. {group} is the number. */
     pendingTile: "{group} · {start}",
-    /** The line for the submission on the stage: its title and who sent it. {title} and {credit} are the sender's own words. */
     pendingBy: "{title}, by {credit}",
     pendingUntitled: "Untitled",
     pendingAnonymous: "no name given",
-    /** The two actions on the submission on the stage. Reject asks once more in place. */
     approve: "Approve",
     reject: "Reject…",
     rejectForGood: "Reject for good",
     rejectWarning: "Reject deletes the submission. You cannot undo this.",
-    /** After an action: where the automaton went. {group} is its basis group's number. */
     approved: "Approved. It is published in basis group {group}.",
     rejected: "Rejected.",
-    /** When some submitted files could not be read; they are left out. {count} is their number, {message} the first reason. */
     pendingUnread: "{count} submissions could not be read: {message}",
-    /** The choice at the end of that line: every run, or exactly what a visitor sees. */
     viewsName: "What the page shows",
     viewEvery: "Every run",
     viewVisitor: "As a visitor sees it",
-    /** Under a card on the owner's wall, and under a cell of the grid: how many a visitor sees, of how many. */
     shownOf: "{shown} of {all} shown",
     noneShown: "{all}, none shown",
-    /** The first line of the owner's block under the stage: where the automaton stands. */
     states: {
       shown: "A visitor sees it.",
       hidden: "Hidden. A visitor does not see it.",
       "not-shown": "A research run. A visitor does not see it.",
     },
-    /** After the state, for each mark the automaton carries. */
     markCell: "The picture of its cell.",
     markGroup: "The picture of the group.",
     markSite: "Featured for the site.",
-    /** The owner's actions, as the stage's quiet words; their group's name for a screen reader. */
     actionsName: "Owner actions",
     actions: {
       show: "Show",
@@ -1266,13 +893,11 @@ export const SITE_WORDS = {
       unfeature: "Unfeature",
       purge: "Purge…",
     },
-    /** Purge asks once more in place: the action again, Keep it, and the warning on the line under the bar. */
     purgeForGood: "Purge for good",
     keepIt: "Keep it",
     purgeWarning: "Purge deletes the automaton's public file, its poster and its index entry. A research run stays in the private store.",
     clearCachedFiles: "Clear the cached files for these prefixes.",
     cacheCleared: "Cache cleared",
-    /** On the line under the stage's bar after an action. */
     results: {
       show: "Shown. The public index updates within one minute.",
       hide: "Hidden.",
@@ -1282,52 +907,36 @@ export const SITE_WORDS = {
       unfeature: "No longer featured for the site.",
       purge: "Purged.",
     },
-    /** The same line when an action failed. {action} is its word, {message} the Worker's reason. */
     actionFailed: "{action} failed: {message}",
-    /** The field in the head that names the basis group, for a screen reader, and its words while empty. */
     nameLabel: "The basis group's name",
     namePlaceholder: "Name this basis group",
-    /** Beside the field after the name is stored, and when it could not be. {message} is the Worker's reason. */
     nameSaved: "Saved",
     nameFailed: "Not saved: {message}",
-    /** The run's facts under the actions. {id} is the run's id; {date} and {title} its study's. */
     runId: "{id}",
     study: "{date} · {title}",
-    /** A run made to tune or test the trainer, and a run that asks for something other than the group as a whole. */
     roles: { "settings-sweep": "A run of a settings sweep.", "smoke-test": "A smoke test." },
     otherTarget: "It asks for something other than the basis group as a whole.",
-    /** What the run measured. {update} is the update of its first reading that met the selection target. */
     firedAt: "Selection target met at update {update}.",
     neverFired: "Selection target never met.",
     holds: "It still met it at step 4,000.",
     dissolves: "It no longer met it at step 4,000.",
   },
-  /**
-   * Link previews: the Open Graph and Twitter tags that the Worker writes into the page, for Messages
-   * and other link unfurlers, which run no JavaScript (gallery/src/link-preview.ts). The five top pages
-   * use their own words in pageSummaries below; these are for the other public pages and the panels.
-   */
+
+  /** Open Graph and Twitter fallback metadata written by `gallery/src/link-preview.ts`. */
   preview: {
-    /** The title of a public page without words of its own: the Painter's page, Create and Picture. */
     title: "DinoDreamer",
-    /** A basis group page's preview title. {block} is its number. */
     blockTitle: "Basis group {block} · DinoDreamer",
-    /** A basis group page's heading in the page's reader text (gallery/src/reader-text.ts). {block} is its number. */
     blockHeading: "Basis group {block}",
-    /** A basis group page's preview sentence when it has published automata. {block} is its number; {materials} is oneMaterial or materials. */
     blockDescription: "Basis group {block} of a basis collection of 16,384, learned from DINOv3: the patches where it is selected, and {materials} trained toward it.",
-    /** A basis group page's preview sentence when it has no published automaton yet. {block} is its number. */
     blockDescriptionNoMaterial: "Basis group {block} of a basis collection of 16,384, learned from DINOv3: the patches where it is selected.",
     oneMaterial: "1 cellular automaton",
     materials: "{count} cellular automata",
   },
+
   /**
-   * The five top pages as a reader that runs no JavaScript receives them: search crawlers that do not render, AI
-   * agents and link unfurlers. The Worker writes each page's title, its description (the search and preview
-   * sentence) and its reader text, one heading and one paragraph, into the HTML (gallery/src/link-preview.ts,
-   * gallery/src/reader-text.ts). The app replaces the reader text when it starts. A title stays under 60 characters
-   * and a description under 155.
-   * In a paragraph, [words](/path) is a link.
+   * Server-rendered titles, descriptions, and reader paragraphs for the five top routes
+   * (`gallery/src/link-preview.ts`, `gallery/src/reader-text.ts`). Keep titles under 60 characters
+   * and descriptions under 155 characters. Inline `[label](/path)` links are rendered into HTML.
    */
   pageSummaries: {
     home: {
@@ -1360,7 +969,6 @@ export const SITE_WORDS = {
       heading: "How it works",
       paragraph: "DINO is a vision transformer that learned to see without labels. It turns a picture into 256 descriptions, one for each patch. A basis collection reads each description with 16,384 small learned spaces, three numbers wide: the basis groups. A cellular automaton is then trained until DINOv3 reads the image it grows as a chosen patch. This page follows one picture of a hibiscus through all three. After it, open the [Index](/index), watch the [Automata](/automata), or [Train](/train) one. The longer account is the write-up, [Growing cellular automata to visualize DINOv3](https://computervision.vision/writing/dinodreamer/).",
     },
-    /** The reader text's last line, on every page: the write-up, the author, the code and the featurizer (as in the site's footer). Short words: the line must fit a phone. */
     footer: {
       essay: "Write-up",
       author: "Omar Hammami",
@@ -1368,16 +976,7 @@ export const SITE_WORDS = {
   },
 } as const;
 
-/** "{block}" and the like in a string, replaced by the values given; a placeholder with no value stays as it is. */
+/** Replace `{name}` placeholders with stringified values, leaving unknown placeholders unchanged. */
 export function fill(text: string, values: Record<string, string | number>): string {
   return text.replace(/\{(\w+)\}/g, (match, key: string) => (key in values ? String(values[key]) : match));
-}
-
-/** The same, where a value may be an element (a link): the pieces of the string and the values, in order, for React to render. */
-export function fillNodes(text: string, values: Record<string, ReactNode>): ReactNode[] {
-  return text.split(/(\{\w+\})/g).map((piece, index) => {
-    const key = piece.match(/^\{(\w+)\}$/)?.[1];
-    if (key === undefined) return piece;
-    return key in values ? createElement(Fragment, { key: index }, values[key]) : piece;
-  });
 }

@@ -3,7 +3,7 @@
 // tabs, the steps, the map's stages and the arrow keys move it, and the address's hash carries
 // it (how-navigation.ts), so Back returns and a link lands on a section. The words are in
 // app/site-words.ts under `how`; the figures in figures/; the map in how-map.tsx.
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router";
 import { fill, SITE_WORDS } from "../../app/site-words";
 import { HowFigure } from "./figures/how-figure";
@@ -55,10 +55,10 @@ export function HowPage() {
     // Only desktop has a fixed figure pane. Mobile section navigation uses document scrolling.
     if (!mobile) figure.current?.scrollTo(0, 0);
   }, [section.id, mobile]);
-  const go = (next: number | null) => {
+  const go = useCallback((next: number | null) => {
     if (next === null || next === index) return;
     void navigate({ pathname: "/how", hash: hashForSection(next) });
-  };
+  }, [index, navigate]);
   const goStage = (stage: HowStage) => go(sectionIndexOf(STAGE_SECTION[stage]));
   const { facts, report } = useHowFactsState();
   // On the glossary, the term under the pointer or the focus lights its section's stages on the map.
@@ -66,7 +66,7 @@ export function HowPage() {
   const termIndex = section.act === "glossary" && termSection !== null ? sectionIndexOf(termSection) : null;
   const map = litBy(section.map, termIndex === null ? null : HOW_SECTIONS[termIndex]!);
 
-  // The arrow keys move the story, unless the reader is in a control or the basis group panel.
+  // Arrow keys step through sections unless focus is in a form control or dialog.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.altKey || event.ctrlKey || event.metaKey || !keyboardMoves(event.target)) return;
@@ -77,7 +77,7 @@ export function HowPage() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  });
+  }, [index, go]);
 
   const explanation = <HowCard index={index} onGo={go} onLight={setTermSection} facts={facts} />;
   const stage = (

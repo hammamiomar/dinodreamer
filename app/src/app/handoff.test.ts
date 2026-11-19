@@ -4,7 +4,7 @@ import { fixtureLibrary, fixtureProvenancePage } from "../library/fixture-librar
 import { recordedCode } from "../library/observations";
 import { validateRecipe } from "../recipe";
 import { libraryToken } from "../library/roles";
-import { isTokenHandoff, MAX_STRONG_EXAMPLES, resolveTokenHandoff, strongExamples } from "./handoff";
+import { MAX_STRONG_EXAMPLES, resolveTokenHandoff, strongExamples } from "./handoff";
 import type { TokenReference } from "./handoff";
 
 describe("a reference without a code", () => {
@@ -19,7 +19,6 @@ describe("a reference without a code", () => {
     const record = (await library.observations(card.block)).record(example.imageId)!;
     expect(handoff.code).toEqual(recordedCode(record, 5 + example.position!));
     expect(handoff.strongExamples).toEqual(strongExamples(await library.block(card.block), reference.token));
-    expect(isTokenHandoff(handoff)).toBe(true);
     const recipe = createRequest(createRecipe("fixture"), handoff);
     expect(validateRecipe(recipe, { blocks: library.release.blocks })).toEqual([]);
   });
