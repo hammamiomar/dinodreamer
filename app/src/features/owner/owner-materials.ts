@@ -75,6 +75,15 @@ export async function sendOwnerAction(action: OwnerAction, id: string, fetcher: 
   return readMaterialIndex({ entries: [answeredEntry(action, answer)] }).entries[0]!;
 }
 
+export async function renameOwnerMaterial(id: string, title: string, credit: string): Promise<MaterialEntry> {
+  const response = await fetch("/admin/api/materials/rename", {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id, title, credit }),
+  });
+  if (!response.ok) throw new Error(await ownerError(response));
+  const { entry } = await response.json();
+  return readMaterialIndex({ entries: [entry] }).entries[0]!;
+}
+
 export interface MaterialCdnPurge { place: string; prefixes: string[] }
 
 /** Production removal also returns the library prefixes the owner must clear from Cloudflare. */
@@ -99,7 +108,7 @@ function answeredEntry(action: OwnerAction, answer: ActionAnswer): unknown {
   return answer.entry;
 }
 
-async function ownerError(response: Response): Promise<string> {
+export async function ownerError(response: Response): Promise<string> {
   const text = await response.text();
   try {
     return (JSON.parse(text) as { error?: string }).error ?? fill(WORDS.apiAnswered, { status: response.status });

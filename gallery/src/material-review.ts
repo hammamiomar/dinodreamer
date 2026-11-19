@@ -431,6 +431,17 @@ export async function findMaterial(submissions: Bucket, library: Bucket, id: str
   return stored === null ? null : { state: "hidden", entry: JSON.parse(await stored.text()) as HiddenMaterial };
 }
 
+/** Edit the public index label. The immutable definition keeps its training name and revision. */
+export async function renameMaterial(library: Bucket, id: string, label: { title: string; credit: string }): Promise<MaterialEntry> {
+  const index = await readMaterials(library);
+  const entry = index.entries.find((shown) => shown.id === id);
+  if (!entry) throw new ConflictError(`no published automaton definition ${id}`);
+  if (entry.title === label.title && entry.credit === label.credit) return entry;
+  const renamed = { ...entry, ...label };
+  await writeMaterials(library, { entries: index.entries.map((shown) => shown.id === id ? renamed : shown) });
+  return renamed;
+}
+
 /** Take a shown material out of the index and keep its objects; restore undoes it. */
 export async function hideMaterial(submissions: Bucket, library: Bucket, id: string, now: Date): Promise<HiddenMaterial> {
   checkedEntryId(id);

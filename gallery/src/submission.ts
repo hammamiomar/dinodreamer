@@ -82,14 +82,22 @@ export async function checkedRecipe(
 }
 
 /** A text field's trimmed value, or an error when it is too long or contains control characters. */
-function textField(form: FormData, name: string, limit: number): { value: string } | { error: string } {
-  const raw = form.get(name) ?? "";
+function textField(raw: unknown, name: string, limit: number): { value: string } | { error: string } {
   if (typeof raw !== "string") return { error: `${name} must be text` };
   const value = raw.trim();
   const problem = submissionLabelProblem(value, limit);
   if (problem === "too-long") return { error: `${name} has more than ${limit} characters` };
   if (problem === "control-characters") return { error: `${name} contains control characters` };
   return { value };
+}
+
+/** Published labels and new submissions use the same text limits. */
+export function readMaterialLabel(rawTitle: unknown, rawCredit: unknown): { title: string; credit: string } | { error: string } {
+  const title = textField(rawTitle, "title", MATERIAL_LIMITS.titleCharacters);
+  if ("error" in title) return title;
+  const credit = textField(rawCredit, "credit", MATERIAL_LIMITS.creditCharacters);
+  if ("error" in credit) return credit;
+  return { title: title.value, credit: credit.value };
 }
 
 /** The request's size and type, then its multipart form: the checks every kind of submission shares. */
@@ -121,14 +129,12 @@ export async function readMaterialForm(form: FormData):
   const text = typeof field === "string" ? field : await field.text();
   const checked = checkedMaterial(text);
   if ("error" in checked) return { ok: false, status: checked.error.includes("larger") ? 413 : 400, error: checked.error };
-  const title = textField(form, "title", MATERIAL_LIMITS.titleCharacters);
-  if ("error" in title) return { ok: false, status: 400, error: title.error };
-  const credit = textField(form, "credit", MATERIAL_LIMITS.creditCharacters);
-  if ("error" in credit) return { ok: false, status: 400, error: credit.error };
+  const label = readMaterialLabel(form.get("title") ?? "", form.get("credit") ?? "");
+  if ("error" in label) return { ok: false, status: 400, error: label.error };
   const token = form.get(TOKEN_FIELD);
   return {
     ok: true,
-    submission: { file: checked.file, text: JSON.stringify(checked.file), poster: materialPoster(checked.file), title: title.value, credit: credit.value },
+    submission: { file: checked.file, text: JSON.stringify(checked.file), poster: materialPoster(checked.file), ...label },
     turnstileToken: typeof token === "string" ? token : null,
   };
 }
@@ -157,12 +163,12 @@ export async function readCreationForm(form: FormData, releaseBlocks: ReleaseBlo
   const checked = await checkedRecipe(parsed, releaseBlocks);
   if ("error" in checked) return refused(400, checked.error, checked.problems);
 
-  const title = textField(form, "title", SUBMISSION_LIMITS.titleCharacters);
+  const title = textField(form.get("title") ?? "", "title", SUBMISSION_LIMITS.titleCharacters);
   if ("error" in title) return refused(400, title.error);
   if (title.value === "") return refused(400, "title is missing");
-  const credit = textField(form, "credit", SUBMISSION_LIMITS.creditCharacters);
+  const credit = textField(form.get("credit") ?? "", "credit", SUBMISSION_LIMITS.creditCharacters);
   if ("error" in credit) return refused(400, credit.error);
-  const engine = textField(form, "engine", SUBMISSION_LIMITS.engineCharacters);
+  const engine = textField(form.get("engine") ?? "", "engine", SUBMISSION_LIMITS.engineCharacters);
   if ("error" in engine) return refused(400, engine.error);
 
   const submission: Submission = { image: imageBytes, recipe: checked.recipe, title: title.value, credit: credit.value };

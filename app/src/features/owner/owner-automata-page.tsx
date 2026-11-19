@@ -29,6 +29,8 @@ import {
   type OwnerAutomaton, type OwnerAutomatonAction, type OwnerChange, type OwnerRead,
 } from "./owner-automata";
 import { fetchOwnerMaterials, purgeOwnerMaterial, sendGroupName, sendOwnerAction, sendPictureMark, showResearchRuns, type MaterialCdnPurge, type PendingSubmission } from "./owner-materials";
+import { CanvasReview } from "./canvas-review";
+import { AutomatonLabel } from "./automaton-label";
 import { PENDING_GROUP, PendingScreen } from "./owner-pending";
 import "../automata/automata.css";
 import "./owner-automata.css";
@@ -186,7 +188,7 @@ function OwnerGallery({ read, pending, onChange, onReviewed }: {
 
   if (group === null || playing === null) {
     return (
-      <GroupWall groups={groups} names={names} status={null} lead={ownerLine} markOf={(each) => <GroupMark group={each} total={groupTotals.get(each.group) ?? 0} />}>
+      <GroupWall groups={groups} names={names} status={null} lead={<>{ownerLine}<CanvasReview /></>} markOf={(each) => <GroupMark group={each} total={groupTotals.get(each.group) ?? 0} />}>
         {panel}
       </GroupWall>
     );
@@ -196,7 +198,13 @@ function OwnerGallery({ read, pending, onChange, onReviewed }: {
   return (
     <GroupScreen group={group} name={nameOf(names, group.group)} neighbours={neighboursOf(groups, group.group)} playing={playing} onChoose={choose}
       nameField={visitor ? undefined : <NameField key={group.group} block={group.group} name={nameOf(names, group.group) ?? ""} />}
-      paneHead={ownerLine}
+      paneHead={<>
+        {ownerLine}
+        {!visitor && automaton.state === "shown" && automaton.entry && (
+          <AutomatonLabel key={automaton.id} entry={automaton.entry} busy={busy}
+            setBusy={setBusy} onSaved={(entry) => onChange({ shown: [entry] })} />
+        )}
+      </>}
       cellCaption={visitor ? undefined : cellCaption}
       stage={(
         <OwnerStage key={automaton.id} automaton={automaton}
