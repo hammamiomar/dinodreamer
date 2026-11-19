@@ -20,7 +20,7 @@ Use Node 24 and the pnpm version in each project's `package.json`. Install the f
 
 CI pins Bun 1.4.4. It checks that Bun's embedded TypeScript version matches each project's locked compiler before checking code. The release workflow uses each project's existing build command. The planner, web validation and native Rust tests start together. Web validation restores or builds the engine, then runs lint alongside the exact type checks and Vite build. The planner runs a small unit selection on its own runner. Large timed shards start on separate runners as soon as the plan is ready. Unit tests mock the engine initializer. The bundle and browser tests use the generated package. The native job uses the pinned compiler with the CPU feature, debug assertions and source line tables.
 
-Oxlint enables all seven rule categories. The root configuration lists each exception with its reason and scope. It excludes vendored Rust, generated packages and local build output. Lint needs the engine declarations for type-aware rules.
+Oxlint enables the `correctness`, `suspicious`, and `perf` rule categories, plus explicit language, React, accessibility, and test rules. The root configuration `.oxlintrc.json` groups each exception with its scope and reason. It excludes vendored Rust, generated packages, and local build output. Lint requires the engine declarations for type-aware rules.
 
 ## Test selection and timing
 

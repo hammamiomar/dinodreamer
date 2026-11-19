@@ -34,10 +34,7 @@ function requiresFullCheck({ file, status }) {
 
 export function testScope(diff) {
   const changes = (diff ?? []).filter(
-    ({ file }) =>
-      !/(^|\/)(README|AGENTS)\.md$/.test(file) &&
-      !/^ci\/.+\.md$/.test(file) &&
-      !["LICENSE", "NOTICE", "engine/set-methods-ledger.md"].includes(file),
+    ({ file }) => !file.endsWith(".md") && !["LICENSE", "NOTICE"].includes(file),
   );
   const paths = changes.map((change) => change.file);
   const engine = paths.filter((file) => file.startsWith("engine/"));

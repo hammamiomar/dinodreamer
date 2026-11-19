@@ -26,6 +26,17 @@ test("a documentation change schedules no tests", async () => {
   });
 });
 
+test("markdown documentation in subdirectories schedules no tests", async () => {
+  const empty = { jobs: [], cargo: false, engineNode: false, planner: false };
+  for (const change of [
+    changed("gallery/cloudflare-settings.md"),
+    changed("engine/set-methods-ledger.md"),
+    [{ status: "D", file: "engine/set-methods-ledger.md" }],
+  ]) {
+    assert.deepEqual(await planTests(change), empty, change[0].file);
+  }
+});
+
 test("a changed unit test schedules that file alone", async () => {
   const file = "app/src/features/automata/deck-level-swipe.test.ts";
   assert.deepEqual(unitFilesOf(await planTests(changed(file))), [file]);
