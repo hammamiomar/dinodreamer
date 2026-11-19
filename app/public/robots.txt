@@ -9,3 +9,12 @@ Disallow: /block/
 Disallow: /*/block/
 Disallow: /*?
 Disallow: /admin
+
+# Link-preview readers fetch one page's HTML and run no JavaScript, so a shared panel or automaton link costs no
+# library reads. X and LinkedIn obey robots.txt: without this group, a shared /automata?group=... or /basis/...
+# link would show no card there. A crawler obeys only the group that names it.
+User-agent: Twitterbot
+User-agent: LinkedInBot
+Disallow: /admin
+
+Sitemap: https://dinodreamer.computervision.vision/sitemap.xml
