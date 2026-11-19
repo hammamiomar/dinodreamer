@@ -1,18 +1,18 @@
-//! The figure rule on the GPU: its training and the live grid. The rule's step runs
-//! `kernels::cell`; `kernels::draws` draws the noise and the firing masks.
+//! The figure rule on the GPU: its parameters, forward rollout, chunked backward pass, and
+//! training loop. The cell step runs `kernels::cell` and `kernels::cell_step`; `kernels::draws`
+//! draws the noise and firing masks.
 //!
-//! The pyramid keeps its two grids as two tensors (`Cells`), rather than the reference's pixel-shuffled channels
-//! 16–19; the values and the arithmetic are the same. Its coarse grid steps first, as a cell rule
-//! on COARSE_SIDE cells; the fine rule then reads its own 64 perceptions and the new coarse state,
-//! upsampled on the torus, as 80 inputs.
+//! The pyramid keeps its two grids as two separate tensors (`Cells`). Its coarse grid steps first,
+//! as a cell rule on `COARSE_SIDE` cells; the fine rule then reads its own 64 perceptions and the
+//! new coarse state, upsampled on the torus, as 80 inputs.
 use super::{
     CELLS, CHANNELS, COARSE_CELLS, COARSE_SIDE, FIRE_RATE, FigureRequest, Layer, Method, OVERFLOW_WEIGHT, PATCHES, POOL, Plan, RuleKind,
-    SIDE, Start, UpdateCount, damage_disc, learning_rate, mean_code_loss, overflow, picture, region_features, region_mean_codes,
+    SIDE, Start, UpdateCount, learning_rate, mean_code_loss, overflow, picture, region_features, region_mean_codes,
     target_set::{SetLoss, TargetSet}, upsample_torus,
 };
 use crate::{
-    profiling,
-    encoder::{Dino, PREFIX},
+    calibration::Calibration,
+    encoder::{Dino, PREFIX, WIDTH},
     grow::{
         draws::{self, Stream},
         views,
@@ -20,9 +20,11 @@ use crate::{
     kernels::{
         cell::{HIDDEN, PERCEPTIONS, linear, perceive},
         cell_step, frozen_linear,
+        pyramid::{PyramidChunkInput, PyramidStates},
     },
-    objective::Calibration,
     optimizer::Adam,
+    profiling,
+    state::read_values,
 };
 use burn::tensor::{Device, Tensor, TensorData};
 use serde::Serialize;
@@ -60,7 +62,7 @@ pub struct Cells {
 impl Cells {
     /// One grid's start: the fine grid from `fine`'s noise and, for the pyramid, the coarse grid
     /// from `coarse`'s, each masked by the start.
-    fn start(rule: RuleKind, start: Start, fine: Stream, coarse: Stream, device: &Device) -> Self {
+    pub(super) fn start(rule: RuleKind, start: Start, fine: Stream, coarse: Stream, device: &Device) -> Self {
         Self {
             fine_1NC: start_grid(fine, SIDE, start, device),
             coarse_1MC: (rule == RuleKind::Pyramid).then(|| start_grid(coarse, COARSE_SIDE, start, device)),
@@ -72,7 +74,7 @@ impl Cells {
     }
 
     /// The fine tensor, then the coarse one if any.
-    fn tensors(&self) -> Vec<Tensor<3>> {
+    pub(super) fn tensors(&self) -> Vec<Tensor<3>> {
         std::iter::once(self.fine_1NC.clone()).chain(self.coarse_1MC.clone()).collect()
     }
 
@@ -97,9 +99,9 @@ impl Cells {
         }
     }
 
-    /// The colour of each fine cell before the picture's offset, [1, B·H·W, 3]: the first three
-    /// channels, plus the upsampled coarse colour for the pyramid (`PyramidRule.picture` in the reference).
-    fn colour(&self) -> Tensor<3> {
+    /// The colour of each fine cell before the picture's offset, `[1, B·H·W, 3]`: the first three
+    /// channels, plus the upsampled coarse colour for the pyramid.
+    pub(super) fn colour(&self) -> Tensor<3> {
         let fine_1N3 = self.fine_1NC.clone().narrow(2, 0, 3);
         match &self.coarse_1MC {
             None => fine_1N3,
@@ -187,8 +189,8 @@ impl FigureRule {
             // fc1's weight [96, fan_in] and its bias [96] are drawn; fc2 [16, 96] stays zero.
             let drawn = HIDDEN * fan_in + HIDDEN;
             let bound = (fan_in as f32).sqrt();
-            for index in first..first + drawn {
-                values[index] = (init.uniform(index as u32) * 2.0 - 1.0) / bound;
+            for (index, slot) in values.iter_mut().enumerate().skip(first).take(drawn) {
+                *slot = (init.uniform(index as u32) * 2.0 - 1.0) / bound;
             }
             first += drawn + CHANNELS * HIDDEN;
         }
@@ -247,7 +249,7 @@ impl FigureRule {
     /// The same step as `step` without a tape, for frozen parameters: the cell rule runs as one
     /// fused dispatch (`kernels::cell_step`) that draws the firing mask of `fire` itself; the
     /// pyramid draws its masks and runs the unfused operations.
-    fn step_frozen(&self, cells: Cells, fire: Stream, coarse_fire: Stream) -> Cells {
+    pub(super) fn step_frozen(&self, cells: Cells, fire: Stream, coarse_fire: Stream) -> Cells {
         match self.kind {
             RuleKind::Cell => Cells {
                 fine_1NC: cell_step::step(
@@ -288,22 +290,23 @@ impl FigureRule {
         (cells, starts)
     }
 
-    /// The gradients of the rollout from its chunk starts, last chunk first: the cell rule
-    /// through `kernels::cell_step::chunk_gradient` (one fused dispatch per step, the same
-    /// reductions and order as the tape, so the same bits); the pyramid on Burn's tape.
+    /// Parameter gradients of the rollout from its chunk starts, last chunk first. Both rule
+    /// kinds run fused chunk backward kernels (`kernels::cell_step::chunk_gradient` for cell rules
+    /// and `kernels::pyramid::chunk_gradient` for pyramid rules) that preserve Burn's autodiff
+    /// reduction order bit for bit.
     fn backward_chunks(
         &self,
         starts: Vec<Cells>,
         fire: Stream,
         coarse_fire: Stream,
         steps: usize,
-        grids: usize,
         upstream: Cells,
-    ) -> Result<Vec<Tensor<4>>, String> {
-        let _ = (coarse_fire, grids);
+    ) -> Vec<Tensor<4>> {
         match self.kind {
-            RuleKind::Cell => Ok(self.backward_chunks_fused(starts, fire, steps, upstream)),
-            RuleKind::Pyramid => Ok(self.backward_chunks_fused_pyramid(starts, fire, coarse_fire, steps, upstream)),
+            RuleKind::Cell => self.backward_chunks_fused(starts, fire, steps, upstream),
+            RuleKind::Pyramid => {
+                self.backward_chunks_fused_pyramid(starts, fire, coarse_fire, steps, upstream)
+            }
         }
     }
 
@@ -322,17 +325,21 @@ impl FigureRule {
                 let shape = shapes[i];
                 frozen.parameters[i].clone().reshape([shape[2], shape[3]])
             });
-            let gradient = crate::kernels::pyramid::chunk_gradient(
-                start.fine_1NC,
-                start.coarse_1MC.expect("the pyramid's coarse start"),
+            let gradient = crate::kernels::pyramid::chunk_gradient(PyramidChunkInput {
+                start: PyramidStates {
+                    fine_1NC: start.fine_1NC,
+                    coarse_1MC: start.coarse_1MC.expect("the pyramid's coarse start"),
+                },
                 parameters,
-                &fine_keys,
-                &coarse_keys,
-                FIRE_RATE,
-                SIDE,
-                upstream_fine_1NC,
-                upstream_coarse_1MC,
-            );
+                fine_keys: &fine_keys,
+                coarse_keys: &coarse_keys,
+                rate: FIRE_RATE,
+                side: SIDE,
+                upstream: PyramidStates {
+                    fine_1NC: upstream_fine_1NC,
+                    coarse_1MC: upstream_coarse_1MC,
+                },
+            });
             upstream_fine_1NC = gradient.fine_1NC;
             upstream_coarse_1MC = gradient.coarse_1MC;
             for ((total, part), shape) in accumulated.iter_mut().zip(gradient.parameters).zip(&shapes) {
@@ -349,16 +356,16 @@ impl FigureRule {
         for (index, start) in starts.into_iter().enumerate().rev() {
             let first = index * CHUNK;
             let keys: Vec<u32> = (first..(first + CHUNK).min(steps)).map(|step| fire.at(step as u32).key()).collect();
-            let gradient = cell_step::chunk_gradient(
-                start.fine_1NC,
-                frozen.parameters[0].clone().reshape([HIDDEN, PERCEPTIONS]),
-                frozen.parameters[1].clone().reshape([HIDDEN]),
-                frozen.parameters[2].clone().reshape([CHANNELS, HIDDEN]),
-                &keys,
-                FIRE_RATE,
-                SIDE,
+            let gradient = cell_step::chunk_gradient(cell_step::CellChunkInput {
+                start_1NC: start.fine_1NC,
+                fc1_JP: frozen.parameters[0].clone().reshape([HIDDEN, PERCEPTIONS]),
+                bias_J: frozen.parameters[1].clone().reshape([HIDDEN]),
+                fc2_CJ: frozen.parameters[2].clone().reshape([CHANNELS, HIDDEN]),
+                keys: &keys,
+                rate: FIRE_RATE,
+                side: SIDE,
                 upstream_1NC,
-            );
+            });
             upstream_1NC = gradient.state_1NC;
             let parts = [
                 gradient.fc1_JP.reshape([1, 1, HIDDEN, PERCEPTIONS]),
@@ -373,15 +380,11 @@ impl FigureRule {
     }
 
     pub async fn values(&self) -> Result<Vec<f32>, String> {
-        let values = Tensor::<1>::cat(
+        let values = read_values(Tensor::<1>::cat(
             self.parameters.iter().map(|p| p.clone().inner().flatten(0, 3)).collect(),
             0,
-        )
-        .into_data_async()
-        .await
-        .map_err(|e| e.to_string())?
-        .try_to_vec::<f32>()
-        .map_err(|e| e.to_string())?;
+        ))
+        .await?;
         if values.iter().any(|value| !value.is_finite()) {
             return Err("The figure rule became non-finite".into());
         }
@@ -419,9 +422,9 @@ struct ViewReading {
 fn read_views(encoder: &Dino, calibration: &Calibration, frame_RD: &Tensor<2>, pictures_VCHW: Tensor<4>, blocks: &[usize]) -> ViewReading {
     let views = pictures_VCHW.dims()[0];
     let readout = encoder.readout(pictures_VCHW, blocks);
-    let native_VTD = readout.native_BTD.slice([0..views, PREFIX..PREFIX + PATCHES, 0..768]);
+    let native_VTD = readout.native_BTD.slice([0..views, PREFIX..PREFIX + PATCHES, 0..WIDTH]);
     let codes_VTR = frozen_linear(calibration.tokens(native_VTD.clone()), frame_RD.clone());
-    ViewReading { native_VTD, codes_VTR, intermediate_VTD: readout.intermediate_BPD }
+    ViewReading { native_VTD, codes_VTR, intermediate_VTD: readout.intermediate_BTD }
 }
 
 /// The canvas features of each compared layer, [M, D] (`region_features`): the codes for
@@ -437,11 +440,10 @@ fn compared_features(request: &FigureRequest, reading: &ViewReading, blocks: &[u
     }).collect()
 }
 
-/// A set method's loss on one displayed picture [1, 3, 128, 128]: the training's terms with the picture
-/// in place of the eight views, so the scored patches of the start give M = 16 or 64 canvas tokens.
-/// Decision 12 of the brief reads the final rule on the live grid at a ladder of ticks and keeps the
-/// tick with the lowest value. One DINO pass at the method's layers and one readback: 22 to 25 ms
-/// natively on an M1 Max (17 November 2026).
+/// Evaluates a set method's loss on one displayed picture `[1, 3, 128, 128]`: the training loss
+/// terms with that single picture in place of the eight views, over the start's scored patches
+/// (`M = 16` or `64`). Calling this across a ladder of simulation ticks selects the tick with the
+/// lowest loss.
 pub async fn own_loss(
     encoder: &Dino,
     calibration: &Calibration,
@@ -455,7 +457,7 @@ pub async fn own_loss(
     let blocks = request.intermediate_blocks();
     let reading = read_views(encoder, calibration, &frame_DR.clone().transpose(), picture_1CHW, &blocks);
     let loss = target.loss(compared_features(request, &reading, &blocks)).value;
-    let values = loss.into_data_async().await.map_err(|e| e.to_string())?.try_to_vec::<f32>().map_err(|e| e.to_string())?;
+    let values = read_values(loss).await?;
     values.first().copied().filter(|value| value.is_finite()).ok_or_else(|| "The picture's loss is not finite".into())
 }
 
@@ -557,9 +559,8 @@ pub struct FigureUpdate {
     pub layers: Vec<LayerLoss>,
     pub overflow: f32,
     pub state_max: f32,
-    /// Standard deviation of the B training pictures over channels and pixels (`rgb_std` in
-    /// the reference). Fresh noise is about 0.29. This diagnostic does not reliably predict
-    /// whether a rule reaches the selection threshold, so it does not control training.
+    /// Standard deviation of the B training pictures over channels and pixels. Fresh noise is
+    /// about 0.29. This diagnostic does not control training.
     pub picture_contrast: f32,
     /// mean_{t∈P} c_vt for every view, [V × 3].
     pub mean_codes: Vec<f32>,
@@ -617,10 +618,10 @@ impl FigureTraining {
         })
     }
 
-    /// A run continued from a saved definition (Train resume):
-    /// its rule's values, a fresh Adam, a fresh pool from the request's start, and the update count
-    /// from the file, so the plan, firing and learning rate go on from `from_update` with the
-    /// request's seed. The request may name another reference patch or start than the file's.
+    /// A run continued from a saved rule: loads `values` with a fresh Adam and fresh pool from
+    /// the request's start, and continues the plan, firing, and learning-rate schedule from
+    /// `from_update` with the request's seed. The request may name another reference patch or
+    /// start than the saved rule's original run.
     pub fn continued(
         request: FigureRequest,
         target: Option<TargetSet>,
@@ -644,8 +645,7 @@ impl FigureTraining {
         })
     }
 
-    /// The optimizer's moments and bias corrections, to continue another run with them (the
-    /// measurement of continued runs, engine/examples/grow_continue_check.rs).
+    /// Optimizer moments and bias corrections, for harness checks that reproduce a run state.
     #[cfg(feature = "harness")]
     pub fn optimizer_state(&self) -> Vec<[Tensor<4>; 4]> {
         self.adam.state()
@@ -656,8 +656,7 @@ impl FigureTraining {
         self.adam.set_state(state);
     }
 
-    /// The pool's states, to continue another run with them: with the optimizer's state too, a
-    /// continued run must equal the uninterrupted one.
+    /// Pool states, for harness checks that reproduce a run state alongside optimizer state.
     #[cfg(feature = "harness")]
     pub fn pool_states(&self) -> Vec<Option<Cells>> {
         self.pool.clone()
@@ -677,7 +676,7 @@ impl FigureTraining {
         self.updates.target
     }
 
-    /// Train `updates` more past the current target: Resume after a run has ended.
+    /// Train `updates` more past the current target.
     pub fn extend(&mut self, updates: u32) {
         self.updates.extend(updates);
     }
@@ -690,10 +689,11 @@ impl FigureTraining {
     }
 
     fn pool_state(&mut self, entry: usize) -> Cells {
-        if self.pool[entry].is_none() {
-            self.pool[entry] = Some(self.fresh(draws::POOL, draws::COARSE_POOL, entry as u32));
+        if let Some(cells) = &self.pool[entry] {
+            return cells.clone();
         }
-        self.pool[entry].clone().unwrap()
+        let cells = self.fresh(draws::POOL, draws::COARSE_POOL, entry as u32);
+        self.pool[entry].insert(cells).clone()
     }
 
     pub async fn update(&mut self, encoder: &Dino, calibration: &Calibration) -> Result<FigureUpdate, String> {
@@ -777,8 +777,10 @@ impl FigureTraining {
             },
         };
         drop(derivatives);
-        let gradients =
-            profiling::broad("rule recompute and backward", || self.rule.backward_chunks(starts, fine, coarse, plan.steps, batch, upstream))?;
+        let gradients = profiling::broad("rule recompute and backward", || {
+            self.rule
+                .backward_chunks(starts, fine, coarse, plan.steps, upstream)
+        });
         Ok(FigureGradient {
             normalized: profiling::broad("gradient normalization", || gradients.into_iter().map(normalized).collect()),
             grown,
@@ -786,7 +788,6 @@ impl FigureTraining {
             plan,
         })
     }
-
 
     /// Adam on the normalized gradients at this update's rate; the grown states return to the pool.
     pub async fn apply(&mut self, gradient: FigureGradient) -> Result<FigureUpdate, String> {
@@ -797,12 +798,7 @@ impl FigureTraining {
         for (slot, &entry) in plan.entries.iter().enumerate() {
             self.pool[entry] = Some(grown.grid(slot));
         }
-        let values = metrics
-            .into_data_async()
-            .await
-            .map_err(|e| e.to_string())?
-            .try_to_vec::<f32>()
-            .map_err(|e| e.to_string())?;
+        let values = read_values(metrics).await?;
         if values.iter().any(|value| !value.is_finite()) {
             return Err("Figure training became non-finite".into());
         }
@@ -821,122 +817,5 @@ impl FigureTraining {
             mean_codes: readings.mean_codes,
             plan,
         })
-    }
-}
-
-/// One 128×128 torus grid (with the pyramid's 64×64 coarse grid) grown forward with a fixed rule,
-/// on the Keep replay contract: the state at tick 0 is `Stream::new(seed, NOISE)` noise
-/// (COARSE_NOISE for the coarse grid), masked by the start; the step from tick t fires the cells of
-/// `Stream::new(seed, FIRE).at(t)` (COARSE_FIRE). Its (seed, tick) therefore name a reproducible picture.
-pub struct FigureGrid {
-    cells: Cells,
-    pub rule: RuleKind,
-    pub start: Start,
-    pub seed: u32,
-    pub tick: u32,
-    /// Brush stamps since tick 0; stamp k draws from `Stream::new(seed, DAMAGE).at(k)` (COARSE_DAMAGE).
-    pub damages: u32,
-}
-
-impl FigureGrid {
-    pub fn new(seed: u32, rule: RuleKind, start: Start, device: &Device) -> Self {
-        let streams = (Stream::new(seed, draws::NOISE), Stream::new(seed, draws::COARSE_NOISE));
-        Self {
-            cells: Cells::start(rule, start, streams.0, streams.1, &device.clone().inner()),
-            rule,
-            start,
-            seed,
-            tick: 0,
-            damages: 0,
-        }
-    }
-
-    /// Apply one brush stamp now (`damage_disc`); the tick does not change. The pyramid stamps its
-    /// coarse grid too, at half the centre and radius, with the same stamp count.
-    pub fn damage(&mut self, x: f32, y: f32, radius: f32) {
-        let stamp = |state_1NC: Tensor<3>, purpose: u32, side: usize, scale: f32| {
-            let device = state_1NC.device();
-            let key = Stream::new(self.seed, purpose).at(self.damages);
-            let (weights, goals) = damage_disc(key, side, x * scale, y * scale, radius * scale);
-            let weight_1N1 = Tensor::<3>::from_data(TensorData::new(weights, [1, side * side, 1]), &device);
-            let goal_1NC = Tensor::<3>::from_data(TensorData::new(goals, [1, side * side, CHANNELS]), &device);
-            state_1NC.clone() + (goal_1NC - state_1NC) * weight_1N1
-        };
-        self.cells = Cells {
-            fine_1NC: stamp(self.cells.fine_1NC.clone(), draws::DAMAGE, SIDE, 1.0),
-            coarse_1MC: self.cells.coarse_1MC.clone().map(|coarse| stamp(coarse, draws::COARSE_DAMAGE, COARSE_SIDE, 0.5)),
-        };
-        self.damages += 1;
-    }
-
-    /// `rule` holds fixed parameters (`FigureRule::fixed`) of this grid's rule kind.
-    pub fn advance(&mut self, rule: &FigureRule, steps: u32) {
-        assert_eq!(rule.kind, self.rule, "a grid grows the rule kind it was made for");
-        for _ in 0..steps {
-            self.cells = rule.step_frozen(
-                self.cells.clone(),
-                Stream::new(self.seed, draws::FIRE).at(self.tick),
-                Stream::new(self.seed, draws::COARSE_FIRE).at(self.tick),
-            );
-            self.tick += 1;
-        }
-    }
-
-    /// The patches a reading of this grid counts: all 64, or the central 4 × 4 for the seeded centre.
-    pub fn patches(&self) -> &'static [usize] {
-        self.start.patches()
-    }
-
-    /// The displayed byte levels 0–255, [1, 3, 128, 128].
-    fn levels(&self) -> Tensor<4> {
-        let rgb_1CHW = (self.cells.colour() + 0.5)
-            .clamp(0.0, 1.0)
-            .reshape([1, SIDE, SIDE, 3])
-            .permute([0, 3, 1, 2]);
-        (rgb_1CHW * 255.0).round()
-    }
-
-    /// The displayed 8-bit picture in [0, 1] on the autodiff device, as the encoder reads it.
-    pub fn picture(&self) -> Tensor<4> {
-        (self.levels() / 255.0).autodiff()
-    }
-
-    /// Opaque RGBA bytes of the displayed picture, row-major.
-    pub async fn rgba(&self) -> Result<Vec<u8>, String> {
-        let rgb_HWC = self.levels().permute([0, 2, 3, 1]).flatten::<1>(0, 3);
-        let values = rgb_HWC
-            .into_data_async()
-            .await
-            .map_err(|e| e.to_string())?
-            .try_to_vec::<f32>()
-            .map_err(|e| e.to_string())?;
-        Ok(values
-            .chunks_exact(3)
-            .flat_map(|rgb| [rgb[0] as u8, rgb[1] as u8, rgb[2] as u8, 255])
-            .collect())
-    }
-
-    /// The fine grid's state [1, 128², C], then the coarse grid's for the pyramid, flattened.
-    pub async fn state(&self) -> Result<Vec<Vec<f32>>, String> {
-        let mut states = Vec::new();
-        for state in self.cells.tensors() {
-            let values = state.flatten::<1>(0, 2).into_data_async().await.map_err(|e| e.to_string())?;
-            states.push(values.try_to_vec::<f32>().map_err(|e| e.to_string())?);
-        }
-        Ok(states)
-    }
-
-    /// Whether every state value is finite. A sum propagates NaN and infinity, which a GPU max
-    /// reduction may drop; a sum that overflows also means the grid left any useful range.
-    pub async fn finite(&self) -> Result<bool, String> {
-        let total = self
-            .cells
-            .tensors()
-            .into_iter()
-            .map(|state| state.abs().sum())
-            .reduce(|total, part| total + part)
-            .expect("a fine grid");
-        let values = total.into_data_async().await.map_err(|e| e.to_string())?;
-        Ok(values.try_to_vec::<f32>().map_err(|e| e.to_string())?[0].is_finite())
     }
 }

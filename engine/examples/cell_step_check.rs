@@ -2,9 +2,9 @@
 //!
 //!   cargo run --release --features harness --example cell_step_check [-- steps]
 //!
-//! Random states and rule values of the archive's ranges on two grid sides, chained over
-//! `steps` steps (default 10): the unfused output of a step feeds both paths of the next, so a
-//! difference cannot hide behind chaos. Reports every mismatching value (count, largest
+//! Random states and rule values in the cellular automaton's training ranges on two grid sides,
+//! chained over `steps` steps (default 10): the unfused output of a step feeds both paths of the
+//! next, so a difference cannot hide behind chaos. Reports every mismatching value (count, largest
 //! difference, first index) per step and the native time per step of each path at the figure
 //! recipe's batch-4 shape.
 #![allow(non_snake_case)] // Tensor suffixes document axes.
@@ -13,7 +13,8 @@ use dinodreamer_engine::{
     grow::figure::upsample_torus,
     kernels::{
         cell::{self, CHANNELS, HIDDEN, PERCEPTIONS},
-        cell_step, draws, pyramid,
+        cell_step, draws,
+        pyramid::{self, PyramidChunkInput, PyramidStates},
     },
 };
 use serde_json::json;
@@ -72,31 +73,32 @@ fn sum3(values: Tensor<3>) -> Tensor<1> {
 
 /// Reference gradients through Burn's autodiff: leaf copies of the parameters, unfused
 /// steps on a tape, the objective sum(output · upstream), then state and parameter gradients.
-fn autodiff_chunk(
-    autodiff: &Device,
-    start_1NC: &Tensor<3>,
-    fc1_JP: &Tensor<2>,
-    bias_J: &Tensor<1>,
-    fc2_CJ: &Tensor<2>,
-    keys: &[u32],
-    side: usize,
-    upstream_1NC: &Tensor<3>,
-) -> [Vec<f32>; 4] {
+fn autodiff_chunk(autodiff: &Device, input: cell_step::CellChunkInput<'_>) -> [Vec<f32>; 4] {
+    let cell_step::CellChunkInput {
+        start_1NC,
+        fc1_JP,
+        bias_J,
+        fc2_CJ,
+        keys,
+        rate,
+        side,
+        upstream_1NC,
+    } = input;
     let cells = start_1NC.dims()[1];
     let (w1, b1, w2) = (
-        fc1_JP.clone().autodiff().require_grad(),
-        bias_J.clone().autodiff().require_grad(),
-        fc2_CJ.clone().autodiff().require_grad(),
+        fc1_JP.autodiff().require_grad(),
+        bias_J.autodiff().require_grad(),
+        fc2_CJ.autodiff().require_grad(),
     );
-    let input_1NC = start_1NC.clone().autodiff().require_grad();
+    let input_1NC = start_1NC.autodiff().require_grad();
     let mut state_1NC = input_1NC.clone();
     for &key in keys {
-        let fired_1N1 = draws::fire_mask(key, cells, RATE, &autodiff.clone().inner()).autodiff();
+        let fired_1N1 = draws::fire_mask(key, cells, rate, &autodiff.clone().inner()).autodiff();
         let hidden_1NJ = cell::linear(cell::perceive(state_1NC.clone(), side), w1.clone(), b1.clone(), true);
         let delta_1NC = cell::linear(hidden_1NJ, w2.clone(), Tensor::zeros([CHANNELS], autodiff), false);
         state_1NC = state_1NC + delta_1NC * fired_1N1;
     }
-    let mut derivatives = sum3(state_1NC * upstream_1NC.clone().autodiff()).backward();
+    let mut derivatives = sum3(state_1NC * upstream_1NC.autodiff()).backward();
     let read = |tensor: Tensor<3>| values(tensor);
     [
         read(input_1NC.grad_remove(&mut derivatives).unwrap()),
@@ -115,9 +117,8 @@ fn ablate() {
     let fc1_JP = Tensor::<2>::random([HIDDEN, PERCEPTIONS], Distribution::Uniform(-0.125, 0.125), &device);
     let bias_J = Tensor::<1>::random([HIDDEN], Distribution::Uniform(-0.125, 0.125), &device);
     let fc2_CJ = Tensor::<2>::random([CHANNELS, HIDDEN], Distribution::Uniform(-0.05, 0.05), &device);
-    let upstream_1NC = Tensor::<3>::random([1, cells, CHANNELS], Distribution::Uniform(-1.0, 1.0), &device);
     let sync_device = device.clone();
-    let rows = cell_step::ablation(state_1NC, fc1_JP, bias_J, fc2_CJ, upstream_1NC, side, 24, &|| sync_device.sync().unwrap());
+    let rows = cell_step::ablation(state_1NC, fc1_JP, bias_J, fc2_CJ, side, 24, &|| sync_device.sync().unwrap());
     for (name, milliseconds) in &rows {
         eprintln!("{name:<36} {milliseconds:8.3} ms per launch");
     }
@@ -194,7 +195,7 @@ fn main() {
     let mut report = Vec::new();
     for (side, grids) in [(32usize, 2usize), (128, 4)] {
         let cells = grids * side * side;
-        // The archive's ranges: states in [−0.5, 0.5), fc1 in ±1/8, fc2 small so the chain stays bounded.
+        // Initial training ranges: states in [−0.5, 0.5), fc1 in ±1/8, fc2 small so the chain stays bounded.
         let mut state_1NC = Tensor::<3>::random([1, cells, CHANNELS], Distribution::Uniform(-0.5, 0.5), &device);
         let fc1_JP = Tensor::<2>::random([HIDDEN, PERCEPTIONS], Distribution::Uniform(-0.125, 0.125), &device);
         let bias_J = Tensor::<1>::random([HIDDEN], Distribution::Uniform(-0.125, 0.125), &device);
@@ -310,7 +311,28 @@ fn main() {
             let expected_fine = values(fine_leaf.grad_remove(&mut derivatives).unwrap());
             let expected_coarse = values(coarse_leaf.grad_remove(&mut derivatives).unwrap());
             let expected_params: Vec<Vec<f32>> = leaves.iter().map(|leaf| leaf.grad_remove(&mut derivatives).unwrap().into_data().try_to_vec::<f32>().unwrap()).collect();
-            let actual = pyramid::chunk_gradient(state_1NC.clone(), coarse_start.clone(), [fc1_c.clone(), bias_c.clone(), fc2_c.clone(), fc1_f.clone(), bias_f.clone(), fc2_f.clone()], &fine_keys, &coarse_keys, RATE, side, up_fine.clone(), up_coarse.clone());
+            let actual = pyramid::chunk_gradient(PyramidChunkInput {
+                start: PyramidStates {
+                    fine_1NC: state_1NC.clone(),
+                    coarse_1MC: coarse_start.clone(),
+                },
+                parameters: [
+                    fc1_c.clone(),
+                    bias_c.clone(),
+                    fc2_c.clone(),
+                    fc1_f.clone(),
+                    bias_f.clone(),
+                    fc2_f.clone(),
+                ],
+                fine_keys: &fine_keys,
+                coarse_keys: &coarse_keys,
+                rate: RATE,
+                side,
+                upstream: PyramidStates {
+                    fine_1NC: up_fine.clone(),
+                    coarse_1MC: up_coarse.clone(),
+                },
+            });
             let names = ["fc1Coarse", "biasCoarse", "fc2Coarse", "fc1Fine", "biasFine", "fc2Fine"];
             let mut rows = serde_json::Map::new();
             rows.insert("fineGradient".into(), compare(&values(actual.fine_1NC), &expected_fine));
@@ -333,15 +355,46 @@ fn main() {
                 let _ = (sum3(fine * up_fine.clone().autodiff()) + sum3(coarse * up_coarse.clone().autodiff())).backward();
             }) / 4.0;
             let fused_ms = time_steps(&device, &format!("pyramid fused chunk side {side}"), 4, || {
-                let _ = pyramid::chunk_gradient(state_1NC.clone(), coarse_start.clone(), [fc1_c.clone(), bias_c.clone(), fc2_c.clone(), fc1_f.clone(), bias_f.clone(), fc2_f.clone()], &fine_keys, &coarse_keys, RATE, side, up_fine.clone(), up_coarse.clone());
+                let _ = pyramid::chunk_gradient(PyramidChunkInput {
+                    start: PyramidStates {
+                        fine_1NC: state_1NC.clone(),
+                        coarse_1MC: coarse_start.clone(),
+                    },
+                    parameters: [
+                        fc1_c.clone(),
+                        bias_c.clone(),
+                        fc2_c.clone(),
+                        fc1_f.clone(),
+                        bias_f.clone(),
+                        fc2_f.clone(),
+                    ],
+                    fine_keys: &fine_keys,
+                    coarse_keys: &coarse_keys,
+                    rate: RATE,
+                    side,
+                    upstream: PyramidStates {
+                        fine_1NC: up_fine.clone(),
+                        coarse_1MC: up_coarse.clone(),
+                    },
+                });
             }) / 4.0;
             eprintln!("side {side} pyramid chunk: tape {tape_ms:.3} ms per step, fused {fused_ms:.3}");
         }
         // The chunk backward: eight steps (the rule's CHUNK) from a random state and upstream.
         let chunk_keys: Vec<u32> = (0..8u32).map(|step| 0x63686b6eu32.wrapping_mul(step + 1).wrapping_add(side as u32)).collect();
         let upstream_1NC = Tensor::<3>::random([1, cells, CHANNELS], Distribution::Uniform(-1.0, 1.0), &device);
-        let expected = autodiff_chunk(&autodiff, &state_1NC, &fc1_JP, &bias_J, &fc2_CJ, &chunk_keys, side, &upstream_1NC);
-        let actual = cell_step::chunk_gradient(state_1NC.clone(), fc1_JP.clone(), bias_J.clone(), fc2_CJ.clone(), &chunk_keys, RATE, side, upstream_1NC.clone());
+        let chunk_input = || cell_step::CellChunkInput {
+            start_1NC: state_1NC.clone(),
+            fc1_JP: fc1_JP.clone(),
+            bias_J: bias_J.clone(),
+            fc2_CJ: fc2_CJ.clone(),
+            keys: &chunk_keys,
+            rate: RATE,
+            side,
+            upstream_1NC: upstream_1NC.clone(),
+        };
+        let expected = autodiff_chunk(&autodiff, chunk_input());
+        let actual = cell_step::chunk_gradient(chunk_input());
         let backward_rows = json!({
             "stateGradient": compare(&values(actual.state_1NC), &expected[0]),
             "fc1Gradient": compare(&actual.fc1_JP.into_data().try_to_vec::<f32>().unwrap(), &expected[1]),
@@ -351,10 +404,10 @@ fn main() {
         let backward_exact = ["stateGradient", "fc1Gradient", "biasGradient", "fc2Gradient"].iter().all(|key| backward_rows[key]["exact"] == json!(true));
         eprintln!("side {side} chunk backward: {backward_rows}");
         let autodiff_chunk_ms = time_steps(&device, &format!("autodiff chunk side {side}"), 6, || {
-            let _ = autodiff_chunk(&autodiff, &state_1NC, &fc1_JP, &bias_J, &fc2_CJ, &chunk_keys, side, &upstream_1NC);
+            let _ = autodiff_chunk(&autodiff, chunk_input());
         }) / 8.0;
         let fused_chunk_ms = time_steps(&device, &format!("fused chunk side {side}"), 6, || {
-            let _ = cell_step::chunk_gradient(state_1NC.clone(), fc1_JP.clone(), bias_J.clone(), fc2_CJ.clone(), &chunk_keys, RATE, side, upstream_1NC.clone());
+            let _ = cell_step::chunk_gradient(chunk_input());
         }) / 8.0;
         report.push(json!({ "side": side, "grids": grids, "cells": cells, "exact": exact && backward_exact && band_exact && pyramid_exact, "steps": rows,
             "pyramid": { "checks": pyramid_rows, "chainMs": chain_ms, "kernelMs": kernel_ms },

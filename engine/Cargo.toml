@@ -40,31 +40,7 @@ name = "explain_check"
 required-features = ["harness"]
 
 [[example]]
-name = "co_selection_check"
-required-features = ["cpu"]
-
-[[example]]
-name = "grow_continue_check"
-required-features = ["harness"]
-
-[[example]]
-name = "measurement_direction_check"
-required-features = ["cpu"]
-
-[[example]]
 name = "target_set_check"
-
-[[example]]
-name = "set_methods_timing"
-required-features = ["harness"]
-
-[[example]]
-name = "reading_step_study"
-required-features = ["harness"]
-
-[[example]]
-name = "research_replay_pictures"
-required-features = ["harness"]
 
 [features]
 default = ["gpu"]

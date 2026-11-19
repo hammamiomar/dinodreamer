@@ -42,7 +42,7 @@ fn split_heads(
     #[comptime] width: usize,
     #[comptime] prefix: usize,
 ) {
-    let index = ABSOLUTE_POS as usize;
+    let index = ABSOLUTE_POS;
     let per_part = comptime!(batch * heads * tokens * width);
     if index >= 3 * per_part {
         terminate!();
@@ -92,7 +92,7 @@ fn merge_heads(
     #[comptime] width: usize,
     #[comptime] prefix: usize,
 ) {
-    let index = ABSOLUTE_POS as usize;
+    let index = ABSOLUTE_POS;
     let model_width = comptime!(heads * width);
     if index >= comptime!(batch * tokens * 3 * heads * width) {
         terminate!();

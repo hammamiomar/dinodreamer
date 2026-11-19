@@ -491,7 +491,7 @@ if __name__ == "__main__":
     parser.add_argument("--source", type=Path, required=True, help="pinned facebookresearch/dinov3 checkout")
     parser.add_argument("--checkpoint", type=Path, required=True, help="DINOv3 ViT-B/16 .safetensors or .pth")
     parser.add_argument("--research", type=Path, required=True, help="the research repository's src/ directory")
-    parser.add_argument("--release", type=Path, default=Path("local/release"), help="local release copy (tools/local_release.py)")
+    parser.add_argument("--release", type=Path, default=Path("local/release"), help="local release directory")
     parser.add_argument("--recipe", type=Path, default=Path("tools/fixtures/evidence-recipe.json"))
     parser.add_argument("--output", type=Path, default=Path("local/reference.safetensors"))
     args = parser.parse_args()

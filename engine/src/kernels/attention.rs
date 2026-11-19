@@ -15,7 +15,7 @@ const ROW_THREADS: usize = 128;
 #[cube(launch)]
 fn softmax_rows(scores: &Tensor<f32>, probabilities: &mut Tensor<f32>, #[comptime] columns: usize) {
     let threads = comptime!(ROW_THREADS);
-    let row = CUBE_POS as usize;
+    let row = CUBE_POS;
     let thread = UNIT_POS as usize;
     let mut shared = Shared::<[f32]>::new_slice(threads);
     let mut maximum = f32::new(-f32::MAX);
@@ -50,7 +50,7 @@ fn softmax_rows(scores: &Tensor<f32>, probabilities: &mut Tensor<f32>, #[comptim
     let mut offset = (threads / 2).runtime();
     while offset > 0 {
         if thread < offset {
-            shared[thread] = shared[thread] + shared[thread + offset];
+            shared[thread] += shared[thread + offset];
         }
         sync_cube();
         offset /= 2;
@@ -74,7 +74,7 @@ fn softmax_gradient(
     scale: f32,
 ) {
     let threads = comptime!(ROW_THREADS);
-    let row = CUBE_POS as usize;
+    let row = CUBE_POS;
     let thread = UNIT_POS as usize;
     let mut shared = Shared::<[f32]>::new_slice(threads);
     let mut total = 0.0;
@@ -90,7 +90,7 @@ fn softmax_gradient(
     let mut offset = (threads / 2).runtime();
     while offset > 0 {
         if thread < offset {
-            shared[thread] = shared[thread] + shared[thread + offset];
+            shared[thread] += shared[thread + offset];
         }
         sync_cube();
         offset /= 2;

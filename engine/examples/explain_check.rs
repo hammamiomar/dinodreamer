@@ -1,6 +1,6 @@
-//! The /how explorables' exports against the CPU oracle (`tools/prepare_explain_oracle.py`):
+//! Verification of the `/how` explorable exports against the CPU oracle fixture:
 //! one layer of DINO laid open (`Dino::probe`), the explicit attention against the forward pass's
-//! fused kernel, one token through the gate (`DictionaryReader::gate`) and three frames. It prints
+//! fused kernel, one token through the gate (`DictionaryReader::gate`), and three frames. It prints
 //! one JSON report and exits 1 if a gate fails.
 //!
 //!   cargo run --release --features harness --example explain_check -- \
@@ -11,8 +11,8 @@
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use burn::tensor::{Device, Tensor, TensorData};
 use dinodreamer_engine::{
+    calibration::Calibration,
     encoder::{Block, DEPTH, Dino, TOKENS, WIDTH},
-    objective::Calibration,
     reader::DictionaryReader,
 };
 use serde::Deserialize;

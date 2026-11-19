@@ -16,9 +16,9 @@ mod target_set_fixture;
 
 use burn::tensor::{Device, Tensor, TensorData};
 use dinodreamer_engine::{
+    calibration::{Calibration, load_frame},
     encoder::{Block, DEPTH, Dino},
     grow::figure::{FigureRequest, Layer, Method, target_set::{TargetSet, WINDOW_SIDE}},
-    objective::{Calibration, load_frame},
 };
 use serde::Deserialize;
 use serde_json::json;
@@ -58,8 +58,8 @@ fn main() {
     let (windows, dots, file) = target_set_fixture::load_windows(&Path::new(&path).with_file_name(&fixture.set.file));
     assert_eq!(file.block, block, "the set file is the request's basis group's");
     let prepare = |request: &FigureRequest| {
-        let windows_P3HW = Tensor::<4>::from_data(TensorData::new(windows.clone(), [dots.len(), 3, WINDOW_SIDE, WINDOW_SIDE]), &device);
-        pollster::block_on(TargetSet::prepare(&encoder, &calibration, &frame_DR.clone().transpose(), request, windows_P3HW, &dots)).unwrap()
+        let windows_PCHW = Tensor::<4>::from_data(TensorData::new(windows.clone(), [dots.len(), 3, WINDOW_SIDE, WINDOW_SIDE]), &device);
+        pollster::block_on(TargetSet::prepare(&encoder, &calibration, &frame_DR.clone().transpose(), request, windows_PCHW, &dots)).unwrap()
     };
     let started = std::time::Instant::now();
     let target = prepare(&fixture.request);

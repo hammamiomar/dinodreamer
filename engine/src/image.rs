@@ -135,6 +135,17 @@ impl Resample {
     }
 }
 
+/// Reflect a 1D index across `[0, side - 1]`: `-1 -> 1`, `side -> side - 2`.
+fn reflect_index(position: i32, side: usize) -> usize {
+    if position < 0 {
+        (-position) as usize
+    } else if position >= side as i32 {
+        (2 * side as i32 - 2 - position) as usize
+    } else {
+        position as usize
+    }
+}
+
 /// The optimizer's robust view: a Gaussian blur of `sigma` pixels with taps at
 /// −radius..=radius, as a [side, side] matrix. Taps past a border fold
 /// back by the reflection of `Jitter` (position −1 reads 1; position side reads side − 2),
@@ -149,15 +160,8 @@ pub fn gaussian_coefficients(side: usize, sigma: f32, radius: usize) -> Vec<f32>
     let mut coefficients_OI = vec![0.0; side * side];
     for output in 0..side {
         for (tap, weight) in (-(radius as i32)..=radius as i32).zip(&weights) {
-            let position = output as i32 + tap;
-            let reflected = if position < 0 {
-                -position
-            } else if position >= side as i32 {
-                2 * side as i32 - 2 - position
-            } else {
-                position
-            };
-            coefficients_OI[output * side + reflected as usize] += weight / total;
+            let reflected = reflect_index(output as i32 + tap, side);
+            coefficients_OI[output * side + reflected] += weight / total;
         }
     }
     coefficients_OI
@@ -258,14 +262,16 @@ impl Pyramid {
 
     pub fn render(&self) -> Tensor<4> {
         let (finest, coarse) = self.levels.split_last().expect("the pyramid has levels");
-        let upsampled = coarse
+        let mut upsampled = coarse
             .iter()
             .zip(&self.upsampling)
             .map(|(level, upsampling)| upsampling.apply(level.clone()));
-        let sum = upsampled
-            .chain([finest.clone()])
-            .reduce(|total, level| total + level)
-            .unwrap();
+        let sum = match upsampled.next() {
+            Some(first) => upsampled
+                .chain([finest.clone()])
+                .fold(first, |total, level| total + level),
+            None => finest.clone(),
+        };
         activation::sigmoid(sum / (LEVELS.len() as f64).sqrt())
     }
 }
@@ -281,7 +287,7 @@ pub struct Canvas {
 }
 
 impl Canvas {
-    /// Fresh noise. The base is the initial noise image, as in the research renderer.
+    /// Fresh noise. The base is the initial noise image.
     pub fn from_seed(seed: u32, editable: Vec<bool>, device: &Device) -> Self {
         let pyramid = Pyramid::new(seed, device);
         let base_1CHW = pyramid.render().inner();
@@ -460,16 +466,7 @@ impl Jitter {
         let indices = (0..=2 * radius)
             .map(|offset| {
                 let indices: Vec<i32> = (0..SIZE)
-                    .map(|pixel| {
-                        let position = pixel as i32 + offset as i32 - radius as i32;
-                        if position < 0 {
-                            -position
-                        } else if position >= SIZE as i32 {
-                            2 * SIZE as i32 - 2 - position
-                        } else {
-                            position
-                        }
-                    })
+                    .map(|pixel| reflect_index(pixel as i32 + offset as i32 - radius as i32, SIZE) as i32)
                     .collect();
                 Tensor::from_data(TensorData::new(indices, [SIZE]), device)
             })

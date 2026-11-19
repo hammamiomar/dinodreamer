@@ -1,7 +1,7 @@
 // Replay the How page's automaton once on the CPU, with the player's own reference step, and
 // record what the page's act 3 shows of it: the fine and coarse grids at the reading's tick, and
-// the picture those grids make. The DINO reading of that picture is prepare_how_records.py's
-// job (--picture-file); the training history is copied by prepare_how_automaton_history.py.
+// the picture those grids make. The DINO reading of that picture is `prepare_how_records.py`'s
+// job (`--picture-file`).
 //
 //   grid-fine-600.bin, grid-coarse-600.bin
 //                  "HGR1", u16 side, u16 channels, u32 tick, u32 seed; f16 state[side·side·channels]

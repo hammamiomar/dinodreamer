@@ -58,8 +58,8 @@ impl Adam {
         }
     }
 
-    /// The moments and bias corrections of every level, [m, v, 1 − β₁ⁿ, 1 − β₂ⁿ]: what carries a run's
-    /// optimizer into another (Train resume's measurement of continued runs).
+    /// The moments and bias corrections of every level, `[m, v, 1 − β₁ⁿ, 1 − β₂ⁿ]`, for
+    /// copying optimizer state across runs in harness checks.
     pub fn state(&self) -> Vec<[Tensor<4>; 4]> {
         self.moments
             .iter()

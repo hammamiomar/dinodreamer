@@ -126,9 +126,10 @@ fn oracle(shape: [usize; 4], q: &[f32], k: &[f32], v: &[f32], dy: &[f32]) -> [Ve
     [output, dq, dk, dv].map(|values| values.into_iter().map(|value| value as f32).collect())
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "harness"))]
 mod tests {
     #[test]
+    #[ignore = "requires a GPU adapter"]
     fn attention_outputs_and_input_gradients() {
         let device = burn::tensor::Device::wgpu_options().init().unwrap().autodiff();
         let checks = pollster::block_on(super::check_attention(&device)).unwrap();

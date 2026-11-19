@@ -1,21 +1,28 @@
 //! Gain-free dictionary addresses. Projection stays on the GPU; bounded top-32
-//! reduction uses one 512-block readback at a time. T patches, G blocks, R=3.
-use crate::assets::Weights;
+//! reduction uses one 512-block readback at a time.
+//!
+//! Axes: T patches, G blocks, R = 3 directions per block, K = blocks * R rows in a frame
+//! chunk, D = 768 channels.
+use crate::{assets::Weights, encoder::WIDTH, state::read_values};
 use burn::tensor::{Device, Tensor};
 
 pub const BLOCKS: usize = 16384;
 pub const WINNERS: usize = 32;
-/// The model's one learned gain, exp(log_gain) of the pass-003 bundle (weights.safetensors
-/// SHA-256 fa425dff…): it scales the gain-free codes only to rebuild a token from its winners
-/// (bsf.py `decode(encode(x))`). Every code the site shows is gain-free. The 32 frames of a
-/// token overlap, so the plain sum Σ F_k c_k overshoots the token; the trained gain corrects it.
-pub const RECONSTRUCTION_GAIN: f32 = 0.369_421_452_283_859_25;
-/// The pass-003 calibration multiplier, to refuse another dictionary's calibration with this gain.
-pub const PASS_003_SCALE: f32 = 2.802_615_880_966_186_5;
+/// Learned scalar gain, `exp(log_gain)` of the pass-003 dictionary bundle (`weights.safetensors`
+/// SHA-256 `fa425dff...`): it scales the gain-free codes only when reconstructing a token from
+/// its winners. Every code shown by the site is gain-free. Because the 32 winning frames of a
+/// token overlap, the plain sum `Σ F_k c_k` overshoots the token; this gain corrects the scale.
+pub const RECONSTRUCTION_GAIN: f32 = 0.369_421_45;
+/// Calibration multiplier of the pass-003 dictionary, used to reject a mismatched calibration.
+pub const PASS_003_SCALE: f32 = 2.802_616;
 
-/// x̂ = gain · Σ_k F_k c_k, the token rebuilt from its winners in calibrated coordinates
-/// (bsf.py `decode`): frames [K, R, D] (row r of block k is its direction r), codes [K, R].
+/// `x̂ = gain · Σ_k F_k c_k`, the token rebuilt from its winners in calibrated coordinates:
+/// `frames_KRD` has shape `[K, R, D]` (row `r` of block `k` is its direction `r`) and
+/// `codes_KR` has shape `[K, R]`. Returns an empty vector if `codes_KR` is empty.
 pub fn reconstruction(gain: f32, frames_KRD: &[f32], codes_KR: &[f32]) -> Vec<f32> {
+    if codes_KR.is_empty() {
+        return Vec::new();
+    }
     let width = frames_KRD.len() / codes_KR.len();
     let mut token_D = vec![0.0f32; width];
     for (direction_D, code) in frames_KRD.chunks_exact(width).zip(codes_KR) {
@@ -30,20 +37,13 @@ pub fn reconstruction(gain: f32, frames_KRD: &[f32], codes_KR: &[f32]) -> Vec<f3
 struct FrameChunk {
     first: usize,
     count: usize,
-    frame_RD: Tensor<2>,
+    /// Stacked frames for `count` blocks: `[K, D]` where `K = count * 3`.
+    frames_KD: Tensor<2>,
 }
+#[derive(Default)]
 pub struct DictionaryReader {
     chunks: Vec<FrameChunk>,
     loaded: usize,
-}
-
-impl Default for DictionaryReader {
-    fn default() -> Self {
-        Self {
-            chunks: Vec::new(),
-            loaded: 0,
-        }
-    }
 }
 impl DictionaryReader {
     pub fn load(
@@ -56,14 +56,14 @@ impl DictionaryReader {
         if first != self.loaded || count == 0 || count > 512 || first + count > BLOCKS {
             return Err("Reader chunks must cover blocks 0–16383 exactly, in order".into());
         }
-        let frame_RD = Weights::new(bytes, device)
+        let frames_KD = Weights::new(bytes, device)
             .map_err(|e| e.to_string())?
-            .tensor("frames", [count * 3, 768])
+            .tensor("frames", [count * 3, WIDTH])
             .map_err(|e| e.to_string())?;
         self.chunks.push(FrameChunk {
             first,
             count,
-            frame_RD,
+            frames_KD,
         });
         self.loaded += count;
         Ok(())
@@ -74,7 +74,7 @@ impl DictionaryReader {
             .map(|(addresses, _)| addresses)
     }
 
-    /// Block `block`'s three orthonormal directions [R, D] = [3, 768] in calibrated coordinates:
+    /// Block `block`'s three orthonormal directions `[R, D]` in calibrated coordinates:
     /// its rows of the reader chunk that holds it.
     pub fn frame(&self, block: usize) -> Result<Tensor<2>, String> {
         let chunk = self
@@ -83,21 +83,16 @@ impl DictionaryReader {
             .find(|chunk| (chunk.first..chunk.first + chunk.count).contains(&block))
             .ok_or("Load the reader chunk of this block first")?;
         let row = (block - chunk.first) * 3;
-        Ok(chunk.frame_RD.clone().slice([row..row + 3, 0..768]))
+        Ok(chunk.frames_KD.clone().slice([row..row + 3, 0..WIDTH]))
     }
 
-    /// The BSF's view of one calibrated token [1, 1, D]: its 32 winners strongest first with their
-    /// gain-free codes and norms (as `read` ranks them), and the token rebuilt from them.
+    /// The dictionary's view of one calibrated token `[1, 1, D]`: its 32 winners strongest first
+    /// with their gain-free codes and norms (as `read` ranks them), and the token rebuilt from them.
     pub async fn gate(&self, calibrated_11D: Tensor<3>) -> Result<Gate, String> {
         let addresses = self.read(calibrated_11D).await?;
         let frames: Result<Vec<Tensor<2>>, String> =
             addresses.blocks.iter().map(|&block| self.frame(block as usize)).collect();
-        let frames_KRD = Tensor::cat(frames?, 0)
-            .into_data_async()
-            .await
-            .map_err(|e| e.to_string())?
-            .try_to_vec::<f32>()
-            .map_err(|e| e.to_string())?;
+        let frames_KRD = read_values(Tensor::cat(frames?, 0)).await?;
         let reconstruction_D = reconstruction(RECONSTRUCTION_GAIN, &frames_KRD, &addresses.codes);
         Ok(Gate { addresses, reconstruction_D })
     }
@@ -126,19 +121,15 @@ impl DictionaryReader {
         let mut winners = AddressAccumulator::new(patches);
         let mut requested_codes_TR = Vec::new();
         for chunk in &self.chunks {
+            // K = chunk.count * R flattened block-direction projections per token.
             #[cfg(feature = "gpu")]
-            let codes_1TR =
-                crate::kernels::frozen_linear(tokens_1TD.clone(), chunk.frame_RD.clone());
+            let codes_1TK =
+                crate::kernels::frozen_linear(tokens_1TD.clone(), chunk.frames_KD.clone());
             #[cfg(not(feature = "gpu"))]
-            let codes_1TR = tokens_1TD
+            let codes_1TK = tokens_1TD
                 .clone()
-                .matmul(chunk.frame_RD.clone().transpose().unsqueeze());
-            let codes = codes_1TR
-                .into_data_async()
-                .await
-                .map_err(|e| e.to_string())?
-                .try_to_vec::<f32>()
-                .map_err(|e| e.to_string())?;
+                .matmul(chunk.frames_KD.clone().transpose().unsqueeze());
+            let codes = read_values(codes_1TK).await?;
             if let Some(block) = requested_block
                 .filter(|block| (chunk.first..chunk.first + chunk.count).contains(block))
             {
@@ -172,14 +163,19 @@ pub struct Gate {
     pub reconstruction_D: Vec<f32>,
 }
 impl Addresses {
-    /// E1 credits all ties at the cutoff: fewer than 32 blocks have strictly larger energy.
-    /// Address display still breaks ties by block id, so membership alone is insufficient.
+    /// A block is selected when fewer than 32 blocks have strictly larger squared norm, crediting
+    /// ties at rank 32. Address display still breaks ties by block id, so membership alone is
+    /// insufficient. Returns `0.0` when `requested_codes_TR` has no patches.
     pub fn winner_fraction(&self, requested_codes_TR: &[f32]) -> f32 {
         let winners = self.winners(requested_codes_TR);
+        if winners.is_empty() {
+            return 0.0;
+        }
         winners.iter().filter(|&&wins| wins).count() as f32 / winners.len() as f32
     }
 
     /// Per patch, whether the requested block wins there (the rule of `winner_fraction`).
+    /// Returns `false` for any patch lacking `WINNERS` ranked entries.
     pub fn winners(&self, requested_codes_TR: &[f32]) -> Vec<bool> {
         let squared = |code: &[f32]| code.iter().map(|value| value * value).sum::<f32>();
         requested_codes_TR
@@ -187,7 +183,12 @@ impl Addresses {
             .enumerate()
             .map(|(patch, code)| {
                 let offset = (patch * WINNERS + WINNERS - 1) * 3;
-                squared(code) >= squared(&self.codes[offset..offset + 3])
+                match self.codes.get(offset..offset + 3) {
+                    Some(cutoff) if self.blocks.len() >= (patch + 1) * WINNERS => {
+                        squared(code) >= squared(cutoff)
+                    }
+                    _ => false,
+                }
             })
             .collect()
     }
@@ -217,12 +218,11 @@ impl AddressAccumulator {
                     return Err("Reader produced an invalid code norm".into());
                 }
                 let id = (first + block) as u16;
-                if let Some(last) = winners.last() {
-                    if winners.len() == WINNERS
-                        && (squared < last.squared || (squared == last.squared && id > last.block))
-                    {
-                        continue;
-                    }
+                if let Some(last) = winners.last()
+                    && winners.len() == WINNERS
+                    && (squared < last.squared || (squared == last.squared && id > last.block))
+                {
+                    continue;
                 }
                 let position = winners.partition_point(|w| {
                     w.squared > squared || (w.squared == squared && w.block < id)
@@ -306,5 +306,17 @@ mod tests {
         assert_eq!(result.blocks[32], 0);
         assert_eq!(result.codes[0], 63.0);
         assert_eq!(result.norms[32], 64.0);
+    }
+
+    #[test]
+    fn empty_and_underfilled_inputs_do_not_panic_or_produce_nan() {
+        assert!(reconstruction(0.5, &[], &[]).is_empty());
+
+        let mut partial = AddressAccumulator::new(1);
+        partial.add(0, 5, &[1.0, 0.0, 0.0].repeat(5)).unwrap();
+        let addresses = partial.finish();
+        assert_eq!(addresses.winners(&[1.0, 0.0, 0.0]), [false]);
+        assert_eq!(addresses.winner_fraction(&[1.0, 0.0, 0.0]), 0.0);
+        assert_eq!(addresses.winner_fraction(&[]), 0.0);
     }
 }

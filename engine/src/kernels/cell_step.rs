@@ -28,8 +28,9 @@
 //! bias reduction), the fc1 weight partial, and the perception gradient through fc1. The
 //! perception adjoint and the residual's gradient follow as one pass (`cell::perceive_adjoint_plus`).
 use super::{
-    cell::{self, CHANNELS, CellBackend, HIDDEN, PERCEPTIONS},
+    cell::{self, CHANNELS, CellBackend, HIDDEN, PERCEPTIONS, perceive_channel},
     cell_linear,
+    draws::fired,
     matmul::batched_product,
 };
 use crate::profiling::detail;
@@ -91,16 +92,6 @@ pub struct Skip {
     pub fc2: bool,
 }
 
-/// The uniform draw of `draws.rs::counter_draws` at `index` for `key`.
-#[cube]
-fn fired(key: u32, index: u32, rate: f32) -> f32 {
-    let hash_state = (key + index) * 747796405u32 + 2891336453u32;
-    let word = ((hash_state >> ((hash_state >> 28u32) + 4u32)) ^ hash_state) * 277803737u32;
-    let hash = (word >> 22u32) ^ word;
-    let uniform = (hash >> 8u32) as f32 / 16777216.0f32;
-    if uniform < rate { 1.0f32 } else { 0.0f32 }
-}
-
 #[cube(launch)]
 fn fused_step(
     state: &Tensor<f32>,
@@ -118,7 +109,7 @@ fn fused_step(
     let hidden_quad = UNIT_POS_X as usize;
     let cell_quad = UNIT_POS_Y as usize;
     let thread = UNIT_POS as usize;
-    let first_cell = CUBE_POS as usize * FORWARD_TILE;
+    let first_cell = CUBE_POS * FORWARD_TILE;
     // Four channels of perceptions, k-major: entry k · FORWARD_TILE + cell.
     let mut perceptions = Shared::<[f32]>::new_slice(QUARTER * FORWARD_TILE);
     // ReLU(fc1) of the tile, k-major with a padded row: entry k · stride + cell.
@@ -133,45 +124,21 @@ fn fused_step(
         accumulators[row] = Quad::new(0.0);
     }
     for quarter in 0..PERCEPTIONS / QUARTER {
-        // Perception of this quarter's four channels: one thread per (cell, channel), the
-        // statements of `cell.rs::perception`, into the k-major tile.
+        // Perception of this quarter's four channels: one thread per (cell, channel),
+        // sharing `cell::perceive_channel`, into the k-major tile.
+        #[allow(clippy::collapsible_if)] // comptime skip guard must stay outside the runtime condition
         if !skip.perception {
             if thread < FORWARD_TILE * 4 {
                 let cell = thread % FORWARD_TILE;
                 let channel_in_quarter = thread / FORWARD_TILE;
                 let channel = quarter * 4 + channel_in_quarter;
                 let global_cell = first_cell + cell;
-                let grid = global_cell / (side * side);
-                let row = (global_cell / side) % side;
-                let column = global_cell % side;
-                let mut sx = 0.0f32;
-                let mut sy = 0.0f32;
-                let mut lap = 0.0f32;
-                #[unroll]
-                for dy in 0..3 {
-                    #[unroll]
-                    for dx in 0..3 {
-                        let neighbor = (grid * side + (row + side + dy - 1) % side) * side
-                            + (column + side + dx - 1) % side;
-                        let wy = if dy == 1 { 2.0f32 } else { 1.0f32 };
-                        let wx = if dx == 1 { 2.0f32 } else { 1.0f32 };
-                        let kx = (dx as f32 - 1.0f32) * wy / 8.0f32;
-                        let ky = (dy as f32 - 1.0f32) * wx / 8.0f32;
-                        let mut kl = wx * wy / 16.0f32;
-                        if dx == 1 && dy == 1 {
-                            kl = -0.75f32;
-                        }
-                        let value = state[neighbor * CHANNELS + channel];
-                        sx += value * kx;
-                        sy += value * ky;
-                        lap += value * kl;
-                    }
-                }
+                let values = perceive_channel(state, global_cell, channel, side);
                 let base = channel_in_quarter * 4;
-                perceptions[base * FORWARD_TILE + cell] = state[global_cell * CHANNELS + channel];
-                perceptions[(base + 1) * FORWARD_TILE + cell] = sx;
-                perceptions[(base + 2) * FORWARD_TILE + cell] = sy;
-                perceptions[(base + 3) * FORWARD_TILE + cell] = lap;
+                perceptions[base * FORWARD_TILE + cell] = values.extract(0usize);
+                perceptions[(base + 1) * FORWARD_TILE + cell] = values.extract(1usize);
+                perceptions[(base + 2) * FORWARD_TILE + cell] = values.extract(2usize);
+                perceptions[(base + 3) * FORWARD_TILE + cell] = values.extract(3usize);
             }
         }
         sync_cube();
@@ -249,6 +216,7 @@ fn fused_step(
         }
         sync_cube();
     }
+    #[allow(clippy::collapsible_if)] // comptime skip guard must stay outside the runtime condition
     if !skip.fc2 {
         if fc2_active {
             let global_cell = first_cell + cell;
@@ -268,7 +236,7 @@ fn fused_step(
 /// g_d = mask · g_y: the residual's gradient through the firing mask, drawn in the kernel.
 #[cube(launch)]
 fn masked_delta(upstream: &Tensor<f32>, output: &mut Tensor<f32>, key: u32, rate: f32) {
-    let index = ABSOLUTE_POS as usize;
+    let index = ABSOLUTE_POS;
     if index >= output.len() {
         terminate!();
     }
@@ -323,19 +291,29 @@ pub(super) fn empty(like: &CubeTensor, shape: [usize; 3]) -> CubeTensor {
     empty_device_dtype(like.client.clone(), like.device.clone(), Shape::new(shape), DType::F32)
 }
 
+pub(super) struct ForwardParameters {
+    pub(super) fc1: CubeTensor,
+    pub(super) bias: CubeTensor,
+    pub(super) fc2: CubeTensor,
+}
+
+pub(super) struct ForwardOptions {
+    pub(super) key: u32,
+    pub(super) rate: f32,
+    pub(super) side: usize,
+    pub(super) save: bool,
+    pub(super) skip: Skip,
+}
+
 /// The fused forward on frozen tensors; with `save`, also the ReLU output [1, N, 96] the
 /// backward reads instead of recomputing fc1.
 pub(super) fn forward(
     state: CubeTensor,
-    fc1: CubeTensor,
-    bias: CubeTensor,
-    fc2: CubeTensor,
-    key: u32,
-    rate: f32,
-    side: usize,
-    save: bool,
-    skip: Skip,
+    parameters: ForwardParameters,
+    options: ForwardOptions,
 ) -> (CubeTensor, Option<CubeTensor>) {
+    let ForwardParameters { fc1, bias, fc2 } = parameters;
+    let ForwardOptions { key, rate, side, save, skip } = options;
     for tensor in [&state, &fc1, &bias, &fc2] {
         assert_eq!(tensor.dtype, DType::F32);
     }
@@ -378,7 +356,14 @@ impl CellStepBackend for CubeBackend {
         rate: f32,
         side: usize,
     ) -> CubeTensor {
-        detail("cell step forward", || forward(state, fc1, bias, fc2, key, rate, side, false, Skip::default()).0)
+        detail("cell step forward", || {
+            forward(
+                state,
+                ForwardParameters { fc1, bias, fc2 },
+                ForwardOptions { key, rate, side, save: false, skip: Skip::default() },
+            )
+            .0
+        })
     }
 }
 
@@ -443,24 +428,83 @@ pub struct ChunkGradient {
     pub fc2_CJ: BurnTensor<2>,
 }
 
+/// Weight pair of one cellular MLP rule (`fc1` and `fc2`) for `cell_rule_backward_step`.
+pub(super) struct RuleWeights<'a> {
+    pub fc1: &'a CubeTensor,
+    pub fc2: &'a CubeTensor,
+}
+
+/// Per-step schedule parameters for `cell_rule_backward_step`.
+#[derive(Clone, Copy)]
+pub(super) struct BackwardStepConfig {
+    pub key: u32,
+    pub rate: f32,
+    pub chunks: usize,
+}
+
+/// Gradients produced by one cellular MLP backward step (`cell_rule_backward_step`).
+pub(super) struct RuleStepGradients {
+    pub input_gradient: CubeTensor,
+    pub fc1: CubeTensor,
+    pub bias: CubeTensor,
+    pub fc2: CubeTensor,
+}
+
+/// Backward pass of one cellular MLP step: masked residual gradient, `dW2`, hidden gradient
+/// with ReLU mask, `dW1`, `db`, and input gradient `[1, N, I]`. Preserves Burn's autodiff
+/// reduction order bit for bit.
+pub(super) fn cell_rule_backward_step(
+    upstream: &CubeTensor,
+    input: impl FnOnce() -> CubeTensor,
+    hidden: CubeTensor,
+    weights: RuleWeights<'_>,
+    config: BackwardStepConfig,
+) -> RuleStepGradients {
+    let delta = masked(upstream, config.key, config.rate);
+    let fc2 = detail("cell weight gradient", || {
+        weight_gradient(&hidden, &delta, config.chunks)
+    });
+    let hidden_gradient = detail("cell input gradient", || {
+        cell_linear::hidden_gradient(delta, weights.fc2.clone(), hidden)
+    });
+    let input = input();
+    let fc1 = detail("cell weight gradient", || {
+        weight_gradient(&input, &hidden_gradient, config.chunks)
+    });
+    let bias = detail("cell bias gradient", || {
+        bias_gradient(&hidden_gradient, config.chunks)
+    });
+    let input_gradient = detail("cell input gradient", || {
+        cell_linear::input_gradient(hidden_gradient, weights.fc1.clone())
+    });
+    RuleStepGradients {
+        input_gradient,
+        fc1,
+        bias,
+        fc2,
+    }
+}
+
+/// Inputs to [`chunk_gradient`] for one cell-rule rollout chunk.
+pub struct CellChunkInput<'a> {
+    pub start_1NC: BurnTensor<3>,
+    pub fc1_JP: BurnTensor<2>,
+    pub bias_J: BurnTensor<1>,
+    pub fc2_CJ: BurnTensor<2>,
+    pub keys: &'a [u32],
+    pub rate: f32,
+    pub side: usize,
+    pub upstream_1NC: BurnTensor<3>,
+}
+
 /// The backward of `keys.len()` fused steps from `start_1NC` with the firing masks of `keys`
 /// (one per step, in step order), given the gradient `upstream_1NC` of the chunk's last state.
 /// The chunk is recomputed forward with its hidden values saved (`keys.len()` × N × 96 floats),
-/// then each step runs: the masked residual gradient, fc2's input gradient with the ReLU mask
-/// (`cell_linear::hidden_gradient`), the weight-gradient products and reductions of `cell.rs`
-/// on the same tensors in the same order, fc1's input gradient (`cell_linear::input_gradient`)
-/// and the perception adjoint with the residual gradient. Every reduction keeps the autodiff
-/// path's order, so the result equals it bit for bit. Frozen tensors in, inner gradients out.
-pub fn chunk_gradient(
-    start_1NC: BurnTensor<3>,
-    fc1_JP: BurnTensor<2>,
-    bias_J: BurnTensor<1>,
-    fc2_CJ: BurnTensor<2>,
-    keys: &[u32],
-    rate: f32,
-    side: usize,
-    upstream_1NC: BurnTensor<3>,
-) -> ChunkGradient {
+/// then each step runs `cell_rule_backward_step` followed by the perception adjoint with the
+/// residual gradient. Every reduction keeps the autodiff path's order, so the result equals it
+/// bit for bit. Frozen tensors in, inner gradients out.
+pub fn chunk_gradient(input: CellChunkInput<'_>) -> ChunkGradient {
+    let CellChunkInput { start_1NC, fc1_JP, bias_J, fc2_CJ, keys, rate, side, upstream_1NC } = input;
     let cells = start_1NC.dims()[1];
     let (fc1, fc2, bias) = (cube(fc1_JP.into_dispatch()), cube(fc2_CJ.into_dispatch()), cube(bias_J.into_dispatch()));
     assert_eq!(cells % CHUNK_CELLS, 0, "the weight-gradient chunk divides every grid");
@@ -471,7 +515,11 @@ pub fn chunk_gradient(
     let mut hiddens = Vec::with_capacity(keys.len());
     for &key in keys {
         let (next, hidden) = detail("cell step forward", || {
-            forward(states.last().unwrap().clone(), fc1.clone(), bias.clone(), fc2.clone(), key, rate, side, true, Skip::default())
+            forward(
+                states.last().unwrap().clone(),
+                ForwardParameters { fc1: fc1.clone(), bias: bias.clone(), fc2: fc2.clone() },
+                ForwardOptions { key, rate, side, save: true, skip: Skip::default() },
+            )
         });
         states.push(next);
         hiddens.push(hidden.unwrap());
@@ -482,26 +530,22 @@ pub fn chunk_gradient(
     for (index, &key) in keys.iter().enumerate().rev() {
         let state = states[index].clone();
         let hidden = hiddens[index].clone();
-        // g_d = mask · g_y, as the residual's mul backward.
-        let delta = masked(&gradient, key, rate);
-        // fc2's weight gradient, dW2 = g_dᵀ a, and fc2's input gradient with fc1's ReLU mask.
-        let fc2_step = detail("cell weight gradient", || weight_gradient(&hidden, &delta, chunks));
-        let hidden_gradient = detail("cell input gradient", || cell_linear::hidden_gradient(delta, fc2.clone(), hidden));
-        // fc1's weight and bias gradients from its recomputed input, the perceptions.
-        let perceived = CubeBackend::perceive(state, side, false);
-        let fc1_step = detail("cell weight gradient", || weight_gradient(&perceived, &hidden_gradient, chunks));
-        let bias_step = detail("cell bias gradient", || bias_gradient(&hidden_gradient, chunks));
-        // fc1's input gradient, then the perception adjoint plus the residual's own gradient.
-        let perception_gradient = detail("cell input gradient", || cell_linear::input_gradient(hidden_gradient, fc1.clone()));
-        gradient = cell::perceive_adjoint_plus(perception_gradient, gradient, side);
+        let step = cell_rule_backward_step(
+            &gradient,
+            || CubeBackend::perceive(state, side, false),
+            hidden,
+            RuleWeights { fc1: &fc1, fc2: &fc2 },
+            BackwardStepConfig { key, rate, chunks },
+        );
+        gradient = cell::perceive_adjoint_plus(step.input_gradient, gradient, side);
         totals = Some(match totals {
             // Burn's gradient container adds a new gradient as new + old.
             Some([fc1_total, bias_total, fc2_total]) => [
-                CubeBackend::float_add(fc1_step, fc1_total),
-                CubeBackend::float_add(bias_step, bias_total),
-                CubeBackend::float_add(fc2_step, fc2_total),
+                CubeBackend::float_add(step.fc1, fc1_total),
+                CubeBackend::float_add(step.bias, bias_total),
+                CubeBackend::float_add(step.fc2, fc2_total),
             ],
-            None => [fc1_step, bias_step, fc2_step],
+            None => [step.fc1, step.bias, step.fc2],
         });
     }
     let [fc1_total, bias_total, fc2_total] = totals.expect("at least one step");
@@ -532,19 +576,16 @@ pub fn ablation(
     fc1_JP: BurnTensor<2>,
     bias_J: BurnTensor<1>,
     fc2_CJ: BurnTensor<2>,
-    upstream_1NC: BurnTensor<3>,
     side: usize,
     repeats: u32,
     sync: &dyn Fn(),
 ) -> Vec<(String, f64)> {
-    let (state, fc1, bias, fc2, upstream) = (
+    let (state, fc1, bias, fc2) = (
         cube(state_1NC.into_dispatch()),
         cube(fc1_JP.into_dispatch()),
         cube(bias_J.into_dispatch()),
         cube(fc2_CJ.into_dispatch()),
-        cube(upstream_1NC.into_dispatch()),
     );
-    let _ = upstream;
     // Every variant is a closure; the rounds interleave them so clock and load drift fall on
     // all of them alike, and each variant reports the median of its rounds.
     let mut variants: Vec<(String, Box<dyn Fn()>)> = Vec::new();
@@ -559,7 +600,11 @@ pub fn ablation(
     for (name, skip) in forward_variants {
         let (state, fc1, bias, fc2) = (state.clone(), fc1.clone(), bias.clone(), fc2.clone());
         variants.push((name.to_string(), Box::new(move || {
-            let _ = forward(state.clone(), fc1.clone(), bias.clone(), fc2.clone(), 7, 0.5, side, false, skip);
+            let _ = forward(
+                state.clone(),
+                ForwardParameters { fc1: fc1.clone(), bias: bias.clone(), fc2: fc2.clone() },
+                ForwardOptions { key: 7, rate: 0.5, side, save: false, skip },
+            );
         })));
     }
     // The generic path's kernels for the same step, as the unfused rollout runs them.

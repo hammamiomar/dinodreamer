@@ -6,9 +6,10 @@
 use crate::{
     appearance::ReferenceCache,
     assets::decode_preview,
+    calibration::{Calibration, load_frame},
     encoder::{APPEARANCE_LAYERS, Dino},
     image::{Canvas, GRID, JITTER_RADIUS, Jitter, Resample, SIZE, Zoom, gaussian_coefficients},
-    objective::{Calibration, Objective, ObjectiveSpec, ProbeSpec, Probes, load_frame},
+    objective::{Objective, ObjectiveSpec, ProbeSpec, Probes},
     optimizer::{Adam, LEARNING_RATE},
     profiling::StepProfile,
 };
@@ -68,7 +69,7 @@ impl Default for OptimizerSpec {
     }
 }
 
-/// The robust view's blur: sigma 1 px, taps to 3 px (the optimizer study's blur-view cell).
+/// Gaussian blur parameters for the robust second view: sigma 1 px, radius 3 px.
 pub const ROBUST_VIEW_SIGMA: f32 = 1.0;
 pub const ROBUST_VIEW_RADIUS: usize = 3;
 
@@ -215,7 +216,7 @@ impl Engine {
     }
 
     /// Keep the cached references a recipe needs; return the image ids still to encode.
-    pub fn references_to_encode(&mut self, needed: &[u64]) -> Vec<u64> {
+    pub fn references_to_encode(&mut self, needed: &[u64]) -> Result<Vec<u64>, String> {
         self.references.retain_needed(needed)
     }
 
@@ -225,7 +226,7 @@ impl Engine {
         let rgb_CHW = decode_preview(png).map_err(|error| error.to_string())?;
         let image_1CHW = Tensor::from_data(TensorData::new(rgb_CHW, [1, 3, SIZE, SIZE]), &self.device);
         let readout = self.encoder.readout(image_1CHW, &APPEARANCE_LAYERS);
-        let readout_LTD = read_values(Tensor::cat(readout.intermediate_BPD, 0)).await?;
+        let readout_LTD = read_values(Tensor::cat(readout.intermediate_BTD, 0)).await?;
         if readout_LTD.iter().any(|value| !value.is_finite()) {
             return Err(format!("Reference {image_id} produced non-finite features"));
         }
@@ -403,7 +404,7 @@ impl Engine {
             let intermediate: &[usize] = if appearance { &APPEARANCE_LAYERS } else { &[] };
             self.encoder.readout(views_BCHW.clone(), intermediate)
         });
-        let assigned = profile.record("ranking", || self.objective.assign(&readout.intermediate_BPD));
+        let assigned = profile.record("ranking", || self.objective.assign(&readout.intermediate_BTD));
         profile.record("objective", || {
             let raws_NB = (!self.objective.is_empty())
                 .then(|| self.objective.raws(&views_BCHW, &readout, &assigned, &self.calibration));
@@ -460,7 +461,7 @@ impl Engine {
 
 }
 
-/// View 0 as it is, view 1 blurred: the blur-view cell of the optimizer study.
+/// Keep view 0 sharp and apply Gaussian blur to view 1.
 fn blurred_second_view(views_BCHW: Tensor<4>, blur: &crate::image::Resample) -> Tensor<4> {
     let [views, channels, height, width] = views_BCHW.dims();
     debug_assert_eq!(views, 2);
@@ -488,4 +489,160 @@ pub async fn read_values<const D: usize>(tensor: Tensor<D>) -> Result<Vec<f32>, 
         .map_err(|error| error.to_string())?
         .try_to_vec::<f32>()
         .map_err(|error| error.to_string())
+}
+
+#[cfg(all(test, feature = "cpu"))]
+mod tests {
+    use super::*;
+    use crate::{
+        encoder::WIDTH,
+        image::MAX_ZOOM_PER_UPDATE,
+        objective::{CodeSpec, RequestSpec, RespondSpec, TargetSpec},
+    };
+
+    fn test_engine() -> Engine {
+        let device = Device::flex().autodiff();
+        let encoder = Dino::empty_for_test(&device);
+        let calibration = Calibration::new(Tensor::zeros([WIDTH], &device), 1.0);
+        let mut engine = Engine::new(encoder, calibration, device.clone());
+        let mut basis = vec![0.0_f32; WIDTH * 3];
+        for axis in 0..3 {
+            basis[axis * 3 + axis] = 1.0;
+        }
+        engine
+            .frames
+            .insert(0, Tensor::from_data(TensorData::new(basis, [WIDTH, 3]), &device));
+        engine
+    }
+
+    fn cls_code_spec(block: u32, code: [f32; 3]) -> CodeSpec {
+        CodeSpec {
+            block,
+            slot: 0,
+            code,
+            target: TargetSpec::Point,
+            where_: None,
+        }
+    }
+
+    #[test]
+    fn check_optimizer_accepts_valid_specs_and_rejects_invalid_ones() {
+        assert!(check_optimizer(&OptimizerSpec::default()).is_ok());
+
+        for bad_step in [0.0, -0.01, 1.01, f64::NAN, f64::INFINITY] {
+            let spec = OptimizerSpec { step: bad_step, ..OptimizerSpec::default() };
+            assert!(check_optimizer(&spec).is_err(), "step {bad_step}");
+        }
+
+        let short_rates = OptimizerSpec {
+            level_rates: vec![1.0; crate::image::LEVELS.len() - 1],
+            ..OptimizerSpec::default()
+        };
+        assert!(check_optimizer(&short_rates).is_err());
+
+        for bad_rate in [0.0, -1.0, f64::NAN, f64::INFINITY] {
+            let mut rates = vec![1.0; crate::image::LEVELS.len()];
+            rates[2] = bad_rate;
+            let spec = OptimizerSpec { level_rates: rates, ..OptimizerSpec::default() };
+            assert!(check_optimizer(&spec).is_err(), "rate {bad_rate}");
+        }
+    }
+
+    #[test]
+    fn install_rolls_back_atomically_when_part_of_an_edit_fails() {
+        let mut engine = test_engine();
+        let initial_optimizer = OptimizerSpec {
+            step: 0.05,
+            level_rates: vec![4.0, 2.83, 2.0, 1.41, 1.0],
+            robust_view: true,
+        };
+        let initial_objective = ObjectiveSpec {
+            requests: vec![RequestSpec {
+                id: 1,
+                respond: Some(RespondSpec {
+                    weight: 0.5,
+                    code: cls_code_spec(0, [1.0, 0.0, 0.0]),
+                }),
+                look: None,
+            }],
+            tv: Some(0.1),
+            l2: None,
+        };
+        let initial_probes = vec![ProbeSpec {
+            request_id: 1,
+            code: cls_code_spec(0, [1.0, 0.0, 0.0]),
+        }];
+        engine
+            .install(&Edit {
+                objective: Some(initial_objective),
+                probes: Some(initial_probes),
+                editable: Some(vec![true; GRID * GRID]),
+                motion: Some(Motion { zoom_per_update: 0.01 }),
+                seed: Some(7),
+                optimizer: Some(initial_optimizer.clone()),
+            })
+            .unwrap();
+        engine.steps = 12;
+
+        // Every candidate below has a valid objective and probes but fails one later check.
+        let replacement_objective = ObjectiveSpec {
+            requests: vec![RequestSpec {
+                id: 99,
+                respond: Some(RespondSpec {
+                    weight: 2.0,
+                    code: cls_code_spec(0, [0.0, 2.0, 0.0]),
+                }),
+                look: None,
+            }],
+            tv: None,
+            l2: Some(0.5),
+        };
+        let replacement_probes = vec![ProbeSpec {
+            request_id: 99,
+            code: cls_code_spec(0, [0.0, 2.0, 0.0]),
+        }];
+        let failing_edits = [
+            // Invalid editable cell count.
+            Edit {
+                objective: Some(replacement_objective.clone()),
+                probes: Some(replacement_probes.clone()),
+                editable: Some(vec![false; GRID * GRID - 1]),
+                motion: None,
+                seed: Some(99),
+                optimizer: None,
+            },
+            // Invalid zoom rate.
+            Edit {
+                objective: Some(replacement_objective.clone()),
+                probes: Some(replacement_probes.clone()),
+                editable: None,
+                motion: Some(Motion { zoom_per_update: MAX_ZOOM_PER_UPDATE + 0.1 }),
+                seed: Some(99),
+                optimizer: None,
+            },
+            // Invalid optimizer step.
+            Edit {
+                objective: Some(replacement_objective),
+                probes: Some(replacement_probes),
+                editable: None,
+                motion: None,
+                seed: Some(99),
+                optimizer: Some(OptimizerSpec { step: 0.0, ..OptimizerSpec::default() }),
+            },
+        ];
+
+        for edit in failing_edits {
+            assert!(engine.install(&edit).is_err());
+            assert_eq!(engine.objective.ids(), ["request:1:respond", "rules:tv"]);
+            assert_eq!(engine.objective.weights(), [0.5, 0.1]);
+            assert_eq!(engine.probes.0.len(), 1);
+            assert_eq!(engine.probes.0[0].request_id, 1);
+            assert_eq!(engine.settings, initial_optimizer);
+            assert!(engine.view_blur.is_some());
+            assert_eq!(engine.optimizer.learning_rate, initial_optimizer.step);
+            assert_eq!(engine.optimizer.level_rates, initial_optimizer.level_rates);
+            assert!(engine.canvas.editable().iter().all(|&cell| cell));
+            assert_eq!(engine.steps, 12);
+        }
+    }
 }

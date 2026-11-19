@@ -1,8 +1,11 @@
 //! The figure recipe's WASM boundary. The worker owns files, progress and scheduling.
 use super::{BrowserEngine, error, set};
-use crate::grow::figure::{
-    self, FigureGrid, FigureRequest, FigureRule, FigureTraining, RuleKind, Start,
-    target_set::{self, TargetSet, WINDOW_SIDE},
+use crate::{
+    encoder::PATCHES,
+    grow::figure::{
+        self, FigureGrid, FigureRequest, FigureRule, FigureTraining, ReadTarget, RuleKind, Start,
+        target_set::{self, TargetSet, WINDOW_SIDE},
+    },
 };
 use burn::tensor::{Device, Tensor, TensorData};
 use js_sys::{Array, Float32Array, Object, Uint8Array, Uint8ClampedArray, Uint16Array};
@@ -19,7 +22,7 @@ pub struct BrowserFigureSet {
     set: TargetSet,
 }
 
-/// The live grid on the Keep replay contract, with the rule it currently grows.
+/// The live grid on the replay contract, with the rule it currently grows.
 #[wasm_bindgen]
 pub struct BrowserFigureGrid {
     grid: FigureGrid,
@@ -51,8 +54,8 @@ impl BrowserEngine {
         self.figure_training(request, None, None)
     }
 
-    /// A run continued from a saved definition: `values` its rule, `from_update` its update count;
-    /// `request` as in `create_figure`, with the definition's seed (Train resume, case 2).
+    /// A run continued from a saved rule: `values` holds its parameters and `from_update` its
+    /// completed update count; `request` carries the run's seed.
     pub fn create_figure_continued(&self, request: &str, values: &[f32], from_update: u32) -> Result<BrowserFigure, JsValue> {
         self.figure_training(request, None, Some((values, from_update)))
     }
@@ -62,7 +65,7 @@ impl BrowserEngine {
         self.figure_training(request, Some(set.set.clone()), None)
     }
 
-    /// A set method's run continued from a saved definition, as `create_figure_continued`.
+    /// A set method's run continued from a saved rule, as `create_figure_continued`.
     pub fn create_figure_continued_on_set(&self, request: &str, set: &BrowserFigureSet, values: &[f32], from_update: u32) -> Result<BrowserFigure, JsValue> {
         self.figure_training(request, Some(set.set.clone()), Some((values, from_update)))
     }
@@ -73,21 +76,24 @@ impl BrowserEngine {
     /// grid. DINO reads each picture's aligned 128 px window. The block's frame must be loaded.
     pub async fn prepare_figure_set(&self, request: &str, pictures: Array, patches: &[u32]) -> Result<BrowserFigureSet, JsValue> {
         let request: FigureRequest = serde_json::from_str(request).map_err(error)?;
-        if pictures.length() as usize != patches.len() || patches.iter().any(|&patch| patch >= 256) {
-            return Err(error("A target set needs one patch of the 16 × 16 grid for each picture"));
+        if patches.is_empty()
+            || pictures.length() as usize != patches.len()
+            || patches.iter().any(|&patch| patch >= PATCHES as u32)
+        {
+            return Err(error("A target set needs at least one picture and one patch of the 16 × 16 grid for each picture"));
         }
-        let mut windows_CHW = Vec::with_capacity(patches.len() * 3 * WINDOW_SIDE * WINDOW_SIDE);
+        let mut windows_pixels_PCHW = Vec::with_capacity(patches.len() * 3 * WINDOW_SIDE * WINDOW_SIDE);
         let mut dots = Vec::with_capacity(patches.len());
         for (png, &patch) in pictures.iter().zip(patches) {
             let picture_CHW = crate::assets::decode_preview(&Uint8Array::new(&png).to_vec()).map_err(error)?;
             let window = target_set::aligned_window(patch as usize);
-            windows_CHW.extend(target_set::window_pixels(&picture_CHW, window));
+            windows_pixels_PCHW.extend(target_set::window_pixels(&picture_CHW, window));
             dots.push(window.dot);
         }
-        let windows_P3HW = Tensor::<4>::from_data(TensorData::new(windows_CHW, [dots.len(), 3, WINDOW_SIDE, WINDOW_SIDE]), &self.device);
+        let windows_PCHW = Tensor::<4>::from_data(TensorData::new(windows_pixels_PCHW, [dots.len(), 3, WINDOW_SIDE, WINDOW_SIDE]), &self.device);
         let engine = self.engine()?;
         let frame_RD = self.loaded_frame(request.block)?.transpose();
-        let set = TargetSet::prepare(&engine.encoder, &engine.calibration, &frame_RD, &request, windows_P3HW, &dots)
+        let set = TargetSet::prepare(&engine.encoder, &engine.calibration, &frame_RD, &request, windows_PCHW, &dots)
             .await
             .map_err(error)?;
         Ok(BrowserFigureSet { set })
@@ -120,9 +126,9 @@ impl BrowserEngine {
     }
 
     /// A set method's loss on the grid's displayed picture (`figure::own_loss`): the run's method,
-    /// layers and block from `request` (JSON of its FigureRequest), against its prepared `set`, over the
-    /// patches its start scores. Read at each step of the reading ladder, the lowest value names the
-    /// automaton's step (brief, decision 12). The grid must grow the request's rule kind and start.
+    /// layers and block from `request` (JSON of its `FigureRequest`), against its prepared `set`,
+    /// over the patches its start scores. Evaluating across a ladder of ticks selects the tick
+    /// with the lowest loss. The grid must grow the request's rule kind and start.
     pub async fn figure_own_loss(&self, live: &BrowserFigureGrid, request: &str, set: &BrowserFigureSet) -> Result<f32, JsValue> {
         let request: FigureRequest = serde_json::from_str(request).map_err(error)?;
         if (live.grid.rule, live.grid.start) != (request.rule, request.start) {
@@ -158,10 +164,12 @@ impl BrowserEngine {
             &engine.calibration,
             &self.reader,
             live.grid.picture(),
-            block,
-            direction,
-            median_norm,
-            live.grid.patches(),
+            ReadTarget {
+                block,
+                direction,
+                median_norm,
+                patches: live.grid.patches(),
+            },
         )
         .await
         .map_err(error)?;
@@ -235,10 +243,13 @@ impl BrowserFigureGrid {
         self.rule = Some(FigureRule::fixed(self.grid.rule, values, &self.device).map_err(error)?);
         Ok(())
     }
-    /// One brush stamp of the Keep replay runtime at (x, y) cells with a radius in cells.
+    /// Apply one toroidal brush stamp at `(x, y)` cells with a radius in cells.
     pub fn damage(&mut self, x: f32, y: f32, radius: f32) -> Result<(), JsValue> {
-        if !x.is_finite() || !y.is_finite() || !radius.is_finite() || radius <= 0.0 || radius > 128.0 {
-            return Err(error("A brush stamp needs finite cell coordinates and a radius of up to 128 cells"));
+        if !x.is_finite() || !y.is_finite() || !radius.is_finite() || radius <= 0.0 || radius > figure::SIDE as f32 {
+            return Err(error(format!(
+                "A brush stamp needs finite cell coordinates and a radius of up to {} cells",
+                figure::SIDE
+            )));
         }
         self.grid.damage(x, y, radius);
         Ok(())

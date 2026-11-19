@@ -1,269 +1,26 @@
-//! The complete objective: code requests, appearance and rules, with painted fields
-//! (recipe format 4).
+//! The complete objective: code requests, appearance, and image regularizers with painted fields.
 //!
-//! Axes: B views, T = 261 token slots, P measured slots or patch positions, D = 768
-//! channels, R = 3 block rank, C/H/W image. Every term is computed per view; the
-//! update averages views, a measurement reads view 0, the unshifted image.
+//! Axes: B views, T token slots (261 full tokens or 256 patch positions), P measured/painted
+//! slots, D = 768 channels, R = 3 block rank, C/H/W image. Every term is computed per view; the
+//! update averages views, and a measurement reads view 0, the unshifted image.
+
+pub mod spec;
+
+pub use spec::{
+    CELLS, CodeSpec, FULL_STRENGTH, Field, LookSpec, MAX_REGION_CODES, MIN_CODE_NORM_SQUARED,
+    ObjectiveSpec, ProbeSpec, ReferenceSpec, RequestSpec, RespondSpec, TargetSpec, field,
+};
 
 use crate::{
     appearance::ReferenceCache,
-    assets::{LoadError, Weights},
+    calibration::Calibration,
     curve::{CurveTable, DeviceCurve, SortedWindow, squared_integral},
-    encoder::{PATCHES, PREFIX, Readout, WIDTH},
+    encoder::{RGB_MEAN, RGB_STD, Readout, WIDTH},
     ranking,
-    image::GRID,
 };
 use burn::tensor::{Device, Int, Tensor, TensorData};
-use serde::Deserialize;
+use spec::{CodeTarget, masses_tensor, measured, prepare_target, squared_norm};
 use std::collections::BTreeMap;
-
-/// Below this squared length a requested code has no direction; the loss would divide by it.
-pub const MIN_CODE_NORM_SQUARED: f32 = 1e-12;
-pub const CELLS: usize = PATCHES;
-/// A painted strength is an integer percentage; 100 is full strength.
-pub const FULL_STRENGTH: u8 = 100;
-const RGB_MEAN: [f32; 3] = [0.485, 0.456, 0.406];
-const RGB_STD: [f32; 3] = [0.229, 0.224, 0.225];
-
-/// The active terms of a recipe, in canonical order. Disabled and zero-weight terms are
-/// absent, and each term carries only the fields that determine it, so two equal specs
-/// build identical terms. The worker compares specs to decide an Adam reset.
-#[derive(Clone, Debug, Default, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct ObjectiveSpec {
-    pub requests: Vec<RequestSpec>,
-    pub tv: Option<f32>,
-    pub l2: Option<f32>,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct RequestSpec {
-    pub id: u32,
-    pub respond: Option<RespondSpec>,
-    pub look: Option<LookSpec>,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RespondSpec {
-    pub weight: f32,
-    #[serde(flatten)]
-    pub code: CodeSpec,
-}
-
-/// One block's requested code at a token role. A CLS or storage slot measures itself and
-/// ignores `where`; a patch slot measures the painted cells of its Respond like field.
-#[derive(Clone, Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CodeSpec {
-    pub block: u32,
-    /// The requested token's slot: 0 CLS, 1–4 storage, 5–260 patches.
-    pub slot: u16,
-    pub code: [f32; 3],
-    #[serde(default)]
-    pub target: TargetSpec,
-    /// The Respond like field: 256 integer percentages, row-major. Null or all zeros for a
-    /// CLS or storage slot, whose field is not used.
-    #[serde(rename = "where")]
-    pub where_: Option<Vec<u8>>,
-}
-
-/// Targets are already scaled by the recipe radius. Region membership is resolved before install.
-#[derive(Clone, Debug, Default, Deserialize)]
-#[serde(tag = "kind", rename_all = "camelCase", deny_unknown_fields)]
-pub enum TargetSpec {
-    #[default]
-    Point,
-    Path { codes: [[f32; 3]; 2], anchors: [usize; 2] },
-    Region { codes: Vec<[f32; 3]>, lambda: f32 },
-}
-
-/// Frozen target tensors. M is the number of region codes (at most 4096).
-enum CodeTarget {
-    Point,
-    Path {
-        codes_PR: Vec<[f32; 3]>,
-        codes_1PR: Tensor<3>,
-        inverse_norm_1P: Tensor<2>,
-    },
-    Region {
-        codes_MR: Vec<[f32; 3]>,
-        codes_11MR: Tensor<4>,
-        inverse_norm_squared: f32,
-        lambda: f32,
-    },
-}
-
-fn squared_norm(code: &[f32; 3]) -> f32 {
-    code.iter().map(|value| value * value).sum()
-}
-
-fn prepare_target(spec: &CodeSpec, slots: &[u16], device: &Device) -> Result<CodeTarget, String> {
-    if matches!(spec.target, TargetSpec::Point) {
-        return Ok(CodeTarget::Point);
-    }
-    if (spec.slot as usize) < PREFIX {
-        return Err("paths and regions require a patch request".into());
-    }
-    match &spec.target {
-        TargetSpec::Point => unreachable!(),
-        TargetSpec::Path { codes, anchors: [a, b] } => {
-            if a == b || *a >= CELLS || *b >= CELLS {
-                return Err("a path needs two distinct anchor cells in 0–255".into());
-            }
-            let dx = (b % GRID) as f32 - (a % GRID) as f32;
-            let dy = (b / GRID) as f32 - (a / GRID) as f32;
-            let codes_PR: Vec<[f32; 3]> = slots.iter().map(|&slot| {
-                let cell = slot as usize - PREFIX;
-                let x = (cell % GRID) as f32 - (a % GRID) as f32;
-                let y = (cell / GRID) as f32 - (a / GRID) as f32;
-                let t = ((x * dx + y * dy) / (dx * dx + dy * dy)).clamp(0.0, 1.0);
-                std::array::from_fn(|axis| (1.0 - t) * codes[0][axis] + t * codes[1][axis])
-            }).collect();
-            let norms_P: Vec<f32> = codes_PR.iter().map(squared_norm).collect();
-            if norms_P.iter().any(|norm| !norm.is_finite() || *norm < MIN_CODE_NORM_SQUARED) {
-                return Err("a path target has length below 0.000001 at a painted cell".into());
-            }
-            let points = slots.len();
-            let codes_1PR = Tensor::from_data(TensorData::new(codes_PR.iter().flatten().copied().collect::<Vec<_>>(), [1, points, 3]), device);
-            let inverse_norm_1P = masses_tensor(&norms_P.iter().map(|norm| 1.0 / norm).collect::<Vec<_>>(), device);
-            Ok(CodeTarget::Path { codes_PR, codes_1PR, inverse_norm_1P })
-        }
-        TargetSpec::Region { codes, lambda } => {
-            if codes.is_empty() || codes.len() > 4096 {
-                return Err("a region needs 1–4096 target codes".into());
-            }
-            if !lambda.is_finite() || *lambda < 0.0 {
-                return Err("region coverage weight must be non-negative".into());
-            }
-            let norm_squared = codes.iter().map(squared_norm).sum::<f32>() / codes.len() as f32;
-            if !norm_squared.is_finite() || norm_squared < MIN_CODE_NORM_SQUARED {
-                return Err("region RMS code length is below 0.000001".into());
-            }
-            let codes_11MR = Tensor::from_data(TensorData::new(codes.iter().flatten().copied().collect::<Vec<_>>(), [1, 1, codes.len(), 3]), device);
-            Ok(CodeTarget::Region { codes_MR: codes.clone(), codes_11MR, inverse_norm_squared: 1.0 / norm_squared, lambda: *lambda })
-        }
-    }
-}
-
-#[derive(Clone, Debug, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct LookSpec {
-    pub weight: f32,
-    /// The Look like field: 256 integer percentages, row-major.
-    #[serde(rename = "where")]
-    pub where_: Vec<u8>,
-    pub references: Vec<ReferenceSpec>,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct ReferenceSpec {
-    pub image_id: u64,
-    /// 256 cells of the reference's source window.
-    pub source: Vec<bool>,
-}
-
-/// A loss-free code readout for one request, measured whether or not its loss is active.
-#[derive(Clone, Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ProbeSpec {
-    pub request_id: u32,
-    #[serde(flatten)]
-    pub code: CodeSpec,
-}
-
-/// Shared by every block: subtract one mean, multiply by one positive scale.
-pub struct Calibration {
-    mean_D: Tensor<1>,
-    scale: f32,
-}
-
-impl Calibration {
-    /// The calibration multiplier: the dictionary's own (2.8026159 for pass-003).
-    pub fn scale(&self) -> f32 {
-        self.scale
-    }
-    /// Calibrated native tokens, before projection into any dictionary block.
-    pub fn tokens(&self, native_BTD: Tensor<3>) -> Tensor<3> {
-        (native_BTD - self.mean_D.clone().reshape([1,1,WIDTH])) * self.scale
-    }
-    pub fn load(bytes: &[u8], device: &Device) -> Result<Self, LoadError> {
-        let weights = Weights::new(bytes, device)?;
-        let scale = weights.values("scale", [1])?[0];
-        if scale <= 0.0 {
-            return Err(LoadError::Contract("Calibration scale must be positive".into()));
-        }
-        Ok(Self {
-            mean_D: weights.tensor("mean", [WIDTH])?,
-            scale,
-        })
-    }
-
-    #[cfg(test)]
-    pub fn new(mean_D: Tensor<1>, scale: f32) -> Self {
-        Self { mean_D, scale }
-    }
-}
-
-/// Load one `blocks/<block>.safetensors` file: a single `frame` [D, R].
-pub fn load_frame(bytes: &[u8], device: &Device) -> Result<Tensor<2>, LoadError> {
-    Weights::new(bytes, device)?.tensor("frame", [WIDTH, 3])
-}
-
-/// A painted field, prepared once per objective. Cell c has strength s_c = W_c / 100. The
-/// field measures the cells with s_c > 0; they share the term by mass p_c = s_c / Σ s, and
-/// the field pulls with its peak max s_c. An all-100 field has equal masses and
-/// peak 1.
-pub struct Field {
-    /// The painted cells, row-major.
-    pub cells: Vec<usize>,
-    /// Each painted cell's mass; they sum to 1.
-    pub masses: Vec<f32>,
-    pub peak: f32,
-}
-
-/// The field of 256 percentages; empty when nothing is painted.
-pub fn field(percentages: &[u8]) -> Result<Field, String> {
-    if percentages.len() != CELLS {
-        return Err("a field must have 256 cells".into());
-    }
-    if let Some(bad) = percentages.iter().find(|&&strength| strength > FULL_STRENGTH) {
-        return Err(format!("a painted strength is 0 to 100, not {bad}"));
-    }
-    let cells: Vec<usize> = (0..CELLS).filter(|&cell| percentages[cell] > 0).collect();
-    let total: f64 = cells.iter().map(|&cell| percentages[cell] as f64).sum();
-    let masses = cells.iter().map(|&cell| (percentages[cell] as f64 / total) as f32).collect();
-    let peak = cells.iter().map(|&cell| percentages[cell]).max().unwrap_or(0) as f32 / FULL_STRENGTH as f32;
-    Ok(Field { cells, masses, peak })
-}
-
-/// What a code readout measures: its slots with their masses and the field's peak. A CLS or
-/// storage request measures its own slot with mass and peak 1 and ignores its field; a patch
-/// request measures the painted cells of its Respond like field.
-struct Measured {
-    slots: Vec<u16>,
-    masses: Vec<f32>,
-    peak: f32,
-}
-
-fn measured(spec: &CodeSpec) -> Result<Measured, String> {
-    let slot = spec.slot as usize;
-    if slot < PREFIX {
-        return Ok(Measured { slots: vec![spec.slot], masses: vec![1.0], peak: 1.0 });
-    }
-    if slot >= PREFIX + PATCHES {
-        return Err(format!("token slot {slot} is outside the 261 slots"));
-    }
-    let where_ = spec.where_.as_deref().ok_or("a patch request needs a Respond like field")?;
-    let field = field(where_)?;
-    Ok(Measured {
-        slots: field.cells.iter().map(|&cell| (PREFIX + cell) as u16).collect(),
-        masses: field.masses,
-        peak: field.peak,
-    })
-}
 
 fn index_tensor(values: impl IntoIterator<Item = usize>, device: &Device) -> Tensor<1, Int> {
     let values: Vec<i32> = values.into_iter().map(|value| value as i32).collect();
@@ -271,12 +28,7 @@ fn index_tensor(values: impl IntoIterator<Item = usize>, device: &Device) -> Ten
     Tensor::from_data(TensorData::new(values, [count]), device)
 }
 
-/// Masses as a [1, P] row on the device.
-fn masses_tensor(masses: &[f32], device: &Device) -> Tensor<2> {
-    Tensor::from_data(TensorData::new(masses.to_vec(), [1, masses.len()]), device)
-}
-
-/// Calibrated gain-free codes of one block at selected slots: ((x − mean) × scale) · frame.
+/// Calibrated gain-free codes of one block at selected slots: `((x − mean) × scale) · frame`.
 pub struct CodeReadout {
     pub request_id: u32,
     pub slots: Vec<u16>,
@@ -291,16 +43,25 @@ impl CodeReadout {
     /// Squared distances and their normalizers in view 0. Readback already holds P codes.
     /// The region distance excludes coverage: it is distance to the nearest target.
     pub fn errors(&self, codes_PR: &[f32]) -> (Vec<f32>, Vec<f32>) {
-        let distance = |code: &[f32], target: &[f32; 3]| code.iter().zip(target).map(|(z, t)| (z - t).powi(2)).sum::<f32>();
+        let distance = |code: &[f32], target: &[f32; 3]| {
+            code.iter().zip(target).map(|(z, t)| (z - t).powi(2)).sum::<f32>()
+        };
         let mut errors_P = Vec::with_capacity(self.slots.len());
         let mut normalizers_P = Vec::with_capacity(self.slots.len());
         for (point, code) in codes_PR.chunks_exact(3).enumerate() {
             let (error, norm) = match &self.target {
                 CodeTarget::Point => (distance(code, &self.code), squared_norm(&self.code)),
-                CodeTarget::Path { codes_PR, .. } => (distance(code, &codes_PR[point]), squared_norm(&codes_PR[point])),
-                CodeTarget::Region { codes_MR, inverse_norm_squared, .. } => (
-                    codes_MR.iter().map(|target| distance(code, target)).fold(f32::INFINITY, f32::min),
-                    1.0 / inverse_norm_squared,
+                CodeTarget::Path(path) => (
+                    distance(code, &path.codes_PR[point]),
+                    squared_norm(&path.codes_PR[point]),
+                ),
+                CodeTarget::Region(region) => (
+                    region
+                        .codes_MR
+                        .iter()
+                        .map(|target| distance(code, target))
+                        .fold(f32::INFINITY, f32::min),
+                    1.0 / region.inverse_norm_squared,
                 ),
             };
             errors_P.push(error);
@@ -312,41 +73,44 @@ impl CodeReadout {
     pub fn codes(&self, native_BTD: Tensor<3>, calibration: &Calibration) -> Tensor<3> {
         let selected_BPD = native_BTD.select(1, self.slots_P.clone());
         let [views, points, _] = selected_BPD.dims();
-        let centered_BP1D = ((selected_BPD - calibration.mean_D.clone().reshape([1, 1, WIDTH])) * calibration.scale)
-            .reshape([views, points, 1, WIDTH]);
+        let centered_BP1D =
+            ((selected_BPD - calibration.mean_D.clone().reshape([1, 1, WIDTH])) * calibration.scale)
+                .reshape([views, points, 1, WIDTH]);
         // A product and a sum over D, not `matmul`: on WebGPU without autotune, Burn's matmul
-        // cost about 12 ms per call even for one slot (Chrome, M1 Max).
-        (centered_BP1D * self.frame_11RD.clone()).sum_dim(3).reshape([views, points, 3])
+        // adds roughly 12 ms per call even for one slot.
+        (centered_BP1D * self.frame_11RD.clone())
+            .sum_dim(3)
+            .reshape([views, points, 3])
     }
 }
 
 struct CodeTerm {
     readout: CodeReadout,
-    /// 1 / ‖c‖².
+    /// `1 / ‖c‖²`.
     inverse_norm_squared: f32,
-    /// The measured slots' masses, [1, P].
+    /// The measured slots' masses, `[1, P]`.
     masses_1P: Tensor<2>,
     peak: f32,
 }
 
-/// The prepared curves of one Look term, for the qualification fixtures (harness feature).
+/// The prepared curves of one Look term, for the qualification fixtures (`harness` feature).
 #[cfg(feature = "harness")]
 pub struct LookFixtures {
-    /// ∫₀¹ Q̄² per layer and channel, [L, D].
+    /// `∫₀¹ Q̄²` per layer and channel, `[L, D]`.
     pub squared_LD: Vec<f32>,
-    /// Per reference: its window's token count M and F at each segment start, [L, M + 1, D].
+    /// Per reference: its window's token count M and F at each segment start, `[L, M + 1, D]`.
     pub prefixes: Vec<(usize, Vec<f32>)>,
 }
 
 struct LookTerm {
     positions_P: Tensor<1, Int>,
-    /// The painted cells' masses, [1, P] for the intervals and [1, P, 1] for the loss.
+    /// The painted cells' masses, `[1, P]` for the intervals and `[1, P, 1]` for the loss.
     masses_1P: Tensor<2>,
     masses_1P1: Tensor<3>,
     peak: f32,
     /// One curve per reference image, equally weighted.
     curves: Vec<DeviceCurve>,
-    /// ∫₀¹ Q̄² per layer and channel, [L, D]: the constant part of the reported loss.
+    /// `∫₀¹ Q̄²` per layer and channel, `[L, D]`: the constant part of the reported loss.
     squared_integral_LD: Tensor<2>,
     #[cfg(feature = "harness")]
     fixtures: LookFixtures,
@@ -371,7 +135,7 @@ pub struct Objective {
     terms: Vec<Term>,
 }
 
-/// Each Look term's reference means per cell: per term, per layer, [B, P, D]. The mean of
+/// Each Look term's reference means per cell: per term, per layer, `[B, P, D]`. The mean of
 /// the term's curve over the mass interval that the cell's sorted value occupies; detached.
 pub struct Assigned(Vec<Vec<Tensor<3>>>);
 
@@ -386,8 +150,13 @@ impl Objective {
         for request in &spec.requests {
             if let Some(respond) = &request.respond {
                 let id = format!("request:{}:respond", request.id);
-                let code = code_term(request.id, &respond.code, frames, device).map_err(|error| format!("{id}: {error}"))?;
-                terms.push(Term { weight: positive(&id, respond.weight)?, id, kind: Kind::Code(Box::new(code)) });
+                let code = code_term(request.id, &respond.code, frames, device)
+                    .map_err(|error| format!("{id}: {error}"))?;
+                terms.push(Term {
+                    weight: positive(&id, respond.weight)?,
+                    id,
+                    kind: Kind::Code(Box::new(code)),
+                });
             }
             if let Some(look) = &request.look {
                 let id = format!("request:{}:look", request.id);
@@ -399,10 +168,18 @@ impl Objective {
             }
         }
         if let Some(weight) = spec.tv {
-            terms.push(Term { weight: positive("rules:tv", weight)?, id: "rules:tv".into(), kind: Kind::TotalVariation });
+            terms.push(Term {
+                weight: positive("rules:tv", weight)?,
+                id: "rules:tv".into(),
+                kind: Kind::TotalVariation,
+            });
         }
         if let Some(weight) = spec.l2 {
-            terms.push(Term { weight: positive("rules:l2", weight)?, id: "rules:l2".into(), kind: Kind::ImageL2 });
+            terms.push(Term {
+                weight: positive("rules:l2", weight)?,
+                id: "rules:l2".into(),
+                kind: Kind::ImageL2,
+            });
         }
         Ok(Self { terms })
     }
@@ -432,18 +209,20 @@ impl Objective {
     }
 
     pub fn needs_appearance(&self) -> bool {
-        self.terms.iter().any(|term| matches!(term.kind, Kind::Look(_)))
+        self.terms
+            .iter()
+            .any(|term| matches!(term.kind, Kind::Look(_)))
     }
 
     /// For every Look term, the reference mean that each painted cell's value is measured
-    /// against, on the GPU and without gradient tracking. `appearance_BPD` has one readout
-    /// per layer in `APPEARANCE_LAYERS`, [B, T, D] over all patches; it is empty when no Look
+    /// against, on the GPU and without gradient tracking. `appearance_BTD` has one readout
+    /// per layer in `APPEARANCE_LAYERS`, `[B, T, D]` over all patches; it is empty when no Look
     /// term is active.
     ///
     /// Per layer, view and channel the painted cells are sorted by value and occupy mass
-    /// intervals [A_i, B_i) in that order (`ranking::mass_intervals`); the cell's mean is
-    /// (F(B_i) − F(A_i)) / p_c with F the mean of the references' prefix integrals.
-    pub fn assign(&self, appearance_BPD: &[Tensor<3>]) -> Assigned {
+    /// intervals `[A_i, B_i)` in that order (`ranking::mass_intervals`); the cell's mean is
+    /// `(F(B_i) − F(A_i)) / p_c` with F the mean of the references' prefix integrals.
+    pub fn assign(&self, appearance_BTD: &[Tensor<3>]) -> Assigned {
         let assigned = self
             .terms
             .iter()
@@ -454,9 +233,11 @@ impl Objective {
             .map(|look| {
                 let positions_P = look.positions_P.clone().inner();
                 let generated_LBPD = Tensor::stack::<4>(
-                    appearance_BPD
+                    appearance_BTD
                         .iter()
-                        .map(|features_BTD| features_BTD.clone().inner().select(1, positions_P.clone()))
+                        .map(|features_BTD| {
+                            features_BTD.clone().inner().select(1, positions_P.clone())
+                        })
                         .collect(),
                     0,
                 );
@@ -468,7 +249,8 @@ impl Objective {
                 let intervals = ranking::mass_intervals(generated_NP, masses_NP.clone());
                 let mut area_NP = intervals.upper_NP.zeros_like();
                 for curve in &look.curves {
-                    area_NP = area_NP + curve.prefix_integral(intervals.upper_NP.clone(), views)
+                    area_NP = area_NP
+                        + curve.prefix_integral(intervals.upper_NP.clone(), views)
                         - curve.prefix_integral(intervals.lower_NP.clone(), views);
                 }
                 let area_NP = area_NP / look.curves.len() as f32;
@@ -488,8 +270,14 @@ impl Objective {
         Assigned(assigned)
     }
 
-    /// Every term's raw value in each view, [N terms, B views], over each term's own field.
-    pub fn raws(&self, views_BCHW: &Tensor<4>, readout: &Readout, assigned: &Assigned, calibration: &Calibration) -> Tensor<2> {
+    /// Every term's raw value in each view, `[N terms, B views]`, over each term's own field.
+    pub fn raws(
+        &self,
+        views_BCHW: &Tensor<4>,
+        readout: &Readout,
+        assigned: &Assigned,
+        calibration: &Calibration,
+    ) -> Tensor<2> {
         let mut looks = assigned.0.iter();
         let rows: Vec<Tensor<2>> = self
             .terms
@@ -497,7 +285,11 @@ impl Objective {
             .map(|term| {
                 let raw_B1 = match &term.kind {
                     Kind::Code(code) => code_raw(code, &readout.native_BTD, calibration),
-                    Kind::Look(look) => look_raw(look, &readout.intermediate_BPD, looks.next().expect("one assignment per Look term")),
+                    Kind::Look(look) => look_raw(
+                        look,
+                        &readout.intermediate_BTD,
+                        looks.next().expect("one assignment per Look term"),
+                    ),
                     Kind::TotalVariation => total_variation(views_BCHW.clone()),
                     Kind::ImageL2 => image_l2(views_BCHW.clone()),
                 };
@@ -507,7 +299,7 @@ impl Objective {
         Tensor::cat(rows, 0)
     }
 
-    /// Σ_terms weight × mean over views of raw.
+    /// `Σ_terms weight × mean over views of raw`.
     pub fn total(&self, raws_NB: Tensor<2>) -> Tensor<1> {
         let device = raws_NB.device();
         let weights = self.weights();
@@ -532,7 +324,10 @@ fn code_readout(
     frames: &BTreeMap<u32, Tensor<2>>,
     device: &Device,
 ) -> Result<CodeReadout, String> {
-    let frame_DR = frames.get(&spec.block).ok_or_else(|| format!("block {} is not loaded", spec.block))?.clone();
+    let frame_DR = frames
+        .get(&spec.block)
+        .ok_or_else(|| format!("block {} is not loaded", spec.block))?
+        .clone();
     Ok(CodeReadout {
         request_id,
         target: prepare_target(spec, &slots, device)?,
@@ -543,9 +338,16 @@ fn code_readout(
     })
 }
 
-fn code_term(request_id: u32, spec: &CodeSpec, frames: &BTreeMap<u32, Tensor<2>>, device: &Device) -> Result<CodeTerm, String> {
+fn code_term(
+    request_id: u32,
+    spec: &CodeSpec,
+    frames: &BTreeMap<u32, Tensor<2>>,
+    device: &Device,
+) -> Result<CodeTerm, String> {
     let code_norm_squared: f32 = spec.code.iter().map(|c| c * c).sum();
-    if matches!(spec.target, TargetSpec::Point) && (!code_norm_squared.is_finite() || code_norm_squared <= MIN_CODE_NORM_SQUARED) {
+    if matches!(spec.target, TargetSpec::Point)
+        && (!code_norm_squared.is_finite() || code_norm_squared <= MIN_CODE_NORM_SQUARED)
+    {
         return Err("requested code has no direction".into());
     }
     let measured = measured(spec)?;
@@ -586,7 +388,10 @@ fn look_term(
         .collect::<Result<Vec<_>, String>>()?;
     for reference in &look.references {
         if !references.contains(reference.image_id) {
-            return Err(format!("{id}: reference image {} is not encoded", reference.image_id));
+            return Err(format!(
+                "{id}: reference image {} is not encoded",
+                reference.image_id
+            ));
         }
     }
     let sorted: Vec<SortedWindow> = look
@@ -609,51 +414,77 @@ fn look_term(
             masses_1P: masses_tensor(&field.masses, device),
             masses_1P1: Tensor::from_data(TensorData::new(field.masses, [1, points, 1]), device),
             peak: field.peak,
-            curves: tables.iter().map(|table| DeviceCurve::new(table, device)).collect(),
-            squared_integral_LD: Tensor::from_data(TensorData::new(squared_LD.clone(), [crate::appearance::LAYERS, WIDTH]), device),
+            curves: tables
+                .iter()
+                .map(|table| DeviceCurve::new(table, device))
+                .collect(),
+            squared_integral_LD: Tensor::from_data(
+                TensorData::new(squared_LD.clone(), [crate::appearance::LAYERS, WIDTH]),
+                device,
+            ),
             #[cfg(feature = "harness")]
             fixtures: LookFixtures {
                 squared_LD,
-                prefixes: tables.iter().map(|table| (table.tokens, table.prefixes_LKD.clone())).collect(),
+                prefixes: tables
+                    .iter()
+                    .map(|table| (table.tokens, table.prefixes_LKD.clone()))
+                    .collect(),
             },
         })),
     })
 }
 
-/// Mass-weighted sum over the measured slots of ‖z_vp − c‖², times the peak, divided by
-/// ‖c‖², for each view. With equal masses and peak 1 it is the mean over the slots.
+/// Mass-weighted sum over the measured slots of `‖z_vp − c‖²`, times the peak, divided by
+/// `‖c‖²`, for each view. With equal masses and peak 1 it is the mean over the slots.
 fn code_raw(term: &CodeTerm, native_BTD: &Tensor<3>, calibration: &Calibration) -> Tensor<2> {
     let codes_BPR = term.readout.codes(native_BTD.clone(), calibration);
     let [views, points, _] = codes_BPR.dims();
     match &term.readout.target {
         CodeTarget::Point => {
-            // Keep the original point operations and their order.
-            let code_11R = Tensor::<1>::from_data(TensorData::new(term.readout.code.to_vec(), [3]), &codes_BPR.device()).reshape([1, 1, 3]);
-            let squared_BP = (codes_BPR - code_11R).square().sum_dim(2).reshape([views, points]);
-            (squared_BP * term.masses_1P.clone()).sum_dim(1) * (term.peak * term.inverse_norm_squared)
+            // Preserve the exact point-target operation order.
+            let code_11R = Tensor::<1>::from_data(
+                TensorData::new(term.readout.code.to_vec(), [3]),
+                &codes_BPR.device(),
+            )
+            .reshape([1, 1, 3]);
+            let squared_BP = (codes_BPR - code_11R)
+                .square()
+                .sum_dim(2)
+                .reshape([views, points]);
+            (squared_BP * term.masses_1P.clone()).sum_dim(1)
+                * (term.peak * term.inverse_norm_squared)
         }
-        CodeTarget::Path { codes_1PR, inverse_norm_1P, .. } => {
-            let squared_BP = (codes_BPR - codes_1PR.clone()).square().sum_dim(2).reshape([views, points]);
-            (squared_BP * inverse_norm_1P.clone() * term.masses_1P.clone()).sum_dim(1) * term.peak
+        CodeTarget::Path(path) => {
+            let squared_BP = (codes_BPR - path.codes_1PR.clone())
+                .square()
+                .sum_dim(2)
+                .reshape([views, points]);
+            (squared_BP * path.inverse_norm_1P.clone() * term.masses_1P.clone()).sum_dim(1)
+                * term.peak
         }
-        CodeTarget::Region { codes_MR, codes_11MR, inverse_norm_squared, lambda } => {
-            let targets = codes_MR.len();
-            let differences_BPMR = codes_BPR.reshape([views, points, 1, 3]) - codes_11MR.clone();
-            let squared_BPM = differences_BPMR.square().sum_dim(3).reshape([views, points, targets]);
+        CodeTarget::Region(region) => {
+            let targets = region.codes_MR.len();
+            let differences_BPMR =
+                codes_BPR.reshape([views, points, 1, 3]) - region.codes_11MR.clone();
+            let squared_BPM = differences_BPMR
+                .square()
+                .sum_dim(3)
+                .reshape([views, points, targets]);
             let nearest_BP = squared_BPM.clone().min_dim(2).reshape([views, points]);
             let attraction_B1 = (nearest_BP * term.masses_1P.clone()).sum_dim(1);
             let coverage_B1 = squared_BPM.min_dim(1).mean_dim(2).reshape([views, 1]);
-            (attraction_B1 + coverage_B1 * *lambda) * (term.peak * *inverse_norm_squared)
+            (attraction_B1 + coverage_B1 * region.lambda)
+                * (term.peak * region.inverse_norm_squared)
         }
     }
 }
 
 /// The squared distribution distance per channel, averaged over the channels and the four
-/// layers, times the peak: Σ_c p_c (x_c − m_c)² + Σ_c p_c v_c, where m_c and v_c are the
+/// layers, times the peak: `Σ_c p_c (x_c − m_c)² + Σ_c p_c v_c`, where `m_c` and `v_c` are the
 /// reference curve's mean and variance over the cell's mass interval. The spread term
-/// Σ_c p_c v_c = ∫Q̄² − Σ_c p_c m_c² has no gradient; it keeps the reported loss the integral.
-fn look_raw(term: &LookTerm, appearance_BPD: &[Tensor<3>], means: &[Tensor<3>]) -> Tensor<2> {
-    let layers: Vec<Tensor<2>> = appearance_BPD
+/// `Σ_c p_c v_c = ∫Q̄² − Σ_c p_c m_c²` has no gradient; it keeps the reported loss equal to the integral.
+fn look_raw(term: &LookTerm, appearance_BTD: &[Tensor<3>], means: &[Tensor<3>]) -> Tensor<2> {
+    let layers: Vec<Tensor<2>> = appearance_BTD
         .iter()
         .zip(means)
         .enumerate()
@@ -665,9 +496,14 @@ fn look_raw(term: &LookTerm, appearance_BPD: &[Tensor<3>], means: &[Tensor<3>]) 
             let weighted_BD = ((selected_BPD - mean_BPD.clone()).square() * term.masses_1P1.clone())
                 .sum_dim(1)
                 .reshape([views, WIDTH]);
-            let squared_1D = term.squared_integral_LD.clone().slice([layer..layer + 1, 0..WIDTH]);
+            let squared_1D = term
+                .squared_integral_LD
+                .clone()
+                .slice([layer..layer + 1, 0..WIDTH]);
             let spread_BD = squared_1D.expand([views, WIDTH])
-                - (mean_BPD.clone().square() * term.masses_1P1.clone()).sum_dim(1).reshape([views, WIDTH]);
+                - (mean_BPD.clone().square() * term.masses_1P1.clone())
+                    .sum_dim(1)
+                    .reshape([views, WIDTH]);
             (weighted_BD + spread_BD).mean_dim(1)
         })
         .collect();
@@ -681,11 +517,17 @@ fn normalized_rgb(views_BCHW: Tensor<4>) -> Tensor<4> {
     (views_BCHW - mean_1C11) / std_1C11
 }
 
-/// Euclidean norm of each view's values, [B, 1].
+/// Euclidean norm of each view's values, `[B, 1]`.
 fn view_norm(values_BCHW: Tensor<4>) -> Tensor<2> {
     let views = values_BCHW.dims()[0];
     // One axis at a time: Burn's default reduction runs one GPU thread per output.
-    values_BCHW.square().sum_dim(3).sum_dim(2).sum_dim(1).reshape([views, 1]).sqrt()
+    values_BCHW
+        .square()
+        .sum_dim(3)
+        .sum_dim(2)
+        .sum_dim(1)
+        .reshape([views, 1])
+        .sqrt()
 }
 
 /// Four Euclidean norms of adjacent normalized differences, summed.
@@ -693,7 +535,9 @@ fn total_variation(views_BCHW: Tensor<4>) -> Tensor<2> {
     let normalized_BCHW = normalized_rgb(views_BCHW);
     let [views, channels, height, width] = normalized_BCHW.dims();
     let window = |rows: std::ops::Range<usize>, columns: std::ops::Range<usize>| {
-        normalized_BCHW.clone().slice([0..views, 0..channels, rows, columns])
+        normalized_BCHW
+            .clone()
+            .slice([0..views, 0..channels, rows, columns])
     };
     let (h, w) = (height, width);
     let horizontal = window(0..h, 0..w - 1) - window(0..h, 1..w);
@@ -713,10 +557,16 @@ fn image_l2(views_BCHW: Tensor<4>) -> Tensor<2> {
 pub struct Probes(pub Vec<CodeReadout>);
 
 impl Probes {
-    pub fn build(specs: &[ProbeSpec], frames: &BTreeMap<u32, Tensor<2>>, device: &Device) -> Result<Self, String> {
+    pub fn build(
+        specs: &[ProbeSpec],
+        frames: &BTreeMap<u32, Tensor<2>>,
+        device: &Device,
+    ) -> Result<Self, String> {
         let mut probes = Vec::new();
         for spec in specs {
-            let slots = measured(&spec.code).map_err(|error| format!("request {}: {error}", spec.request_id))?.slots;
+            let slots = measured(&spec.code)
+                .map_err(|error| format!("request {}: {error}", spec.request_id))?
+                .slots;
             if slots.is_empty() {
                 continue; // A patch request with an empty Respond like field has nothing to measure.
             }
@@ -725,7 +575,7 @@ impl Probes {
         Ok(Self(probes))
     }
 
-    /// Every probe's codes in view 0, concatenated: [Σ P, R].
+    /// Every probe's codes in view 0, concatenated: `[Σ P, R]`.
     pub fn codes(&self, native_BTD: &Tensor<3>, calibration: &Calibration) -> Option<Tensor<2>> {
         if self.0.is_empty() {
             return None;
@@ -737,7 +587,9 @@ impl Probes {
             .iter()
             .map(|probe| {
                 let points = probe.slots.len();
-                probe.codes(first_1TD.clone(), calibration).reshape([points, 3])
+                probe
+                    .codes(first_1TD.clone(), calibration)
+                    .reshape([points, 3])
             })
             .collect();
         Some(Tensor::cat(codes, 0))
@@ -748,7 +600,7 @@ impl Probes {
 mod tests {
     use super::*;
     use crate::appearance::{LAYERS, READOUT_VALUES};
-    use crate::encoder::TOKENS;
+    use crate::encoder::{PATCHES, PREFIX, TOKENS};
 
     fn identity_frame(device: &Device) -> Tensor<2> {
         let mut basis = vec![0f32; WIDTH * 3];
@@ -765,14 +617,14 @@ mod tests {
         }
         Readout {
             native_BTD: Tensor::from_data(TensorData::new(tokens, [1, TOKENS, WIDTH]), device),
-            intermediate_BPD: Vec::new(),
+            intermediate_BTD: Vec::new(),
         }
     }
 
     fn raw_values(objective: &Objective, readout: &Readout, device: &Device) -> Vec<f32> {
         let calibration = Calibration::new(Tensor::zeros([WIDTH], device), 1.0);
         let views = Tensor::zeros([1, 3, 256, 256], device);
-        let assigned = objective.assign(&readout.intermediate_BPD);
+        let assigned = objective.assign(&readout.intermediate_BTD);
         objective
             .raws(&views, readout, &assigned, &calibration)
             .into_data()
@@ -781,8 +633,18 @@ mod tests {
     }
 
     fn request(slot: u16, where_: Vec<u8>) -> RequestSpec {
-        let code = CodeSpec { block: 0, slot, code: [1.0, 0.0, 0.0], target: TargetSpec::Point, where_: Some(where_) };
-        RequestSpec { id: 1, respond: Some(RespondSpec { weight: 0.3, code }), look: None }
+        let code = CodeSpec {
+            block: 0,
+            slot,
+            code: [1.0, 0.0, 0.0],
+            target: TargetSpec::Point,
+            where_: Some(where_),
+        };
+        RequestSpec {
+            id: 1,
+            respond: Some(RespondSpec { weight: 0.3, code }),
+            look: None,
+        }
     }
 
     /// A field with the given strengths at the given cells, 0 elsewhere.
@@ -802,42 +664,100 @@ mod tests {
     fn path_uses_projected_targets_and_each_targets_own_norm() {
         let device = Device::flex().autodiff();
         let frames = BTreeMap::from([(0, identity_frame(&device))]);
-        let mut spec = ObjectiveSpec { requests: vec![request(5, painted(&[(0, 25), (1, 50), (2, 25)]))], ..Default::default() };
-        spec.requests[0].respond.as_mut().unwrap().code.target = TargetSpec::Path { codes: [[2.0, 0.0, 0.0], [4.0, 0.0, 0.0]], anchors: [0, 2] };
-        let objective = Objective::build(&spec, &frames, &mut ReferenceCache::default(), &device).unwrap();
+        let mut spec = ObjectiveSpec {
+            requests: vec![request(5, painted(&[(0, 25), (1, 50), (2, 25)]))],
+            ..Default::default()
+        };
+        spec.requests[0].respond.as_mut().unwrap().code.target = TargetSpec::Path {
+            codes: [[2.0, 0.0, 0.0], [4.0, 0.0, 0.0]],
+            anchors: [0, 2],
+        };
+        let objective =
+            Objective::build(&spec, &frames, &mut ReferenceCache::default(), &device).unwrap();
         let mut readout = readout_with(&[(5, 1.0), (6, 4.0), (7, 6.0)], &device);
         readout.native_BTD = readout.native_BTD.require_grad();
         assert!((raw_values(&objective, &readout, &device)[0] - 13.0 / 144.0).abs() < 1e-6);
         let calibration = Calibration::new(Tensor::zeros([WIDTH], &device), 1.0);
-        let raws_NB = objective.raws(&Tensor::zeros([1, 3, 256, 256], &device), &readout, &Assigned(vec![]), &calibration);
+        let raws_NB = objective.raws(
+            &Tensor::zeros([1, 3, 256, 256], &device),
+            &readout,
+            &Assigned(vec![]),
+            &calibration,
+        );
         let gradients = raws_NB.sum().backward();
-        let gradient_TD = readout.native_BTD.grad(&gradients).unwrap().into_data().try_to_vec::<f32>().unwrap();
+        let gradient_TD = readout
+            .native_BTD
+            .grad(&gradients)
+            .unwrap()
+            .into_data()
+            .try_to_vec::<f32>()
+            .unwrap();
         for (slot, expected) in [(5, -0.0625), (6, 1.0 / 18.0), (7, 0.03125)] {
             assert!((gradient_TD[slot * WIDTH] - expected).abs() < 1e-6);
         }
-        let probes = Probes::build(&[ProbeSpec { request_id: 1, code: spec.requests[0].respond.as_ref().unwrap().code.clone() }], &frames, &device).unwrap();
-        assert_eq!(probes.0[0].errors(&[1.0, 0.0, 0.0, 4.0, 0.0, 0.0, 6.0, 0.0, 0.0]), (vec![1.0, 1.0, 4.0], vec![4.0, 9.0, 16.0]));
+        let probes = Probes::build(
+            &[ProbeSpec {
+                request_id: 1,
+                code: spec.requests[0].respond.as_ref().unwrap().code.clone(),
+            }],
+            &frames,
+            &device,
+        )
+        .unwrap();
+        assert_eq!(
+            probes.0[0].errors(&[1.0, 0.0, 0.0, 4.0, 0.0, 0.0, 6.0, 0.0, 0.0]),
+            (vec![1.0, 1.0, 4.0], vec![4.0, 9.0, 16.0])
+        );
     }
 
     #[test]
     fn region_weights_attraction_and_coverage_and_normalizes_about_the_origin() {
         let device = Device::flex().autodiff();
         let frames = BTreeMap::from([(0, identity_frame(&device))]);
-        let mut spec = ObjectiveSpec { requests: vec![request(5, painted(&[(0, 20), (1, 60)]))], ..Default::default() };
-        spec.requests[0].respond.as_mut().unwrap().code.target = TargetSpec::Region { codes: vec![[1.0, 0.0, 0.0], [3.0, 0.0, 0.0]], lambda: 0.5 };
-        let objective = Objective::build(&spec, &frames, &mut ReferenceCache::default(), &device).unwrap();
+        let mut spec = ObjectiveSpec {
+            requests: vec![request(5, painted(&[(0, 20), (1, 60)]))],
+            ..Default::default()
+        };
+        spec.requests[0].respond.as_mut().unwrap().code.target = TargetSpec::Region {
+            codes: vec![[1.0, 0.0, 0.0], [3.0, 0.0, 0.0]],
+            lambda: 0.5,
+        };
+        let objective =
+            Objective::build(&spec, &frames, &mut ReferenceCache::default(), &device).unwrap();
         let mut readout = readout_with(&[(5, 0.0), (6, 4.0)], &device);
         readout.native_BTD = readout.native_BTD.require_grad();
         // p = (1/4, 3/4), peak = 0.6, both distances are 1, rho² = (1+9)/2 = 5.
         assert!((raw_values(&objective, &readout, &device)[0] - 0.18).abs() < 1e-6);
         let calibration = Calibration::new(Tensor::zeros([WIDTH], &device), 1.0);
-        let raws_NB = objective.raws(&Tensor::zeros([1, 3, 256, 256], &device), &readout, &Assigned(vec![]), &calibration);
+        let raws_NB = objective.raws(
+            &Tensor::zeros([1, 3, 256, 256], &device),
+            &readout,
+            &Assigned(vec![]),
+            &calibration,
+        );
         let gradients = raws_NB.sum().backward();
-        let gradient_TD = readout.native_BTD.grad(&gradients).unwrap().into_data().try_to_vec::<f32>().unwrap();
+        let gradient_TD = readout
+            .native_BTD
+            .grad(&gradients)
+            .unwrap()
+            .into_data()
+            .try_to_vec::<f32>()
+            .unwrap();
         assert!((gradient_TD[5 * WIDTH] + 0.12).abs() < 1e-6);
         assert!((gradient_TD[6 * WIDTH] - 0.24).abs() < 1e-6);
-        let probes = Probes::build(&[ProbeSpec { request_id: 1, code: spec.requests[0].respond.as_ref().unwrap().code.clone() }], &frames, &device).unwrap();
-        assert_eq!(probes.0[0].errors(&[0.0, 0.0, 0.0, 4.0, 0.0, 0.0]), (vec![1.0, 1.0], vec![5.0, 5.0]));
+        let probes = Probes::build(
+            &[ProbeSpec {
+                request_id: 1,
+                code: spec.requests[0].respond.as_ref().unwrap().code.clone(),
+            }],
+            &frames,
+            &device,
+        )
+        .unwrap();
+        assert_eq!(
+            probes.0[0].errors(&[0.0, 0.0, 0.0, 4.0, 0.0, 0.0]),
+            (vec![1.0, 1.0], vec![5.0, 5.0])
+        );
     }
 
     #[test]
@@ -846,16 +766,34 @@ mod tests {
         let frames = BTreeMap::from([(0, identity_frame(&device))]);
         let mut code = request(5, area(&[0, 1, 2])).respond.unwrap().code;
         for target in [
-            TargetSpec::Region { codes: vec![], lambda: 1.0 },
-            TargetSpec::Region { codes: vec![[0.0; 3]], lambda: 1.0 },
-            TargetSpec::Region { codes: vec![[1.0; 3]; 4097], lambda: 1.0 },
-            TargetSpec::Path { codes: [[1.0; 3]; 2], anchors: [0, 0] },
-            TargetSpec::Path { codes: [[1.0, 0.0, 0.0], [-1.0, 0.0, 0.0]], anchors: [0, 2] },
+            TargetSpec::Region {
+                codes: vec![],
+                lambda: 1.0,
+            },
+            TargetSpec::Region {
+                codes: vec![[0.0; 3]],
+                lambda: 1.0,
+            },
+            TargetSpec::Region {
+                codes: vec![[1.0; 3]; MAX_REGION_CODES + 1],
+                lambda: 1.0,
+            },
+            TargetSpec::Path {
+                codes: [[1.0; 3]; 2],
+                anchors: [0, 0],
+            },
+            TargetSpec::Path {
+                codes: [[1.0, 0.0, 0.0], [-1.0, 0.0, 0.0]],
+                anchors: [0, 2],
+            },
         ] {
             code.target = target;
             assert!(code_term(1, &code, &frames, &device).is_err());
         }
-        code.target = TargetSpec::Region { codes: vec![[1.0; 3]], lambda: 1.0 };
+        code.target = TargetSpec::Region {
+            codes: vec![[1.0; 3]],
+            lambda: 1.0,
+        };
         code.slot = 0;
         assert!(code_term(1, &code, &frames, &device).is_err());
     }
@@ -864,9 +802,13 @@ mod tests {
     fn the_code_error_is_the_mean_over_the_area_divided_by_the_code_length() {
         let device = Device::flex();
         let frames = BTreeMap::from([(0, identity_frame(&device))]);
-        let mut spec = ObjectiveSpec { requests: vec![request(PREFIX as u16, area(&[0, 1]))], ..Default::default() };
+        let mut spec = ObjectiveSpec {
+            requests: vec![request(PREFIX as u16, area(&[0, 1]))],
+            ..Default::default()
+        };
         spec.requests[0].respond.as_mut().unwrap().code.code = [2.0, 0.0, 0.0];
-        let objective = Objective::build(&spec, &frames, &mut ReferenceCache::default(), &device).unwrap();
+        let objective =
+            Objective::build(&spec, &frames, &mut ReferenceCache::default(), &device).unwrap();
         // Slot 5 has code [5,0,0] (d² = 9), slot 6 has [2,0,0] (d² = 0); CLS and slot 7 must not enter.
         let readout = readout_with(&[(0, 1e6), (5, 5.0), (6, 2.0), (7, 1e6)], &device);
         let expected = (9.0 + 0.0) / 2.0 / 4.0;
@@ -879,9 +821,13 @@ mod tests {
         let frames = BTreeMap::from([(0, identity_frame(&device))]);
         let readout = readout_with(&[(5, 5.0), (6, 2.0)], &device);
         let raw = |strengths: &[(usize, u8)]| {
-            let mut spec = ObjectiveSpec { requests: vec![request(PREFIX as u16, painted(strengths))], ..Default::default() };
+            let mut spec = ObjectiveSpec {
+                requests: vec![request(PREFIX as u16, painted(strengths))],
+                ..Default::default()
+            };
             spec.requests[0].respond.as_mut().unwrap().code.code = [2.0, 0.0, 0.0];
-            let objective = Objective::build(&spec, &frames, &mut ReferenceCache::default(), &device).unwrap();
+            let objective =
+                Objective::build(&spec, &frames, &mut ReferenceCache::default(), &device).unwrap();
             raw_values(&objective, &readout, &device)[0]
         };
         // d² = 9 at mass 2/3 and 0 at mass 1/3, peak 1: (9 × 2/3) / 4.
@@ -898,9 +844,13 @@ mod tests {
         let device = Device::flex();
         let frames = BTreeMap::from([(0, identity_frame(&device))]);
         for where_ in [Some(area(&[0, 1, 2])), Some(vec![0; CELLS]), None] {
-            let mut spec = ObjectiveSpec { requests: vec![request(2, vec![])], ..Default::default() };
+            let mut spec = ObjectiveSpec {
+                requests: vec![request(2, vec![])],
+                ..Default::default()
+            };
             spec.requests[0].respond.as_mut().unwrap().code.where_ = where_;
-            let objective = Objective::build(&spec, &frames, &mut ReferenceCache::default(), &device).unwrap();
+            let objective =
+                Objective::build(&spec, &frames, &mut ReferenceCache::default(), &device).unwrap();
             let readout = readout_with(&[(2, -1.0), (5, 100.0)], &device);
             assert_eq!(raw_values(&objective, &readout, &device), [4.0]);
         }
@@ -916,29 +866,14 @@ mod tests {
         let short = request(PREFIX as u16, vec![FULL_STRENGTH; CELLS - 1]);
         let too_strong = request(PREFIX as u16, painted(&[(0, 101)]));
         for bad in [zero, unpainted, short, too_strong] {
-            let spec = ObjectiveSpec { requests: vec![bad], ..Default::default() };
-            assert!(Objective::build(&spec, &frames, &mut ReferenceCache::default(), &device).is_err());
+            let spec = ObjectiveSpec {
+                requests: vec![bad],
+                ..Default::default()
+            };
+            assert!(
+                Objective::build(&spec, &frames, &mut ReferenceCache::default(), &device).is_err()
+            );
         }
-    }
-
-    #[test]
-    fn specs_parse_from_the_worker_json() {
-        let json = r#"{
-            "requests": [{"id": 3,
-                "respond": {"weight": 0.3, "block": 100, "slot": 2, "code": [1, 2, 3], "where": null},
-                "look": {"weight": 1, "where": [0, 100, 37], "references": [{"imageId": 9007199254740991, "source": [true]}]}}],
-            "tv": 0.1, "l2": null}"#;
-        let spec: ObjectiveSpec = serde_json::from_str(json).unwrap();
-        let respond = spec.requests[0].respond.as_ref().unwrap();
-        assert_eq!((respond.weight, respond.code.block, respond.code.slot), (0.3, 100, 2));
-        let look = spec.requests[0].look.as_ref().unwrap();
-        assert_eq!((look.where_.as_slice(), look.references[0].image_id), (&[0, 100, 37][..], 9007199254740991));
-        let probes: Vec<ProbeSpec> =
-            serde_json::from_str(r#"[{"requestId": 3, "block": 7, "slot": 9, "code": [1, 0, 0], "where": [100]}]"#).unwrap();
-        assert_eq!(probes[0].code.block, 7);
-        // Format 3's booleans are not percentages; the worker upgrades before it applies.
-        assert!(serde_json::from_str::<ProbeSpec>(r#"{"requestId": 3, "block": 7, "slot": 9, "code": [1, 0, 0], "where": [true]}"#).is_err());
-        assert!(serde_json::from_str::<ProbeSpec>(r#"{"requestId": 3, "block": 7, "slot": 9, "code": [1, 0, 0], "where": [2.5]}"#).is_err());
     }
 
     /// A reference readout whose channel 0 holds `values` at positions 0.., every other entry zero.
@@ -959,7 +894,10 @@ mod tests {
             features[position * WIDTH] = value;
         }
         (0..LAYERS)
-            .map(|_| Tensor::from_data(TensorData::new(features.clone(), [1, PATCHES, WIDTH]), device).require_grad())
+            .map(|_| {
+                Tensor::from_data(TensorData::new(features.clone(), [1, PATCHES, WIDTH]), device)
+                    .require_grad()
+            })
             .collect()
     }
 
@@ -978,24 +916,51 @@ mod tests {
                 cache.put(index as u64, reference_readout(window));
                 let mut source = vec![false; CELLS];
                 source[..window.len()].fill(true);
-                ReferenceSpec { image_id: index as u64, source }
+                ReferenceSpec {
+                    image_id: index as u64,
+                    source,
+                }
             })
             .collect();
-        let look = LookSpec { weight: 1.0, where_: painted(strengths), references };
-        let spec = ObjectiveSpec { requests: vec![RequestSpec { id: 1, respond: None, look: Some(look) }], ..Default::default() };
+        let look = LookSpec {
+            weight: 1.0,
+            where_: painted(strengths),
+            references,
+        };
+        let spec = ObjectiveSpec {
+            requests: vec![RequestSpec {
+                id: 1,
+                respond: None,
+                look: Some(look),
+            }],
+            ..Default::default()
+        };
         let objective = Objective::build(&spec, &BTreeMap::new(), &mut cache, device).unwrap();
-        let appearance_BPD = generated(values, device);
-        let readout = Readout { native_BTD: Tensor::zeros([1, TOKENS, WIDTH], device), intermediate_BPD: appearance_BPD.clone() };
+        let appearance_BTD = generated(values, device);
+        let readout = Readout {
+            native_BTD: Tensor::zeros([1, TOKENS, WIDTH], device),
+            intermediate_BTD: appearance_BTD.clone(),
+        };
         let calibration = Calibration::new(Tensor::zeros([WIDTH], device), 1.0);
-        let assigned = objective.assign(&readout.intermediate_BPD);
-        let raw = objective.raws(&Tensor::zeros([1, 3, 256, 256], device), &readout, &assigned, &calibration);
+        let assigned = objective.assign(&readout.intermediate_BTD);
+        let raw = objective.raws(
+            &Tensor::zeros([1, 3, 256, 256], device),
+            &readout,
+            &assigned,
+            &calibration,
+        );
         let value = raw.clone().into_data().try_to_vec::<f32>().unwrap()[0];
         // The four layers carry the same values, so the gradient of a cell's value is the sum
         // over the layers.
         let mut gradients = raw.sum().backward();
         let mut gradient = vec![0f32; strengths.len()];
-        for features_BTD in &appearance_BPD {
-            let layer = features_BTD.grad_remove(&mut gradients).unwrap().into_data().try_to_vec::<f32>().unwrap();
+        for features_BTD in &appearance_BTD {
+            let layer = features_BTD
+                .grad_remove(&mut gradients)
+                .unwrap()
+                .into_data()
+                .try_to_vec::<f32>()
+                .unwrap();
             for (total, &(cell, _)) in gradient.iter_mut().zip(strengths) {
                 *total += layer[cell * WIDTH];
             }
@@ -1003,12 +968,15 @@ mod tests {
         (value, gradient)
     }
 
-    /// ∫₀¹ (G − Q̄)² dq by a fine Riemann sum, independent of the curve primitives: the sorted
-    /// cells occupy mass intervals in value order (ties by cell), Q̄ is the mean of the
+    /// `∫₀¹ (G − Q̄)² dq` by a fine Riemann sum, independent of the curve primitives: the sorted
+    /// cells occupy mass intervals in value order (ties by cell), `Q̄` is the mean of the
     /// windows' midpoint-rule curves.
     fn numeric_distance(strengths: &[(usize, u8)], windows: &[&[f32]], values: &[f32]) -> f64 {
         let total: f64 = strengths.iter().map(|&(_, s)| s as f64).sum();
-        let mut cells: Vec<(f64, usize, f64)> = strengths.iter().map(|&(cell, s)| (values[cell] as f64, cell, s as f64 / total)).collect();
+        let mut cells: Vec<(f64, usize, f64)> = strengths
+            .iter()
+            .map(|&(cell, s)| (values[cell] as f64, cell, s as f64 / total))
+            .collect();
         cells.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap().then(a.1.cmp(&b.1)));
         let curve = |window: &[f32], q: f64| {
             let mut sorted: Vec<f64> = window.iter().map(|&v| v as f64).collect();
@@ -1028,7 +996,8 @@ mod tests {
                 upper += cells[cursor].2;
             }
             let g = cells[cursor].0;
-            let mean: f64 = windows.iter().map(|window| curve(window, q)).sum::<f64>() / windows.len() as f64;
+            let mean: f64 = windows.iter().map(|window| curve(window, q)).sum::<f64>()
+                / windows.len() as f64;
             sum += (g - mean) * (g - mean);
         }
         sum / steps as f64
@@ -1036,23 +1005,30 @@ mod tests {
 
     #[test]
     fn the_look_raw_is_the_interval_distance_of_the_worked_example() {
-        // The worked example: window [0, 4, 8, 12], generated [2, 10] at equal strength:
-        // the old midpoint loss is 0, the interval loss is 4; at strength 50 everywhere it is 2.
+        // Window [0, 4, 8, 12], generated [2, 10] at equal strength:
+        // the interval loss is 4 at full strength, and 2 at strength 50 everywhere.
         let device = Device::flex().autodiff();
         let window: &[f32] = &[0.0, 4.0, 8.0, 12.0];
-        let per_channel = (LAYERS * WIDTH) as f32 / LAYERS as f32; // one channel of D, averaged over D and L
-        let (full, _) = look_raw_and_gradient(&[(0, 100), (1, 100)], &[window], &[2.0, 10.0], &device);
+        let per_channel = (LAYERS * WIDTH) as f32 / LAYERS as f32;
+        let (full, _) =
+            look_raw_and_gradient(&[(0, 100), (1, 100)], &[window], &[2.0, 10.0], &device);
         assert!((full * per_channel - 4.0).abs() < 1e-4, "{full}");
-        let (half, _) = look_raw_and_gradient(&[(0, 50), (1, 50)], &[window], &[2.0, 10.0], &device);
+        let (half, _) =
+            look_raw_and_gradient(&[(0, 50), (1, 50)], &[window], &[2.0, 10.0], &device);
         assert!((half * per_channel - 2.0).abs() < 1e-4, "{half}");
     }
 
     #[test]
     fn the_look_raw_matches_a_numeric_integral_with_unequal_masses_ties_and_two_references() {
+        type LookCase<'a> = (&'a [(usize, u8)], &'a [&'a [f32]], &'a [f32]);
         let device = Device::flex().autodiff();
-        let cases: [(&[(usize, u8)], &[&[f32]], &[f32]); 4] = [
+        let cases: [LookCase<'_>; 4] = [
             (&[(0, 100), (1, 50)], &[&[0.0, 4.0, 8.0, 12.0]], &[2.0, 10.0]),
-            (&[(3, 20), (0, 100), (7, 1)], &[&[0.0, 4.0, 8.0, 12.0], &[6.0]], &[9.0, 1.0, 0.0, -3.0, 0.0, 0.0, 0.0, 5.0]),
+            (
+                &[(3, 20), (0, 100), (7, 1)],
+                &[&[0.0, 4.0, 8.0, 12.0], &[6.0]],
+                &[9.0, 1.0, 0.0, -3.0, 0.0, 0.0, 0.0, 5.0],
+            ),
             // Tied values with unequal masses: the loss is the same in either order.
             (&[(0, 30), (1, 90)], &[&[1.0, 2.0, 7.0]], &[5.0, 5.0]),
             (&[(0, 90), (1, 30)], &[&[1.0, 2.0, 7.0]], &[5.0, 5.0]),
@@ -1063,7 +1039,10 @@ mod tests {
             let peak = strengths.iter().map(|&(_, s)| s).max().unwrap() as f64 / 100.0;
             let expected = peak * numeric_distance(strengths, windows, values);
             let (raw, gradient) = look_raw_and_gradient(strengths, windows, values, &device);
-            assert!((raw as f64 * per_channel as f64 - expected).abs() < 2e-4, "{raw} vs {expected}");
+            assert!(
+                (raw as f64 * per_channel as f64 - expected).abs() < 2e-4,
+                "{raw} vs {expected}"
+            );
             // Finite differences of the raw value along each painted cell's value, away from
             // ties: at a tie the sorted order, and with it the gradient, differs on either side.
             let tied_values = values == [5.0, 5.0];
@@ -1076,7 +1055,11 @@ mod tests {
                 let (raw_up, _) = look_raw_and_gradient(strengths, windows, &up, &device);
                 let (raw_down, _) = look_raw_and_gradient(strengths, windows, &down, &device);
                 let numeric = (raw_up - raw_down) / (2.0 * step);
-                assert!((gradient[index] - numeric).abs() < 1e-4, "cell {cell}: {} vs {numeric}", gradient[index]);
+                assert!(
+                    (gradient[index] - numeric).abs() < 1e-4,
+                    "cell {cell}: {} vs {numeric}",
+                    gradient[index]
+                );
             }
             if tied_values {
                 tied.push(raw);
@@ -1099,7 +1082,10 @@ mod tests {
             }
         }
         let image = Tensor::<4>::from_data(TensorData::new(values, [1, 3, 2, 2]), &device);
-        let tv = total_variation(image.clone()).into_data().try_to_vec::<f32>().unwrap()[0];
+        let tv = total_variation(image.clone())
+            .into_data()
+            .try_to_vec::<f32>()
+            .unwrap()[0];
         let l2 = image_l2(image).into_data().try_to_vec::<f32>().unwrap()[0];
         // Horizontal [−1, −2], vertical [−2, −3], rising [2 − 1], falling [0 − 4].
         let expected_tv = 5f32.sqrt() + 13f32.sqrt() + 1.0 + 4.0;

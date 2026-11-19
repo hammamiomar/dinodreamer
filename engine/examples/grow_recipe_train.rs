@@ -17,9 +17,12 @@ mod target_set_fixture;
 
 use burn::tensor::{Device, Tensor, TensorData};
 use dinodreamer_engine::{
+    calibration::{Calibration, load_frame},
     encoder::{Block, DEPTH, Dino},
-    grow::figure::{self, FigureGrid, FigureRequest, FigureRule, FigureTraining, target_set::{TargetSet, WINDOW_SIDE}},
-    objective::{Calibration, load_frame},
+    grow::figure::{
+        self, FigureGrid, FigureRequest, FigureRule, FigureTraining, ReadTarget,
+        target_set::{TargetSet, WINDOW_SIDE},
+    },
     reader::DictionaryReader,
 };
 use serde::Deserialize;
@@ -34,7 +37,7 @@ const DICTIONARY: &str = "monet-dtd-seed9-20261004-pass-003";
 struct Fixture {
     request: FigureRequest,
     direction: [f32; 3],
-    /// A set method's set: a set file of tools/export_target_set.py, beside the fixture.
+    /// A set method's exported target-set fixture beside the oracle fixture.
     #[serde(default)]
     set: Option<SetReference>,
 }
@@ -107,9 +110,9 @@ fn main() {
     let target = fixture.set.as_ref().map(|record| {
         let fixture_path = PathBuf::from(argument(&arguments, "--fixture").unwrap());
         let (windows, dots, _) = target_set_fixture::load_windows(&fixture_path.with_file_name(&record.file));
-        let windows_P3HW = Tensor::<4>::from_data(TensorData::new(windows, [dots.len(), 3, WINDOW_SIDE, WINDOW_SIDE]), &device);
+        let windows_PCHW = Tensor::<4>::from_data(TensorData::new(windows, [dots.len(), 3, WINDOW_SIDE, WINDOW_SIDE]), &device);
         let frame_RD = frame_DR.clone().transpose();
-        pollster::block_on(TargetSet::prepare(&encoder, &calibration, &frame_RD, &request, windows_P3HW, &dots)).unwrap()
+        pollster::block_on(TargetSet::prepare(&encoder, &calibration, &frame_RD, &request, windows_PCHW, &dots)).unwrap()
     });
     let mut training = FigureTraining::new(request.clone(), target, frame_DR, device.clone()).unwrap();
     let started = std::time::Instant::now();
@@ -124,7 +127,7 @@ fn main() {
             "usedBytes": device.memory_pool_usage().map(|usage| usage.bytes_in_use),
             "reservedBytes": device.memory_pool_usage().map(|usage| usage.bytes_reserved),
         }));
-        if update.completed % read_every == 0 || update.completed == updates {
+        if update.completed.is_multiple_of(read_every) || update.completed == updates {
             let values = pollster::block_on(training.rule.values()).unwrap();
             let rule = FigureRule::fixed(request.rule, &values, &device).unwrap();
             let mut readings = Vec::new();
@@ -136,7 +139,16 @@ fn main() {
                     write_png(&folder.join(format!("update-{:04}-tick-{ticks:04}.png", update.completed)), &rgba, 128);
                 }
                 let reading = pollster::block_on(figure::read(
-                    &encoder, &calibration, &reader, grid.picture(), request.block, direction, request.median_norm, grid.patches(),
+                    &encoder,
+                    &calibration,
+                    &reader,
+                    grid.picture(),
+                    ReadTarget {
+                        block: request.block,
+                        direction,
+                        median_norm: request.median_norm,
+                        patches: grid.patches(),
+                    },
                 ))
                 .unwrap();
                 readings.push(json!({"ticks": ticks, "strength": reading.strength, "winnerFraction": reading.winner_fraction}));

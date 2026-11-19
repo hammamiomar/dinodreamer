@@ -17,8 +17,8 @@
 //! coarse gradient is bit-identical to the chain's. The fine gradient is the perception
 //! adjoint on the gradient's first 64 columns, bit for bit.
 use super::{
-    cell::{self, CHANNELS, CellBackend, HIDDEN, PERCEPTIONS},
-    cell_linear, cell_step,
+    cell::{self, CHANNELS, CellBackend, HIDDEN, PERCEPTIONS, perceive_channel},
+    cell_step,
 };
 use crate::profiling::detail;
 use burn::backend::ops::FloatTensorOps;
@@ -55,17 +55,15 @@ pub trait PyramidInputBackend: Backend {
 /// into the following addition, which would round once where the separate kernels round twice.
 #[cube]
 fn upsampled(previous: f32, current: f32, next: f32, odd: bool) -> f32 {
-    let mut value = 0.0f32;
     if odd {
         let first = current - current * 0.25f32;
         let second = next * 0.25f32;
-        value = first + second;
+        first + second
     } else {
         let first = previous * 0.25f32;
         let second = current - current * 0.25f32;
-        value = first + second;
+        first + second
     }
-    value
 }
 
 /// One thread per (fine cell, channel): the channel's four perceptions and its upsampled
@@ -78,7 +76,7 @@ fn fine_input_kernel(
     #[comptime] side: usize,
     #[comptime] cells: usize,
 ) {
-    let index = ABSOLUTE_POS as usize;
+    let index = ABSOLUTE_POS;
     if index >= cells * CHANNELS {
         terminate!();
     }
@@ -87,34 +85,12 @@ fn fine_input_kernel(
     let grid = cell / (side * side);
     let row = (cell / side) % side;
     let column = cell % side;
-    // The perceptions, the statements of `cell.rs::perception`.
-    let mut sx = 0.0f32;
-    let mut sy = 0.0f32;
-    let mut lap = 0.0f32;
-    #[unroll]
-    for dy in 0..3 {
-        #[unroll]
-        for dx in 0..3 {
-            let neighbor = (grid * side + (row + side + dy - 1) % side) * side + (column + side + dx - 1) % side;
-            let wy = if dy == 1 { 2.0f32 } else { 1.0f32 };
-            let wx = if dx == 1 { 2.0f32 } else { 1.0f32 };
-            let kx = (dx as f32 - 1.0f32) * wy / 8.0f32;
-            let ky = (dy as f32 - 1.0f32) * wx / 8.0f32;
-            let mut kl = wx * wy / 16.0f32;
-            if dx == 1 && dy == 1 {
-                kl = -0.75f32;
-            }
-            let value = fine[neighbor * CHANNELS + channel];
-            sx += value * kx;
-            sy += value * ky;
-            lap += value * kl;
-        }
-    }
+    let values = perceive_channel(fine, cell, channel, side);
     let base = cell * INPUTS + channel * 4;
-    output[base] = fine[cell * CHANNELS + channel];
-    output[base + 1] = sx;
-    output[base + 2] = sy;
-    output[base + 3] = lap;
+    output[base] = values.extract(0usize);
+    output[base + 1] = values.extract(1usize);
+    output[base + 2] = values.extract(2usize);
+    output[base + 3] = values.extract(3usize);
     // The upsampled coarse value: the width pass on the two coarse rows this fine row reads,
     // then the height pass on those two widened values.
     let coarse_side = side / 2;
@@ -143,12 +119,11 @@ fn fine_input_kernel(
         column_odd,
     );
     // Along the height the roles are (previous, current) for an even row and (current, next) for an odd one.
-    let mut value = 0.0f32;
-    if row_odd {
-        value = upsampled(0.0f32, first_wide, second_wide, true);
+    let value = if row_odd {
+        upsampled(0.0f32, first_wide, second_wide, true)
     } else {
-        value = upsampled(first_wide, second_wide, 0.0f32, false);
-    }
+        upsampled(first_wide, second_wide, 0.0f32, false)
+    };
     output[cell * INPUTS + PERCEPTIONS + channel] = value;
 }
 
@@ -177,7 +152,7 @@ fn upsample_adjoint(
     #[comptime] side: usize,
     #[comptime] coarse_cells: usize,
 ) {
-    let index = ABSOLUTE_POS as usize;
+    let index = ABSOLUTE_POS;
     if index >= coarse_cells * CHANNELS {
         terminate!();
     }
@@ -249,14 +224,11 @@ fn coarse_gradient(gradient: &CubeTensor, side: usize) -> CubeTensor {
 }
 
 /// The coarse gradient of a frozen fine-input gradient [1, N, 80], for the native check.
+#[cfg(feature = "harness")]
 pub fn coarse_gradient_check(gradient_1NI: BurnTensor<3>, side: usize) -> BurnTensor<3> {
-    use burn::backend::{BackendTensor, DispatchAutodiffContext, DispatchTensor, DispatchTensorKind};
-    let gradient = match gradient_1NI.into_dispatch().kind {
-        DispatchTensorKind::Cube(BackendTensor::Float(inner)) => into_contiguous(inner),
-        _ => panic!("coarse_gradient_check takes a frozen float tensor on the Cube backend"),
-    };
+    let gradient = cell_step::cube(gradient_1NI.into_dispatch());
     let output = coarse_gradient(&gradient, side);
-    BurnTensor::from_dispatch(DispatchTensor { kind: DispatchTensorKind::Cube(BackendTensor::Float(output)), autodiff: DispatchAutodiffContext::Disabled })
+    BurnTensor::from_dispatch(cell_step::dispatch(output))
 }
 
 impl PyramidInputBackend for CubeBackend {
@@ -299,6 +271,23 @@ pub fn fine_input(fine_1NC: BurnTensor<3>, coarse_1MC: BurnTensor<3>, side: usiz
     BurnTensor::from_dispatch(Dispatch::pyramid_fine_input(fine_1NC.into_dispatch(), coarse_1MC.into_dispatch(), side))
 }
 
+/// Fine and coarse state tensors (or their upstream gradients) of a two-level pyramid grid.
+pub struct PyramidStates {
+    pub fine_1NC: BurnTensor<3>,
+    pub coarse_1MC: BurnTensor<3>,
+}
+
+/// Inputs to `chunk_gradient` for one rollout chunk of a pyramid rule.
+pub struct PyramidChunkInput<'a> {
+    pub start: PyramidStates,
+    pub parameters: [BurnTensor<2>; 6],
+    pub fine_keys: &'a [u32],
+    pub coarse_keys: &'a [u32],
+    pub rate: f32,
+    pub side: usize,
+    pub upstream: PyramidStates,
+}
+
 /// The gradients of one chunk of pyramid steps: the state gradients at the chunk's start (fine
 /// and coarse) and the six parameter gradients in the material layout's order (the coarse
 /// rule's fc1, bias and fc2, then the fine rule's).
@@ -318,46 +307,72 @@ pub struct PyramidChunkGradient {
 /// tape adds it), then the coarse rule's. Every reduction keeps the tape's order, so the result
 /// equals the tape bit for bit. `parameters` are the six frozen tensors, [96, 64], [96],
 /// [16, 96], [96, 80], [96], [16, 96]; the gradients come back in the same shapes.
-#[allow(clippy::too_many_arguments)]
-pub fn chunk_gradient(
-    fine_1NC: BurnTensor<3>,
-    coarse_1MC: BurnTensor<3>,
-    parameters: [BurnTensor<2>; 6],
-    fine_keys: &[u32],
-    coarse_keys: &[u32],
-    rate: f32,
-    side: usize,
-    upstream_fine_1NC: BurnTensor<3>,
-    upstream_coarse_1MC: BurnTensor<3>,
-) -> PyramidChunkGradient {
-    use cell_step::{bias_gradient, cube, dispatch, forward, masked, weight_gradient, CHUNK, Skip};
+pub fn chunk_gradient(input: PyramidChunkInput<'_>) -> PyramidChunkGradient {
+    use cell_step::{
+        BackwardStepConfig, CHUNK, ForwardOptions, ForwardParameters, RuleWeights, Skip,
+        cell_rule_backward_step, cube, dispatch, forward,
+    };
+    let PyramidChunkInput {
+        start,
+        parameters,
+        fine_keys,
+        coarse_keys,
+        rate,
+        side,
+        upstream,
+    } = input;
     assert_eq!(fine_keys.len(), coarse_keys.len());
-    let cells = fine_1NC.dims()[1];
+    let device = start.fine_1NC.device();
+    let cells = start.fine_1NC.dims()[1];
     let coarse_cells = cells / 4;
     let coarse_side = side / 2;
     assert!(cells % CHUNK == 0 && coarse_cells % CHUNK == 0);
     let (chunks, coarse_chunks) = (cells / CHUNK, coarse_cells / CHUNK);
-    let [fc1_c, bias_c, fc2_c, fc1_f, bias_f, fc2_f] = parameters.map(|tensor| cube(tensor.into_dispatch()));
+    let [fc1_c, bias_c, fc2_c, fc1_f, bias_f, fc2_f] =
+        parameters.map(|tensor| cube(tensor.into_dispatch()));
     let bias_c_1 = CubeBackend::float_reshape(bias_c.clone(), Shape::new([HIDDEN]));
     let bias_f_1 = CubeBackend::float_reshape(bias_f.clone(), Shape::new([HIDDEN]));
-    let zero_bias = CubeBackend::float_zeros(Shape::new([CHANNELS]), &fc1_c.device, burn::tensor::FloatDType::F32);
+    let zero_bias = CubeBackend::float_zeros(
+        Shape::new([CHANNELS]),
+        &fc1_c.device,
+        burn::tensor::FloatDType::F32,
+    );
 
     // Forward through the chunk, keeping every state and the activations each backward reads.
-    let mut fines = vec![cube(fine_1NC.into_dispatch())];
-    let mut coarses = vec![cube(coarse_1MC.into_dispatch())];
+    let mut fines = vec![cube(start.fine_1NC.into_dispatch())];
+    let mut coarses = vec![cube(start.coarse_1MC.into_dispatch())];
     let mut coarse_hiddens = Vec::with_capacity(fine_keys.len());
     let mut inputs = Vec::with_capacity(fine_keys.len());
     let mut fine_hiddens = Vec::with_capacity(fine_keys.len());
     for (&fine_key, &coarse_key) in fine_keys.iter().zip(coarse_keys) {
         let (coarse_next, coarse_hidden) = detail("cell step forward", || {
-            forward(coarses.last().unwrap().clone(), fc1_c.clone(), bias_c_1.clone(), fc2_c.clone(), coarse_key, rate, coarse_side, true, Skip::default())
+            forward(
+                coarses.last().unwrap().clone(),
+                ForwardParameters {
+                    fc1: fc1_c.clone(),
+                    bias: bias_c_1.clone(),
+                    fc2: fc2_c.clone(),
+                },
+                ForwardOptions {
+                    key: coarse_key,
+                    rate,
+                    side: coarse_side,
+                    save: true,
+                    skip: Skip::default(),
+                },
+            )
         });
-        let input = detail("pyramid fine input forward", || super::pyramid::forward(fines.last().unwrap().clone(), coarse_next.clone(), side));
-        let fine_hidden = CubeBackend::rule_linear(input.clone(), fc1_f.clone(), bias_f_1.clone(), true);
-        let delta = CubeBackend::rule_linear(fine_hidden.clone(), fc2_f.clone(), zero_bias.clone(), false);
-        // fine + delta · mask, the tape's own operations.
-        let mask = cube(super::draws::fire_mask(fine_key, cells, rate, &BurnTensor::<1>::zeros([1], &dispatch_device(&delta)).device()).into_dispatch());
-        let fine_next = CubeBackend::float_add(fines.last().unwrap().clone(), CubeBackend::float_mul(delta, mask));
+        let input = detail("pyramid fine input forward", || {
+            super::pyramid::forward(fines.last().unwrap().clone(), coarse_next.clone(), side)
+        });
+        let fine_hidden =
+            CubeBackend::rule_linear(input.clone(), fc1_f.clone(), bias_f_1.clone(), true);
+        let delta =
+            CubeBackend::rule_linear(fine_hidden.clone(), fc2_f.clone(), zero_bias.clone(), false);
+        // fine + delta · mask, matching the tape's exact operations.
+        let mask = cube(super::draws::fire_mask(fine_key, cells, rate, &device).into_dispatch());
+        let fine_next =
+            CubeBackend::float_add(fines.last().unwrap().clone(), CubeBackend::float_mul(delta, mask));
         fines.push(fine_next);
         coarses.push(coarse_next);
         coarse_hiddens.push(coarse_hidden.unwrap());
@@ -365,34 +380,49 @@ pub fn chunk_gradient(
         fine_hiddens.push(fine_hidden);
     }
 
-    let mut fine_gradient = cube(upstream_fine_1NC.into_dispatch());
-    let mut coarse_gradient = cube(upstream_coarse_1MC.into_dispatch());
+    let mut fine_gradient = cube(upstream.fine_1NC.into_dispatch());
+    let mut coarse_upstream = cube(upstream.coarse_1MC.into_dispatch());
     let mut totals: Option<[CubeTensor; 6]> = None;
     for index in (0..fine_keys.len()).rev() {
-        // The fine rule: g_d, dW2f, g_h, dW1f, dbf, then the input gradient [N, 80].
-        let delta = masked(&fine_gradient, fine_keys[index], rate);
-        let fc2_f_step = detail("cell weight gradient", || weight_gradient(&fine_hiddens[index], &delta, chunks));
-        let hidden_gradient = detail("cell input gradient", || cell_linear::hidden_gradient(delta, fc2_f.clone(), fine_hiddens[index].clone()));
-        let fc1_f_step = detail("cell weight gradient", || weight_gradient(&inputs[index], &hidden_gradient, chunks));
-        let bias_f_step = detail("cell bias gradient", || bias_gradient(&hidden_gradient, chunks));
-        let input_gradient = detail("cell input gradient", || cell_linear::input_gradient(hidden_gradient, fc1_f.clone()));
+        let fine_step = cell_rule_backward_step(
+            &fine_gradient,
+            || inputs[index].clone(),
+            fine_hiddens[index].clone(),
+            RuleWeights { fc1: &fc1_f, fc2: &fc2_f },
+            BackwardStepConfig {
+                key: fine_keys[index],
+                rate,
+                chunks,
+            },
+        );
         // The fine input's adjoint: the perception part plus the fine residual's gradient, and
         // the upsample part added to the coarse upstream, as the tape registers them.
         let coarse_total = CubeBackend::float_add(
-            detail("pyramid upsample backward", || coarse_gradient_of(&input_gradient, side)),
-            coarse_gradient,
+            detail("pyramid upsample backward", || coarse_gradient(&fine_step.input_gradient, side)),
+            coarse_upstream,
         );
-        fine_gradient = cell::perceive_adjoint_plus(input_gradient, fine_gradient, side);
-        // The coarse rule, a cell rule at the coarse side.
-        let coarse_delta = masked(&coarse_total, coarse_keys[index], rate);
-        let fc2_c_step = detail("cell weight gradient", || weight_gradient(&coarse_hiddens[index], &coarse_delta, coarse_chunks));
-        let coarse_hidden_gradient = detail("cell input gradient", || cell_linear::hidden_gradient(coarse_delta, fc2_c.clone(), coarse_hiddens[index].clone()));
-        let perceived = CubeBackend::perceive(coarses[index].clone(), coarse_side, false);
-        let fc1_c_step = detail("cell weight gradient", || weight_gradient(&perceived, &coarse_hidden_gradient, coarse_chunks));
-        let bias_c_step = detail("cell bias gradient", || bias_gradient(&coarse_hidden_gradient, coarse_chunks));
-        let coarse_perception_gradient = detail("cell input gradient", || cell_linear::input_gradient(coarse_hidden_gradient, fc1_c.clone()));
-        coarse_gradient = cell::perceive_adjoint_plus(coarse_perception_gradient, coarse_total, coarse_side);
-        let steps = [fc1_c_step, bias_c_step, fc2_c_step, fc1_f_step, bias_f_step, fc2_f_step];
+        fine_gradient = cell::perceive_adjoint_plus(fine_step.input_gradient, fine_gradient, side);
+        let coarse_step = cell_rule_backward_step(
+            &coarse_total,
+            || CubeBackend::perceive(coarses[index].clone(), coarse_side, false),
+            coarse_hiddens[index].clone(),
+            RuleWeights { fc1: &fc1_c, fc2: &fc2_c },
+            BackwardStepConfig {
+                key: coarse_keys[index],
+                rate,
+                chunks: coarse_chunks,
+            },
+        );
+        coarse_upstream =
+            cell::perceive_adjoint_plus(coarse_step.input_gradient, coarse_total, coarse_side);
+        let steps = [
+            coarse_step.fc1,
+            coarse_step.bias,
+            coarse_step.fc2,
+            fine_step.fc1,
+            fine_step.bias,
+            fine_step.fc2,
+        ];
         totals = Some(match totals {
             // Burn's gradient container adds a new gradient as new + old.
             Some(old) => {
@@ -406,24 +436,21 @@ pub fn chunk_gradient(
         });
     }
     let totals = totals.expect("at least one step");
-    let shapes = [[HIDDEN, PERCEPTIONS], [1, HIDDEN], [CHANNELS, HIDDEN], [HIDDEN, INPUTS], [1, HIDDEN], [CHANNELS, HIDDEN]];
+    let shapes = [
+        [HIDDEN, PERCEPTIONS],
+        [1, HIDDEN],
+        [CHANNELS, HIDDEN],
+        [HIDDEN, INPUTS],
+        [1, HIDDEN],
+        [CHANNELS, HIDDEN],
+    ];
     let mut totals = totals.into_iter().zip(shapes);
     PyramidChunkGradient {
         fine_1NC: BurnTensor::from_dispatch(dispatch(fine_gradient)),
-        coarse_1MC: BurnTensor::from_dispatch(dispatch(coarse_gradient)),
+        coarse_1MC: BurnTensor::from_dispatch(dispatch(coarse_upstream)),
         parameters: std::array::from_fn(|_| {
             let (total, shape) = totals.next().unwrap();
             BurnTensor::from_dispatch(dispatch(CubeBackend::float_reshape(total, Shape::new(shape))))
         }),
     }
-}
-
-/// The coarse gradient of a fine-input gradient, as `coarse_gradient` (a name for the chunk routine).
-fn coarse_gradient_of(gradient: &CubeTensor, side: usize) -> CubeTensor {
-    coarse_gradient(gradient, side)
-}
-
-/// The dispatch device of a CubeCL tensor, for the draws that the tape makes as tensors.
-fn dispatch_device(tensor: &CubeTensor) -> burn::tensor::Device {
-    BurnTensor::<3>::from_dispatch(cell_step::dispatch(tensor.clone())).device()
 }

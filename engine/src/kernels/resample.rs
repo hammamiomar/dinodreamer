@@ -79,7 +79,7 @@ fn sum_taps_in_order(
     output_BC1P: &mut Tensor<f32>,
     #[comptime] taps: usize,
 ) {
-    let index = ABSOLUTE_POS as usize;
+    let index = ABSOLUTE_POS;
     if index >= output_BC1P.len() {
         terminate!();
     }
