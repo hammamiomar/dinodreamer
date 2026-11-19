@@ -2,8 +2,8 @@
   // The public DinoDreamer app: app/dist as static assets, the gallery API and the owner page.
   // API, owner and public page routes run the Worker first. Public pages receive the same preview
   // media (src/link-preview.ts). The shared media uses the public library CDN, including byte-range support.
-  // The Worker answers a missing /assets/* file with 404
-  // instead of that index.html (src/worker.ts).
+  // Static Assets serves files first. The Worker handles page fallback so a missing build file
+  // reaches its 404 handler even when a browser navigates directly to that file.
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "dinodreamer-public",
   "main": "src/worker.ts",
@@ -18,13 +18,12 @@
   "assets": {
     "directory": "../app/dist",
     "binding": "ASSETS",
-    "not_found_handling": "single-page-application",
     "run_worker_first": [
-      "/api/*", "/assets/*", "/admin", "/admin/*", "/", "/basis/*", "/index", "/index/*",
+      "/api/*", "/admin", "/admin/*", "/", "/basis/*", "/index", "/index/*",
       "/explore", "/explore/*", "/block", "/block/*",
       "/playground", "/playground/*", "/grow", "/grow/*",
       "/automata", "/automata/*", "/train", "/train/*", "/picture", "/picture/*",
-      "/how", "/how/*", "/create", "/create/*", "/canvas", "/canvas/",
+      "/how", "/how/", "/how/basis/*", "/how/block/*", "/create", "/create/*", "/canvas", "/canvas/",
       "/gallery", "/gallery/", "/saved", "/saved/"
     ]
   },

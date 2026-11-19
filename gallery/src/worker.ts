@@ -10,7 +10,7 @@
 //   GET  /api/materials     the published materials index (material-review.ts), cached for a minute
 //   GET  /api/materials/<id>/material.json | poster.png   a published material's file, immutable
 //   GET  /api/basis-groups  the owner's names for the basis groups (basis-group-names.ts), cached for a minute
-//   GET  /assets/*          the build's file, or 404 when the current build does not have it
+//   GET  /assets/*          a file missing from the current build (404)
 //   /admin, /admin/*        the owner page and its API, behind Cloudflare Access (admin.ts)
 //   GET  public pages      the app's index.html with shared preview media (link-preview.ts)
 
@@ -72,22 +72,6 @@ async function submit(request: Request, env: Env): Promise<Response> {
   if ("file" in result.submission) await storeMaterialSubmission(env.SUBMISSIONS, id, result.submission, now);
   else await storeSubmission(env.SUBMISSIONS, id, result.submission, now);
   return json({ id }, 201);
-}
-
-/**
- * A file of the app build. A deploy replaces every hashed file under /assets/, and the
- * static assets answer a path they lack with index.html (single-page fallback). A tab
- * opened before the deploy would then run HTML as its lazy chunk or engine worker and
- * fail with a MIME error. A build puts no HTML under /assets/, so an
- * HTML answer here means the file is gone: answer 404, uncached, so the app can tell.
- */
-async function buildFile(request: Request, env: Env): Promise<Response> {
-  const response = await env.ASSETS.fetch(request);
-  if (!response.headers.get("content-type")?.startsWith("text/html")) return response;
-  return new Response("not in this build of the app; reload the page\n", {
-    status: 404,
-    headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" },
-  });
 }
 
 async function gallery(env: Env): Promise<Response> {
@@ -159,12 +143,20 @@ export default {
     const published = pathname.match(/^\/api\/materials\/([^/]+)\/([^/]+)$/);
     if (published !== null && request.method === "GET") return materialFile(env, published[1]!, published[2]!);
     if (pathname.startsWith("/api/")) return json({ error: "not found" }, 404);
-    if (pathname.startsWith("/assets/")) return buildFile(request, env);
-    const shared = request.method === "GET" || request.method === "HEAD" ? pathname.match(PREVIEW_ROUTE) : null;
+    // Existing build files bypass this Worker. A stale tab can request a file from an earlier build.
+    if (pathname.startsWith("/assets/")) {
+      return new Response(request.method === "HEAD" ? null : "File missing from this build. Reload the page.\n", {
+        status: 404,
+        headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" },
+      });
+    }
+    if (request.method !== "GET" && request.method !== "HEAD") return env.ASSETS.fetch(request);
+    const shared = pathname.match(PREVIEW_ROUTE);
     if (shared !== null) {
       const block = shared[1] ?? shared[2];
       return previewPage(request, env, block === undefined ? null : Number(block));
     }
-    return env.ASSETS.fetch(request);
+    // The client router displays its unknown-page view. Keep the asset service's page validators.
+    return env.ASSETS.fetch(new Request(new URL("/", url), request));
   },
 };

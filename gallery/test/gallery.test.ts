@@ -241,27 +241,27 @@ describe("routes", () => {
     expect((await worker.fetch(new Request("https://app.test/api/gallery", { method: "POST" }), env)).status).toBe(405);
   });
 
-  it("answers a file the build lacks under /assets/ with 404, not the app's index.html", async () => {
-    const { env } = testEnv();
-    // The static assets as deployed: the build's files, and index.html for every other path.
-    env.ASSETS = {
-      fetch: async (request: Request) =>
-        new URL(request.url).pathname === "/assets/engine.worker-BAZWNlvA.js"
-          ? new Response("self.onmessage = () => {};", { headers: { "content-type": "text/javascript" } })
-          : new Response("<!doctype html>", { headers: { "content-type": "text/html" } }),
-    };
-    const current = await worker.fetch(new Request("https://app.test/assets/engine.worker-BAZWNlvA.js"), env);
-    expect(current.status).toBe(200);
-    expect(await current.text()).toBe("self.onmessage = () => {};");
+  it.each([
+    ["/assets/IndexPage-removed0.js", "cors"],
+    ["/assets/engine.worker-removed0.js", "same-origin"],
+    ["/assets/IndexPage-removed0.js", "navigate"],
+  ])("returns an uncached 404 for a missing build file %s (%s)", async (path, mode) => {
+    const { env, assetRequests } = testEnv();
+    const request = new Request(`https://app.test${path}`, { headers: { "Sec-Fetch-Mode": mode } });
+    const missing = await worker.fetch(request, env);
+    expect(missing.status).toBe(404);
+    expect(missing.headers.get("cache-control")).toBe("no-store");
+    expect(missing.headers.get("content-type")).toMatch(/^text\/plain/);
+    expect(await missing.text()).toMatch(/reload/i);
+    expect(assetRequests).toEqual([]);
+  });
 
-    // A tab from an earlier build asks for its own engine worker after a deploy.
-    const stale = await worker.fetch(new Request("https://app.test/assets/engine.worker-DdQOB2wZ.js"), env);
-    expect(stale.status).toBe(404);
-    expect(stale.headers.get("cache-control")).toBe("no-store");
-    expect(stale.headers.get("content-type")).not.toMatch(/html/);
-
-    const route = await worker.fetch(new Request("https://app.test/basis/12"), env);
-    expect([route.status, route.headers.get("content-type")]).toEqual([200, "text/html"]);
+  it("serves the app's unknown-page view on an unmatched page navigation", async () => {
+    const { env, assetRequests } = testEnv();
+    const request = new Request("https://app.test/an-unknown-page", { headers: { "Sec-Fetch-Mode": "navigate" } });
+    const page = await worker.fetch(request, env);
+    expect([page.status, page.headers.get("content-type")]).toEqual([200, "text/html"]);
+    expect(assetRequests).toEqual(["/"]);
   });
 });
 
@@ -560,16 +560,16 @@ it("a refused token is renewed once and the request sent again; a fixed token is
   await expect(new RestBucket("dinodreamer-library", "old", fetcher, () => 0).put("c.json", "{}")).rejects.toThrow(/HTTP 401/);
 });
 
-it("wrangler.jsonc binds the buckets the scripts write, and routes /api/*, /assets/* and /admin to the Worker", () => {
+it("wrangler.jsonc binds the buckets the scripts write, and sends API, owner and shared pages to the Worker first", () => {
   const config = readFileSync(new URL("../wrangler.jsonc", import.meta.url), "utf8");
   expect(config).toContain(`"binding": "SUBMISSIONS", "bucket_name": "${SUBMISSIONS_BUCKET}"`);
   expect(config).toContain(`"binding": "LIBRARY", "bucket_name": "${PUBLIC_BUCKET}"`);
   const routes = JSON.parse(/"run_worker_first":\s*(\[[^\]]+\])/.exec(config)![1]!) as string[];
   expect(routes).toEqual(expect.arrayContaining([
-    "/api/*", "/assets/*", "/admin", "/admin/*", "/", "/basis/*",
+    "/api/*", "/admin", "/admin/*", "/", "/basis/*",
     "/explore", "/explore/*", "/block/*", "/playground", "/playground/*", "/grow", "/grow/*",
     "/index", "/index/*", "/automata", "/automata/*", "/train", "/train/*", "/picture", "/picture/*",
-    "/how", "/how/*", "/create", "/create/*", "/canvas", "/gallery", "/saved",
+    "/how", "/how/", "/how/basis/*", "/how/block/*", "/create", "/create/*", "/canvas", "/gallery", "/saved",
   ]));
 });
 
