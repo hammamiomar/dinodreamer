@@ -16,7 +16,7 @@ The pyramid's state is a packed tensor: channels 0-15 the fine grid, 16-19 the c
 pixel-shuffled by 2. The engine keeps the coarse grid as its own [B*64*64, 16] tensor; the record converts.
 
 The method is `--method`. Basis-group mean matching is the loss above. The three other methods
-compare the canvas with a target set (`--set`, a set file of `export_target_set.py`: the windows as
+compare the canvas with a target set (`--set`, a target-set JSON manifest and contact sheet: the windows as
 raw pixels and the patch of each). Their loss is the given-set tool's own `Objective`
 (research/given-set/givenset/objective.py) on tokens from its own `Reader`, with the trainer's
 dial at 1: token mean (`point`), basis-group distribution (`projection-mmd`) and token
@@ -300,7 +300,7 @@ def basis_group_mean_loss(kind: Kind, dino, model, request, code_R, median_norm)
 
 
 def load_target_set(path: Path) -> tuple[torch.Tensor, list[int], dict]:
-    """A set file of export_target_set.py: the windows [P, 3, 128, 128] as uint8, cut from its sheet (row-major,
+    """Load a target-set JSON manifest: the windows [P, 3, 128, 128] as uint8, cut from its sheet (row-major,
     `columns` windows a row), and the dot of each window, its patch on the window's 8 x 8 grid."""
     from PIL import Image
 
@@ -467,7 +467,7 @@ def main() -> None:
     parser.add_argument("--method", default="basis-group-mean", choices=tuple(METHOD_KINDS))
     parser.add_argument("--layers", default="", help="the token methods' layers, comma-separated: block-3, block-6, block-9, final")
     parser.add_argument("--given-set", type=Path, help="the given-set tool (research/given-set), for the set methods")
-    parser.add_argument("--set", type=Path, help="a set file of export_target_set.py, for the set methods")
+    parser.add_argument("--set", type=Path, help="a target-set JSON manifest, for the set methods")
     args = parser.parse_args()
     set_method_chosen = args.method != "basis-group-mean"
     if set_method_chosen != bool(args.given_set and args.set):

@@ -19,7 +19,7 @@ const INVERSE_SQRT_TAU: f32 = 0.398_942_3;
 
 #[cube(launch)]
 fn bias_gelu_forward(input: &Tensor<f32>, bias: &Tensor<f32>, output: &mut Tensor<f32>, #[comptime] width: usize) {
-    let index = ABSOLUTE_POS as usize;
+    let index = ABSOLUTE_POS;
     if index >= output.len() {
         terminate!();
     }
@@ -35,7 +35,7 @@ fn bias_gelu_backward(
     gradient: &mut Tensor<f32>,
     #[comptime] width: usize,
 ) {
-    let index = ABSOLUTE_POS as usize;
+    let index = ABSOLUTE_POS;
     if index >= gradient.len() {
         terminate!();
     }

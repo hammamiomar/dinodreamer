@@ -60,7 +60,7 @@ fn band_fc1(
     let group = UNIT_POS_X as usize;
     let cell_quad = UNIT_POS_Y as usize;
     let thread = UNIT_POS as usize;
-    let first_cell = CUBE_POS as usize * BAND;
+    let first_cell = CUBE_POS * BAND;
     // k-major slabs: entry k · quads + quad holds four cells, or four hidden values, at index k.
     let mut input_tile = Shared::<[Quad]>::new_slice(SLAB * BAND_QUADS);
     let mut weight_tile = Shared::<[Quad]>::new_slice(SLAB * HIDDEN_QUADS);
@@ -144,7 +144,7 @@ fn band_fc2(
     let channel_quad = UNIT_POS_X as usize;
     let cell_pair = UNIT_POS_Y as usize;
     let thread = UNIT_POS as usize;
-    let first_cell = CUBE_POS as usize * BAND;
+    let first_cell = CUBE_POS * BAND;
     // The hidden values of the band at the slab's indices, cell-major with a padded row.
     let mut input_tile = Shared::<[f32]>::new_slice(BAND * FC2_SLAB_STRIDE);
     // k-major: entry k · CHANNEL_QUADS + quad holds four channels' weights at index k.
@@ -201,7 +201,7 @@ fn band_hidden_gradient(delta: &Tensor<f32>, weight: &Tensor<f32>, hidden: &Tens
     let group = UNIT_POS_X as usize;
     let cell_quad = UNIT_POS_Y as usize;
     let thread = UNIT_POS as usize;
-    let first_cell = CUBE_POS as usize * BAND;
+    let first_cell = CUBE_POS * BAND;
     // k-major: entry o · quads + quad holds four cells' deltas, or four hidden columns of W2, at channel o.
     let mut delta_tile = Shared::<[Quad]>::new_slice(CHANNELS * BAND_QUADS);
     let mut weight_tile = Shared::<[Quad]>::new_slice(CHANNELS * HIDDEN_QUADS);
@@ -274,7 +274,7 @@ fn band_input_gradient(gradient: &Tensor<f32>, weight: &Tensor<f32>, output: &mu
     let group = UNIT_POS_X as usize;
     let cell_quad = UNIT_POS_Y as usize;
     let thread = UNIT_POS as usize;
-    let first_cell = CUBE_POS as usize * BAND;
+    let first_cell = CUBE_POS * BAND;
     let input_quads = inputs / 4;
     let groups = input_quads / 2;
     let threads = groups * BAND_QUADS;
@@ -389,7 +389,7 @@ pub(super) fn input_gradient(gradient: CubeTensor, weight: CubeTensor) -> CubeTe
 
 /// Whether the band kernels serve this projection: a band of cells per workgroup, the rule's widths.
 pub(super) fn serves(cells: usize, inputs: usize, outputs: usize) -> bool {
-    cells % BAND == 0 && ((outputs == HIDDEN && inputs % SLAB == 0 && inputs <= 128) || (outputs == CHANNELS && inputs == HIDDEN))
+    cells.is_multiple_of(BAND) && ((outputs == HIDDEN && inputs.is_multiple_of(SLAB) && inputs <= 128) || (outputs == CHANNELS && inputs == HIDDEN))
 }
 
 /// `activation(frozen_linear(input, weight), bias, relu)` of `cell.rs` for the rule's shapes,

@@ -1,21 +1,21 @@
 //! Counter-based draws for the figure recipe and its live grid. Every random value is a
-//! function of (seed, purpose, counter, index) through the PCG hash (Jarzynski and Olano
-//! 2020), so the CPU oracle (`tools/prepare_grow_recipe.py`) and the replay page regenerate
-//! the same arrays without sharing generator state. Arithmetic is modulo 2^32.
+//! function of `(seed, purpose, counter, index)` through the PCG hash (Jarzynski and Olano
+//! 2020), so offline verification tools and the replay page regenerate the same arrays
+//! without sharing generator state. Arithmetic is modulo `2^32`.
 //!
-//! The live grid follows the Keep replay contract exactly:
-//!   initial state  u(pcg(pcg(seed ^ NOISE) + cell·16 + channel)) − 0.5
-//!   fire at tick t u(pcg(pcg(pcg(seed ^ FIRE) + t) + cell)) < fire rate
-//! with u(h) = (h >> 8) / 2^24. Training uses the same form with its own purposes.
+//! The live grid follows the replay contract:
+//!   initial state  `u(pcg(pcg(seed ^ NOISE) + cell·16 + channel)) − 0.5`
+//!   fire at tick t `u(pcg(pcg(pcg(seed ^ FIRE) + t) + cell)) < fire rate`
+//! with `u(h) = (h >> 8) / 2^24`. Training uses the same form with its own purposes.
 
-/// The live grid's purposes, from the Keep replay contract ("nois", "fire", "damg").
+/// The live grid's purposes from the replay contract (`"nois"`, `"fire"`, `"damg"`).
 pub const NOISE: u32 = 0x6e6f6973;
 pub const FIRE: u32 = 0x66697265;
-/// Brush stamp k since the grid's start uses `Stream::new(seed, DAMAGE).at(k)`.
+/// Brush stamp `k` since the grid's start uses `Stream::new(seed, DAMAGE).at(k)`.
 pub const DAMAGE: u32 = 0x64616d67;
 /// Training purposes: initial weights, pool states, reset states, batch choice, rollout
-/// length, view transforms and per-step firing ("init", "pool", "rset", "pick", "roll",
-/// "view", "tfir").
+/// length, view transforms and per-step firing (`"init"`, `"pool"`, `"rset"`, `"pick"`, `"roll"`,
+/// `"view"`, `"tfir"`).
 pub const INIT: u32 = 0x696e6974;
 pub const POOL: u32 = 0x706f6f6c;
 pub const RESET: u32 = 0x72736574;
@@ -24,8 +24,8 @@ pub const ROLL: u32 = 0x726f6c6c;
 pub const VIEW: u32 = 0x76696577;
 pub const TRAIN_FIRE: u32 = 0x74666972;
 /// The pyramid's coarse grid draws from its own streams, with the same formulas: on the live grid
-/// the replay contract ("cnoi", "cfir", "cdmg"), in training the coarse pool, reset and
-/// per-step firing ("cpol", "crst", "ctfi").
+/// the replay contract (`"cnoi"`, `"cfir"`, `"cdmg"`), in training the coarse pool, reset and
+/// per-step firing (`"cpol"`, `"crst"`, `"ctfi"`).
 pub const COARSE_NOISE: u32 = 0x636e6f69;
 pub const COARSE_FIRE: u32 = 0x63666972;
 pub const COARSE_DAMAGE: u32 = 0x63646d67;
@@ -33,9 +33,15 @@ pub const COARSE_POOL: u32 = 0x63706f6c;
 pub const COARSE_RESET: u32 = 0x63727374;
 pub const COARSE_TRAIN_FIRE: u32 = 0x63746669;
 
+/// PCG hash constants shared by CPU streams and GPU counter kernels (`kernels::draws`).
+pub(crate) const PCG_MULTIPLIER: u32 = 747_796_405;
+pub(crate) const PCG_INCREMENT: u32 = 2_891_336_453;
+pub(crate) const PCG_OUTPUT_MULTIPLIER: u32 = 277_803_737;
+pub(crate) const UNIFORM_DIVISOR: f32 = 16_777_216.0;
+
 pub fn pcg(value: u32) -> u32 {
-    let state = value.wrapping_mul(747796405).wrapping_add(2891336453);
-    let word = ((state >> ((state >> 28) + 4)) ^ state).wrapping_mul(277803737);
+    let state = value.wrapping_mul(PCG_MULTIPLIER).wrapping_add(PCG_INCREMENT);
+    let word = ((state >> ((state >> 28) + 4)) ^ state).wrapping_mul(PCG_OUTPUT_MULTIPLIER);
     (word >> 22) ^ word
 }
 
@@ -61,7 +67,7 @@ impl Stream {
     }
     /// Uniform in [0, 1) with 24 bits, exact in float32.
     pub fn uniform(self, index: u32) -> f32 {
-        self.bits(index) as f32 / 16777216.0
+        self.bits(index) as f32 / UNIFORM_DIVISOR
     }
     /// Uniform integer in [0, count), by integer arithmetic so float rounding cannot reach
     /// `count`. The bias is below count / 2^24.

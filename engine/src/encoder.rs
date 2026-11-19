@@ -14,6 +14,9 @@ pub const HEAD_WIDTH: usize = 64;
 pub const PREFIX: usize = 5;
 pub const PATCHES: usize = 256;
 pub const TOKENS: usize = PREFIX + PATCHES;
+/// ImageNet channel normalization constants used by DINOv3 and image regularizers.
+pub const RGB_MEAN: [f32; 3] = [0.485, 0.456, 0.406];
+pub const RGB_STD: [f32; 3] = [0.229, 0.224, 0.225];
 /// The checkpoint's RoPE periods: BF16 values, exact in FP32. The stem file carries the
 /// tables of the 16×16 patch grid (256 px); `Rope::grid` rebuilds them for the 8×8 grid of a
 /// 128 px picture, and `load_stem` checks that these periods reproduce the shipped tables.
@@ -204,8 +207,8 @@ pub struct Probe {
 }
 
 pub struct Rope {
-    sin_11TE: Tensor<4>,
-    cos_11TE: Tensor<4>,
+    sin_11PE: Tensor<4>,
+    cos_11PE: Tensor<4>,
 }
 
 /// DINOv3's axial RoPE angles for a side × side patch grid, [side², E] row-major: patch
@@ -238,7 +241,7 @@ impl Rope {
         let table = |values: Vec<f32>| {
             Tensor::<1>::from_floats(values.as_slice(), device).reshape([1, 1, side * side, HEAD_WIDTH])
         };
-        Self { sin_11TE: table(sin_PE), cos_11TE: table(cos_PE) }
+        Self { sin_11PE: table(sin_PE), cos_11PE: table(cos_PE) }
     }
 
     /// Queries, keys and values [B, H, T, E] from the qkv projection with its bias, [B, T, 3D],
@@ -260,29 +263,30 @@ impl Rope {
     /// The sine and cosine tables, [patches, E].
     #[cfg(feature = "gpu")]
     pub(crate) fn tables_PE(&self) -> (Tensor<2>, Tensor<2>) {
-        let patches = self.sin_11TE.dims()[2];
-        let table = |table_11TE: &Tensor<4>| table_11TE.clone().reshape([patches, HEAD_WIDTH]);
-        (table(&self.sin_11TE), table(&self.cos_11TE))
+        let patches = self.sin_11PE.dims()[2];
+        let table = |table_11PE: &Tensor<4>| table_11PE.clone().reshape([patches, HEAD_WIDTH]);
+        (table(&self.sin_11PE), table(&self.cos_11PE))
     }
 
     fn apply(&self, values_BHTE: Tensor<4>) -> Tensor<4> {
         let [batch, heads, tokens, width] = values_BHTE.dims();
         let patches = tokens - PREFIX;
-        let prefix_BHPE = values_BHTE
+        let half = width / 2;
+        // Local axes: S = PREFIX prefix tokens, P = patches, M = E / 2 half-head width.
+        let prefix_BHSE = values_BHTE
             .clone()
             .slice([0..batch, 0..heads, 0..PREFIX, 0..width]);
-        let patches_BHTE = values_BHTE.slice([0..batch, 0..heads, PREFIX..tokens, 0..width]);
-        let first_BHTE = patches_BHTE
+        let patches_BHPE = values_BHTE.slice([0..batch, 0..heads, PREFIX..tokens, 0..width]);
+        let first_BHPM = patches_BHPE
             .clone()
-            .slice([0..batch, 0..heads, 0..patches, 0..width / 2]);
-        let second_BHTE =
-            patches_BHTE
-                .clone()
-                .slice([0..batch, 0..heads, 0..patches, width / 2..width]);
-        let rotated_BHTE = Tensor::cat(vec![-second_BHTE, first_BHTE], 3);
-        let patches_BHTE =
-            patches_BHTE * self.cos_11TE.clone() + rotated_BHTE * self.sin_11TE.clone();
-        Tensor::cat(vec![prefix_BHPE, patches_BHTE], 2)
+            .slice([0..batch, 0..heads, 0..patches, 0..half]);
+        let second_BHPM = patches_BHPE
+            .clone()
+            .slice([0..batch, 0..heads, 0..patches, half..width]);
+        let rotated_BHPE = Tensor::cat(vec![-second_BHPM, first_BHPM], 3);
+        let patches_BHPE =
+            patches_BHPE * self.cos_11PE.clone() + rotated_BHPE * self.sin_11PE.clone();
+        Tensor::cat(vec![prefix_BHSE, patches_BHPE], 2)
     }
 }
 
@@ -292,7 +296,7 @@ pub struct Readout {
     pub native_BTD: Tensor<3>,
     /// Patch tokens after each requested zero-based block, in increasing order, under the affine-free
     /// LayerNorm. Empty when none is requested.
-    pub intermediate_BPD: Vec<Tensor<3>>,
+    pub intermediate_BTD: Vec<Tensor<3>>,
 }
 
 /// Weights do not require gradients. Operations still track gradients of the input image.
@@ -339,19 +343,41 @@ impl Dino {
             blocks: Vec::with_capacity(DEPTH),
             output_norm: LayerNorm::load(&weights, "norm")?,
             rope: Rope {
-                sin_11TE: weights
+                sin_11PE: weights
                     .tensor::<2>("rope.sin", [PATCHES, HEAD_WIDTH])?
                     .reshape([1, 1, PATCHES, HEAD_WIDTH]),
-                cos_11TE: weights
+                cos_11PE: weights
                     .tensor::<2>("rope.cos", [PATCHES, HEAD_WIDTH])?
                     .reshape([1, 1, PATCHES, HEAD_WIDTH]),
             },
             rope_8x8: Rope::grid(8, device),
-            rgb_mean_1C11: Tensor::<1>::from_floats([0.485, 0.456, 0.406], device)
+            rgb_mean_1C11: Tensor::<1>::from_floats(RGB_MEAN, device)
                 .reshape([1, 3, 1, 1]),
-            rgb_std_1C11: Tensor::<1>::from_floats([0.229, 0.224, 0.225], device)
+            rgb_std_1C11: Tensor::<1>::from_floats(RGB_STD, device)
                 .reshape([1, 3, 1, 1]),
         })
+    }
+
+    /// Zero-weight encoder shell for unit tests that exercise engine state transitions without
+    /// running DINO inference.
+    #[cfg(all(test, feature = "cpu"))]
+    pub(crate) fn empty_for_test(device: &Device) -> Self {
+        Self {
+            patch_projection: Linear {
+                weight_OI: Tensor::zeros([WIDTH, WIDTH], device),
+                bias_O: Tensor::zeros([WIDTH], device),
+            },
+            prefix_1PD: Tensor::zeros([1, PREFIX, WIDTH], device),
+            blocks: Vec::new(),
+            output_norm: LayerNorm {
+                weight_D: Tensor::ones([WIDTH], device),
+                bias_D: Tensor::zeros([WIDTH], device),
+            },
+            rope: Rope::grid(16, device),
+            rope_8x8: Rope::grid(8, device),
+            rgb_mean_1C11: Tensor::<1>::from_floats(RGB_MEAN, device).reshape([1, 3, 1, 1]),
+            rgb_std_1C11: Tensor::<1>::from_floats(RGB_STD, device).reshape([1, 3, 1, 1]),
+        }
     }
 
     /// Pictures of 256 or 128 pixels per side: 16×16 or 8×8 patches.
@@ -364,7 +390,7 @@ impl Dino {
         let patches_BTI = images_BCHW
             .reshape([batch, 3, side, 16, side, 16])
             .permute([0, 2, 4, 1, 3, 5])
-            .reshape([batch, side * side, 768]);
+            .reshape([batch, side * side, WIDTH]);
         let patches_BTD = self.patch_projection.forward(patches_BTI);
         let prefix_BPD = self.prefix_1PD.clone().expand([batch, PREFIX, WIDTH]);
         Tensor::cat(vec![prefix_BPD, patches_BTD], 1)
@@ -405,20 +431,66 @@ impl Dino {
         assert!(intermediate.windows(2).all(|pair| pair[0] < pair[1]), "intermediate blocks increase");
         let mut tokens_BTD = profile_reader("patch embedding forward", || self.embed(images_BCHW));
         let rope = if tokens_BTD.dims()[1] == TOKENS { &self.rope } else { &self.rope_8x8 };
-        let mut intermediate_BPD = Vec::new();
+        let mut intermediate_BTD = Vec::new();
         for (layer, block) in self.blocks.iter().enumerate() {
             tokens_BTD = block.forward(tokens_BTD, rope);
             if intermediate.contains(&layer) {
                 let [batch, tokens, _] = tokens_BTD.dims();
-                let patches_BPD = tokens_BTD
+                let patches_BTD = tokens_BTD
                     .clone()
                     .slice([0..batch, PREFIX..tokens, 0..WIDTH]);
-                intermediate_BPD.push(affine_free_norm(patches_BPD));
+                intermediate_BTD.push(affine_free_norm(patches_BTD));
             }
         }
         Readout {
             native_BTD: profile_reader("norm forward", || self.output_norm.forward(tokens_BTD)),
-            intermediate_BPD,
+            intermediate_BTD,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rope_tables_satisfy_unit_circle_tiling_and_grid_symmetry() {
+        for side in [8usize, 16usize] {
+            let (sin_PE, cos_PE) = rope_tables(side);
+            let patches = side * side;
+            assert_eq!(sin_PE.len(), patches * HEAD_WIDTH);
+            assert_eq!(cos_PE.len(), patches * HEAD_WIDTH);
+            assert!(sin_PE.iter().chain(&cos_PE).all(|value| value.is_finite()));
+
+            for (&sin, &cos) in sin_PE.iter().zip(&cos_PE) {
+                assert!((sin * sin + cos * cos - 1.0).abs() < 1e-6);
+            }
+
+            // Each patch row tiles the 32 axial angles twice across the 64-wide head.
+            let half = HEAD_WIDTH / 2;
+            for patch in 0..patches {
+                let row_start = patch * HEAD_WIDTH;
+                assert_eq!(
+                    &sin_PE[row_start..row_start + half],
+                    &sin_PE[row_start + half..row_start + HEAD_WIDTH]
+                );
+                assert_eq!(
+                    &cos_PE[row_start..row_start + half],
+                    &cos_PE[row_start + half..row_start + HEAD_WIDTH]
+                );
+            }
+
+            // Reflecting (row, column) across the grid centre negates coordinates: sin is odd, cos is even.
+            for row in 0..side {
+                for column in 0..side {
+                    let patch = (row * side + column) * HEAD_WIDTH;
+                    let opposite = ((side - 1 - row) * side + (side - 1 - column)) * HEAD_WIDTH;
+                    for channel in 0..HEAD_WIDTH {
+                        assert!((sin_PE[patch + channel] + sin_PE[opposite + channel]).abs() < 1e-5);
+                        assert!((cos_PE[patch + channel] - cos_PE[opposite + channel]).abs() < 1e-5);
+                    }
+                }
+            }
         }
     }
 }

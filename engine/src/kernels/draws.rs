@@ -1,4 +1,5 @@
-//! Exact counter-based PCG draws. Arithmetic wraps modulo 2^32, as in grow::draws.
+//! Exact counter-based PCG draws. Arithmetic wraps modulo 2^32, as in `grow::draws`.
+use crate::grow::draws::{PCG_INCREMENT, PCG_MULTIPLIER, PCG_OUTPUT_MULTIPLIER, UNIFORM_DIVISOR};
 use burn::{
     backend::{
         AutodiffBackend, Backend, Dispatch,
@@ -23,22 +24,35 @@ pub trait CounterDrawBackend: Backend {
     ) -> FloatTensor<Self>;
 }
 
+/// Uniform float32 draw in `[0, 1)` from the PCG hash of `key + index`.
+#[cube]
+pub(super) fn uniform_draw(key: u32, index: u32) -> f32 {
+    let state = (key + index) * PCG_MULTIPLIER + PCG_INCREMENT;
+    let word = ((state >> ((state >> 28u32) + 4u32)) ^ state) * PCG_OUTPUT_MULTIPLIER;
+    let hash = (word >> 22u32) ^ word;
+    (hash >> 8u32) as f32 / UNIFORM_DIVISOR
+}
+
+/// Binary firing draw: `1.0` when `uniform_draw(key, index) < rate`, else `0.0`.
+#[cube]
+pub(super) fn fired(key: u32, index: u32, rate: f32) -> f32 {
+    if uniform_draw(key, index) < rate {
+        1.0f32
+    } else {
+        0.0f32
+    }
+}
+
 #[cube(launch)]
 fn counter_draws(output: &mut Tensor<f32>, key: u32, rate: f32, #[comptime] noise: bool) {
     let index = ABSOLUTE_POS;
     if index >= output.len() {
         terminate!();
     }
-    let state = (key + index as u32) * 747796405u32 + 2891336453u32;
-    let word = ((state >> ((state >> 28u32) + 4u32)) ^ state) * 277803737u32;
-    let hash = (word >> 22u32) ^ word;
-    let uniform = (hash >> 8u32) as f32 / 16777216.0f32;
-    output[index as usize] = if noise {
-        uniform - 0.5f32
-    } else if uniform < rate {
-        1.0f32
+    output[index] = if noise {
+        uniform_draw(key, index as u32) - 0.5f32
     } else {
-        0.0f32
+        fired(key, index as u32, rate)
     };
 }
 

@@ -26,9 +26,13 @@ mod target_set_fixture;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use burn::tensor::{Device, Tensor, TensorData};
 use dinodreamer_engine::{
+    calibration::{Calibration, load_frame},
     encoder::{Block, DEPTH, Dino},
-    grow::figure::{self, Cells, FigureGrid, FigureReadings, FigureRequest, FigureRule, FigureTraining, Layer, LayerLoss, Plan, target_set::{TargetSet, WINDOW_SIDE}},
-    objective::{Calibration, load_frame},
+    grow::figure::{
+        self, Cells, FigureGrid, FigureReadings, FigureRequest, FigureRule, FigureTraining, Layer,
+        LayerLoss, Plan, ReadTarget,
+        target_set::{TargetSet, WINDOW_SIDE},
+    },
     reader::DictionaryReader,
 };
 use target_set_fixture::{SetRecord, compare_set, load_windows};
@@ -59,8 +63,7 @@ const GRADIENT_FLOOR_FACTOR: f64 = 3.0;
 /// display bytes: strength in units of m, and the winner fraction by at most one read patch.
 const STRENGTH_TOLERANCE: f64 = 0.01;
 /// The mean of the reading's per-patch codes (`FigureReading::codes_TR`) over the read patches,
-/// against the oracle's: ‖difference‖ in units of m, the strength's scale. Measured on 17 November
-/// 2026 over every fixture: at most 0.0056, where 600 replayed ticks changed some display bytes.
+/// against the oracle's: `‖difference‖` in units of `m`, the strength's scale.
 const MEAN_CODE_TOLERANCE: f64 = 0.01;
 
 #[derive(Deserialize)]
@@ -69,8 +72,7 @@ struct Fixture {
     request: FigureRequest,
     direction: [f32; 3],
     initial_values: String,
-    /// A continued record (Train resume, case 2): its first update, trained from `initial_values`
-    /// with a fresh Adam and pool.
+    /// A continued run's first update, trained from `initial_values` with a fresh Adam and pool.
     #[serde(default)]
     from_update: Option<u32>,
     gradient_floor: f64,
@@ -261,16 +263,16 @@ fn prepare_set(fixture_path: &Path, fixture: &Fixture, encoder: &Dino, calibrati
     let record = fixture.set.as_ref()?;
     let (windows, dots, file) = load_windows(&fixture_path.with_file_name(&record.file));
     assert_eq!(file.block, fixture.request.block, "the set file is the request's basis group's");
-    let windows_P3HW = Tensor::<4>::from_data(TensorData::new(windows, [dots.len(), 3, WINDOW_SIDE, WINDOW_SIDE]), device);
+    let windows_PCHW = Tensor::<4>::from_data(TensorData::new(windows, [dots.len(), 3, WINDOW_SIDE, WINDOW_SIDE]), device);
     let started = std::time::Instant::now();
-    let target = pollster::block_on(TargetSet::prepare(encoder, calibration, &frame_DR.clone().transpose(), &fixture.request, windows_P3HW, &dots)).unwrap();
+    let target = pollster::block_on(TargetSet::prepare(encoder, calibration, &frame_DR.clone().transpose(), &fixture.request, windows_PCHW, &dots)).unwrap();
     let seconds = started.elapsed().as_secs_f64();
     let (mut report, pass) = compare_set(&target, record);
     report["seconds"] = json!(seconds);
     Some((target, report, pass))
 }
 
-fn load_reader(directory: &PathBuf, device: &Device) -> DictionaryReader {
+fn load_reader(directory: &std::path::Path, device: &Device) -> DictionaryReader {
     let index: Value = serde_json::from_slice(&fs::read(directory.join("reader.json")).unwrap()).unwrap();
     let mut reader = DictionaryReader::default();
     for file in index["files"].as_array().unwrap() {
@@ -367,8 +369,8 @@ fn main() {
             let grown_error = report["grownSample"]["maximumAbsolute"].as_f64().unwrap().max(coarse_error);
             gate.push(("loss", relative(update.loss as f64, record.loss) <= LOSS_TOLERANCE));
             if request.method.needs_set() {
-                // Each layer's value and kernel means. An MMD value is a difference of kernel means near
-                // 0.7 that leaves 0.1 to 0.3; measured on 17 November 2026: at most 8.5e-6 (group 12002).
+                // Each layer's value and kernel means. An MMD value is a difference of kernel means
+                // near 0.7 leaving roughly 0.1 to 0.3, so float32 rounding stays well below 1e-4.
                 gate.push(("layer terms", layer_error <= LOSS_TOLERANCE));
                 // The basis-group mean loss stays a reading on the same tokens.
                 gate.push(("code loss reading", relative(update.code_loss as f64, record.code_loss) <= LOSS_TOLERANCE));
@@ -426,9 +428,8 @@ fn main() {
         lockstep.push(report);
     }
 
-    // The live grid on the Keep replay contract, grown with the reference's rules (its last
-    // trained rule and saved E18 rules), so the comparison isolates the grid, the picture and
-    // the reader from training divergence.
+    // Live grid on the replay contract, grown with the reference's rules (its last trained rule
+    // and saved reference rules), isolating the grid, picture, and reader from training divergence.
     let mut readings = Vec::new();
     let mut readings_match = true;
     for expected in &fixture.readings {
@@ -443,10 +444,12 @@ fn main() {
             &calibration,
             &reader,
             grid.picture(),
-            block,
-            fixture.direction,
-            request.median_norm,
-            grid.patches(),
+            ReadTarget {
+                block,
+                direction: fixture.direction,
+                median_norm: request.median_norm,
+                patches: grid.patches(),
+            },
         ))
         .unwrap();
         // One read patch: 1/64 of the field, 1/16 of the centre.

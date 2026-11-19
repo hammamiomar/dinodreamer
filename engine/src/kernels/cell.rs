@@ -37,23 +37,15 @@ pub trait CellBackend: Backend {
     ) -> FloatTensor<Self>;
 }
 
-#[cube(launch)]
-fn perception(
+/// Forward 3×3 Sobel + Laplacian stencil on one toroidal `(cell, channel)`: returns
+/// `[identity, sx, sy, lap]` in the exact `(dy, dx)` accumulation order.
+#[cube]
+pub(super) fn perceive_channel(
     input: &Tensor<f32>,
-    extra: &Tensor<f32>,
-    output: &mut Tensor<f32>,
+    cell: usize,
+    channel: usize,
     #[comptime] side: usize,
-    #[comptime] cells: usize,
-    #[comptime] adjoint: bool,
-    #[comptime] add_extra: bool,
-    #[comptime] row_stride: usize,
-) {
-    let index = ABSOLUTE_POS as usize;
-    if index >= cells * CHANNELS {
-        terminate!();
-    }
-    let cell = index / CHANNELS;
-    let channel = index % CHANNELS;
+) -> Vector<f32, Const<4>> {
     let grid = cell / (side * side);
     let row = (cell / side) % side;
     let column = cell % side;
@@ -74,33 +66,78 @@ fn perception(
             if dx == 1 && dy == 1 {
                 kl = -0.75f32;
             }
-            if adjoint {
+            let value = input[neighbor * CHANNELS + channel];
+            sx += value * kx;
+            sy += value * ky;
+            lap += value * kl;
+        }
+    }
+    let mut result = Vector::<f32, Const<4>>::empty();
+    result.insert(0usize, input[cell * CHANNELS + channel]);
+    result.insert(1usize, sx);
+    result.insert(2usize, sy);
+    result.insert(3usize, lap);
+    result
+}
+
+#[cube(launch)]
+fn perception(
+    input: &Tensor<f32>,
+    extra: &Tensor<f32>,
+    output: &mut Tensor<f32>,
+    #[comptime] side: usize,
+    #[comptime] cells: usize,
+    #[comptime] adjoint: bool,
+    #[comptime] add_extra: bool,
+    #[comptime] row_stride: usize,
+) {
+    let index = ABSOLUTE_POS;
+    if index >= cells * CHANNELS {
+        terminate!();
+    }
+    let cell = index / CHANNELS;
+    let channel = index % CHANNELS;
+    if adjoint {
+        let grid = cell / (side * side);
+        let row = (cell / side) % side;
+        let column = cell % side;
+        let mut sx = 0.0f32;
+        let mut sy = 0.0f32;
+        let mut lap = 0.0f32;
+        #[unroll]
+        for dy in 0..3 {
+            #[unroll]
+            for dx in 0..3 {
+                let neighbor = (grid * side + (row + side + dy - 1) % side) * side
+                    + (column + side + dx - 1) % side;
+                let wy = if dy == 1 { 2.0f32 } else { 1.0f32 };
+                let wx = if dx == 1 { 2.0f32 } else { 1.0f32 };
+                let kx = (dx as f32 - 1.0f32) * wy / 8.0f32;
+                let ky = (dy as f32 - 1.0f32) * wx / 8.0f32;
+                let mut kl = wx * wy / 16.0f32;
+                if dx == 1 && dy == 1 {
+                    kl = -0.75f32;
+                }
                 let base = neighbor * row_stride + channel * 4;
                 sx += input[base + 1] * -kx;
                 sy += input[base + 2] * -ky;
                 lap += input[base + 3] * kl;
-            } else {
-                let value = input[neighbor * CHANNELS + channel];
-                sx += value * kx;
-                sy += value * ky;
-                lap += value * kl;
             }
         }
-    }
-    if adjoint {
         // The autodiff path adds the residual's own gradient afterwards: the same two
         // operands, so the sum is the same in either order.
         let mut total = input[cell * row_stride + channel * 4] + sx + sy + lap;
         if add_extra {
-            total = total + extra[index];
+            total += extra[index];
         }
         output[index] = total;
     } else {
+        let values = perceive_channel(input, cell, channel, side);
         let base = cell * PERCEPTIONS + channel * 4;
-        output[base] = input[index];
-        output[base + 1] = sx;
-        output[base + 2] = sy;
-        output[base + 3] = lap;
+        output[base] = values.extract(0usize);
+        output[base + 1] = values.extract(1usize);
+        output[base + 2] = values.extract(2usize);
+        output[base + 3] = values.extract(3usize);
     }
 }
 
@@ -113,7 +150,7 @@ fn activation(
     #[comptime] relu: bool,
     #[comptime] backward: bool,
 ) {
-    let index = ABSOLUTE_POS as usize;
+    let index = ABSOLUTE_POS;
     if index >= output.len() {
         terminate!();
     }

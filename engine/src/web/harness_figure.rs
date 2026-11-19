@@ -1,8 +1,9 @@
-//! Browser measurement of figure training and replay operations.
+//! Browser harness exports for measuring figure training and replay operations.
+use super::{BrowserEngine, error};
 use crate::{
-    grow::figure::{self, FigureGrid, FigureRequest, FigureRule, FigureTraining},
+    grow::figure::{self, FigureGrid, FigureRequest, FigureRule, FigureTraining, ReadTarget},
     profiling::{BroadProfile, KernelProfile},
-    web::{BrowserEngine, error},
+    state::read_values,
 };
 use burn::tensor::Tensor;
 use js_sys::Float32Array;
@@ -34,11 +35,8 @@ impl BrowserEngine {
                 let uniform: Vec<f32> = (0..count)
                     .map(|index| (pcg(key.wrapping_add(index as u32)) >> 8) as f32 / 16777216.0)
                     .collect();
-                let noise = draws::noise(key, count, 1, &self.device)
-                    .into_data_async()
+                let noise = read_values(draws::noise(key, count, 1, &self.device))
                     .await
-                    .map_err(error)?
-                    .try_to_vec::<f32>()
                     .map_err(error)?;
                 let noise_errors = noise
                     .iter()
@@ -48,11 +46,8 @@ impl BrowserEngine {
                 checks.push(json!({"key": key, "count": count, "quantity": "noise",
                     "mismatches": noise_errors, "pass": noise_errors == 0}));
                 for rate in [0.0f32, 0.3, 0.5, 1.0] {
-                    let fired = draws::fire_mask(key, count, rate, &self.device)
-                        .into_data_async()
+                    let fired = read_values(draws::fire_mask(key, count, rate, &self.device))
                         .await
-                        .map_err(error)?
-                        .try_to_vec::<f32>()
                         .map_err(error)?;
                     let mask_errors = fired
                         .iter()
@@ -84,7 +79,8 @@ impl BrowserEngine {
             .ok_or_else(|| error("Load the selected dictionary frame first"))?
             .clone();
         Ok(HarnessFigure {
-            training: FigureTraining::new(request, None, frame_DR, self.device.clone()).map_err(error)?,
+            training: FigureTraining::new(request, None, frame_DR, self.device.clone())
+                .map_err(error)?,
         })
     }
 
@@ -137,16 +133,11 @@ impl BrowserEngine {
                 .collect(),
             0,
         );
-        let normalized = normalized_P
-            .into_data_async()
-            .await
-            .map_err(error)?
-            .try_to_vec::<f32>()
-            .map_err(error)?;
+        let normalized = read_values(normalized_P).await.map_err(error)?;
         // Every 257th value of the grown fine grids and, for the pyramid, of the coarse grids,
         // as the native parity example samples them.
         let sample = |state: Tensor<3>| async move {
-            let values = state.flatten::<1>(0, 2).into_data_async().await.map_err(error)?.try_to_vec::<f32>().map_err(error)?;
+            let values = read_values(state.flatten::<1>(0, 2)).await.map_err(error)?;
             Ok::<Vec<f32>, JsValue>(values.into_iter().step_by(257).collect())
         };
         let grown_sample = sample(gradient.grown.fine_1NC.clone()).await?;
@@ -191,10 +182,12 @@ impl BrowserEngine {
             &engine.calibration,
             &self.reader,
             grid.picture(),
-            request.block,
-            direction,
-            request.median_norm,
-            grid.patches(),
+            ReadTarget {
+                block: request.block,
+                direction,
+                median_norm: request.median_norm,
+                patches: grid.patches(),
+            },
         )
         .await
         .map_err(error)?;

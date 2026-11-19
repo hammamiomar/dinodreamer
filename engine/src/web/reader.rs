@@ -1,4 +1,8 @@
 use super::{BrowserEngine, error, set};
+use crate::{
+    encoder::{PREFIX, TOKENS, WIDTH},
+    image::{GRID, SIZE},
+};
 use burn::tensor::{Tensor, TensorData};
 use js_sys::{Float32Array, Object, Uint16Array};
 use wasm_bindgen::prelude::*;
@@ -22,11 +26,11 @@ impl BrowserEngine {
         let native_1TD = engine
             .encoder
             .forward(image_1CHW)
-            .slice([0..1, 5..261, 0..768]);
+            .slice([0..1, PREFIX..TOKENS, 0..WIDTH]);
         let tokens_1TD = engine.calibration.tokens(native_1TD);
         let addresses = self.reader.read(tokens_1TD).await.map_err(error)?;
         let result = Object::new();
-        set(&result, "grid", 16u32)?;
+        set(&result, "grid", GRID as u32)?;
         set(
             &result,
             "blocks",
@@ -49,14 +53,15 @@ impl BrowserEngine {
 impl BrowserEngine {
     /// A 256×256 opaque RGBA picture as the encoder reads it, [1, 3, 256, 256] in [0, 1].
     pub(super) fn opaque_picture(&self, rgba: &[u8]) -> Result<Tensor<4>, JsValue> {
-        if rgba.len() != 256 * 256 * 4 || rgba.chunks_exact(4).any(|p| p[3] != 255) {
+        let pixels = SIZE * SIZE;
+        if rgba.len() != pixels * 4 || rgba.chunks_exact(4).any(|p| p[3] != 255) {
             return Err(error("Reader input must be 256×256 opaque RGBA"));
         }
         let rgb_CHW: Vec<f32> = (0..3)
             .flat_map(|channel| {
-                (0..256 * 256).map(move |pixel| rgba[pixel * 4 + channel] as f32 / 255.0)
+                (0..pixels).map(move |pixel| rgba[pixel * 4 + channel] as f32 / 255.0)
             })
             .collect();
-        Ok(Tensor::from_data(TensorData::new(rgb_CHW, [1, 3, 256, 256]), &self.device))
+        Ok(Tensor::from_data(TensorData::new(rgb_CHW, [1, 3, SIZE, SIZE]), &self.device))
     }
 }

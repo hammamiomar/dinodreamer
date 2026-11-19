@@ -192,9 +192,9 @@ async fn check_resize<F: FnMut(&Comparison)>(checks: &mut Checks<'_, F>) -> Resu
     Ok(())
 }
 
-/// The legacy single-code fixtures, expressed as one Respond like term over the whole grid
+/// Single-code reference fixtures, expressed as one Respond like term over the whole grid
 /// or the central 8 × 8 cells.
-fn legacy_objective(engine: &mut Engine, code: &CodeSpec, center: bool) -> Result<Objective, String> {
+fn single_code_objective(engine: &mut Engine, code: &CodeSpec, center: bool) -> Result<Objective, String> {
     // Full strength over the whole grid or the centre 8 × 8: equal masses and peak 1.
     let where_ = (0..PATCHES)
         .map(|cell| {
@@ -213,9 +213,9 @@ fn legacy_objective(engine: &mut Engine, code: &CodeSpec, center: bool) -> Resul
     Objective::build(&spec, &engine.frames, &mut engine.references, &engine.device)
 }
 
-/// One code term's raw value, averaged over views: the legacy `loss` fixtures.
-fn legacy_loss(engine: &Engine, objective: &Objective, tokens_BTD: Tensor<3>) -> Tensor<1> {
-    let readout = crate::encoder::Readout { native_BTD: tokens_BTD, intermediate_BPD: Vec::new() };
+/// One code term's raw value, averaged over views, for the single-code `loss` fixtures.
+fn single_code_loss(engine: &Engine, objective: &Objective, tokens_BTD: Tensor<3>) -> Tensor<1> {
+    let readout = crate::encoder::Readout { native_BTD: tokens_BTD, intermediate_BTD: Vec::new() };
     let views = readout.native_BTD.dims()[0];
     let assigned = objective.assign(&[]);
     let zero_views_VCHW = Tensor::zeros([views, 3, 1, 1], &engine.device);
@@ -246,8 +246,8 @@ async fn check_encoder<F: FnMut(&Comparison)>(
     checks
         .compare("final native tokens", tokens_BTD.clone(), "tokens", 0.002)
         .await?;
-    let objective = legacy_objective(engine, code, false)?;
-    let loss = legacy_loss(engine, &objective, tokens_BTD);
+    let objective = single_code_objective(engine, code, false)?;
+    let loss = single_code_loss(engine, &objective, tokens_BTD);
     checks.compare("code loss", loss.clone(), "loss", 0.002).await?;
     let mut gradients = loss.backward();
     checks
@@ -284,8 +284,8 @@ async fn check_views_and_regions<F: FnMut(&Comparison)>(
                 .compare("fixed reflection views", views_VCHW.clone(), "fixed_views", 1e-7)
                 .await?;
         }
-        let objective = legacy_objective(engine, code, center)?;
-        let loss = legacy_loss(engine, &objective, engine.encoder.forward(views_VCHW));
+        let objective = single_code_objective(engine, code, center)?;
+        let loss = single_code_loss(engine, &objective, engine.encoder.forward(views_VCHW));
         checks
             .compare(&format!("{name}-loss"), loss.clone(), &format!("{name}-loss"), 0.002)
             .await?;
@@ -313,8 +313,8 @@ async fn check_pyramid_and_adam<F: FnMut(&Comparison)>(
     checks
         .compare("pyramid image", image_1CHW.clone(), "noise_image", 1e-5)
         .await?;
-    let objective = legacy_objective(engine, code, false)?;
-    let loss = legacy_loss(engine, &objective, engine.encoder.forward(image_1CHW));
+    let objective = single_code_objective(engine, code, false)?;
+    let loss = single_code_loss(engine, &objective, engine.encoder.forward(image_1CHW));
     checks
         .compare("noise code loss", loss.clone(), "noise_loss", 0.002)
         .await?;
@@ -431,7 +431,8 @@ async fn check_evidence<F: FnMut(&Comparison)>(
     })?;
     // The Look terms' prepared curves: ∫Q̄² per channel and each reference's prefix integrals
     // at its segment starts (src/curve.rs), both computed on the CPU at apply.
-    let fixtures: Vec<(Vec<f32>, Vec<(usize, Vec<f32>)>)> = engine
+    type LookFixtureEntry = (Vec<f32>, Vec<(usize, Vec<f32>)>);
+    let fixtures: Vec<LookFixtureEntry> = engine
         .objective
         .look_fixtures()
         .into_iter()

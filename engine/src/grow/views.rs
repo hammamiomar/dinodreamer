@@ -1,13 +1,13 @@
-//! The archived trainer's Distill views: integer torus roll, scale and rotation, bilinear wrap.
-//! `sample` runs GPU-only kernels, so it compiles with `gpu` only.
+//! Distill-style view augmentations: integer torus roll, scale, and rotation with wrapped
+//! bilinear resampling. `sample` runs GPU-only kernels, so it compiles with `gpu` only.
 #[cfg(feature = "gpu")]
 use burn::tensor::{Int, Tensor, TensorData};
 
 pub const SCALES: [f32; 5] = [0.95, 0.975, 1.0, 1.025, 1.05];
 
-/// One Distill view as the archived trainer draws it: a torus roll of up to 16 px per axis,
-/// then one wrapped bilinear resample with a scale from `SCALES` and a whole-degree rotation
-/// of up to 5 degrees about the centre.
+/// One view transform: an integer torus roll of up to 16 px per axis, followed by a wrapped
+/// bilinear resample with a scale from `SCALES` and a whole-degree rotation of up to 5 degrees
+/// about the centre.
 #[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Distill {
     /// Roll in pixels, [rows, columns], each in −16..=16.
@@ -75,6 +75,7 @@ mod tests {
 
     /// On the GPU: the view's resample runs a GPU-only kernel (kernels::resample).
     #[test]
+    #[ignore = "requires a GPU adapter"]
     fn an_unrotated_unscaled_view_is_the_torus_roll() {
         let device = Device::default().autodiff();
         let side = 4;

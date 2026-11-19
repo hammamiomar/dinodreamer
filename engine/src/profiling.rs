@@ -173,6 +173,7 @@ fn window<O: Send + 'static>(
 }
 
 /// One stage of the figure update in the broad pass.
+#[cfg(feature = "gpu")]
 #[inline]
 pub(crate) fn broad<O: Send + 'static>(
     stage: &'static str,

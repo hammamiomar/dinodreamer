@@ -1,44 +1,46 @@
-//! The figure recipe: the archived trainer's cellular automaton (E9, E18), trained toward
-//! one observed native code at the mean over patches. Training draws come from
-//! `draws::Stream`, so `tools/prepare_grow_recipe.py` can replay them through the archived
-//! trainer's own functions.
+//! Neural cellular automaton training toward a target code or target set. Training draws come
+//! from `draws::Stream`, so offline verification tools can reproduce every update from the seed.
 //!
 //! Axes: B grids, N = B·H·W cells with H = W = 128 (one pixel per cell), C = 16 state
 //! channels, V = 2B views, T = 64 patches of a 128 px picture, D = 768, R = 3. The pyramid adds
 //! a coarse grid of M = B·64·64 cells at 2 px per cell.
 //!
-//! The loss of one update is
+//! For basis-group mean matching, the loss of one update is
 //!   L = mean_v ‖mean_{t∈P} c_vt − k‖² / m²  +  10 · mean |x − clamp(x, −1, 1)|,
 //! where c_vt is the native code of patch t in view v (the calibrated DINO token projected on
 //! the block's frozen 768×3 frame, no gate division), P the scored patches (all 64, or the
-//! central 4 × 4 for the seeded centre), k is the Look anchor's native code, m the block's
+//! central 4 × 4 for the seeded centre), k is the anchor's native code, m the block's
 //! median winning norm, and the second mean runs over every value x of the B grown states
 //! (both grids of the pyramid). Each parameter gradient is divided by its own norm before Adam.
 //!
-//! Four kinds of material come from two independent choices: the rule (`RuleKind`), the cell rule or the two-level pyramid, and
-//! the start (`Start`), noise or the seeded centre.
+//! Four kinds of material come from two independent choices: the rule (`RuleKind`), the cell
+//! rule or the two-level pyramid, and the start (`Start`), noise or the seeded centre.
 //!
 //! This file holds what both builds share: the constants, the kinds, the request, the draws of
 //! each update (`Plan`), the learning-rate schedule, the picture, the loss terms, the brush
-//! stamp and the readout. The CPU test suite checks them. The rule, its training and the live
-//! grid run WGPU kernels, so they compile with `gpu` only (`figure/rule.rs`).
+//! stamp, and the readout. The CPU test suite checks them. The rule, its training (`figure/rule.rs`),
+//! and the live grid (`figure/grid.rs`) run WGPU kernels, so they compile with `gpu` only.
 use super::{
     draws::{self, Stream},
     views::{Distill, SCALES},
 };
 use crate::{
-    encoder::{DEPTH, Dino, PREFIX},
-    objective::Calibration,
-    reader::{DictionaryReader, WINNERS},
+    calibration::Calibration,
+    encoder::{DEPTH, Dino, PREFIX, WIDTH},
+    reader::{BLOCKS, DictionaryReader, WINNERS},
 };
 use burn::tensor::{Tensor, TensorData};
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "gpu")]
+mod grid;
+#[cfg(feature = "gpu")]
 mod rule;
 pub mod target_set;
 #[cfg(feature = "gpu")]
-pub use rule::{Cells, FigureGradient, FigureGrid, FigureReadings, FigureRule, FigureTraining, FigureUpdate, LayerLoss, own_loss};
+pub use grid::FigureGrid;
+#[cfg(feature = "gpu")]
+pub use rule::{Cells, FigureGradient, FigureReadings, FigureRule, FigureTraining, FigureUpdate, LayerLoss, own_loss};
 
 pub const SIDE: usize = 128;
 pub const CELLS: usize = SIDE * SIDE;
@@ -47,7 +49,7 @@ pub const COARSE_SIDE: usize = SIDE / 2;
 pub const COARSE_CELLS: usize = COARSE_SIDE * COARSE_SIDE;
 pub const CHANNELS: usize = 16;
 pub const PATCHES: usize = 64;
-/// 64 grids: the recipe sweep reaches the selection threshold sooner than with 256 grids.
+/// Pool size of 64 grids reaches the selection threshold faster than 256 grids.
 pub const POOL: usize = 64;
 pub const UPDATES: u32 = 1000;
 pub const FIRE_RATE: f32 = 0.5;
@@ -56,8 +58,8 @@ pub const ROLLOUT_MAX: usize = 64;
 pub const LEARNING_RATE: f64 = 2e-3;
 pub const FINAL_LEARNING_RATE: f64 = 2e-4;
 pub const OVERFLOW_WEIGHT: f32 = 10.0;
-/// The archive resets the first sampled grid every update. At batch 1 that grid is the only
-/// one, so batch 1 resets every fourth update: one reset per four sampled states, as batch 4.
+/// At batch 4, training resets the first sampled grid every update. At batch 1 that grid is the
+/// only one, so batch 1 resets every fourth update to keep one reset per four sampled states.
 pub const BATCH_1_RESET_EVERY: u32 = 4;
 /// The seeded start's noise disc, in fine cells: 812 cells of the 128-cell grid, rows and columns
 /// 48–79. The coarse grid's disc has half the radius, so both cover the same 32 px circle.
@@ -79,9 +81,9 @@ const ALL_PATCHES: [usize; PATCHES] = {
     patches
 };
 
-/// The rule: the cell rule on one grid, or the two-level pyramid (`pyramid.py`): a coarse
-/// grid of COARSE_SIDE cells steps first with its own cell rule; the fine rule then reads the
-/// upsampled coarse state as 16 more inputs, and the picture sums both grids' colours.
+/// Cellular automaton rule architecture: a single-grid cell rule, or a two-level pyramid where a
+/// coarse `COARSE_SIDE` grid steps first with its own cell rule, the fine rule reads the upsampled
+/// coarse state as 16 additional inputs, and the picture sums both grids' colour channels.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum RuleKind {
@@ -98,17 +100,16 @@ impl RuleKind {
     }
 }
 
-/// How every grid starts, in training, in the readouts and on the live grid: noise everywhere,
-/// or the seeded centre: zero outside a noise disc at the grid centre. A seeded start also
-/// scores the loss and counts the reading on the central 4 × 4 patches only.
+/// How every grid starts, in training, in readouts, and on the live grid: noise everywhere,
+/// or a seeded centre (zero outside a noise disc at the grid centre). A seeded start also
+/// scores the loss and counts readings on the central 4 × 4 patches only.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Start {
     Noise,
     CentreDisc,
-    /// The research's seeded field, the Automata page's circle on faint noise: the noise disc of
-    /// the centre on the draw at SEEDED_FIELD_BACKGROUND of its range outside (`startState` of
-    /// app/src/replay/figure-reference.ts, `trainer.seeded`). For research files; Train does not offer it.
+    /// Noise disc at the grid centre over background noise scaled by `SEEDED_FIELD_BACKGROUND`
+    /// (`startState` in `app/src/replay/figure-reference.ts`). Used by imported material files.
     SeededField,
 }
 
@@ -125,8 +126,8 @@ impl Start {
     }
 
     /// Per cell of a `side` grid, the factor on the start's noise: 1 inside the disc, and 0 outside
-    /// it for the seeded centre or SEEDED_FIELD_BACKGROUND for the seeded field; None for noise
-    /// everywhere. The coarse grid (side COARSE_SIDE) has half the radius.
+    /// it for the seeded centre or `SEEDED_FIELD_BACKGROUND` for the seeded field; None for noise
+    /// everywhere. The coarse grid (side `COARSE_SIDE`) has half the radius.
     pub fn mask(self, side: usize) -> Option<Vec<f32>> {
         let disc = || centre_disc(side, START_RADIUS * side as f32 / SIDE as f32);
         match self {
@@ -138,8 +139,7 @@ impl Start {
 }
 
 /// 1 for the cells whose centres lie within `radius` of the grid centre, else 0, row-major. The
-/// offsets are half-integers, so the test is exact in float32 (the replay contract's
-/// `trainer.centre_disc`).
+/// offsets are half-integers, so the squared-distance test is exact in float32.
 pub fn centre_disc(side: usize, radius: f32) -> Vec<f32> {
     let offset = |index: usize| index as f32 - side as f32 / 2.0 + 0.5;
     (0..side * side)
@@ -150,21 +150,21 @@ pub fn centre_disc(side: usize, radius: f32) -> Vec<f32> {
         .collect()
 }
 
-/// What training asks of the canvas: one choice of space and one of comparison (research/given-set,
-/// "The four methods"). The space is the basis group, the 3 numbers it reads from a token, or the
-/// token, DINO's 768 numbers for a patch. Mean matching asks for the canvas's average; distribution
-/// matching asks the canvas's patches to be spread like the target set's (`target_set`).
+/// Training objective family: a choice of representation space and comparison statistic.
+/// Representation space is either the basis group's 3-channel code or DINO's 768-channel patch
+/// token. Comparison is either mean matching or unbiased MMD² distribution matching against a
+/// prepared target set (`target_set`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Method {
-    /// mean_v ‖mean_{t∈P} c_vt − k‖² / m² (`mean_code_loss`); the research's `plain`.
+    /// `mean_v ‖mean_{t∈P} c_vt − k‖² / m²` (`mean_code_loss`).
     #[default]
     BasisGroupMean,
-    /// ‖mean_m x_m‖² on the set-standardized tokens; the research's `point`.
+    /// `‖mean_m x̂_m‖²` on set-standardized patch tokens.
     TokenMean,
-    /// The unbiased MMD² on the set-standardized codes c = Fᵀ(calibrated token); `projection-mmd`.
+    /// Unbiased MMD² on set-standardized basis-group codes `c = Fᵀ(calibrated token)`.
     BasisGroupDistribution,
-    /// The unbiased MMD² on the set-standardized tokens; the research's `mmd`.
+    /// Unbiased MMD² on set-standardized patch tokens across the requested layers.
     TokenDistribution,
 }
 
@@ -184,9 +184,9 @@ impl Method {
     }
 }
 
-/// A DINO readout that a token method compares: the patch tokens after zero-based block k under a
-/// LayerNorm without learned parameters ("block-k"), or the final layer under DINO's own output
-/// norm ("final"), the tokens the basis groups read. The names are the research's layer keys.
+/// A DINO readout that a token method compares: the patch tokens after zero-based block `k` under
+/// an affine-free LayerNorm (`"block-k"`), or the final layer under DINO's output norm (`"final"`),
+/// which is the representation the basis groups read.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(try_from = "String", into = "String")]
 pub enum Layer {
@@ -220,12 +220,12 @@ impl From<Layer> for String {
 #[serde(rename_all = "camelCase")]
 pub struct FigureRequest {
     pub block: u32,
-    /// k: the anchor's native code.
+    /// `k`: the anchor's native code.
     pub code: [f32; 3],
-    /// m: the loss denominator, the block's median winning norm.
+    /// `m`: the loss denominator, the block's median winning norm.
     pub median_norm: f32,
     pub seed: u32,
-    /// 4 as in the archive; 1 is the measured fallback.
+    /// Batch size: 4 by default, or 1 as the lower-memory fallback.
     pub batch: usize,
     pub rule: RuleKind,
     pub start: Start,
@@ -240,7 +240,7 @@ pub struct FigureRequest {
 impl FigureRequest {
     pub fn validate(&self) -> Result<(), String> {
         let squared: f32 = self.code.iter().map(|value| value * value).sum();
-        if self.block >= 16384
+        if self.block >= BLOCKS as u32
             || !squared.is_finite()
             || squared <= 0.0
             || !self.median_norm.is_finite()
@@ -250,7 +250,7 @@ impl FigureRequest {
             return Err("The figure recipe needs a block, a finite nonzero anchor code, a positive median norm and batch 1 or 4".into());
         }
         let distinct = self.layers.iter().enumerate().all(|(index, layer)| !self.layers[..index].contains(layer));
-        if self.method.reads_tokens() != !self.layers.is_empty() || !distinct {
+        if self.method.reads_tokens() == self.layers.is_empty() || !distinct {
             return Err("A token method needs one or more distinct layers; a basis-group method takes none".into());
         }
         Ok(())
@@ -312,7 +312,7 @@ impl Plan {
             .collect();
         Self {
             entries: order[..batch].to_vec(),
-            reset: batch == 4 || update % BATCH_1_RESET_EVERY == 0,
+            reset: batch == 4 || update.is_multiple_of(BATCH_1_RESET_EVERY),
             steps: ROLLOUT_MIN + roll.below(0, ROLLOUT_MAX - ROLLOUT_MIN + 1),
             views,
         }
@@ -335,8 +335,8 @@ impl Default for UpdateCount {
 }
 
 impl UpdateCount {
-    /// A run continued from a definition saved at `from` updates (Train resume, case 2): the schedule
-    /// goes on from there, to update 1,000, or no further when the definition is at or past it.
+    /// A run continued from a rule saved at `from` updates: the schedule continues from `from`
+    /// to `UPDATES`, or stops immediately when `from >= UPDATES`.
     pub fn continued(from: u32) -> Self {
         Self { completed: from, target: UPDATES.max(from) }
     }
@@ -355,8 +355,8 @@ impl UpdateCount {
     }
 }
 
-/// The archive's cosine schedule over 1,000 updates: 0.002 at update 0, 0.0002 at update 999.
-/// Training resumed past update 999 stays at 0.0002.
+/// Cosine learning-rate schedule over 1,000 updates: `0.002` at update 0, `0.0002` at update 999.
+/// Updates past 999 stay at `0.0002`.
 pub fn learning_rate(update: u32) -> f64 {
     let progress = update.min(UPDATES - 1) as f64 / (UPDATES - 1) as f64;
     FINAL_LEARNING_RATE
@@ -378,10 +378,10 @@ pub fn picture(colour_1N3: Tensor<3>, grids: usize) -> Tensor<4> {
 }
 
 /// `upsample_torus`: bilinear by 2 with wrap-around, from B coarse grids of `side` cells
-/// [1, B·side², C] to [1, B·4·side², C]. Along each axis, fine cell j reads coarse position
-/// j/2 − 0.25: for k = ⌊j/2⌋, an even j weighs cells k − 1 and k by 0.25 and 0.75, an odd j cells
-/// k and k + 1 by 0.75 and 0.25. The width weights apply inside the height weights, in the
-/// operand order of the replay runtime's `upsampled`.
+/// `[1, B·side², C]` to `[1, B·4·side², C]`. Along each axis, fine cell `j` reads coarse position
+/// `j/2 − 0.25`: for `k = ⌊j/2⌋`, an even `j` weighs cells `k − 1` and `k` by `0.25` and `0.75`,
+/// and an odd `j` weighs cells `k` and `k + 1` by `0.75` and `0.25`. Width weights apply inside
+/// height weights, matching the operand order of the replay shader.
 pub fn upsample_torus(coarse_1MC: Tensor<3>, grids: usize, side: usize) -> Tensor<3> {
     let channels = coarse_1MC.dims()[2];
     let coarse_BHWC = coarse_1MC.reshape([grids, side, side, channels]);
@@ -405,7 +405,8 @@ fn upsample_axis(values: Tensor<4>, axis: usize) -> Tensor<4> {
     Tensor::stack::<5>(vec![even, odd], axis + 1).reshape(doubled)
 }
 
-/// E18's mean arm: mean_v ‖m_v − k‖² / m², for the views' mean codes m_v = mean_{t∈P} c_vt, [V, R].
+/// Normalized mean squared error of each view's mean code against the anchor code:
+/// `mean_v ‖m_v − k‖² / m²`, for `m_v = mean_{t∈P} c_vt` with shape `[V, R]`.
 pub fn mean_code_loss(mean_codes_VR: Tensor<2>, code: [f32; 3], median_norm: f32) -> Tensor<1> {
     let target_1R = Tensor::<2>::from_data(TensorData::new(code.to_vec(), [1, 3]), &mean_codes_VR.device());
     (mean_codes_VR - target_1R).square().sum_dim(1).mean_dim(0).reshape([1]) / (median_norm * median_norm)
@@ -429,16 +430,16 @@ pub fn region_mean_codes(codes_VTR: Tensor<3>, start: Start) -> Tensor<2> {
     scored_patches(codes_VTR, start).mean_dim(1).reshape([views, 3])
 }
 
-/// The scored patches of all views as one set of canvas features, [V, T, X] → [M, X] with
-/// M = V·P, view by view: what a set method compares with the target set (`recipe.Trainer`'s region).
+/// The scored patches of all views as one set of canvas features, `[V, T, X] → [M, X]` with
+/// `M = V·P`, view by view: the canvas feature matrix compared with a target set.
 pub fn region_features(values_VTX: Tensor<3>, start: Start) -> Tensor<2> {
     let scored_VPX = scored_patches(values_VTX, start);
     let [views, patches, width] = scored_VPX.dims();
     scored_VPX.reshape([views * patches, width])
 }
 
-/// The archive's state overflow: mean |x − clamp(x, −1, 1)| over every value of the grown states.
-/// For the pyramid the states are both grids, equivalent to the reference's packed 20-channel state.
+/// State overflow penalty: `mean |x − clamp(x, −1, 1)|` over every value of the grown states
+/// (both fine and coarse grids for a pyramid rule).
 pub fn overflow(states: &[Tensor<3>]) -> Tensor<1> {
     let values: usize = states.iter().map(|state| state.dims().iter().product::<usize>()).sum();
     let excess = states
@@ -449,25 +450,25 @@ pub fn overflow(states: &[Tensor<3>]) -> Tensor<1> {
     excess / values as f32
 }
 
-/// One brush stamp of the Keep replay runtime (`damage_disc` in app/src/replay/figure-shaders.ts)
-/// on a grid of `side` cells: a soft disc on the torus centred at (x, y) in cell coordinates, a
-/// cell at its column and row index. Within `radius` the weight rises from the edge as a
-/// smoothstep over a quarter radius (at least one cell). Each value moves toward a goal by that
-/// weight: the 13 hidden channels toward fresh noise U(−0.5, 0.5), the three colour channels
-/// toward one small grey value per cell, 0.2 × U(−0.5, 0.5). `key` is stamp k's stream,
-/// `Stream::new(seed, DAMAGE).at(k)` (COARSE_DAMAGE for the pyramid's coarse grid). Returns the
-/// per-cell weights [side²] and goals [side² × C].
+/// One brush stamp (`damage_disc` in `app/src/replay/figure-shaders.ts`) on a toroidal grid of
+/// `side` cells: a soft disc centred at `(x, y)` in cell coordinates, a cell at its column and row
+/// index. Within `radius` the weight rises from the edge as a smoothstep over a quarter radius (at
+/// least one cell). Each value moves toward a goal by that weight: the 13 hidden channels toward
+/// fresh noise `U(−0.5, 0.5)`, the three colour channels toward one small grey value per cell,
+/// `0.2 × U(−0.5, 0.5)`. `key` is stamp `k`'s stream, `Stream::new(seed, DAMAGE).at(k)`
+/// (`COARSE_DAMAGE` for the pyramid's coarse grid). Returns per-cell weights `[side²]` and goals
+/// `[side² × C]`.
 pub fn damage_disc(key: Stream, side: usize, x: f32, y: f32, radius: f32) -> (Vec<f32>, Vec<f32>) {
     let wrap = |offset: f32| offset.min(side as f32 - offset);
     let edge = (radius / 4.0).max(1.0);
     let cells = side * side;
     let mut weights = vec![0.0; cells];
     let mut goals = vec![0.0; cells * CHANNELS];
-    for cell in 0..cells {
+    for (cell, weight) in weights.iter_mut().enumerate() {
         let dx = wrap(((cell % side) as f32 - x).abs());
         let dy = wrap(((cell / side) as f32 - y).abs());
         let t = ((radius - (dx * dx + dy * dy).sqrt()) / edge).clamp(0.0, 1.0);
-        weights[cell] = t * t * (3.0 - 2.0 * t);
+        *weight = t * t * (3.0 - 2.0 * t);
         let grey = 0.2 * (key.uniform((cell * CHANNELS) as u32) - 0.5);
         for channel in 0..CHANNELS {
             let index = cell * CHANNELS + channel;
@@ -538,27 +539,34 @@ pub fn co_selection(selected_TK: &[u16], requested: u16, requested_wins_T: &[boo
     groups
 }
 
-#[allow(clippy::too_many_arguments)]
+/// Target basis group, lobe direction, median norm, and patch indices for `read`.
+pub struct ReadTarget<'a> {
+    pub block: u32,
+    pub direction: [f32; 3],
+    pub median_norm: f32,
+    pub patches: &'a [usize],
+}
+
 pub async fn read(
     encoder: &Dino,
     calibration: &Calibration,
     reader: &DictionaryReader,
     picture_1CHW: Tensor<4>,
-    block: u32,
-    direction: [f32; 3],
-    median_norm: f32,
-    patches: &[usize],
+    target: ReadTarget<'_>,
 ) -> Result<FigureReading, String> {
-    let native_1TD = encoder.forward(picture_1CHW).slice([0..1, PREFIX..PREFIX + PATCHES, 0..768]);
-    let (addresses, codes_TR) = reader.read_block(calibration.tokens(native_1TD), block as usize).await?;
+    if target.patches.is_empty() {
+        return Err("At least one patch is required to read a picture".into());
+    }
+    let native_1TD = encoder.forward(picture_1CHW).slice([0..1, PREFIX..PREFIX + PATCHES, 0..WIDTH]);
+    let (addresses, codes_TR) = reader.read_block(calibration.tokens(native_1TD), target.block as usize).await?;
     let winners = addresses.winners(&codes_TR);
-    let projection = |patch: usize| codes_TR[3 * patch..3 * patch + 3].iter().zip(direction).map(|(value, axis)| value * axis).sum::<f32>();
-    let projections: f32 = patches.iter().map(|&patch| projection(patch)).sum();
-    let wins = patches.iter().filter(|&&patch| winners[patch]).count();
-    let co_selected = co_selection(&addresses.blocks, block as u16, &winners, patches);
+    let projection = |patch: usize| codes_TR[3 * patch..3 * patch + 3].iter().zip(target.direction).map(|(value, axis)| value * axis).sum::<f32>();
+    let projections: f32 = target.patches.iter().map(|&patch| projection(patch)).sum();
+    let wins = target.patches.iter().filter(|&&patch| winners[patch]).count();
+    let co_selected = co_selection(&addresses.blocks, target.block as u16, &winners, target.patches);
     Ok(FigureReading {
-        strength: projections / (patches.len() as f32 * median_norm),
-        winner_fraction: wins as f32 / patches.len() as f32,
+        strength: projections / (target.patches.len() as f32 * target.median_norm),
+        winner_fraction: wins as f32 / target.patches.len() as f32,
         co_selected,
         selected_T: winners,
         codes_TR,
@@ -572,7 +580,7 @@ mod tests {
     use burn::tensor::Device;
 
     #[test]
-    fn plans_follow_the_archive_ranges() {
+    fn plans_stay_within_rollout_and_pool_bounds() {
         for update in 0..200 {
             let plan = Plan::draw(7, update, 4);
             let mut entries = plan.entries.clone();
@@ -627,7 +635,7 @@ mod tests {
     }
 
     #[test]
-    fn learning_rate_is_the_archive_cosine() {
+    fn learning_rate_follows_cosine_schedule() {
         assert!((learning_rate(0) - 2e-3).abs() < 1e-12);
         assert!((learning_rate(999) - 2e-4).abs() < 1e-12);
         assert!((learning_rate(499) - 1.1e-3).abs() < 2e-6);
@@ -661,15 +669,15 @@ mod tests {
     }
 
     #[test]
-    fn the_pyramid_has_zeros_17088_values() {
+    fn the_pyramid_has_17088_parameters() {
         assert_eq!(RuleKind::Cell.parameters(), 7776);
         assert_eq!(RuleKind::Pyramid.parameters(), 17088);
     }
 
     #[test]
-    fn the_seeded_start_is_trainer_centre_disc() {
-        // trainer.centre_disc: 812 cells of the fine grid, rows and columns 48–79, and the
-        // same 32 px circle on the coarse grid at half the radius (208 cells).
+    fn centre_disc_mask_covers_expected_cells() {
+        // 812 cells of the fine grid (rows and columns 48–79) and the same 32 px circle on the
+        // coarse grid at half the radius (208 cells).
         let fine = Start::CentreDisc.mask(SIDE).unwrap();
         assert_eq!(fine.iter().filter(|&&kept| kept == 1.0).count(), 812);
         let kept_rows: Vec<usize> = (0..SIDE).filter(|row| fine[row * SIDE + 64] == 1.0).collect();
@@ -745,7 +753,7 @@ mod tests {
         // The reference: along each axis the two cells and weights of the replay runtime's `axis`.
         let axis = |j: usize| {
             let k = j / 2;
-            if j % 2 == 0 { ((k + side - 1) % side, k, 0.25f32, 0.75f32) } else { (k, (k + 1) % side, 0.75, 0.25) }
+            if j.is_multiple_of(2) { ((k + side - 1) % side, k, 0.25f32, 0.75f32) } else { (k, (k + 1) % side, 0.75, 0.25) }
         };
         let fine_side = 2 * side;
         for grid in 0..grids {
@@ -785,7 +793,7 @@ mod tests {
     fn overflow_counts_only_values_beyond_one() {
         let device = Device::flex();
         let state_1NC = Tensor::<3>::from_data(TensorData::new(vec![-2.0f32, 0.5, 1.5, -1.0], [1, 1, 4]), &device);
-        let value = overflow(&[state_1NC.clone()]).into_data().try_to_vec::<f32>().unwrap()[0];
+        let value = overflow(std::slice::from_ref(&state_1NC)).into_data().try_to_vec::<f32>().unwrap()[0];
         assert!((value - 0.375).abs() < 1e-6, "(1 + 0 + 0.5 + 0) / 4, got {value}");
         // The pyramid's two grids count as one state: (1.5 + 3) / 8 values.
         let coarse_1MC = Tensor::<3>::from_data(TensorData::new(vec![4.0f32, 0.0, 0.0, 0.0], [1, 1, 4]), &device);

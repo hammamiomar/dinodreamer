@@ -6,13 +6,14 @@
 //! With a section name, only that section runs.
 #![allow(non_snake_case)] // Tensor suffixes document axes.
 use burn::tensor::{Device, Distribution, Tensor};
-use dinodreamer_engine::kernels::{frozen_linear, scaled_attention};
+use dinodreamer_engine::{
+    encoder::{HEAD_WIDTH, HEADS, TOKENS, WIDTH},
+    kernels::{frozen_linear, scaled_attention},
+};
 use std::time::Instant;
 
 const REPEATS: u32 = 40;
 const VIEWS: usize = 2;
-const TOKENS: usize = 261;
-const WIDTH: usize = 768;
 
 fn time(device: &Device, name: &str, flops: f64, mut operation: impl FnMut()) {
     // At least 300 ms of the same work first: the GPU clock rises under load.
@@ -75,9 +76,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     }
     if runs("attention") {
-        let heads = || random([VIEWS, 12, TOKENS, 64], &device);
+        let heads = || random([VIEWS, HEADS, TOKENS, HEAD_WIDTH], &device);
         let (query, key, value) = (heads(), heads(), heads());
-        let attention_flops = 4.0 * (VIEWS * 12) as f64 * (TOKENS * TOKENS * 64) as f64;
+        let attention_flops = 4.0 * (VIEWS * HEADS) as f64 * (TOKENS * TOKENS * HEAD_WIDTH) as f64;
         time(&device, "attention forward", attention_flops, || {
             let _ = scaled_attention(query.clone(), key.clone(), value.clone());
         });

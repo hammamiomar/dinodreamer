@@ -1,18 +1,18 @@
 // The set methods in Chrome's WebGPU, through the engine's WebAssembly entry points as the Train
 // worker calls them: prepare a target set from the library's preview PNGs (decoded in the engine),
-// then train each method from one seed, in turns, as `examples/set_methods_timing.rs` does natively.
+// then train each method from one seed in alternating turns.
 // It reports the set's preparation time and summary, each method's first-update terms and the median
-// time per update with its median per-index ratio to the first method. Run it under the GPU lock:
+// time per update with its median per-index ratio to the first method:
 //
 //   node benchmarks/set-methods-in-chrome.ts --set tools/fixtures/target-set-12002-pole-3x3.json \
 //     --previews <folder of <imageId>.png> --output <report.json> <fixture>...
 //
-// It needs `pnpm build:engine` (pkg/) and local/release (tools/local_release.py). The fixtures give the
+// It needs `pnpm build:engine` (pkg/) and local/release assets. The fixtures give the
 // requests; the first is the reference. Chrome runs headless with its own GPU process. With
 // `--profile <prefix>` it then records a CPU profile of `--profile-updates` more updates of each method,
 // `<prefix>-<n>-<method>.cpuprofile`; `--batch 1` overrides every request's batch; `--ladder-rule
-// <rule.json>` (of grow_recipe_train) reads that rule on the live grid (seed 9317) at decision 12's
-// ladder with `figure_own_loss`, against the set of the run with its method and layers, and times it; `--package pkg-profile` serves a build that keeps function names
+// <rule.json>` (of grow_recipe_train) reads that rule on the live grid (seed 9317) across the reading
+// tick ladder with `figure_own_loss`, against the set of the run with its method and layers, and times it; `--package pkg-profile` serves a build that keeps function names
 // (CARGO_PROFILE_RELEASE_STRIP=false wasm-pack build --target web --release --out-dir pkg-profile).
 import { chromium } from "playwright-core";
 import { createServer } from "node:http";

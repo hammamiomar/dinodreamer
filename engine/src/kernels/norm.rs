@@ -23,7 +23,7 @@ fn workgroup_sum(shared: &mut Shared<[f32]>, value: f32) -> f32 {
     let mut offset = comptime!(THREADS / 2).runtime();
     while offset > 0 {
         if thread < offset {
-            shared[thread] = shared[thread] + shared[thread + offset];
+            shared[thread] += shared[thread + offset];
         }
         sync_cube();
         offset /= 2;
@@ -45,7 +45,7 @@ fn norm_forward(
     #[comptime] width: usize,
     #[comptime] affine: bool,
 ) {
-    let row = CUBE_POS as usize;
+    let row = CUBE_POS;
     let thread = UNIT_POS as usize;
     let base = row * width;
     let per_thread = comptime!(width.div_ceil(THREADS));
@@ -94,7 +94,7 @@ fn norm_backward(
     #[comptime] width: usize,
     #[comptime] affine: bool,
 ) {
-    let row = CUBE_POS as usize;
+    let row = CUBE_POS;
     let thread = UNIT_POS as usize;
     let base = row * width;
     let per_thread = comptime!(width.div_ceil(THREADS));
@@ -107,7 +107,7 @@ fn norm_backward(
         if column < width {
             let mut g = upstream[base + column];
             if affine {
-                g = g * weight[column];
+                g *= weight[column];
             }
             sum_g += g;
             sum_gx += g * ((input[base + column] - mean) / deviation);
@@ -120,7 +120,7 @@ fn norm_backward(
         if column < width {
             let mut g = upstream[base + column];
             if affine {
-                g = g * weight[column];
+                g *= weight[column];
             }
             let normalized = (input[base + column] - mean) / deviation;
             gradient[base + column] = (g - mean_g - normalized * mean_gx) / deviation;

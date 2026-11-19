@@ -2,6 +2,7 @@
 
 pub mod appearance;
 pub mod assets;
+pub mod calibration;
 pub mod curve;
 pub mod encoder;
 pub mod grow;
@@ -12,6 +13,8 @@ pub mod profiling;
 pub mod ranking;
 pub mod reader;
 pub mod state;
+
+pub use calibration::{Calibration, load_frame};
 
 #[cfg(feature = "harness")]
 pub mod qualification;

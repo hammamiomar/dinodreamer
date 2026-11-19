@@ -28,14 +28,18 @@ impl ReferenceCache {
 
     /// Mark the cached images among `needed` most recently used and return the others,
     /// which must be encoded. Encoding at most `needed.len()` new images then evicts
-    /// only images outside `needed`, because a recipe needs at most 60 of the 64 entries.
-    pub fn retain_needed(&mut self, needed: &[u64]) -> Vec<u64> {
-        assert!(needed.len() <= REFERENCE_CACHE_IMAGES, "a recipe needs at most 60 reference images");
-        needed
+    /// only images outside `needed`, provided `needed.len() <= REFERENCE_CACHE_IMAGES`.
+    pub fn retain_needed(&mut self, needed: &[u64]) -> Result<Vec<u64>, String> {
+        if needed.len() > REFERENCE_CACHE_IMAGES {
+            return Err(format!(
+                "a recipe needs at most {REFERENCE_CACHE_IMAGES} reference images"
+            ));
+        }
+        Ok(needed
             .iter()
             .copied()
             .filter(|&image_id| self.get(image_id).is_none())
-            .collect()
+            .collect())
     }
 
     pub fn get(&mut self, image_id: u64) -> Option<Arc<[f32]>> {
@@ -67,9 +71,18 @@ mod tests {
             cache.put(id, vec![0.0; READOUT_VALUES]);
         }
         // Image 0 is the least recently used; the next recipe reuses it and adds image 1000.
-        assert_eq!(cache.retain_needed(&[0, 1000]), [1000]);
+        assert_eq!(cache.retain_needed(&[0, 1000]).unwrap(), [1000]);
         cache.put(1000, vec![0.0; READOUT_VALUES]);
         assert!(cache.contains(0) && cache.contains(1000) && !cache.contains(1));
+    }
+
+    #[test]
+    fn retain_needed_rejects_requests_exceeding_cache_capacity() {
+        let mut cache = ReferenceCache::default();
+        assert_eq!(cache.retain_needed(&[]).unwrap(), Vec::<u64>::new());
+        let too_many: Vec<u64> = (0..=REFERENCE_CACHE_IMAGES as u64).collect();
+        let error = cache.retain_needed(&too_many).unwrap_err();
+        assert!(error.contains(&REFERENCE_CACHE_IMAGES.to_string()), "{error}");
     }
 
     #[test]

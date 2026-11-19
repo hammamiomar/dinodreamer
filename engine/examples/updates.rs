@@ -5,11 +5,12 @@
 //! CubeCL times every kernel and writes a summary at each device sync:
 //!   CUBECL_DEBUG_LOG=local/kernels.log cargo run --release --features harness --example updates
 //! The last summary in the log covers the measured updates only.
-//! Needs local/release (tools/local_release.py).
+//! Needs local/release assets.
 use burn::tensor::Device;
 use dinodreamer_engine::{
+    calibration::Calibration,
     encoder::{Block, DEPTH, Dino},
-    objective::{Calibration, ObjectiveSpec, ProbeSpec},
+    objective::{ObjectiveSpec, ProbeSpec},
     state::{Edit, Engine},
 };
 use serde::Deserialize;
@@ -60,7 +61,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .filter_map(|request| request.look.as_ref())
         .flat_map(|look| look.references.iter().map(|reference| reference.image_id))
         .collect();
-    for image_id in engine.references_to_encode(&images) {
+    for image_id in engine.references_to_encode(&images)? {
         let png = fs::read(Path::new(PREVIEWS).join(format!("{image_id}.png")))?;
         pollster::block_on(engine.encode_reference(image_id, &png))?;
     }

@@ -1,7 +1,7 @@
 //! Thin WASM adapter. The worker provides bytes and JSON specs and serializes commands.
 use crate::{
+    calibration::Calibration,
     encoder::{Block, DEPTH, Dino},
-    objective::Calibration,
     state::{Edit, Engine, Evaluation},
 };
 use burn::tensor::Device;
@@ -26,11 +26,8 @@ fn report_device_lost() {
 
 #[cfg(feature = "harness")]
 mod harness;
-/// Figure measurement exports live under this module so they can
-/// use its private engine handle and device without widening the public API.
 #[cfg(feature = "harness")]
-#[path = "../benchmarks/figure_training.rs"]
-mod figure_training;
+mod harness_figure;
 mod figure;
 mod reader;
 mod explain;
@@ -145,15 +142,16 @@ impl BrowserEngine {
 
     /// The last load step: the shared calibration. Creates the engine with a seed-0 image.
     pub fn load_calibration(&mut self, bytes: &[u8]) -> Result<(), JsValue> {
-        let model = self
-            .loading
-            .as_ref()
-            .ok_or_else(|| error("Load the encoder first"))?;
+        let Some(model) = self.loading.as_ref() else {
+            return Err(error("Load the encoder first"));
+        };
         if model.blocks.len() != DEPTH {
             return Err(error("Encoder layers are missing"));
         }
         let calibration = Calibration::load(bytes, &self.device).map_err(error)?;
-        let model = self.loading.take().expect("encoder checked above");
+        let Some(model) = self.loading.take() else {
+            return Err(error("Load the encoder first"));
+        };
         self.engine = Some(Engine::new(model, calibration, self.device.clone()));
         Ok(())
     }
@@ -177,7 +175,10 @@ impl BrowserEngine {
     /// Keep the cached references among `image_ids`; return those still to encode.
     pub fn references_to_encode(&mut self, image_ids: Vec<f64>) -> Result<Vec<f64>, JsValue> {
         let needed = image_ids.into_iter().map(image_id).collect::<Result<Vec<_>, _>>()?;
-        let missing = self.engine_mut()?.references_to_encode(&needed);
+        let missing = self
+            .engine_mut()?
+            .references_to_encode(&needed)
+            .map_err(error)?;
         Ok(missing.into_iter().map(|id| id as f64).collect())
     }
 

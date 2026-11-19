@@ -5,13 +5,14 @@ use super::{BrowserEngine, error, set};
 use crate::{
     encoder::{DEPTH, HEADS, TOKENS, WIDTH},
     reader::{PASS_003_SCALE, RECONSTRUCTION_GAIN},
+    state::read_values,
 };
 use burn::tensor::{Tensor, TensorData};
 use js_sys::{Float32Array, Object, Uint16Array};
 use wasm_bindgen::prelude::*;
 
 async fn floats<const D: usize>(tensor: Tensor<D>) -> Result<Vec<f32>, JsValue> {
-    tensor.into_data_async().await.map_err(error)?.try_to_vec::<f32>().map_err(error)
+    read_values(tensor).await.map_err(error)
 }
 
 #[wasm_bindgen]
@@ -62,8 +63,13 @@ impl BrowserEngine {
         let calibrated_D = floats(calibrated_11D.clone()).await?;
         let gate = self.reader.gate(calibrated_11D).await.map_err(error)?;
         let squared = |values: &mut dyn Iterator<Item = f32>| values.map(|value| value * value).sum::<f32>();
-        let residual = squared(&mut calibrated_D.iter().zip(&gate.reconstruction_D).map(|(x, r)| x - r)).sqrt()
-            / squared(&mut calibrated_D.iter().copied()).sqrt();
+        let calibrated_norm = squared(&mut calibrated_D.iter().copied()).sqrt();
+        let residual = if calibrated_norm == 0.0 {
+            0.0
+        } else {
+            squared(&mut calibrated_D.iter().zip(&gate.reconstruction_D).map(|(x, r)| x - r)).sqrt()
+                / calibrated_norm
+        };
         let result = Object::new();
         set(&result, "calibrated", Float32Array::from(calibrated_D.as_slice()))?;
         set(&result, "blocks", Uint16Array::from(gate.addresses.blocks.as_slice()))?;

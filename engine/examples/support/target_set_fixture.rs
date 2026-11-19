@@ -1,6 +1,6 @@
-//! The target-set fixtures, shared by `grow_recipe_parity` and `target_set_check`: a set file of
-//! `tools/export_target_set.py` (the windows as raw pixels in one PNG sheet, and each picture's dot)
-//! and the oracle's record of the prepared set (`tools/prepare_grow_recipe.py`, "set").
+//! Target-set fixture helpers shared by `grow_recipe_parity` and `target_set_check`: loads a
+//! target-set PNG window sheet and JSON metadata, and compares the prepared set with the oracle
+//! record produced by `tools/prepare_grow_recipe.py`.
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use dinodreamer_engine::grow::figure::{
     Layer,
@@ -13,9 +13,7 @@ use std::{fs, path::Path};
 /// The engine's prepared set against the oracle's, from the same windows: relative error of the
 /// unit σ, the median distance h and the self-similarity, relative RMS of the mean μ and of the
 /// standardized features. DINO runs in float32 on both sides with different kernels and summation
-/// orders. Measured on 17 November 2026 (group 12002, native WGPU): at most 5.8e-7 for the scalars,
-/// 7.0e-7 for the mean and 8.1e-6 for the standardized features. A wrong layer, window or dot
-/// shows at 1e-1 and above.
+/// orders; a wrong layer, window, or dot shows at 1e-1 and above.
 pub const SET_SCALAR_TOLERANCE: f64 = 1e-5;
 pub const SET_VECTOR_TOLERANCE: f64 = 1e-4;
 

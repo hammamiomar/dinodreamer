@@ -1,35 +1,45 @@
-//! The target set of the set methods: the tokens of a basis group's strongest pictures that token
-//! mean, basis-group distribution and token distribution matching compare the canvas with. The
-//! numerical reference is the given-set tool (research/given-set: `given_set.build`,
-//! `library.aligned_window`, `objective.PreparedLayer`, `objective.mmd`).
+//! Target set preparation and losses for token mean, basis-group distribution, and token
+//! distribution matching.
 //!
-//! Symbols. A set picture is a 256 px library picture and one patch of its 16 × 16 grid. Its window
-//! is the aligned 128 px window that holds the patch nearest the window's centre; the dot is that
-//! patch on the window's 8 × 8 grid. DINO reads each window at 128 px, the canvas's own size, and the
-//! set keeps the 3 × 3 tokens around the dot, fewer at a window's edge: y_n, n = 1..N, N ≤ 9P for P
-//! pictures. A layer's features are DINO's tokens there (D = 768) or, for basis-group distribution,
-//! the codes z = Fᵀc of the calibrated final tokens (D = R = 3).
+//! Symbols. A set picture is a 256 px library picture paired with one patch of its 16 × 16 grid.
+//! Its window is the aligned 128 px window that holds that patch nearest the window centre; the
+//! dot is that patch on the window's 8 × 8 grid. DINO reads each window at 128 px (the canvas
+//! size), and the set keeps the 3 × 3 tokens around each dot, clipped at window edges: `y_n` for
+//! `n = 1..N`, `N ≤ 9P` for `P` pictures. Layer features are DINO patch tokens (`D = 768`) or, for
+//! basis-group distribution matching, projected codes `z = Fᵀc` of calibrated final tokens
+//! (`D = R = 3`).
 //!
 //! Fixed at preparation, per layer (fitted to the set, never trained):
-//!   μ = mean_n y_n,  σ = max(√(mean_n ‖y_n − μ‖²), 0.25 · √(mean_n ‖y_n‖²)),  ŷ_n = (y_n − μ) / σ,
-//!   h = the median of the N(N−1)/2 distances ‖ŷ_i − ŷ_j‖ (the element at index ⌊N(N−1)/4⌋ of the sorted
-//!   squared distances, then its root), the kernel widths w_b = b·h for b ∈ {0.5, 1, 2, 4},
-//!   and the self-similarity E k(ŷ, ŷ') = mean over i ≠ j of k(ŷ_i, ŷ_j),
-//! with the kernel k(a, b) = mean_b exp(−‖a − b‖² / (2 w_b²)). A member lies about 1 from μ in these units.
+//!   `μ = mean_n y_n`,  `σ = max(√(mean_n ‖y_n − μ‖²), 0.25 · √(mean_n ‖y_n‖²))`,  `ŷ_n = (y_n − μ) / σ`,
+//!   `h` = median of the `N(N−1)/2` distances `‖ŷ_i − ŷ_j‖` (element at index `⌊N(N−1)/4⌋` of sorted
+//!   squared distances, then its square root), kernel widths `w_b = b·h` for `b ∈ {0.5, 1, 2, 4}`,
+//!   and self-similarity `E k(ŷ, ŷ') = mean_{i ≠ j} k(ŷ_i, ŷ_j)`,
+//! with multi-scale Gaussian kernel `k(a, b) = mean_b exp(−‖a − b‖² / (2 w_b²))`.
 //!
-//! Per update, the M canvas features x_m (the scored patches of every view, `region_features`) are
-//! standardized by the same μ and σ, x̂ = (x − μ)/σ, and a layer's loss is
-//!   mean matching:          ‖mean_m x̂_m‖²
-//!   distribution matching:  E k(x̂, x̂') − 2 E k(x̂, ŷ) + E k(ŷ, ŷ')   (the unbiased MMD²: x̂ ≠ x̂', ŷ ≠ ŷ')
-//! E k(x̂, x̂') rises when the canvas's patches gather, E k(x̂, ŷ) when they approach the set. The
-//! method's loss is the mean over its layers. Example: a canvas whose 128 patches all equal the set's
-//! mean has mean-matching loss 0, but E k(x̂, x̂') = 1, so its distribution loss stays positive.
+//! Per update, the `M` canvas features `x_m` (the scored patches of every view, `region_features`)
+//! are standardized with the fixed `μ` and `σ`, `x̂ = (x − μ) / σ`, giving per-layer loss:
+//!   mean matching:          `‖mean_m x̂_m‖²`
+//!   distribution matching:  `E k(x̂, x̂') − 2 E k(x̂, ŷ) + E k(ŷ, ŷ')` (unbiased MMD²: `x̂ ≠ x̂'`, `ŷ ≠ ŷ'`)
+//! `E k(x̂, x̂')` rises when canvas patches collapse together; `E k(x̂, ŷ)` rises when they approach
+//! the target set. The method loss is the mean across compared layers. For example, a canvas whose
+//! 128 patches all equal the set mean has mean-matching loss 0, but `E k(x̂, x̂') = 1`, so its
+//! distribution loss remains positive.
+//!
+//! GPU implementation of MMD²: both `x̂ ŷᵀ` and `x̂ x̂ᵀ` use `kernels::frozen_linear` instead of
+//! Burn's generic `matmul`, which adds roughly 25 ms per layer and update in browser WebGPU. For
+//! `E k(x̂, x̂')`, the pairwise distances `d_ij = ‖x̂_i‖² + ‖x̂_j‖² − 2 x̂_i·x̂_j` and the off-diagonal
+//! mask are symmetric in the two operands, so the gradient through the second operand equals the
+//! gradient through the first. Detaching the second operand lets `x̂ x̂ᵀ` run on `frozen_linear`,
+//! and `2g − stop(g)` preserves the exact forward value `g` while restoring the full gradient.
 use super::{FigureRequest, Layer, Method, PATCHES};
-use crate::encoder::{Dino, PREFIX, WIDTH};
-use crate::objective::Calibration;
+use crate::{
+    calibration::Calibration,
+    encoder::{Dino, PREFIX, WIDTH},
+    state::read_values,
+};
 use burn::tensor::{Int, Tensor, TensorData};
 
-/// The research's standard set: the group's 33 strongest distinct public pictures.
+/// Standard set size: 33 strongest distinct public pictures for a basis group.
 pub const SET_PICTURES: usize = 33;
 pub const WINDOW_SIDE: usize = 128;
 /// Patches per side of a window, and of a 256 px library picture.
@@ -39,12 +49,12 @@ const PATCH_SIDE: usize = 16;
 pub const BANDWIDTHS: [f32; 4] = [0.5, 1.0, 2.0, 4.0];
 /// A set of one token has no spread: its unit falls back to this share of its raw size.
 const RMS_FLOOR_SHARE: f32 = 0.25;
-/// The research draws at most this many set tokens for the median and per update (`PAIRWISE_SAMPLE`,
-/// `set_sample`). The engine's sets stay within it, so no draw is needed, and it refuses larger ones.
+/// Maximum number of tokens accepted in a prepared target set. Sets from 33 pictures hold at most
+/// 297 tokens, so no subsampling is required.
 pub const MOST_TOKENS: usize = 1024;
 
 /// Where a set picture's window lies on its 16 × 16 grid: the first patch row and column, and the
-/// picture's patch on the window's 8 × 8 grid (`library.aligned_window`).
+/// picture's patch on the window's 8 × 8 grid.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Window {
     pub row: usize,
@@ -76,8 +86,8 @@ pub fn window_pixels(picture_CHW: &[f32], window: Window) -> Vec<f32> {
     window_CHW
 }
 
-/// The patches the dot brings on the window's 8 × 8 grid: the 3 × 3 around it, clipped at the
-/// edges, row-major (`library.neighbourhood_patches(dot, "3x3", 8)`).
+/// The patches the dot brings on the window's 8 × 8 grid: the 3 × 3 neighbourhood around it,
+/// clipped at the edges, row-major.
 pub fn neighbourhood(dot: usize) -> Vec<usize> {
     let (row, column) = (dot / WINDOW_PATCHES, dot % WINDOW_PATCHES);
     let span = |centre: usize| centre.saturating_sub(1)..(centre + 2).min(WINDOW_PATCHES);
@@ -92,9 +102,8 @@ pub fn squared_distances(a_MD: Tensor<2>, b_ND: Tensor<2>) -> Tensor<2> {
     (a_M1 + b_1N - a_MD.matmul(b_ND.transpose()) * 2.0).clamp_min(0.0)
 }
 
-/// The kernel on squared distances: the mean over the widths of exp(−d / (2 w²)), same shape. All
-/// widths in one expression, as the research writes it (`objective.kernel`): `scales_11W` holds
-/// −2 w² per width.
+/// Multi-scale Gaussian kernel on squared distances: the mean over the four bandwidths of
+/// `exp(−d / (2 w²))`, same shape. `scales_11W` holds `−2 w²` per bandwidth.
 pub fn kernel(distances_MN: Tensor<2>, scales_11W: &Tensor<3>) -> Tensor<2> {
     let [rows, columns] = distances_MN.dims();
     (distances_MN.reshape([rows, columns, 1]) / scales_11W.clone()).exp().mean_dim(2).reshape([rows, columns])
@@ -128,7 +137,7 @@ pub struct LayerTerms {
     pub kernel_means: Option<[Tensor<1>; 2]>,
 }
 
-/// One layer of the set, standardized once (`objective.PreparedLayer`).
+/// One layer of the target set, standardized once at preparation.
 #[derive(Clone)]
 pub struct SetLayer {
     pub layer: Layer,
@@ -228,8 +237,8 @@ impl SetLayer {
     }
 }
 
-/// The element at index ⌊K/2⌋ of the K = N(N−1)/2 sorted squared distances above the diagonal of
-/// an [N, N] matrix (row-major), as the research takes its median.
+/// The element at index `⌊K/2⌋` of the `K = N(N−1)/2` sorted squared distances above the diagonal
+/// of an `[N, N]` row-major matrix.
 fn median_pairwise(distances_NN: &[f32], count: usize) -> f32 {
     let mut upper: Vec<f32> = (0..count).flat_map(|row| (row + 1..count).map(move |column| (row, column)))
         .map(|(row, column)| distances_NN[row * count + column])
@@ -239,7 +248,7 @@ fn median_pairwise(distances_NN: &[f32], count: usize) -> f32 {
 }
 
 async fn read(values: Tensor<1>) -> Result<Vec<f32>, String> {
-    let values = values.into_data_async().await.map_err(|e| e.to_string())?.try_to_vec::<f32>().map_err(|e| e.to_string())?;
+    let values = read_values(values).await?;
     if values.iter().any(|value| !value.is_finite()) {
         return Err("The target set's statistics are not finite".into());
     }
@@ -270,26 +279,26 @@ pub struct TargetSet {
 }
 
 impl TargetSet {
-    /// Read the windows [P, 3, 128, 128] (values in [0, 1]) with DINO in one pass, keep the 3 × 3
-    /// tokens around each window's dot and prepare every layer the request's method compares.
-    /// `frame_RD` is the request block's frame, [3, 768].
+    /// Read the windows `[P, 3, 128, 128]` (values in `[0, 1]`) with DINO in one pass, keep the
+    /// 3 × 3 tokens around each window's dot and prepare every layer the request's method compares.
+    /// `frame_RD` is the request block's frame, `[3, 768]`.
     pub async fn prepare(
         encoder: &Dino,
         calibration: &Calibration,
         frame_RD: &Tensor<2>,
         request: &FigureRequest,
-        windows_P3HW: Tensor<4>,
+        windows_PCHW: Tensor<4>,
         dots: &[usize],
     ) -> Result<Self, String> {
         request.validate()?;
-        let [pictures, channels, height, width] = windows_P3HW.dims();
+        let [pictures, channels, height, width] = windows_PCHW.dims();
         if !request.method.needs_set() || pictures != dots.len() || pictures == 0 || [channels, height, width] != [3, WINDOW_SIDE, WINDOW_SIDE] {
             return Err("A target set needs a set method and one 128 px RGB window per dot".into());
         }
         if dots.iter().any(|&dot| dot >= PATCHES) {
             return Err("A dot is a patch of the window's 8 × 8 grid".into());
         }
-        let device = windows_P3HW.device();
+        let device = windows_PCHW.device();
         let kept: Vec<i64> = dots.iter().enumerate()
             .flat_map(|(picture, &dot)| neighbourhood(dot).into_iter().map(move |patch| (picture * PATCHES + patch) as i64))
             .collect();
@@ -299,7 +308,7 @@ impl TargetSet {
             tokens_PTX.reshape([pictures * PATCHES, width]).select(0, kept_N.clone())
         };
         let blocks = request.intermediate_blocks();
-        let readout = encoder.readout(windows_P3HW, &blocks);
+        let readout = encoder.readout(windows_PCHW, &blocks);
         let native_PTD = readout.native_BTD.slice([0..pictures, PREFIX..PREFIX + PATCHES, 0..WIDTH]);
         let codes_NR = gathered(fixed_product(calibration.tokens(native_PTD.clone()), frame_RD));
         let mut layers = Vec::new();
@@ -309,7 +318,7 @@ impl TargetSet {
                 (_, Layer::Final) => gathered(native_PTD.clone()),
                 (_, Layer::Block(block)) => {
                     let position = blocks.iter().position(|&read| read == block).expect("every block layer is read");
-                    gathered(readout.intermediate_BPD[position].clone())
+                    gathered(readout.intermediate_BTD[position].clone())
                 }
             };
             layers.push(SetLayer::prepare(layer, features_ND).await?);
@@ -343,9 +352,8 @@ impl TargetSet {
     }
 }
 
-/// x Wᵀ for tokens [B, T, D] and a fixed matrix W [O, D], [B, T, O]: the codes on a frame, or the
-/// products with the set. On the GPU the engine's `frozen_linear`: in Chrome, Burn's generic matmul
-/// made token distribution's loss cost about 6 % of an update per layer (17 November 2026).
+/// `x Wᵀ` for tokens `[B, T, D]` and a fixed matrix `W [O, D]`, returning `[B, T, O]`.
+/// Uses `kernels::frozen_linear` on the GPU to avoid Burn's generic WebGPU `matmul` overhead.
 fn fixed_product(tokens_BTD: Tensor<3>, fixed_OD: &Tensor<2>) -> Tensor<3> {
     #[cfg(feature = "gpu")]
     return crate::kernels::frozen_linear(tokens_BTD, fixed_OD.clone());
@@ -358,8 +366,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn windows_follow_the_research_alignment() {
-        // library.aligned_window: row0 = clamp(row − 4, 0, 8), the dot is the patch's place inside.
+    fn windows_align_patch_near_centre() {
+        // Window origin is clamp(row − 4, 0, 8), and dot is the patch's index inside the 8 × 8 window.
         assert_eq!(aligned_window(148), Window { row: 5, column: 0, dot: 36 });
         assert_eq!(aligned_window(0), Window { row: 0, column: 0, dot: 0 });
         assert_eq!(aligned_window(255), Window { row: 8, column: 8, dot: 63 });
@@ -388,26 +396,26 @@ mod tests {
     }
 
     #[test]
-    fn the_median_is_the_research_upper_middle_element() {
+    fn median_pairwise_picks_upper_middle_element() {
         // Four points: six distances above the diagonal, sorted 1, 2, 3, 4, 5, 6; index 3 holds 4.
         let distances = [0.0, 1.0, 2.0, 3.0, 1.0, 0.0, 4.0, 5.0, 2.0, 4.0, 0.0, 6.0, 3.0, 5.0, 6.0, 0.0];
         assert_eq!(median_pairwise(&distances, 4), 4.0);
     }
 
-    /// The research's PreparedLayer and Objective on PCG-drawn tokens (tools/prepare_set_losses.py):
-    /// the prepared set, the loss and its terms, and the gradient with respect to the raw canvas.
+    /// Reference parity for prepared set statistics, loss terms, and canvas gradients on
+    /// PCG-drawn tokens (`tools/fixtures/target-set-losses.json`), without loading DINO weights.
     #[cfg(feature = "cpu")]
-    mod research_losses {
+    mod target_set_loss_parity {
         use super::super::*;
         use crate::grow::draws::Stream;
         use base64::{Engine as _, engine::general_purpose::STANDARD};
         use burn::tensor::Device;
         use serde::Deserialize;
 
-        /// Float32 on both sides with different summation orders: relative error of the values, and
-        /// relative RMS of the mean and the gradients. Measured on 2026-11-17: 7.4e-6 and 4.1e-7. The
-        /// largest value errors are the MMD values, differences of kernel means near 0.7 that leave
-        /// about 0.07, so 5e-7 of absolute rounding is 7e-6 of the value. A wrong formula shows at 1e-2.
+        /// Float32 on both sides with different summation orders: relative error of scalar terms,
+        /// and relative RMS of means and gradients. MMD values are differences of kernel means
+        /// near 0.7 leaving roughly 0.07, so ~5e-7 absolute rounding gives ~7e-6 relative error;
+        /// a formula error shows at 1e-2 or above.
         const VALUE_TOLERANCE: f64 = 3e-5;
         const VECTOR_TOLERANCE: f64 = 1e-5;
 
@@ -447,26 +455,22 @@ mod tests {
             STANDARD.decode(encoded).unwrap().chunks_exact(4).map(|bytes| f32::from_le_bytes(bytes.try_into().unwrap())).collect()
         }
 
-        /// The largest error seen, printed at the end (`--nocapture`), so the tolerances stay measured.
-        static LARGEST: std::sync::Mutex<[f64; 2]> = std::sync::Mutex::new([0.0, 0.0]);
-
-        fn relative(actual: f64, expected: f64) -> f64 {
+        fn relative(actual: f64, expected: f64, largest: &mut [f64; 2]) -> f64 {
             let error = (actual - expected).abs() / expected.abs().max(1e-12);
-            let mut largest = LARGEST.lock().unwrap();
             largest[0] = largest[0].max(error);
             error
         }
 
-        fn relative_rms(actual: &[f32], expected: &[f32]) -> f64 {
+        fn relative_rms(actual: &[f32], expected: &[f32], largest: &mut [f64; 2]) -> f64 {
             let error: f64 = actual.iter().zip(expected).map(|(a, e)| (*a as f64 - *e as f64).powi(2)).sum();
             let norm: f64 = expected.iter().map(|e| (*e as f64).powi(2)).sum();
             let error = (error / norm).sqrt();
-            let mut largest = LARGEST.lock().unwrap();
             largest[1] = largest[1].max(error);
             error
         }
 
-        /// prepare_set_losses.draw: y = 4 (u − 0.5) + 2 (v_d − 0.5), x = 3 (w − 0.5) + 0.25, in float32.
+        /// Deterministic token draws matching the fixture generator:
+        /// `y = 4 (u − 0.5) + 2 (v_d − 0.5)`, `x = 3 (w − 0.5) + 0.25`, in float32.
         fn draw(fixture: &Fixture, case: usize, layer: usize, count: usize, members: usize, width: usize) -> (Vec<f32>, Vec<f32>) {
             let stream = Stream::new(fixture.seed, fixture.purpose_key).at((case * 16 + layer) as u32);
             let uniform = |index: usize| stream.uniform(index as u32);
@@ -477,10 +481,11 @@ mod tests {
         }
 
         #[test]
-        fn the_losses_match_the_research_objective() {
+        fn losses_and_gradients_match_reference_fixture() {
             let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tools/fixtures/target-set-losses.json");
             let fixture: Fixture = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
             let device = Device::flex().autodiff();
+            let mut largest = [0.0_f64; 2];
             for (index, case) in fixture.cases.iter().enumerate() {
                 let method = serde_json::from_value::<Method>(serde_json::json!(case.name)).unwrap();
                 let mut layers = Vec::new();
@@ -490,39 +495,39 @@ mod tests {
                     let set_ND = Tensor::<2>::from_data(TensorData::new(set, [case.tokens, case.width]), &device);
                     let layer = pollster::block_on(SetLayer::prepare(Layer::try_from(name.clone()).unwrap(), set_ND)).unwrap();
                     let mean = pollster::block_on(read(layer.mean_1D.clone().flatten(0, 1))).unwrap();
-                    assert!(relative_rms(&mean, &floats(&expected.mean)) <= VECTOR_TOLERANCE, "{} {name}: the mean", case.name);
-                    assert!(relative(layer.unit as f64, expected.unit) <= VALUE_TOLERANCE, "{} {name}: the unit", case.name);
-                    assert!(relative(layer.median_distance as f64, expected.median_distance) <= VALUE_TOLERANCE, "{} {name}: the median", case.name);
+                    assert!(relative_rms(&mean, &floats(&expected.mean), &mut largest) <= VECTOR_TOLERANCE, "{} {name}: the mean", case.name);
+                    assert!(relative(layer.unit as f64, expected.unit, &mut largest) <= VALUE_TOLERANCE, "{} {name}: the unit", case.name);
+                    assert!(relative(layer.median_distance as f64, expected.median_distance, &mut largest) <= VALUE_TOLERANCE, "{} {name}: the median", case.name);
                     for (width, expected_width) in layer.widths.iter().zip(&expected.widths) {
-                        assert!(relative(*width as f64, *expected_width) <= VALUE_TOLERANCE, "{} {name}: a width", case.name);
+                        assert!(relative(*width as f64, *expected_width, &mut largest) <= VALUE_TOLERANCE, "{} {name}: a width", case.name);
                     }
-                    assert!(relative(layer.self_similarity as f64, expected.self_similarity) <= VALUE_TOLERANCE, "{} {name}: E k(y, y')", case.name);
+                    assert!(relative(layer.self_similarity as f64, expected.self_similarity, &mut largest) <= VALUE_TOLERANCE, "{} {name}: E k(y, y')", case.name);
                     layers.push(layer);
                     canvases.push(Tensor::<2>::from_data(TensorData::new(canvas, [case.canvas, case.width]), &device).require_grad());
                 }
                 let target = TargetSet { method, block: 0, pictures: 0, layers, codes_NR: Vec::new(), pictures_N: Vec::new() };
                 let loss = target.loss(canvases.clone());
                 let value = pollster::block_on(read(loss.value.clone())).unwrap()[0];
-                assert!(relative(value as f64, case.value) <= VALUE_TOLERANCE, "{}: the loss {value} against {}", case.name, case.value);
+                assert!(relative(value as f64, case.value, &mut largest) <= VALUE_TOLERANCE, "{}: the loss {value} against {}", case.name, case.value);
                 for (name, terms) in case.layers.iter().zip(&loss.layers) {
                     let layer_value = pollster::block_on(read(terms.value.clone())).unwrap()[0] as f64;
                     let key = if method.compares_distributions() { format!("mmd_{name}") } else { format!("point_{name}") };
-                    assert!(relative(layer_value, case.terms[&key]) <= VALUE_TOLERANCE, "{}: {key}", case.name);
+                    assert!(relative(layer_value, case.terms[&key], &mut largest) <= VALUE_TOLERANCE, "{}: {key}", case.name);
                     if let Some([gathered, approached]) = &terms.kernel_means {
                         let gathered = pollster::block_on(read(gathered.clone())).unwrap()[0] as f64;
                         let approached = pollster::block_on(read(approached.clone())).unwrap()[0] as f64;
-                        assert!(relative(gathered, case.terms[&format!("mmd_xx_{name}")]) <= VALUE_TOLERANCE, "{}: E k(x, x')", case.name);
-                        assert!(relative(approached, case.terms[&format!("mmd_xy_{name}")]) <= VALUE_TOLERANCE, "{}: E k(x, y)", case.name);
+                        assert!(relative(gathered, case.terms[&format!("mmd_xx_{name}")], &mut largest) <= VALUE_TOLERANCE, "{}: E k(x, x')", case.name);
+                        assert!(relative(approached, case.terms[&format!("mmd_xy_{name}")], &mut largest) <= VALUE_TOLERANCE, "{}: E k(x, y)", case.name);
                     }
                 }
                 let gradients = loss.value.backward();
                 for ((canvas, expected), name) in canvases.iter().zip(&case.gradients).zip(&case.layers) {
                     let gradient = canvas.grad(&gradients).unwrap().into_data().try_to_vec::<f32>().unwrap();
-                    let error = relative_rms(&gradient, &floats(expected));
+                    let error = relative_rms(&gradient, &floats(expected), &mut largest);
                     assert!(error <= VECTOR_TOLERANCE, "{} {name}: gradient relative RMS {error}", case.name);
                 }
             }
-            let [values, vectors] = *LARGEST.lock().unwrap();
+            let [values, vectors] = largest;
             eprintln!("largest relative error of a value {values:.2e}, relative RMS of a vector {vectors:.2e}");
         }
     }

@@ -293,6 +293,13 @@ impl BrowserEngine {
                 &JsValue::from_str(&serde_json::to_string(check).expect("Finite numerical metrics")),
             );
         };
+        let image_ids: Vec<u64> = image_ids
+            .into_iter()
+            .map(super::image_id)
+            .collect::<Result<_, _>>()?;
+        if image_ids.len() != previews.len() {
+            return Err(error("Image ids and previews must have the same length"));
+        }
         let engine = self
             .engine
             .as_mut()
@@ -304,8 +311,7 @@ impl BrowserEngine {
             optimizer: specs.optimizer,
             editable: editable.iter().map(|&cell| cell != 0).collect(),
             previews: image_ids
-                .iter()
-                .map(|&id| id as u64)
+                .into_iter()
                 .zip(previews.iter().map(Vec::as_slice))
                 .collect(),
         };
