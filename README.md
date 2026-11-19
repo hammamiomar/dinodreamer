@@ -2,7 +2,7 @@
 
 DinoDreamer is a tool for seeing what [DINOv3](https://ai.meta.com/research/dinov3/), a vision model from
 Meta, has learned. It reads DINOv3's patch tokens with a
-[block sparse featurizer](https://arxiv.org/abs/2606.25234): 16,384 three-dimensional subspaces, called
+[block-sparse featurizer](https://arxiv.org/abs/2606.25234): 16,384 three-dimensional subspaces, called
 basis groups. For a basis group, it trains a
 [neural cellular automaton](https://distill.pub/2020/growing-ca/) that grows an image the group responds
 to. DINOv3 and the featurizer stay frozen.
