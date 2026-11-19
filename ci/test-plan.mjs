@@ -5,6 +5,7 @@ import { relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { layoutViewports } from "../app/tests/how-layout-viewports.mjs";
 
+import { dataDirectory, readDiff, testScope } from "./test-scope.mjs";
 import { balance, recordedDurations, unitProjects, unitShards } from "./test-shards.mjs";
 
 const root = resolve(import.meta.dirname, "..");
@@ -31,60 +32,6 @@ async function relatedFiles(project, related, include) {
   } finally {
     await context.close();
   }
-}
-
-function readDiff(base) {
-  // HEAD is the merge result tested by Actions. Retain both sides of a rename.
-  const fields = execFileSync("git", ["diff", "--no-renames", "--name-status", "-z", base, "HEAD"], {
-    cwd: root,
-    encoding: "utf8",
-  }).split("\0");
-  fields.pop();
-  const changes = [];
-  for (let index = 0; index < fields.length; index += 2)
-    changes.push({ status: fields[index], file: fields[index + 1] });
-  return changes;
-}
-
-const dataDirectory = /^(?:app\/(?:fixtures|public)|gallery\/seed|engine\/tools\/fixtures)\//;
-const projectConfiguration =
-  /\/(?:package\.json|pnpm-.*\.yaml|.*config\.(?:[cm]?[jt]s|jsonc?)|\.env(?:\..*)?|.*\.d\.ts)$/;
-
-function requiresFullCheck({ file, status }) {
-  if (status === "D" || !/^(app|gallery|engine)\//.test(file)) return true;
-  if (projectConfiguration.test(file)) return true;
-  // An unknown addition can introduce a new input that neither the current graph nor
-  // the input directories describe. Ordinary new modules are resolved on the merge result.
-  return status !== "M" && !moduleFile.test(file) && !dataDirectory.test(file);
-}
-
-function testScope(diff) {
-  const changes = (diff ?? []).filter(
-    ({ file }) =>
-      !/(^|\/)(README|AGENTS)\.md$/.test(file) &&
-      !/^ci\/.+\.md$/.test(file) &&
-      !["LICENSE", "NOTICE", "engine/set-methods-ledger.md"].includes(file),
-  );
-  const paths = changes.map((change) => change.file);
-  const engine = paths.filter((file) => file.startsWith("engine/"));
-  const full = diff === null || changes.some((change) => requiresFullCheck(change));
-  const runtime = full || engine.some((file) => !/^engine\/(tests|examples|tools|benchmarks)\//.test(file));
-  return {
-    paths,
-    full,
-    runtime,
-    cargo:
-      runtime ||
-      engine.some((file) => /^engine\/(tests|examples)\/.+\.rs$/.test(file)) ||
-      paths.includes("engine/tools/fixtures/target-set-losses.json"),
-    engineNode:
-      runtime ||
-      engine.some(
-        (file) =>
-          /^engine\/(benchmarks|tools\/fixtures)\//.test(file) || /^engine\/tests\/.+\.test\.ts$/.test(file),
-      ) ||
-      paths.some((file) => file.startsWith("app/src/synthesis/")),
-  };
 }
 
 // The loader and fixture tests also read files through Node. Treat a changed data file as
@@ -179,22 +126,10 @@ export default async function planTests(diff) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  const base = process.argv[2];
-  const plan = await planTests(base && base !== "--all" ? readDiff(base) : null);
+  const plan = await planTests(readDiff(process.argv[2]));
   console.log(JSON.stringify(plan, null, 2));
   if (process.env.GITHUB_OUTPUT) {
-    const fields = {
-      matrix: JSON.stringify({ include: plan.jobs }),
-      tests: plan.jobs.length > 0,
-      cargo: plan.cargo,
-      engineNode: plan.engineNode,
-      planner: plan.planner,
-    };
-    appendFileSync(
-      process.env.GITHUB_OUTPUT,
-      Object.entries(fields)
-        .map(([name, value]) => name + "=" + value + "\n")
-        .join(""),
-    );
+    const include = plan.jobs.filter((job) => job.kind === "browser");
+    appendFileSync(process.env.GITHUB_OUTPUT, "browsers=" + JSON.stringify({ include }) + "\n");
   }
 }

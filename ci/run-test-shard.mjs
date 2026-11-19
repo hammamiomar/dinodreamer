@@ -23,7 +23,13 @@ if (kind === "browser") {
   for (const project of unitProjects) {
     const tests = files.filter((file) => file.startsWith(project + "/")).map((file) => resolve(root, file));
     if (!tests.length) continue;
-    const args = ["exec", "vitest", "run", "--maxWorkers=2", "--passWithNoTests=false"];
+    const args = [
+      "exec",
+      "vitest",
+      "run",
+      "--maxWorkers=" + (process.env.CI_UNIT_WORKERS ?? "2"),
+      "--passWithNoTests=false",
+    ];
     const env = { ...process.env, MATERIAL_AUDIT: "1" };
     if (timingDirectory) {
       env.TEST_DURATION_FILE = resolve(timingDirectory, "unit-" + shard + "-" + project + ".json");

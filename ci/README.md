@@ -18,7 +18,7 @@ Use Node 24 and the pnpm version in each project's `package.json`. Install the f
 | Run Rust CPU tests | From `engine`, run `cargo test --locked --no-default-features --features cpu`. |
 | Run the engine's Node tests | `node --test engine/tests/*.test.ts` |
 
-CI pins Bun 1.4.4. It checks that Bun's embedded TypeScript version matches each project's locked compiler before checking code. The release workflow uses each project's existing build command. The check workflow runs Vite once and checks types in a separate job.
+CI pins Bun 1.4.4. It checks that Bun's embedded TypeScript version matches each project's locked compiler before checking code. The release workflow uses each project's existing build command. The web job installs dependencies once. It runs Vite, both type checks, lint and the selected unit shards in parallel. The Rust CPU job starts at the same time and reads the diff without installing JavaScript dependencies.
 
 Oxlint enables all seven rule categories. The root configuration lists each exception with its reason and scope. It excludes vendored Rust, generated packages and local build output. Lint needs the engine declarations for type-aware rules.
 
@@ -26,7 +26,7 @@ Oxlint enables all seven rule categories. The root configuration lists each exce
 
 On a pull request, the planner compares the base commit to the checked-out merge result. Vitest resolves imports from each project to find affected tests, including tests that consume the other project’s source. The planner also accounts for setup files, source-tree scans, subprocess entry points and files read from disk. Changes to configuration, deleted code or unrecognized inputs can select the complete suite. When a test starts reading a file outside its import graph, record that dependency in the planner and exercise it in the selection tests.
 
-The planner assigns extra unit shards to the project with the most recorded work per shard. Each large shard starts Vitest once. A small change across projects can share one job. Within a suite, the planner assigns the longest remaining test to the lightest shard.
+The web job caps each unit shard at two workers and divides the available CPU cores across concurrent shards. The planner assigns extra unit shards to the project with the most recorded work per shard. Each large shard starts Vitest once. A small change across projects can share one job. Within a suite, the planner assigns the longest remaining test to the lightest shard.
 
 Browser tests run on pushes to main. Main also runs every unit suite and the Rust CPU tests. Test shards report measured durations per file. The How layout test reports one duration for each viewport. GitHub saves these measurements together after all shards pass. A later run uses this cache or starts from the measurements in `test-durations.json`. A new file receives its suite's median duration until main records it.
 
