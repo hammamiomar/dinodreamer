@@ -21,7 +21,7 @@ export async function startOwnerWorker(definition, appUrl) {
   }
 
   const canvas = { recipe: recipe(), image: PNG, credit: "" };
-  for (const [index, title] of ["First canvas", "Second canvas", "Interrupted canvas"].entries()) {
+  for (const [index, title] of ["First canvas", "Second canvas", "Interrupted canvas", "Third canvas", "Fourth canvas"].entries()) {
     const id = `20260101-13000${index}-1234abcd`;
     await storeSubmission(submissions, id, { ...canvas, title }, now);
     if (title === "Interrupted canvas") {

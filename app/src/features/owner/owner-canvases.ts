@@ -1,3 +1,4 @@
+import { SITE_WORDS } from "../../app/site-words";
 import { ownerError } from "./owner-materials";
 
 interface CanvasRecord {
@@ -36,12 +37,12 @@ export async function fetchOwnerCanvases(): Promise<CanvasLists> {
   const lists = [pending, published, hidden];
   if (!lists.every((list) => Array.isArray(list) && list.every((row) =>
     row && typeof row.id === "string" && typeof row.title === "string" && typeof row.credit === "string"))) {
-    throw new Error("Invalid canvas review lists.");
+    throw new Error(SITE_WORDS.owner.badCanvasLists);
   }
   if (!pending.every((row: PendingCanvas) =>
     (row.state === "pending" || row.state === "cleanup unfinished") &&
     (row.blocks === null || (Array.isArray(row.blocks) && row.blocks.every(Number.isInteger))))) {
-    throw new Error("Invalid pending canvas.");
+    throw new Error(SITE_WORDS.owner.badPendingCanvas);
   }
   return { pending, published, hidden };
 }

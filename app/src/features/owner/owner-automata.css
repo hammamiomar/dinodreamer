@@ -243,7 +243,8 @@
 }
 
 .owner-canvas-card p { margin: 0; }
-.owner-canvas-actions { display: flex; gap: var(--space-3); }
+.owner-canvas-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.owner-canvas-confirmation { flex-basis: 100%; }
 
 .owner-automaton-label { grid-column: 1 / -1; }
 @media (max-width: 640px) { .owner-automaton-label { order: 2; } }

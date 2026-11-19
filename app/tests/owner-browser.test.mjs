@@ -17,7 +17,7 @@ test("the owner reviews both submission queues and edits a published label on th
     const document = await page.goto(base + "/admin");
     assert.equal(document.headers()["x-robots-tag"], "noindex");
 
-    await page.getByText(/Canvas review · 3 pending/).click();
+    await page.getByText(/Canvas review · 5 pending/).click();
     const pending = page.getByRole("region", { name: "Pending canvases" });
     const shown = page.getByRole("region", { name: "Shown canvases" });
     const hidden = page.getByRole("region", { name: "Hidden canvases" });
@@ -26,16 +26,29 @@ test("the owner reviews both submission queues and edits a published label on th
     await action(pending, "Interrupted canvas", "Finish cleanup");
     await row(pending, "Interrupted canvas").waitFor({ state: "detached" });
     await row(shown, "Interrupted canvas").waitFor();
-    page.once("dialog", (dialog) => dialog.accept());
-    await action(pending, "Second canvas", "Reject");
+    await action(pending, "Second canvas", "Reject…");
+    await row(pending, "Second canvas").getByText("Permanently reject “Second canvas”?").waitFor();
+    await action(pending, "Second canvas", "Cancel");
+    await action(pending, "Second canvas", "Reject…");
+    await action(pending, "Second canvas", "Reject for good");
     await row(pending, "Second canvas").waitFor({ state: "detached" });
     await action(pending, "First canvas", "Approve");
     await action(shown, "First canvas", "Hide");
     await action(hidden, "First canvas", "Restore");
-    page.once("dialog", (dialog) => dialog.accept());
-    await action(shown, "First canvas", "Purge");
+    await action(shown, "First canvas", "Purge…");
+    await action(shown, "First canvas", "Cancel");
+    await action(shown, "First canvas", "Purge…");
+    await action(shown, "First canvas", "Purge for good");
     await row(shown, "First canvas").waitFor({ state: "detached" });
     await page.getByText(/Clear the cached files/).waitFor();
+    await pending.getByRole("button", { name: "Approve all…" }).click();
+    await pending.getByText("Publish all 2 pending canvases?").waitFor();
+    await pending.getByRole("button", { name: "Cancel" }).click();
+    await pending.getByRole("button", { name: "Approve all…" }).click();
+    await pending.getByRole("button", { name: "Publish all" }).click();
+    await row(shown, "Third canvas").waitFor();
+    await row(shown, "Fourth canvas").waitFor();
+    assert.equal(await pending.getByRole("listitem").count(), 0);
 
     await page.getByRole("link", { name: "2 automata await review" }).click();
     await page.getByRole("button", { name: "Approve", exact: true }).click();

@@ -1,5 +1,18 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { fillNodes } from "../../app/fill-nodes";
+import { fill, SITE_WORDS } from "../../app/site-words";
 import { fetchOwnerCanvases, reviewCanvases, type CanvasCachePurge, type CanvasLists, type CanvasReviewAction, type PublishedCanvas } from "./owner-canvases";
+
+const OWNER = SITE_WORDS.automataOwner;
+const WORDS = OWNER.canvasReview;
+
+interface CanvasConfirmation {
+  target: string;
+  question: string;
+  confirmLabel: string;
+  command: CanvasReviewAction;
+  success: string;
+}
 
 const description = (error: unknown) => error instanceof Error ? error.message : String(error);
 const thumbnail = (id: string) => `/admin/api/gallery/${encodeURIComponent(id)}/thumbnail.webp`;
@@ -13,7 +26,7 @@ function CanvasCard({ entry, image, detail, children }: {
   return <li className="owner-canvas-card">
     <img src={image} loading="lazy" alt="" width={96} height={96} />
     <div>
-      <strong>{entry.title || "Untitled canvas"}</strong>
+      <strong>{entry.title || WORDS.untitled}</strong>
       {entry.credit && <p>{entry.credit}</p>}
       <p>{detail}</p>
       <small>{entry.id}</small>
@@ -30,6 +43,7 @@ export function CanvasReview() {
   const [loadError, setLoadError] = useState("");
   const [notice, setNotice] = useState("");
   const [purges, setPurges] = useState<CanvasCachePurge[]>([]);
+  const [asking, setAsking] = useState<string | null>(null);
   useEffect(() => {
     let current = true;
     fetchOwnerCanvases().then(
@@ -39,8 +53,9 @@ export function CanvasReview() {
     return () => { current = false; };
   }, [revision]);
 
-  async function act(command: CanvasReviewAction, success: string, confirmation?: string) {
-    if (busy || (confirmation && !window.confirm(confirmation))) return;
+  async function act(command: CanvasReviewAction, success: string) {
+    if (busy) return;
+    setAsking(null);
     setBusy(true);
     try {
       const purge = await reviewCanvases(command);
@@ -54,54 +69,83 @@ export function CanvasReview() {
     }
   }
 
-  if (loadError) return <p role="alert">Canvas review could not load. {loadError}{" "}
+  if (loadError) return <p role="alert">{fill(WORDS.loadFailed, { message: loadError })}{" "}
     <button className="link-control" type="button" disabled={busy} onClick={() => {
       setBusy(true);
       setRevision((previous) => previous + 1);
-    }}>Retry</button>
+    }}>{WORDS.retry}</button>
   </p>;
   if (!lists || (!notice && !lists.pending.length && !lists.published.length && !lists.hidden.length)) return null;
   const awaiting = lists.pending.filter((entry) => entry.state === "pending");
-  const purgeButton = (entry: PublishedCanvas) => <button className="link-control" type="button" disabled={busy}
-    onClick={() => void act({ action: "purge", id: entry.id }, "Canvas purged.", `Permanently delete “${entry.title}”, its picture and its recipe?`)}>Purge</button>;
+
+  function confirmBefore(label: string, request: CanvasConfirmation) {
+    if (asking !== request.target) {
+      return <button className="link-control" type="button" disabled={busy} onClick={() => setAsking(request.target)}>{label}</button>;
+    }
+    return <div className="owner-canvas-confirmation">
+      <p role="status">{request.question}</p>
+      <div className="owner-canvas-actions">
+        <button className="link-control" type="button" disabled={busy}
+          onClick={() => void act(request.command, request.success)}>{request.confirmLabel}</button>
+        <button className="link-control" type="button" onClick={() => setAsking(null)}>{SITE_WORDS.publish.cancel}</button>
+      </div>
+    </div>;
+  }
+
+  const purgeButton = (entry: PublishedCanvas) => confirmBefore(OWNER.actions.purge, {
+    target: entry.id,
+    question: fill(WORDS.purgeWarning, { title: entry.title || WORDS.untitled }),
+    confirmLabel: OWNER.purgeForGood,
+    command: { action: "purge", id: entry.id },
+    success: WORDS.purged,
+  });
 
   return <details className="owner-canvas-review">
-    <summary>Canvas review · {lists.pending.length} pending · {lists.published.length} shown · {lists.hidden.length} hidden</summary>
+    <summary>{fill(WORDS.summary, { pending: lists.pending.length, shown: lists.published.length, hidden: lists.hidden.length })}</summary>
     {notice && <p role="status">{notice}</p>}
-    {purges.map(({ place, prefix }) => <p key={prefix}>Clear the cached files at {place} for <code>{prefix}</code>.</p>)}
-    <section aria-label="Pending canvases">
-      <h3>Pending canvases</h3>
-      {awaiting.length > 1 && <button className="link-control" type="button" disabled={busy}
-        onClick={() => void act({ action: "approve", ids: awaiting.map((entry) => entry.id) }, "Canvases approved.",
-          `Publish all ${awaiting.length} pending canvases?`)}>Approve all</button>}
+    {purges.map(({ place, prefix }) => <p key={prefix}>{fillNodes(WORDS.clearCache, { place, prefix: <code>{prefix}</code> })}</p>)}
+    <section aria-label={WORDS.pending}>
+      <h3>{WORDS.pending}</h3>
+      {awaiting.length > 1 && confirmBefore(WORDS.approveAll, {
+        target: "approve-all",
+        question: fill(WORDS.approveAllWarning, { count: awaiting.length }),
+        confirmLabel: WORDS.publishAll,
+        command: { action: "approve", ids: awaiting.map((entry) => entry.id) },
+        success: WORDS.approvedAll,
+      })}
       <ul>{lists.pending.map((entry) => {
         const unfinished = entry.state === "cleanup unfinished";
-        const detail = unfinished ? "Approval cleanup unfinished" :
-          [entry.release, entry.submittedAt, entry.blocks === null ? "Recipe missing" : `Basis groups ${entry.blocks.join(", ")}`].join(" · ");
+        const groups = entry.blocks === null ? WORDS.recipeMissing : fill(WORDS.basisGroups, { groups: entry.blocks.join(", ") });
+        const detail = unfinished ? WORDS.unfinished : [entry.release, entry.submittedAt, groups].join(" · ");
         return <CanvasCard key={entry.id} entry={entry} detail={detail}
           image={unfinished ? thumbnail(entry.id) : `/admin/api/pending/${encodeURIComponent(entry.id)}/image.png`}>
           <button className="link-control" type="button" disabled={busy}
-            onClick={() => void act({ action: "approve", ids: [entry.id] }, unfinished ? "Cleanup finished." : "Canvas approved.")}>
-            {unfinished ? "Finish cleanup" : "Approve"}
+            onClick={() => void act({ action: "approve", ids: [entry.id] }, unfinished ? WORDS.cleanupFinished : WORDS.approved)}>
+            {unfinished ? WORDS.finishCleanup : OWNER.approve}
           </button>
-          {!unfinished && <button className="link-control" type="button" disabled={busy}
-            onClick={() => void act({ action: "reject", id: entry.id }, "Canvas rejected.", `Permanently reject “${entry.title}”?`)}>Reject</button>}
+          {!unfinished && confirmBefore(OWNER.reject, {
+            target: entry.id,
+            question: fill(WORDS.rejectWarning, { title: entry.title || WORDS.untitled }),
+            confirmLabel: OWNER.rejectForGood,
+            command: { action: "reject", id: entry.id },
+            success: WORDS.rejected,
+          })}
         </CanvasCard>;
       })}</ul>
     </section>
-    <section aria-label="Shown canvases">
-      <h3>Shown canvases</h3>
-      <ul>{lists.published.map((entry) => <CanvasCard key={entry.id} entry={entry} image={thumbnail(entry.id)} detail={`Published ${entry.publishedAt}`}>
+    <section aria-label={WORDS.shown}>
+      <h3>{WORDS.shown}</h3>
+      <ul>{lists.published.map((entry) => <CanvasCard key={entry.id} entry={entry} image={thumbnail(entry.id)} detail={fill(WORDS.publishedAt, { date: entry.publishedAt })}>
         <button className="link-control" type="button" disabled={busy}
-          onClick={() => void act({ action: "hide", id: entry.id }, "Canvas hidden.")}>Hide</button>
+          onClick={() => void act({ action: "hide", id: entry.id }, WORDS.canvasHidden)}>{OWNER.actions.hide}</button>
         {purgeButton(entry)}
       </CanvasCard>)}</ul>
     </section>
-    <section aria-label="Hidden canvases">
-      <h3>Hidden canvases</h3>
-      <ul>{lists.hidden.map((entry) => <CanvasCard key={entry.id} entry={entry} image={thumbnail(entry.id)} detail={`Hidden ${entry.hiddenAt}`}>
+    <section aria-label={WORDS.hidden}>
+      <h3>{WORDS.hidden}</h3>
+      <ul>{lists.hidden.map((entry) => <CanvasCard key={entry.id} entry={entry} image={thumbnail(entry.id)} detail={fill(WORDS.hiddenAt, { date: entry.hiddenAt })}>
         <button className="link-control" type="button" disabled={busy}
-          onClick={() => void act({ action: "restore", id: entry.id }, "Canvas restored.")}>Restore</button>
+          onClick={() => void act({ action: "restore", id: entry.id }, WORDS.restored)}>{WORDS.restore}</button>
         {purgeButton(entry)}
       </CanvasCard>)}</ul>
     </section>

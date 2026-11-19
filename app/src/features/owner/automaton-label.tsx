@@ -1,6 +1,9 @@
 import { useState, type FormEvent } from "react";
+import { SITE_WORDS } from "../../app/site-words";
 import type { MaterialEntry } from "../gallery/material-index";
 import { renameOwnerMaterial } from "./owner-materials";
+
+const WORDS = SITE_WORDS.automataOwner;
 
 export function AutomatonLabel({ entry, busy, setBusy, onSaved }: {
   entry: MaterialEntry;
@@ -19,7 +22,7 @@ export function AutomatonLabel({ entry, busy, setBusy, onSaved }: {
       const saved = await renameOwnerMaterial(entry.id, title, credit);
       setTitle(saved.title);
       setCredit(saved.credit);
-      setMessage("Saved");
+      setMessage(WORDS.nameSaved);
       onSaved(saved);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
@@ -28,11 +31,11 @@ export function AutomatonLabel({ entry, busy, setBusy, onSaved }: {
     }
   }
   return <details className="owner-automaton-label">
-    <summary>Edit title and credit</summary>
+    <summary>{WORDS.editLabel}</summary>
     <form onSubmit={(event) => void save(event)}>
-      <label>Automaton title<input value={title} disabled={busy} onChange={(event) => { setTitle(event.target.value); setMessage(""); }} /></label>
-      <label>Credit<input value={credit} disabled={busy} onChange={(event) => { setCredit(event.target.value); setMessage(""); }} /></label>
-      <button type="submit" className="button" disabled={busy || (title === entry.title && credit === entry.credit)}>Save label</button>
+      <label>{WORDS.automatonTitle}<input value={title} disabled={busy} onChange={(event) => { setTitle(event.target.value); setMessage(""); }} /></label>
+      <label>{SITE_WORDS.publish.credit}<input value={credit} disabled={busy} onChange={(event) => { setCredit(event.target.value); setMessage(""); }} /></label>
+      <button type="submit" className="button" disabled={busy || (title === entry.title && credit === entry.credit)}>{WORDS.saveLabel}</button>
       <span role="status">{message}</span>
     </form>
   </details>;
