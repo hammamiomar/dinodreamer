@@ -2,11 +2,11 @@ import {
   FIGURE_METHODS, methodNeedsSet, methodReadsTokens, type FigureLayer, type FigureMethod,
 } from "../materials/material-file";
 
-// Train's method: one choice of space and one of comparison (research/given-set, "The four methods").
-// The space is the basis group, the 3 numbers it reads from a token, or the token, DINO's 768 numbers
-// for a patch. Mean matching asks for the canvas's average; distribution matching asks the canvas's
-// patches to be spread like the target set's. Every method but basis-group mean matching compares the
-// canvas with a target set (target-set.ts). The engine computes each loss (engine/src/grow/figure.rs).
+// Training methods combine a representation space ("basis-group" or "token") with a comparison
+// objective ("mean" or "distribution"). Basis-group space uses the 3-number block code; token space
+// uses the 768-number DINO patch vector. Mean matching targets the canvas average; distribution
+// matching aligns the canvas patch distribution with the target set. Every method except
+// basis-group mean matching compares against a target set (target-set.ts).
 
 export type TrainSpace = "basis-group" | "token";
 export type TrainComparison = "mean" | "distribution";

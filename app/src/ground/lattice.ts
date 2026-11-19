@@ -30,9 +30,8 @@ const BRIGHT = "rgb(255 255 255 / 0.085)";
  */
 export const BEND_AT_END = 0.35;
 /**
- * The turn θ of the quadratic term. With θ = −90° the bend runs along the scroll: the window's
- * left and right edges rise and its top and bottom sink, as if the page were read off a sheet
- * that curves away from the reader. With θ = 0 (the brief's first form) the sheet folds sideways.
+ * Turn angle θ of the quadratic term. With θ = −90°, the bend follows scroll: the left and right
+ * edges rise while the top and bottom sink, curving away from the reader.
  */
 export const BEND_TURN_RAD = -Math.PI / 2;
 
@@ -131,7 +130,7 @@ export function latticeLines(view: LatticeView): LatticeLine[] {
 }
 
 /** Draw the lattice: two strokes, the faint lines and then the bright ones. */
-export function drawLattice(context: CanvasRenderingContext2D, view: LatticeView): void {
+function drawLattice(context: CanvasRenderingContext2D, view: LatticeView): void {
   const lines = latticeLines(view);
   context.clearRect(0, 0, view.width, view.height);
   context.lineWidth = 1;

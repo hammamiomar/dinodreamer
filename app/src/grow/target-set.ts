@@ -4,11 +4,10 @@ import {
 } from "../materials/material-file";
 import type { MaterialPoint, StrengthCuts } from "../recipe";
 
-// The target set of a set method: the patches the visitor selected on a
-// group's page and sent to Train; with no selection, the group's strongest pictures in its public sample
-// cloud, which is the research's own set. Either way the research's rule picks the pictures (its given-set
-// selection: selection.Band(block, "pole"), given_set.build with "3x3"). The page resolves the set
-// and shows it; the worker fetches the pictures and has the engine prepare them once per run.
+// Target set for set-based training methods: uses the patches selected by the user, or
+// defaults to the group's strongest public sample patches when no selection is given.
+// Both paths apply the same selection rule over 3x3 patch neighbourhoods. The page resolves
+// and renders the set; the worker fetches the pictures and prepares them once per run.
 
 /** The research's standard set: at most this many pictures. Fewer is allowed, down to one. */
 export const SET_PICTURES = MOST_SET_PICTURES;
@@ -64,12 +63,12 @@ export function selectionCandidates(points: readonly MaterialPoint[]): SetCandid
     : []);
 }
 
-/** The fewest pictures a distribution method takes (decision 15, 17 November 2026): one picture is not a distribution. */
+/** Minimum picture count for a distribution method: one picture does not define a distribution. */
 export const FEWEST_DISTRIBUTION_PICTURES = 2;
 
 /**
- * Why a method cannot train toward a set, or null when it can (decision 15): a set needs a picture, and a
- * distribution method needs FEWEST_DISTRIBUTION_PICTURES. A mean method takes a set of one picture.
+ * Reason a method cannot train toward a set, or null when valid: a set needs at least one picture,
+ * and a distribution method needs at least FEWEST_DISTRIBUTION_PICTURES.
  */
 export function setRefusal(method: FigureMethod, set: FigureTargetSet): "empty" | "one-picture" | null {
   if (set.pictures.length === 0) return "empty";
@@ -78,8 +77,8 @@ export function setRefusal(method: FigureMethod, set: FigureTargetSet): "empty" 
 }
 
 /**
- * Whether a selection lies only at Level 1 or Level 2, by Look's band rule on the reference patch's cuts
- * (decision 15): a weak level tends to grow what surrounds the group's subject. False without library patches.
+ * True when every library patch in the selection falls in Level 1 or Level 2 ("barely" or "weakly"):
+ * weak levels tend to grow the surrounding context rather than the group's subject. False without library patches.
  */
 export function weakSelection(points: readonly MaterialPoint[], strength: StrengthCuts): boolean {
   const library = points.filter((point) => point.source === "library");

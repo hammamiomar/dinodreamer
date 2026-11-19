@@ -1,18 +1,18 @@
-// The live grid's loop for a set method (nara and the Train owner, 17 November 2026). A set method's
-// automaton is worth seeing near steps 100 to 400 and can fade by 2,000, so its live grid does not grow
-// on for thousands of steps: it starts from the live seed's start, grows to the loop's end, holds that
-// picture, and starts again from the same noise. Each reading falls at the loop's end, so one compares
-// with the next. During training the end is LIVE_LOOP_STEPS; after the run, the automaton's own reading
-// step (figure-recipe.ts readingStep). A brush stroke postpones the restart, so a visitor sees what the
-// damage does. Basis-group mean matching keeps its continuous live grid. The worker applies each turn.
+// Live-grid loop for set-based training methods. Set-method automata typically peak near
+// steps 100-400 and can fade by 2,000, so the live grid runs from its start state to the
+// loop end, holds that frame, and restarts from the same seed. Readings occur at the loop
+// end so consecutive updates stay comparable. During training the end is LIVE_LOOP_STEPS;
+// after training it uses the automaton's reading step (figure-recipe.ts readingStep).
+// A brush stroke delays the restart so damage remains visible. Basis-group mean matching
+// keeps a continuous live grid instead.
 
-/** The step a set method's live grid grows to while it trains: the research's peak is 100 to 400. */
+/** Step a set method's live grid advances to while training. */
 export const LIVE_LOOP_STEPS = 400;
 /**
- * Steps the live grid grows per training update in the loop: a loop of 50 updates, about 12 s on an RTX
- * 2080 Super. 16 would make it 25 updates, but cost 5.1 % of the time per update there (paired runs of
- * token distribution on group 12002 to update 300, wall time per update over updates 50 to 300: 8 steps
- * 237.2 and 252.4 ms, 16 steps 254.9 and 259.8 ms, 17 November 2026), above the 3 % that would allow it.
+ * Steps the live grid advances per training update during the loop (50 updates per cycle).
+ * Using 16 steps added 5.1% wall time per update on an RTX 2080 Super (paired runs over
+ * updates 50-300, 2026-11-17: 8 steps 237.2/252.4 ms vs 16 steps 254.9/259.8 ms), above
+ * the 3% overhead limit.
  */
 export const LIVE_LOOP_STEPS_PER_UPDATE = 8;
 /** How long the loop's end picture holds before the grid starts again, and how long a brush stroke postpones that. */

@@ -114,7 +114,7 @@ ${display}
 `;
   return `${header}
 const FIRE_RATE: f32 = ${wgslFloat(file.rule.fireRate)};
-const HIDDEN_NOISE: f32 = ${wgslFloat(sigma)}; // reserved playback noise; 0 is E18's playback
+const HIDDEN_NOISE: f32 = ${wgslFloat(sigma)}; // reserved playback noise; 0 disables it
 const START_DISC: f32 = ${wgslFloat(startDisc)}; // seeded start radius in cells; 0 starts from noise everywhere
 const START_BACKGROUND: f32 = ${wgslFloat(startBackground)}; // the start draw's amplitude outside the disc; 0 is zero there
 ${FIGURE_WGSL.hash}${FIGURE_WGSL.start}

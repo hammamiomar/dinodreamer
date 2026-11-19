@@ -5,7 +5,7 @@
 // State x has shape [side·side, 16], row-major cells, float32. One tick:
 //   fires(cell)  = u24(pcg(pcg(pcg(seed ^ FIRE_KEY) + tick) + cell)) / 2^24 < fireRate
 //   p            = per channel c: identity, Sobel x/8, Sobel y/8, nine-point Laplacian/16,
-//                  read on a torus; index 4c + k (E1's channel-major order)
+//                  read on a torus; index 4c + k (channel-major order)
 //   h            = relu(W1 p + b),  W1 [96,64], b [96]
 //   x'           = x + W2 h where the cell fires, x elsewhere;  W2 [16,96]
 // The start state is u24(pcg(pcg(seed ^ NOISE_KEY) + i)) / 2^24 − 0.5 for i = 16·cell + c,

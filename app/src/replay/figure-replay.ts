@@ -27,7 +27,7 @@ export interface FigureReplayOptions {
    * (the home's full-width material). Absent: the canvas shows the grid once.
    */
   tiled?: CanvasSize;
-  /** Reserved: σ of the hidden-channel playback noise. 0, the default, is E18's playback. */
+  /** Reserved: σ of the hidden-channel playback noise. 0, the default, adds no playback noise. */
   hiddenNoise?: number;
   /** Radius in cells of a seeded start's noise disc at the grid centre; 0, the default, starts from noise everywhere. */
   startDisc?: number;
@@ -77,6 +77,17 @@ export async function createFigureReplay(options: FigureReplayOptions, rule: Fig
   // Uniform records (ticks, brush stamps) at a 256-byte dynamic offset, 64 per submission.
   const RECORDS = 64;
   const TICK_STRIDE = 256;
+  const CHANNELS = 16;
+  const HIDDEN_UNITS = 96;
+  const CELL_RULE_VALUES = 7776;
+  const PYRAMID_RULE_VALUES = 17088;
+  // Byte offsets into the 32-byte Tick and Damage uniform structs.
+  const FLOAT_PARAMS_OFFSET = 12;
+  const COARSE_FLAG_OFFSET = 24;
+  const BACKGROUND_OFFSET = 28;
+  // Parameter offsets of fc2.weight [16, 96] in single-scale (96*64 + 96) and pyramid fine (7776 + 96*80 + 96) rules.
+  const CELL_FC2_OFFSET = 6240;
+  const FINE_FC2_OFFSET = 15552;
   const unsigned = (value: number, label: string) => {
     if (!Number.isInteger(value) || value < 0 || value > 0xffffffff) throw new Error(`${label} must be an unsigned 32-bit integer.`);
     return value;
@@ -87,8 +98,8 @@ export async function createFigureReplay(options: FigureReplayOptions, rule: Fig
   };
   if (!Number.isInteger(side) || side < 4 || side > 512) throw new Error("A replay grid has 4–512 cells per side.");
   // 7,776 values are a cell rule; 17,088 are the pyramid: the coarse rule's 7,776, then the fine rule's 9,312.
-  const pyramid = rule.values.length === 17088;
-  if ((rule.values.length !== 7776 && !pyramid) || !rule.values.every(Number.isFinite)) {
+  const pyramid = rule.values.length === PYRAMID_RULE_VALUES;
+  if ((rule.values.length !== CELL_RULE_VALUES && !pyramid) || !rule.values.every(Number.isFinite)) {
     throw new Error("A single-scale cellular model has 7,776 finite values, a two-scale one 17,088.");
   }
   if (!(rule.fireRate > 0 && rule.fireRate <= 1)) throw new Error("The cell update probability must be in (0, 1].");
@@ -109,7 +120,7 @@ export async function createFigureReplay(options: FigureReplayOptions, rule: Fig
   if (initialState) {
     unsigned(initialState.tick, "Recorded tick");
     const checkGrid = (state: Float32Array | undefined, gridSide: number) => {
-      if (!(state instanceof Float32Array) || state.length !== gridSide * gridSide * 16 || !state.every(Number.isFinite)) {
+      if (!(state instanceof Float32Array) || state.length !== gridSide * gridSide * CHANNELS || !state.every(Number.isFinite)) {
         throw new Error("A recorded grid needs 16 finite channels per cell.");
       }
     };
@@ -179,22 +190,24 @@ export async function createFigureReplay(options: FigureReplayOptions, rule: Fig
   try {
     const storage = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
     const uniform = GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST;
-    const stateBytes = side * side * 16 * 4;
+    const stateBytes = side * side * CHANNELS * 4;
     const states = [0, 1].map((index) => allocateBuffer({ label: `figure state ${index}`, size: stateBytes, usage: storage }));
     // The step reads a hidden unit's 16 output weights as four vec4 (figure-shaders.ts STEP_BINDINGS), so each
-    // fc2.weight [16, 96] is uploaded transposed, [96, 16]: the cell rule's at value 6,240, the fine rule's at 15,552.
+    // fc2.weight [16, 96] is uploaded transposed, [96, 16].
     const stepRule = Float32Array.from(rule.values);
     const transposeOutputWeights = (offset: number) => {
-      for (let channel = 0; channel < 16; channel++) {
-        for (let unit = 0; unit < 96; unit++) stepRule[offset + unit * 16 + channel] = rule.values[offset + channel * 96 + unit];
+      for (let channel = 0; channel < CHANNELS; channel++) {
+        for (let unit = 0; unit < HIDDEN_UNITS; unit++) {
+          stepRule[offset + unit * CHANNELS + channel] = rule.values[offset + channel * HIDDEN_UNITS + unit];
+        }
       }
     };
-    transposeOutputWeights(6240);
-    if (pyramid) transposeOutputWeights(15552);
+    transposeOutputWeights(CELL_FC2_OFFSET);
+    if (pyramid) transposeOutputWeights(FINE_FC2_OFFSET);
     const ruleBuffer = allocateBuffer({ label: "figure rule", size: rule.values.byteLength, usage: storage });
     gpu.queue.writeBuffer(ruleBuffer, 0, stepRule);
     const coarseStates = pyramid
-      ? [0, 1].map((index) => allocateBuffer({ label: `figure coarse state ${index}`, size: coarseSide * coarseSide * 16 * 4, usage: storage }))
+      ? [0, 1].map((index) => allocateBuffer({ label: `figure coarse state ${index}`, size: coarseSide * coarseSide * CHANNELS * 4, usage: storage }))
       : [];
     const ticks = allocateBuffer({ label: "figure ticks", size: RECORDS * TICK_STRIDE, usage: uniform });
     const damageBuffer = allocateBuffer({ label: "figure damage", size: RECORDS * TICK_STRIDE, usage: uniform });
@@ -297,9 +310,9 @@ export async function createFigureReplay(options: FigureReplayOptions, rule: Fig
       const data = new ArrayBuffer(count * grids * TICK_STRIDE);
       const write = (offset: number, gridSide: number, disc: number, coarse: number, tickIndex: number) => {
         new Uint32Array(data, offset, 3).set([gridSide, seed, tickIndex >>> 0]);
-        new Float32Array(data, offset + 12, 3).set([rule.fireRate, hiddenNoise, disc]);
-        new Uint32Array(data, offset + 24, 1).set([coarse]);
-        new Float32Array(data, offset + 28, 1).set([startBackground]);
+        new Float32Array(data, offset + FLOAT_PARAMS_OFFSET, 3).set([rule.fireRate, hiddenNoise, disc]);
+        new Uint32Array(data, offset + COARSE_FLAG_OFFSET, 1).set([coarse]);
+        new Float32Array(data, offset + BACKGROUND_OFFSET, 1).set([startBackground]);
       };
       for (let index = 0; index < count; index++) {
         if (pyramid) write(coarseRecord(index), coarseSide, startDisc / 2, 1, first + index);
@@ -358,8 +371,8 @@ export async function createFigureReplay(options: FigureReplayOptions, rule: Fig
         const data = new ArrayBuffer(batch.length * grids * TICK_STRIDE);
         const write = (offset: number, gridSide: number, x: number, y: number, radius: number, coarse: number, count: number) => {
           new Uint32Array(data, offset, 3).set([gridSide, seed, count]);
-          new Float32Array(data, offset + 12, 3).set([Math.min(radius, gridSide), ((x % gridSide) + gridSide) % gridSide, ((y % gridSide) + gridSide) % gridSide]);
-          new Uint32Array(data, offset + 24, 1).set([coarse]);
+          new Float32Array(data, offset + FLOAT_PARAMS_OFFSET, 3).set([Math.min(radius, gridSide), ((x % gridSide) + gridSide) % gridSide, ((y % gridSide) + gridSide) % gridSide]);
+          new Uint32Array(data, offset + COARSE_FLAG_OFFSET, 1).set([coarse]);
         };
         batch.forEach(({ x, y, radius }, index) => {
           if (pyramid) write(coarseRecord(index), coarseSide, x / 2, y / 2, radius / 2, 1, damages + index);

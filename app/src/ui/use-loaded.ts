@@ -1,6 +1,6 @@
 // A value loaded once per key, for views that read the library outside a route loader.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export type Loaded<T> =
   | { status: "loading" }
@@ -16,18 +16,18 @@ export type Loaded<T> =
  */
 export function useLoaded<T>(key: unknown, load: () => Promise<T | null> | null): Loaded<T> {
   const [loaded, setLoaded] = useState<{ key: unknown; state: Loaded<T> }>({ key, state: { status: "loading" } });
+  const loadRef = useRef(load);
+  loadRef.current = load;
   useEffect(() => {
     let current = true;
     setLoaded({ key, state: { status: "loading" } });
-    Promise.resolve().then(load).then(
+    Promise.resolve().then(() => loadRef.current()).then(
       (value) => current && setLoaded({ key, state: value === null ? { status: "absent" } : { status: "ready", value } }),
       (error: unknown) => current && setLoaded({ key, state: { status: "failed", message: error instanceof Error ? error.message : String(error) } }),
     );
     return () => {
       current = false;
     };
-    // `load` is a fresh closure every render; the key names what it loads.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
   return loaded.key === key ? loaded.state : { status: "loading" };
 }

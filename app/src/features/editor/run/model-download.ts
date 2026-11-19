@@ -59,7 +59,7 @@ export function modelGate(session: RunState, loadedBefore: boolean, hasWebGPU: b
 }
 
 /** navigator.gpu is there: the browser offers WebGPU. Whether it has an adapter only the worker's load finds out. */
-export function browserHasWebGPU(): boolean {
+function browserHasWebGPU(): boolean {
   return typeof navigator !== "undefined" && "gpu" in navigator && navigator.gpu !== undefined;
 }
 

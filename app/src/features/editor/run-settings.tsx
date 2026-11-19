@@ -2,7 +2,7 @@
 // Explanations open in their click order without moving the canvas. On wide layouts
 // the stack uses the space below the settings, or opens above if that space is too
 // short. While open its placement stays fixed; on narrow layouts each explanation
-// follows its setting. editor.css handles the layout, and the hooks measure available
+// follows its setting. run-settings.css handles the layout, and the hooks measure available
 // space and scroll a newly opened explanation into view.
 
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
@@ -13,6 +13,7 @@ import { Segmented } from "../../ui/segmented";
 import { TermSwitch } from "./cards/term-row";
 import { DETAIL_POSITIONS, RUN_SETTING_TEXT, STRIDE_POSITIONS } from "./presentation";
 import { CREATE_TEXT } from "./create-text";
+import "./run-settings.css";
 
 /** The settings in the order of the row, and of the lines on a phone. */
 const SETTINGS = ["step", "scale", "robustView"] as const;
@@ -110,7 +111,7 @@ export type TextsPlace = "below" | "above";
 
 /**
  * Measures the room under the settings, down to the stage's bottom edge, as --texts-room on
- * the section (the box below may fill it, editor.css), and chooses the texts' place: below
+ * the section (the box below may fill it, run-settings.css), and chooses the texts' place: below
  * when the room holds all three texts, else above. It measures again whenever the stage or a
  * part of the centred block changes size, since either moves the settings. The place
  * follows the window but never changes while a text is open, so the stack never jumps; the

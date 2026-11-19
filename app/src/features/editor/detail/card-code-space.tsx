@@ -5,7 +5,7 @@
 
 import { scaleCode } from "../../../code-target";
 import { PaletteControls } from "./palette-controls";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Dispatch } from "react";
 import { useNavigate } from "react-router";
 import { useLibrary } from "../../../app/library-session";
@@ -120,9 +120,12 @@ export function CardCodeSpace({
 function useFirstFit(request: Request, requested: Code): Code[] {
   const { role, slot } = request.respondLike.source;
   const cloudOf = `${request.block}:${role}:${role === "storage" ? slot : ""}`;
-  // A new block or cloud fits again; a new code within the same cloud does not.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  return useMemo(() => [requested], [cloudOf]);
+  // Hold the first requested code per cloud in a ref so React never evicts it like useMemo.
+  const first = useRef<{ cloudOf: string; codes: Code[] } | null>(null);
+  if (first.current?.cloudOf !== cloudOf) {
+    first.current = { cloudOf, codes: [requested] };
+  }
+  return first.current.codes;
 }
 
 /**

@@ -12,7 +12,7 @@ import { continuationSource } from "./continuation";
 import { DEFAULT_KIND, kindFromSearch, recipeName, type MaterialKind } from "./material-kind";
 import type { LiveReading } from "./protocol";
 
-// E18's strongest 12002 occurrence. Look's cuts quarter the distance from the ring (the median
+// Reference strongest occurrence for block 12002. Strength cuts quarter the distance from the ring (the median
 // gate) to the largest norm of the 4,096-patch public sample, 17.620907.
 const anchor: MaterialAnchor = {
   band: "strongest",
@@ -285,7 +285,7 @@ describe("a set method's run and kept file", () => {
   });
 });
 
-describe("a set method's reading step (decision 12)", () => {
+describe("a set method's reading step", () => {
   it("reads at ten steps from 100 to 2,000; basis-group mean stays at 600", () => {
     expect(READING_LADDER).toEqual([100, 150, 200, 300, 400, 600, 800, 1000, 1500, 2000]);
     expect(READING_TICK).toBe(600);

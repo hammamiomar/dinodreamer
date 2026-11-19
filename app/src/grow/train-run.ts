@@ -10,12 +10,15 @@ import type { ReleaseLocation } from "../synthesis/protocol";
 import { SAMPLE_EVERY_TICKS, sampledAccent } from "../ui/sampled-accent";
 import { GrowClient } from "./client";
 import { continuationChange, type ContinuationSource } from "./continuation";
+import { SIDE } from "./figure-recipe";
 import { NO_RECORD, markSaved, recordEvent, resultOutcome, type GrowRecord } from "./grow-view";
 import type { MaterialKind } from "./material-kind";
 import { methodLayers, type TokenDepth } from "./train-method";
 import { sameTargetSet } from "./target-set";
 import type { GrowEvent, TrainLadder } from "./protocol";
 import { clearRunOnPageHide, noteInterruptedRun, runMemory, type BatchSize } from "./batch-size";
+
+export { SIDE };
 
 // One site-wide Train run owns the worker, saved files and live grid. The page and corner tray
 // are views of the same store, so navigation does not end training. Frames have separate listeners
@@ -35,7 +38,7 @@ export interface GrowSettings {
   /** Who chose the request's points: the visitor, or Train for /train?block=N. The way back to Train restores it. */
   origin: MaterialRequestOrigin;
   stopAtFirstFire: boolean;
-  /** The saved definition a run continues (Train resume, case 2), or null for a new automaton. */
+  /** The saved definition a run continues, or null for a new automaton. */
   continuation: ContinuationSource | null;
   /** The visitor's picture the target's patch is on, if it is theirs: the way back to Train shows it again. */
   picture: MaterialRequestPicture | null;
@@ -59,7 +62,7 @@ export interface TrainRunState {
   keepFailure: KeepFailure | null;
   /** The Train page shows this run, so the corner tray need not (trayShown). */
   shownOnPage: boolean;
-  /** A held set-method run's reading ladder (decision 12): each step's picture and own loss, and the kept step; null otherwise. */
+  /** Reading ladder for a held set-method run: each step's picture, own loss, and kept step; null otherwise. */
   ladder: TrainLadder | null;
 }
 
@@ -86,7 +89,7 @@ export interface TrainSetTokens {
 
 /** The live grid's latest picture: SIDE × SIDE RGBA bytes, one pixel per cell. */
 export interface LiveCells {
-  pixels_N4: Uint8ClampedArray;
+  pixels_N4: Uint8ClampedArray<ArrayBuffer>;
   tick: number;
 }
 
@@ -136,9 +139,9 @@ export interface TrainRun {
   /** After such a run: holds its final rule as the result, as a run that has ended. */
   keep(): void;
   /**
-   * A held set-method run: keeps its automaton at another step of its ladder (decision 12's override), the same
-   * file at that step's reading, picture and poster, and the live grid loops to it. Nothing when there is no
-   * such step, the step is kept already, or the file has been sent to the gallery from this browser.
+   * For a held set-method run, keep the automaton at another step of its reading ladder under the
+   * same file id and loop the live grid to that step. Ignored when the step is absent, already
+   * kept, or already submitted to the gallery from this browser.
    */
   keepAtStep(step: number): void;
   /** Damage stamps on the live grid, [x, y, radius] in cells. */
@@ -147,13 +150,18 @@ export interface TrainRun {
   showOnPage(shown: boolean): void;
 }
 
-/** Cells along a side of the live grid: the worker's pictures are SIDE × SIDE, one pixel per cell. */
-export const SIDE = 128;
-
-const IDLE: TrainRunState = { record: NO_RECORD, settings: null, files: new Map(), sampled: null, keepFailure: null, shownOnPage: false, ladder: null };
+export const IDLE_TRAIN_RUN: TrainRunState = {
+  record: NO_RECORD,
+  settings: null,
+  files: new Map(),
+  sampled: null,
+  keepFailure: null,
+  shownOnPage: false,
+  ladder: null,
+};
 
 export function createTrainRun(dependencies: TrainRunDependencies): TrainRun {
-  let state: TrainRunState = IDLE;
+  let state: TrainRunState = IDLE_TRAIN_RUN;
   let live: LiveCells | null = null;
   let client: TrainRunClient | null = null;
   let sampledAt = -1;
@@ -250,16 +258,20 @@ export function createTrainRun(dependencies: TrainRunDependencies): TrainRun {
     update({ record });
   };
 
-  const clear = () => {
+  const resetResources = () => {
     dependencies.runRecord.ended();
     client?.dispose();
     client = null;
     live = null;
     sampledAt = -1;
-    update({ record: NO_RECORD, settings: null, sampled: null, files: new Map(), keepFailure: null, ladder: null });
     notifyLive();
     setTokens = null;
     setMap(null);
+  };
+
+  const clear = () => {
+    resetResources();
+    update({ record: NO_RECORD, settings: null, sampled: null, files: new Map(), keepFailure: null, ladder: null });
   };
 
   return {
@@ -280,10 +292,17 @@ export function createTrainRun(dependencies: TrainRunDependencies): TrainRun {
       return () => mapListeners.delete(listener);
     },
     start(request, settings) {
-      clear();
+      resetResources();
       // A continuation trains at its definition's batch size.
       runBatch = settings.continuation?.batch ?? settings.batch;
-      update({ files: new Map(), keepFailure: null, settings: { ...settings, batch: runBatch, request }, record: { ...NO_RECORD, active: true } });
+      update({
+        record: { ...NO_RECORD, active: true },
+        settings: { ...settings, batch: runBatch, request },
+        sampled: null,
+        files: new Map(),
+        keepFailure: null,
+        ladder: null,
+      });
       dependencies.runRecord.started(runBatch);
       try {
         // Events of a run that has ended are not this run's.
@@ -367,22 +386,49 @@ export function trayShown(state: Pick<TrainRunState, "record" | "shownOnPage">, 
   return !state.shownOnPage || panelOpen;
 }
 
-// A run the page went down in (a phone's browser ends a page that takes too much memory) leaves the
-// tab's fallback to batch size 1; a page the person leaves clears the record first.
-noteInterruptedRun();
-clearRunOnPageHide();
+let siteTrainRun: TrainRun | null = null;
 
-/** The site's one run. */
-export const trainRun: TrainRun = createTrainRun({
-  createClient: (onEvent) => new GrowClient(onEvent),
-  keep: async (file) => {
-    await keepMaterial(file);
-    announceKept("train");
-  },
-  release: RELEASE_LOCATION,
-  runRecord: runMemory,
-  sentMaterialIds: () => new Set(Object.keys(readSubmittedMaterials())),
-});
+/**
+ * Lazily initialize the browser-wide run store and pagehide crash tracking on first use,
+ * so importing pure helpers from this module causes no window or storage side effects.
+ */
+function ensureTrainRun(): TrainRun {
+  if (siteTrainRun === null) {
+    noteInterruptedRun();
+    clearRunOnPageHide();
+    siteTrainRun = createTrainRun({
+      createClient: (onEvent) => new GrowClient(onEvent),
+      keep: async (file) => {
+        await keepMaterial(file);
+        announceKept("train");
+      },
+      release: RELEASE_LOCATION,
+      runRecord: runMemory,
+      sentMaterialIds: () => new Set(Object.keys(readSubmittedMaterials())),
+    });
+  }
+  return siteTrainRun;
+}
+
+/** The site's shared Train run store. */
+export const trainRun: TrainRun = {
+  state: () => ensureTrainRun().state(),
+  subscribe: (listener) => ensureTrainRun().subscribe(listener),
+  live: () => ensureTrainRun().live(),
+  subscribeLive: (listener) => ensureTrainRun().subscribeLive(listener),
+  map: () => ensureTrainRun().map(),
+  setTokens: () => ensureTrainRun().setTokens(),
+  subscribeMap: (listener) => ensureTrainRun().subscribeMap(listener),
+  start: (request, settings) => ensureTrainRun().start(request, settings),
+  end: () => ensureTrainRun().end(),
+  stop: () => ensureTrainRun().stop(),
+  resumeTraining: () => ensureTrainRun().resumeTraining(),
+  restart: () => ensureTrainRun().restart(),
+  keep: () => ensureTrainRun().keep(),
+  keepAtStep: (step) => ensureTrainRun().keepAtStep(step),
+  brush: (stamps) => ensureTrainRun().brush(stamps),
+  showOnPage: (shown) => ensureTrainRun().showOnPage(shown),
+};
 
 /** The run as views show it; re-renders on each change of its record, choices, files or tray state, not on its frames. */
 export function useTrainRun(): TrainRunState {
@@ -409,9 +455,9 @@ export function useTrainTick(): number | null {
   return useSyncExternalStore(trainRun.subscribeLive, () => trainRun.live()?.tick ?? null);
 }
 
-/** Puts a live-grid picture (SIDE × SIDE RGBA bytes) on the canvas. */
-export function drawCells(canvas: HTMLCanvasElement | null, pixels_N4: Uint8ClampedArray): void {
-  canvas?.getContext("2d")?.putImageData(new ImageData(new Uint8ClampedArray(pixels_N4), SIDE, SIDE), 0, 0);
+/** Puts a live-grid picture (SIDE × SIDE RGBA bytes) on the canvas without copying the buffer. */
+export function drawCells(canvas: HTMLCanvasElement | null, pixels_N4: Uint8ClampedArray<ArrayBuffer>): void {
+  canvas?.getContext("2d")?.putImageData(new ImageData(pixels_N4, SIDE, SIDE), 0, 0);
 }
 
 /** Draws the run's live grid on a SIDE × SIDE canvas while `drawing`: the latest picture at once, then each new one. */

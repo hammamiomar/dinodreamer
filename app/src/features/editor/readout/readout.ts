@@ -1,4 +1,4 @@
-// What the columns display, computed from one measurement of the image with no shift (computation.md §12).
+// Column readouts computed from one unshifted measurement of the image.
 // Symbols: c is the requested code (3 numbers, fixed by the recipe); m_p is the
 // measured code of token p, for the P measured tokens; d_p² = |m_p − c|² is the
 // worker's per-token `errors` entry. All quantities are in code-space units.

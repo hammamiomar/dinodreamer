@@ -169,7 +169,7 @@ fn ${entry}(@builtin(global_invocation_id) id: vec3<u32>) {
 
 /**
  * Reserved playback noise: σ·N(0, 1) on channels 3–15 of every cell, from a Box–Muller pair of hashes
- * per value. Off at σ = 0, so the update stays exactly E18's. The pyramid refuses σ > 0.
+ * per value. Off at σ = 0 for deterministic updates. The pyramid refuses σ > 0.
  */
 const HIDDEN = /* wgsl */ `
 fn add_hidden_noise(cell: u32) {

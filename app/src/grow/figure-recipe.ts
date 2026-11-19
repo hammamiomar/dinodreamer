@@ -7,11 +7,14 @@ import { firstFireHolds, readingRegion, recipeName, ruleLayout, savedNameKind, s
 import { DEFAULT_METHOD, depthOfLayers, keepRule } from "./train-method";
 import { targetSetKey } from "./target-set";
 
-// Grow trains the figure recipe (engine/src/grow/figure.rs) at pool 64, in one of four kinds
-// (material-kind.ts), by one of four methods (train-method.ts): the E18 mean arm toward the request's
-// anchor at the mean over patches, or a set method toward the group's target set (target-set.ts).
+// Grow trains the figure recipe (engine/src/grow/figure.rs) with pool 64, in one of four kinds
+// (material-kind.ts) and four methods (train-method.ts): basis-group mean matching toward the
+// anchor patch, or a set method toward the group's target set (target-set.ts).
 
-/** The sweep trainer follows original_recipe.py's loop with pool 64; pyramid.py supplies the two-scale rule. */
+/** Cells along one side of the live and training grid (128 × 128, one pixel per cell). */
+export const SIDE = 128 as const;
+
+/** Training provenance metadata recorded in saved format-4 material files. */
 export const FIGURE_SOURCE = "trainer.py of the recipe sweep (pyramid.py for the pyramid), E18 mean arm, as engine/src/grow/figure.rs";
 export const FIGURE_SOURCE_SHA256 = "2abcf6a8b3020e1199a320e696367e92dd77adb3cf3b45d627c5838ba1a47e88";
 export const FIGURE_UPDATES = 1000;
@@ -21,15 +24,14 @@ export const RESUME_UPDATES = 500;
 export const FIGURE_SEED = 20261022;
 /** The live grid's replay seed. A kept reading names it with its tick. */
 export const LIVE_SEED = 9317;
-/** E18 read its materials after 600 ticks on the 128-cell training grid. */
+/** Default reading step on the 128-cell grid for basis-group mean matching. */
 export const READING_TICK = 600;
 
 /**
- * The steps a set method's automaton is read at (decision 12, 17 November 2026, night). After a run its
- * final rule grows on a replay grid of the live seed, and at each step the engine gives the method's
- * own loss on that one picture against the run's set (figure_own_loss). The step with the lowest loss
- * is the automaton's: its reading, picture and poster are taken there (readingStep). Basis-group mean
- * matching stays at READING_TICK, the step its selection target is built on.
+ * Steps at which a set-method rule is evaluated on a replay grid after training. At each step,
+ * the engine computes the method's own loss against the target set (`figure_own_loss`). The step
+ * with the lowest loss selects the saved reading, picture, and poster (`readingStep`). Basis-group
+ * mean matching stays at `READING_TICK`, where its selection target is defined.
  */
 export const READING_LADDER = [100, 150, 200, 300, 400, 600, 800, 1000, 1500, 2000] as const;
 
@@ -63,7 +65,7 @@ export const RUNS = 3;
 export function plannedRuns(continued: boolean, method: FigureMethod = DEFAULT_METHOD): number {
   return keepRule(method, continued, RUNS).runs;
 }
-/** E18's criterion lives with the reading it judges (material-file.ts), so the gallery shares it. */
+/** Selection criterion lives with the reading it evaluates (material-file.ts), so the gallery shares it. */
 export { FIRES, fired } from "../materials/material-file";
 import { FIRES, fired } from "../materials/material-file";
 
@@ -101,10 +103,7 @@ export const FIGURE_SETTINGS = {
   batch1ResetEvery: 4,
 } as const;
 
-/**
- * Each method's objective in the research's names: the E18 mean arm, and the given-set tool's kinds
- * (research/given-set, givenset/objective.py), which engine/src/grow/figure/target_set.rs computes.
- */
+/** Engine objective identifier for each training method (see engine/src/grow/figure/target_set.rs). */
 const METHOD_OBJECTIVES: Record<FigureMethod, string> = {
   "basis-group-mean": FIGURE_SETTINGS.objective,
   "token-mean": "point",

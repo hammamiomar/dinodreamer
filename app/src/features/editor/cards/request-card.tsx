@@ -26,6 +26,7 @@ import { TermSwitch } from "./term-row";
 import { PatchGrid } from "../../../ui/patch-grid";
 import { fill } from "../../../app/site-words";
 import { CREATE_TEXT } from "../create-text";
+import "./cards.css";
 
 const WORDS = CREATE_TEXT.request;
 

@@ -3,8 +3,10 @@
 // (recipe-parse.ts). Import keeps incomplete drafts, so it does not require
 // validateRecipe to pass; the editor shows those problems.
 
-import type { Recipe } from "../recipe";
-import { parseRecipe, recipeUpgradedFrom, type UpgradedFrom } from "../recipe-parse";
+import { decodeBase64, encodeBase64 } from "../base64.ts";
+import { decodeObject, decodeString } from "../decode.ts";
+import type { Recipe } from "../recipe.ts";
+import { parseRecipe, recipeUpgradedFrom, type UpgradedFrom } from "../recipe-parse.ts";
 
 /** The JSON file that "Export" writes and "Import" reads. */
 export const CREATION_FILE_FORMAT = "dinodreamer-creation";
@@ -27,16 +29,6 @@ export interface CreationFile {
   step?: number;
   /** The image is the placeholder saved before the first frame. */
   placeholder?: true;
-}
-
-function object(value: unknown, path: string): Record<string, unknown> {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error(`${path}: expected an object`);
-  return value as Record<string, unknown>;
-}
-
-function string(value: unknown, path: string): string {
-  if (typeof value !== "string") throw new Error(`${path}: expected a string`);
-  return value;
 }
 
 export async function encodeCreationFile(creation: {
@@ -87,18 +79,18 @@ export function decodeCreationFile(text: string): {
   } catch {
     throw new Error("The file is not JSON.");
   }
-  const file = object(value, "file");
+  const file = decodeObject(value, "file");
   if (file.format !== CREATION_FILE_FORMAT || file.version !== 1) throw new Error("The file is not a saved DinoDreamer image.");
-  const fileRecipe = object(file.recipe, "file.recipe");
+  const fileRecipe = decodeObject(file.recipe, "file.recipe");
   const marked = file.upgradedFrom === 1 || file.upgradedFrom === 2 || file.upgradedFrom === 3 ? file.upgradedFrom : undefined;
   const upgradedFrom = marked ?? recipeUpgradedFrom(fileRecipe);
-  const engine = file.engine === undefined ? undefined : string(file.engine, "file.engine");
+  const engine = file.engine === undefined ? undefined : decodeString(file.engine, "file.engine");
   const step = file.step === undefined ? undefined : updateCount(file.step, "file.step");
   const placeholder = file.placeholder === true ? (true as const) : undefined;
   return {
-    title: string(file.title, "file.title"),
+    title: decodeString(file.title, "file.title"),
     recipe: parseRecipe(fileRecipe),
-    previewPng: pngBlob(string(file.previewPng, "file.previewPng")),
+    previewPng: pngBlob(decodeString(file.previewPng, "file.previewPng")),
     ...(upgradedFrom ? { upgradedFrom } : {}),
     ...(engine ? { engine } : {}),
     ...(step !== undefined ? { step } : {}),
@@ -115,18 +107,11 @@ const PNG_DATA_URL_PREFIX = "data:image/png;base64,";
 
 async function pngDataUrl(blob: Blob): Promise<string> {
   const bytes = new Uint8Array(await blob.arrayBuffer());
-  // btoa takes a binary string; build it in chunks to stay under argument limits.
-  let binary = "";
-  for (let start = 0; start < bytes.length; start += 0x8000) {
-    binary += String.fromCharCode(...bytes.subarray(start, start + 0x8000));
-  }
-  return PNG_DATA_URL_PREFIX + btoa(binary);
+  return PNG_DATA_URL_PREFIX + encodeBase64(bytes);
 }
 
 function pngBlob(dataUrl: string): Blob {
   if (!dataUrl.startsWith(PNG_DATA_URL_PREFIX)) throw new Error("file.previewPng: expected a PNG data URL");
-  const binary = atob(dataUrl.slice(PNG_DATA_URL_PREFIX.length));
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
+  const bytes = decodeBase64(dataUrl.slice(PNG_DATA_URL_PREFIX.length));
   return new Blob([bytes], { type: "image/png" });
 }

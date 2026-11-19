@@ -1,10 +1,10 @@
 // Typed records of the public release and their decoders.
 //
-// The JSON shapes come from the producer, ../dinoDreamer/src/dinodreamer/native_bank/web.py
-// and bank.py. Each decoder checks the fields the app uses, converts them to
-// camelCase records and keeps nothing else. A decoder throws on the first field
-// that does not match, so a changed release format fails at this boundary.
+// Each decoder checks the fields the app uses against the published release schema,
+// converts them to camelCase records, and keeps nothing else. A decoder throws on
+// the first field that does not match, so a schema mismatch fails at this boundary.
 
+import { decodeArray, decodeBoolean, decodeInteger, decodeNullable, decodeNumber, decodeObject, decodeString } from "../decode";
 import { CELLS, TOKEN_SLOTS } from "../recipe";
 import type { Token } from "../recipe";
 import { slotRole } from "../recipe-parse";
@@ -616,39 +616,13 @@ function responses(record: Record<string, unknown>, path: string, length: number
 // ---------------------------------------------------------------------------
 // Field readers. Each names the failing path.
 
-function object(value: unknown, path: string): Record<string, unknown> {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error(`${path}: expected an object`);
-  return value as Record<string, unknown>;
-}
-
-function array<T>(value: unknown, path: string, item: (value: unknown, path: string) => T): T[] {
-  if (!Array.isArray(value)) throw new Error(`${path}: expected an array`);
-  return value.map((entry, index) => item(entry, `${path}[${index}]`));
-}
-
-function nullable<T>(value: unknown, path: string, read: (value: unknown, path: string) => T): T | null {
-  return value === null || value === undefined ? null : read(value, path);
-}
-
-function string(value: unknown, path: string): string {
-  if (typeof value !== "string") throw new Error(`${path}: expected a string`);
-  return value;
-}
-
-function number(value: unknown, path: string): number {
-  if (typeof value !== "number" || !Number.isFinite(value)) throw new Error(`${path}: expected a finite number`);
-  return value;
-}
-
-function integer(value: unknown, path: string): number {
-  if (!Number.isSafeInteger(value)) throw new Error(`${path}: expected an integer`);
-  return value as number;
-}
-
-function boolean(value: unknown, path: string): boolean {
-  if (typeof value !== "boolean") throw new Error(`${path}: expected a boolean`);
-  return value;
-}
+const object = decodeObject;
+const array = decodeArray;
+const nullable = decodeNullable;
+const string = decodeString;
+const number = decodeNumber;
+const integer = decodeInteger;
+const boolean = decodeBoolean;
 
 /**
  * Image ids are int64 in the producer. JSON.parse keeps them exact only up to

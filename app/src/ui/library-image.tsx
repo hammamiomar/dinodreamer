@@ -3,11 +3,10 @@
 // once per URL per page with cache: "reload" to replace that entry; all views await the same
 // reload before trying again.
 //
-// React 18 applies attributes in prop order, so crossOrigin must precede src. CSS backgrounds
-// cannot request CORS mode; useLibraryObjectUrl gives them a local URL instead.
+// React 18 applies attributes in prop order, so crossOrigin must precede src.
 
 import "./library-image.css";
-import { forwardRef, useEffect, useState } from "react";
+import { forwardRef, useState } from "react";
 import type { ImgHTMLAttributes } from "react";
 
 /** Each URL's one reload in this page, shared by every view that failed on it. */
@@ -108,33 +107,4 @@ function decodedPicture(url: string, priority?: RequestPriority, signal?: AbortS
   signal?.addEventListener("abort", release, { once: true });
   picture.src = url;
   return picture.decode().then(() => picture).finally(() => signal?.removeEventListener("abort", release));
-}
-
-/**
- * A local object URL of a library picture, for a stylesheet that slices it (a CSS background is
- * a plain load); null until the picture is read, and if it cannot be. Revoked when the URL changes
- * or the view goes.
- */
-export function useLibraryObjectUrl(url: string): string | null {
-  const [objectUrl, setObjectUrl] = useState<{ url: string; local: string } | null>(null);
-  useEffect(() => {
-    let local: string | null = null;
-    let cancelled = false;
-    const read = () => fetch(url, { credentials: "omit" }).then((response) => (response.ok ? response.blob() : Promise.reject(new Error(String(response.status)))));
-    read()
-      .catch((error: unknown) => (error instanceof TypeError ? reloadLibraryUrl(url).then(read) : Promise.reject(error)))
-      .then((blob) => {
-        if (cancelled) return;
-        local = URL.createObjectURL(blob);
-        setObjectUrl({ url, local });
-      })
-      .catch(() => {
-        // The view shows its cells empty, as before a picture arrives.
-      });
-    return () => {
-      cancelled = true;
-      if (local) URL.revokeObjectURL(local);
-    };
-  }, [url]);
-  return objectUrl?.url === url ? objectUrl.local : null;
 }

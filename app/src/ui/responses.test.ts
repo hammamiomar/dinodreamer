@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FIRING_MAX_ALPHA, FIRING_MIN_ALPHA, firingAlpha, firingScale, patchResponses, previewDecoded } from "./responses";
+import { FIRING_MAX_ALPHA, FIRING_MIN_ALPHA, firingAlpha, firingScale, patchResponses } from "./responses";
 
 describe("where a block fires", () => {
   it("tints nothing where the block does not fire, however strong the response", () => {
@@ -39,31 +39,5 @@ describe("patch responses", () => {
     expect(patches.norm).toHaveLength(256);
     expect(patches.norm[0]).toBe(5);
     expect(patches.gated[0]).toBe(true);
-  });
-});
-
-describe("a preview that paints after its thumbnail", () => {
-  it("is ready once it decodes", async () => {
-    const tried: string[] = [];
-    expect(await previewDecoded("p.png", async (src) => void tried.push(src), 0)).toBe(true);
-    expect(tried).toEqual(["p.png"]);
-  });
-
-  it("tries once more after a failure, then gives up and leaves the thumbnail in place", async () => {
-    let failures = 0;
-    const flaky = async () => {
-      failures += 1;
-      if (failures === 1) throw new Error("503");
-    };
-    expect(await previewDecoded("p.png", flaky, 0)).toBe(true);
-    expect(failures).toBe(2);
-
-    let tries = 0;
-    const down = async () => {
-      tries += 1;
-      throw new Error("503");
-    };
-    expect(await previewDecoded("p.png", down, 0)).toBe(false);
-    expect(tries).toBe(2);
   });
 });

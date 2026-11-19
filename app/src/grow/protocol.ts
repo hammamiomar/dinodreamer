@@ -7,10 +7,9 @@ import type { MaterialKind } from "./material-kind";
 import type { ReleaseLocation } from "../synthesis/protocol";
 
 /**
- * Whether an error is the browser answering the request for a GPU adapter with none. On an iPhone
- * 16 Pro Max this happened on the first page load after a run took the page down, and a reload
- * then had an adapter again (2026-10-30). wgpu reports it as "No adapter available ... webgpu
- * found no adapters".
+ * Returns true when an error indicates the browser returned no WebGPU adapter.
+ * On some mobile browsers this happens transiently right after an out-of-memory reload,
+ * reported by wgpu as "No adapter available ... webgpu found no adapters".
  */
 export function adapterUnavailable(message: string): boolean {
   return /no adapter available|found no adapters/i.test(message);
@@ -50,7 +49,7 @@ export interface GrowProgress {
 export type LiveRule = "training" | "final";
 
 export interface LiveFrame {
-  pixels: Uint8ClampedArray;
+  pixels: Uint8ClampedArray<ArrayBuffer>;
   seed: number;
   tick: number;
   rule: LiveRule;
@@ -105,7 +104,7 @@ export type GrowCommand =
    */
   | { type: "start"; request: MaterialRequest; release: ReleaseLocation; kind: MaterialKind; method: FigureMethod; layers: FigureLayer[];
     set: FigureTargetSet | null; batch: 1 | 4; stopAtFirstFire: boolean;
-    /** Train on from a saved definition (Train resume, case 2): one run from its rule, not new seeds. */
+    /** Continue training from a saved definition: one run from its rule, not new seeds. */
     continuation?: { source: ContinuationSource; change: ContinuationChange } }
   /** Stop the current run's training now: keep its rule as the final one and hold its trainer. */
   | { type: "stop" }
@@ -115,9 +114,9 @@ export type GrowCommand =
   | { type: "restart" }
   /** After such a run: hold its final rule as the result instead, as a run that has ended. */
   | { type: "keep" }
-  /** A held set-method run: keep its automaton at this step of its ladder instead (decision 12's override; same file id). */
+  /** For a held set-method run, keep the automaton at the specified step of its reading ladder under the same file id. */
   | { type: "keep-at-step"; step: number }
-  /** Brush stamps on the live grid, [x, y, radius] in cells (the Keep runtime's damage brush). */
+  /** Brush stamps on the live grid, [x, y, radius] in cells (replay damage brush). */
   | { type: "brush"; stamps: [number, number, number][] };
 
 /**
@@ -172,7 +171,7 @@ export type GrowEvent =
    * A picture brings 9 tokens, or 4 or 6 where its 3 × 3 meets its window's edge. The live map's target.
    */
   | { type: "set"; codes: Float32Array; tokenPictures: Uint16Array }
-  /** A set method's reading ladder at a keep (decision 12): each step's picture and own loss, and the kept step. */
+  /** Reading ladder for a held set-method run: each step's picture, own loss, and the kept step. */
   | { type: "ladder"; ladder: TrainLadder }
   | { type: "material"; file: FigureMaterialFile; run: number; stage: KeptStage; fired: boolean }
   /** `deviceLost`: WebGPU lost the device, which on a device without room for the run means out of memory. */

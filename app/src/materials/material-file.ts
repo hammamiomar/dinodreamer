@@ -1,4 +1,6 @@
-import type { MaterialAnchor, StrengthBand, StrengthCuts } from "../recipe";
+import { decodeBase64, encodeBase64 } from "../base64.ts";
+import { decodeNonEmptyString, decodeNumber, decodeObject, decodeUnsigned32 } from "../decode.ts";
+import { CELLS, PATCH_SLOT_OFFSET, TOKEN_SLOTS, type MaterialAnchor, type StrengthBand, type StrengthCuts } from "../recipe.ts";
 import { STRENGTH_BANDS, bandIndex } from "../features/look/strength-bands.ts";
 import { escapedText, firstUnsafeString } from "../visitor-text.ts";
 
@@ -7,46 +9,69 @@ import { escapedText, firstUnsafeString } from "../visitor-text.ts";
 /** Target-response coordinates in a basis group's three-dimensional space. */
 export type Control = [number, number, number];
 
-function record(value: unknown, label: string): Record<string, unknown> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`Invalid ${label} in the automaton definition`);
-  return value as Record<string, unknown>;
-}
-function text(value: unknown, label: string): string {
-  if (typeof value !== "string" || value.length === 0) throw new Error(`Invalid ${label} in the automaton definition`);
-  return value;
-}
-function number(value: unknown, label: string): number {
-  if (typeof value !== "number" || !Number.isFinite(value)) throw new Error(`Invalid ${label} in the automaton definition`);
-  return value;
-}
+const DICTIONARY_BLOCKS = 16384;
+const PICTURE_PATCHES = CELLS;
+const MAX_START_RADIUS = 256;
+
+const materialError = (label: string) => `Invalid ${label} in the automaton definition`;
+const record = (value: unknown, label: string) => decodeObject(value, label, materialError);
+const text = (value: unknown, label: string) => decodeNonEmptyString(value, label, materialError);
+const number = (value: unknown, label: string) => decodeNumber(value, label, materialError);
+const unsigned = (value: unknown, label: string) => decodeUnsigned32(value, label, materialError);
 
 function decodeRule(encoded: string, count: number): Float32Array {
-  let binary: string;
-  try { binary = atob(encoded); } catch { throw new Error("Invalid cellular model encoding in the automaton definition"); }
-  if (binary.length !== count * 4) throw new Error(`The automaton definition's cellular model must have ${count} float32 values`);
-  const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  let bytes: Uint8Array<ArrayBuffer>;
+  try {
+    bytes = decodeBase64(encoded);
+  } catch {
+    throw new Error("Invalid cellular model encoding in the automaton definition");
+  }
+  if (bytes.length !== count * 4) throw new Error(`The automaton definition's cellular model must have ${count} float32 values`);
   const view = new DataView(bytes.buffer);
   const values = Float32Array.from({ length: count }, (_, index) => view.getFloat32(index * 4, true));
   if (!values.every(Number.isFinite)) throw new Error("The automaton definition's cellular model values must be finite");
   return values;
 }
 
-/** Identity, basis group, dictionary, provenance and the embedded preview. */
+/** Identity, basis group, dictionary, provenance, and embedded preview. */
 function readCommon(file: Record<string, unknown>, dictionaryId?: string) {
-  for (const key of ["id", "name", "dictionaryId", "trainerCommit", "preview"]) text(file[key], key);
+  const id = text(file.id, "id");
+  const name = text(file.name, "name");
+  const fileDictionaryId = text(file.dictionaryId, "dictionaryId");
+  const trainerCommit = text(file.trainerCommit, "trainerCommit");
+  const preview = text(file.preview, "preview");
   const block = number(file.block, "basis group");
-  if (!Number.isInteger(block) || block < 0 || block >= 16384) throw new Error("Invalid basis group in the automaton definition");
-  if (file.mode !== "fill" && file.mode !== "plant") throw new Error("Invalid mode in the automaton definition");
-  if (dictionaryId && file.dictionaryId !== dictionaryId) throw new Error("The automaton definition belongs to a different basis collection");
-  if (file.ancestorId !== null) text(file.ancestorId, "ancestor id");
-  if (!(file.preview as string).startsWith("data:image/png;base64,")) throw new Error("The automaton definition's preview must be an embedded PNG");
+  if (!Number.isInteger(block) || block < 0 || block >= DICTIONARY_BLOCKS) {
+    throw new Error("Invalid basis group in the automaton definition");
+  }
+  if (file.mode !== "fill") {
+    throw new Error("The figure training procedure trains automata for area simulation only");
+  }
+  if (dictionaryId && fileDictionaryId !== dictionaryId) {
+    throw new Error("The automaton definition belongs to a different basis collection");
+  }
+  const ancestorId = file.ancestorId === null ? null : text(file.ancestorId, "ancestor id");
+  if (!preview.startsWith("data:image/png;base64,")) {
+    throw new Error("The automaton definition's preview must be an embedded PNG");
+  }
+  return { id, name, block, mode: "fill" as const, dictionaryId: fileDictionaryId, trainerCommit, ancestorId, preview };
 }
 
-function readRecipe(value: unknown): Record<string, unknown> {
+function readRecipe(value: unknown) {
   const recipe = record(value, "training procedure");
-  if (typeof recipe.placeholder !== "boolean") throw new Error("The automaton definition's training procedure must say whether it is a placeholder");
-  text(recipe.source, "source"); text(recipe.sourceSha256, "source hash"); record(recipe.settings, "settings");
-  return recipe;
+  if (typeof recipe.placeholder !== "boolean") {
+    throw new Error("The automaton definition's training procedure must say whether it is a placeholder");
+  }
+  if (recipe.placeholder) {
+    throw new Error("A figure automaton definition is never a placeholder");
+  }
+  return {
+    name: text(recipe.name, "training procedure name"),
+    placeholder: false as const,
+    source: text(recipe.source, "source"),
+    sourceSha256: text(recipe.sourceSha256, "source hash"),
+    settings: record(recipe.settings, "settings"),
+  };
 }
 
 /** Float32 little-endian storage, without a lossy JSON or half-precision conversion. */
@@ -55,17 +80,13 @@ export function encodeRule(values: Float32Array, count: number): string {
   const bytes = new Uint8Array(values.length * 4);
   const view = new DataView(bytes.buffer);
   values.forEach((value, index) => view.setFloat32(index * 4, value, true));
-  let binary = "";
-  for (let offset = 0; offset < bytes.length; offset += 8192) {
-    binary += String.fromCharCode(...bytes.subarray(offset, offset + 8192));
-  }
-  return btoa(binary);
+  return encodeBase64(bytes);
 }
 
 // Format 4: figure rules.
 
 export const FIGURE_LAYOUT = "figure-16-96-torus-v1";
-/** fc1.weight [96,64], fc1.bias [96], fc2.weight [16,96]: the E1 order without the control matrix U. */
+/** Parameter layout: fc1.weight [96, 64], fc1.bias [96], fc2.weight [16, 96]. */
 export const FIGURE_RULE_VALUES = 7776;
 /**
  * The two-level pyramid: a coarse grid of side/2 cells and the fine grid, 16
@@ -203,9 +224,8 @@ export interface FigureTargetSet {
   neighbourhood: "3x3";
   pictures: SetPicture[];
 }
-/** The research's standard set has 33 pictures; a file may hold fewer (a picture that could not be fetched is dropped). */
+/** The standard target set holds up to 33 pictures; a file may hold fewer if a picture could not be fetched. */
 export const MOST_SET_PICTURES = 33;
-const PICTURE_PATCHES = 256;
 
 /** Picture pixels per cell along each axis. 2 shows a 64-cell grid as a 128-pixel picture. */
 export type PixelsPerCell = 1 | 2;
@@ -254,7 +274,7 @@ export function bandOfNorm(norm: number, strength: StrengthCuts): StrengthBand {
   return STRENGTH_BANDS[bandIndex(norm, strength)];
 }
 
-/** E18's criterion: the block wins in at least 90 % of the patches at the reading (tick 600). */
+/** Selection criterion: the block wins in at least 90 % of the patches at the reading (tick 600). */
 export const FIRES = 0.9;
 export function fired(reading: { winnerFraction: number | null }): boolean {
   return reading.winnerFraction !== null && reading.winnerFraction >= FIRES;
@@ -264,14 +284,11 @@ export function fired(reading: { winnerFraction: number | null }): boolean {
 export const MEASUREMENT_DIRECTION = "training target";
 
 /**
- * What a format-4 reading's `strength` holds, from the rule's settings `experiment` and
- * `measurementDirection` (an index entry copies both). Browser definitions with
- * `measurementDirection` store the mean projection on the training target's direction, u·c_t / m
- * over the read patches. Browser definitions from before it (no experiment) and the E18 and E19
- * conversions store the same mean on the main direction. The E20 and E21 conversions, the
- * selection-margin study and the 7178 investigation store the median over the read patches of
- * |c_t| / m; their notes say so.
- * For another experiment the statistic is not known here, and only its note names it.
+ * Identifies which statistic a format-4 reading's `strength` stores, from `experiment` and
+ * `measurementDirection`. Browser definitions with `measurementDirection` store the mean
+ * projection on the training target direction (u·c_t / m). Earlier browser definitions and
+ * legacy main-direction exports store the mean projection on the main direction. Median-based
+ * exports store the median of |c_t| / m over the read patches.
  */
 export type StrengthStatistic = "projection-on-target" | "projection-on-main-direction" | "median-magnitude" | "unknown";
 const MAIN_DIRECTION_EXPERIMENTS: readonly string[] = ["E18", "E19"];
@@ -319,15 +336,9 @@ export function readingPictureSide(file: FigureMaterialFile): number {
   return file.reading.side * figurePlayback(file).pixelsPerCell;
 }
 
-function unsigned(value: unknown, label: string): number {
-  const result = number(value, label);
-  if (!Number.isInteger(result) || result < 0 || result > 0xffffffff) throw new Error(`Invalid ${label} in the automaton definition`);
-  return result;
-}
-
 function vector(value: unknown, label: string): Control {
   if (!Array.isArray(value) || value.length !== 3) throw new Error(`Invalid ${label} in the automaton definition`);
-  return value.map((entry) => number(entry, label)) as Control;
+  return [number(value[0], label), number(value[1], label), number(value[2], label)];
 }
 
 function readAnchor(value: unknown): MaterialAnchor {
@@ -337,38 +348,92 @@ function readAnchor(value: unknown): MaterialAnchor {
   const ring = number(cuts.ring, "reference patch median selection threshold");
   const maximum = number(cuts.maximum, "reference patch maximum");
   if (!Array.isArray(cuts.cuts) || cuts.cuts.length !== 3) throw new Error("Invalid reference patch cuts in the automaton definition");
-  const steps = cuts.cuts.map((cut) => number(cut, "reference patch cut"));
-  if (steps[0] < ring || steps[1] < steps[0] || steps[2] < steps[1]) throw new Error("Reference patch cuts must rise from the median selection threshold");
+  const steps: [number, number, number] = [
+    number(cuts.cuts[0], "reference patch cut"),
+    number(cuts.cuts[1], "reference patch cut"),
+    number(cuts.cuts[2], "reference patch cut"),
+  ];
+  if (steps[0] < ring || steps[1] < steps[0] || steps[2] < steps[1]) {
+    throw new Error("Reference patch cuts must rise from the median selection threshold");
+  }
   const code = vector(anchor.code, "reference patch response vector");
-  if (!Number.isInteger(anchor.slot) || (anchor.slot as number) < 5 || (anchor.slot as number) > 260) throw new Error("Invalid reference patch slot in the automaton definition");
+  if (!Number.isInteger(anchor.slot) || (anchor.slot as number) < PATCH_SLOT_OFFSET || (anchor.slot as number) >= TOKEN_SLOTS) {
+    throw new Error("Invalid reference patch slot in the automaton definition");
+  }
+  const slot = anchor.slot as number;
+  if (Math.abs(Math.hypot(...code) - norm) > 1e-3 * norm) {
+    throw new Error("The reference patch response magnitude must be the length of its response vector");
+  }
+  const strength: StrengthCuts = { ring, cuts: steps, maximum };
+  const band = bandOfNorm(norm, strength);
+  if (anchor.band !== band) {
+    throw new Error("The reference patch response level must follow its response magnitude and cuts");
+  }
   if (anchor.source === "library") {
-    if (!Number.isSafeInteger(anchor.imageId) || (anchor.imageId as number) < 1) throw new Error("Invalid reference patch picture in the automaton definition");
-    if (anchor.publicPreview !== undefined && anchor.publicPreview !== false) throw new Error("Invalid reference patch picture in the automaton definition");
-  } else if (anchor.source !== "upload" || anchor.imageId !== undefined) {
+    if (!Number.isSafeInteger(anchor.imageId) || (anchor.imageId as number) < 1) {
+      throw new Error("Invalid reference patch picture in the automaton definition");
+    }
+    if (anchor.publicPreview !== undefined && anchor.publicPreview !== false) {
+      throw new Error("Invalid reference patch picture in the automaton definition");
+    }
+    return {
+      band,
+      norm,
+      strength,
+      code,
+      slot,
+      source: "library",
+      imageId: anchor.imageId as number,
+      ...(anchor.publicPreview === false ? { publicPreview: false as const } : {}),
+    };
+  }
+  if (anchor.source !== "upload" || anchor.imageId !== undefined) {
     throw new Error("Invalid reference patch source in the automaton definition");
   }
-  if (Math.abs(Math.hypot(...code) - norm) > 1e-3 * norm) throw new Error("The reference patch response magnitude must be the length of its response vector");
-  const strength = { ring, cuts: steps as [number, number, number], maximum };
-  if (anchor.band !== bandOfNorm(norm, strength)) throw new Error("The reference patch response level must follow its response magnitude and cuts");
-  return anchor as unknown as MaterialAnchor;
+  return { band, norm, strength, code, slot, source: "upload" };
 }
 
-function readFigureReading(value: unknown) {
+function readFigureReading(value: unknown): FigureReading {
   const reading = record(value, "measurement");
+  let status: FigureReading["status"];
+  let strength: number | null;
+  let winnerFraction: number | null;
   if (reading.status === "unmeasured") {
-    if (reading.strength !== null || reading.winnerFraction !== null) throw new Error("An unmeasured automaton definition must not claim scores");
+    if (reading.strength !== null || reading.winnerFraction !== null) {
+      throw new Error("An unmeasured automaton definition must not claim scores");
+    }
+    status = "unmeasured";
+    strength = null;
+    winnerFraction = null;
   } else if (reading.status === "measured") {
-    number(reading.strength, "measured value");
-    const fraction = number(reading.winnerFraction, "selection fraction");
-    if (fraction < 0 || fraction > 1) throw new Error("The selection fraction must be between 0 and 1");
+    status = "measured";
+    strength = number(reading.strength, "measured value");
+    winnerFraction = number(reading.winnerFraction, "selection fraction");
+    if (winnerFraction < 0 || winnerFraction > 1) throw new Error("The selection fraction must be between 0 and 1");
   } else {
     throw new Error("The automaton definition's measurement needs its status");
   }
-  if (reading.side !== 64 && reading.side !== 128 && reading.side !== 256) throw new Error("A measurement grid has 64, 128 or 256 cells per side");
-  unsigned(reading.seed, "measurement seed");
-  if (!Number.isSafeInteger(reading.tick) || (reading.tick as number) < 0) throw new Error("Invalid measurement simulation step in the automaton definition");
-  if (reading.region !== undefined && reading.region !== "centre-4x4") throw new Error("Invalid measurement region in the automaton definition");
-  text(reading.note, "measurement conditions");
+  if (reading.side !== 64 && reading.side !== 128 && reading.side !== 256) {
+    throw new Error("A measurement grid has 64, 128 or 256 cells per side");
+  }
+  const seed = unsigned(reading.seed, "measurement seed");
+  if (!Number.isSafeInteger(reading.tick) || (reading.tick as number) < 0) {
+    throw new Error("Invalid measurement simulation step in the automaton definition");
+  }
+  if (reading.region !== undefined && reading.region !== "centre-4x4") {
+    throw new Error("Invalid measurement region in the automaton definition");
+  }
+  const note = text(reading.note, "measurement conditions");
+  return {
+    status,
+    strength,
+    winnerFraction,
+    side: reading.side,
+    seed,
+    tick: reading.tick as number,
+    ...(reading.region !== undefined ? { region: reading.region } : {}),
+    note,
+  };
 }
 
 function readTargetSet(value: unknown): FigureTargetSet {
@@ -379,8 +444,8 @@ function readTargetSet(value: unknown): FigureTargetSet {
     throw new Error(`The target set needs 1 to ${MOST_SET_PICTURES} pictures`);
   }
   const seen = new Set<number>();
-  const pictures = set.pictures.map((value) => {
-    const picture = record(value, "target set picture");
+  const pictures = set.pictures.map((entry) => {
+    const picture = record(entry, "target set picture");
     if (!Number.isSafeInteger(picture.imageId) || (picture.imageId as number) < 1) throw new Error("Invalid target set picture in the automaton definition");
     if (!Number.isInteger(picture.patch) || (picture.patch as number) < 0 || (picture.patch as number) >= PICTURE_PATCHES) {
       throw new Error("A target set picture's patch is a position of its 16 × 16 grid");
@@ -393,44 +458,51 @@ function readTargetSet(value: unknown): FigureTargetSet {
 }
 
 /**
- * A browser training's method and what it needs: a token method its distinct layers, a set method its
- * target set, a basis-group method neither. A set method's loss is not the request's, so a file must
- * not also claim the request's loss kinds.
+ * Validates method-specific settings: token methods require distinct layers, set methods require
+ * a target set and cannot claim request loss kinds, and basis-group mean takes neither.
  */
-function readMethod(settings: Record<string, unknown>) {
+function readMethod(settings: Record<string, unknown>): { method?: FigureMethod; layers?: FigureLayer[]; set?: FigureTargetSet } {
   if (settings.method === undefined) {
     if (settings.layers !== undefined || settings.set !== undefined) throw new Error("Layers and a target set belong to a set method");
-    return;
+    return {};
   }
   if (!(FIGURE_METHODS as readonly unknown[]).includes(settings.method)) {
     throw new Error(`The automaton definition's method must be one of ${FIGURE_METHODS.join(", ")}`);
   }
   const method = settings.method as FigureMethod;
+  let layers: FigureLayer[] | undefined;
   if (methodReadsTokens(method)) {
-    const layers = settings.layers;
-    if (!Array.isArray(layers) || layers.length === 0 || !layers.every(isFigureLayer) || new Set(layers).size !== layers.length) {
+    if (!Array.isArray(settings.layers) || settings.layers.length === 0 || !settings.layers.every(isFigureLayer) || new Set(settings.layers).size !== settings.layers.length) {
       throw new Error('A token method records its distinct layers: "block-k" or "final"');
     }
+    layers = [...settings.layers];
   } else if (settings.layers !== undefined) {
     throw new Error("A basis-group method records no layers");
   }
+  let set: FigureTargetSet | undefined;
   if (methodNeedsSet(method)) {
-    readTargetSet(settings.set);
+    set = readTargetSet(settings.set);
     if (settings.lossKind !== undefined && settings.lossKind !== "other") throw new Error("A set method's loss is not the request's");
   } else if (settings.set !== undefined) {
     throw new Error("Basis-group mean matching has no target set");
   }
+  return {
+    method,
+    ...(layers !== undefined ? { layers } : {}),
+    ...(set !== undefined ? { set } : {}),
+  };
 }
 
-function readStart(value: unknown) {
+function readStart(value: unknown): FigureStart {
   const start = record(value, "start");
-  if (start.kind === "noise") return;
+  if (start.kind === "noise") return { kind: "noise" };
   if (start.kind !== "centre-disc") throw new Error("Invalid start in the automaton definition");
   const radius = number(start.radius, "start radius");
-  if (radius <= 0 || radius > 256) throw new Error("The start disc needs a positive radius of at most 256 cells");
-  if (start.backgroundAmplitude === undefined) return;
-  const amplitude = number(start.backgroundAmplitude, "start background amplitude");
-  if (amplitude < 0 || amplitude > 1) throw new Error("The start's background amplitude must be from 0 to 1");
+  if (radius <= 0 || radius > MAX_START_RADIUS) throw new Error("The start disc needs a positive radius of at most 256 cells");
+  if (start.backgroundAmplitude === undefined) return { kind: "centre-disc", radius };
+  const backgroundAmplitude = number(start.backgroundAmplitude, "start background amplitude");
+  if (backgroundAmplitude < 0 || backgroundAmplitude > 1) throw new Error("The start's background amplitude must be from 0 to 1");
+  return { kind: "centre-disc", radius, backgroundAmplitude };
 }
 
 /** The start with only the fields format 4 defines; an amplitude of 0 is the same start as none. */
@@ -445,93 +517,133 @@ export function readFigureMaterial(value: unknown, dictionaryId?: string): Figur
   const file = record(value, "top-level value");
   if (file.format === 1 || file.format === 2) throw new Error("This app cannot play E1 automata (formats 1 and 2).");
   if (file.format !== 4) throw new Error("Unsupported automaton definition format");
-  // A definition is a visitor's text that others print: in pages, in the owner's terminal, in exported shader comments.
+  // Definitions contain visitor text printed in pages, terminals, and exported shader comments.
   const unsafe = firstUnsafeString(file);
   if (unsafe !== null) throw new Error(`The automaton definition's ${escapedText(unsafe)} holds a control character or a line separator`);
-  readCommon(file, dictionaryId);
-  if (file.mode !== "fill") throw new Error("The figure training procedure trains automata for area simulation only");
-  text(file.engine, "engine build");
+  const common = readCommon(file, dictionaryId);
+  const engine = text(file.engine, "engine build");
   const recipe = readRecipe(file.recipe);
-  text(recipe.name, "training procedure name");
-  if (recipe.placeholder) throw new Error("A figure automaton definition is never a placeholder");
-  const settings = recipe.settings as Record<string, unknown>;
-  if (number(settings.medianNorm, "median selected response magnitude") <= 0) throw new Error("Invalid median selected response magnitude in the automaton definition");
-  if (Math.abs(Math.hypot(...vector(settings.lobeDirection, "directional extension direction")) - 1) > 1e-3) throw new Error("The directional extension direction must be a unit vector");
-  if (settings.lossKind !== undefined && !FIGURE_LOSS_KINDS.includes(settings.lossKind)) throw new Error('The automaton definition\'s loss kind must be "plain", "guided", "plain-margin" or "other"');
-  readMethod(settings);
-  readAnchor(file.anchor);
+  const medianNorm = number(recipe.settings.medianNorm, "median selected response magnitude");
+  if (medianNorm <= 0) throw new Error("Invalid median selected response magnitude in the automaton definition");
+  const lobeDirection = vector(recipe.settings.lobeDirection, "directional extension direction");
+  if (Math.abs(Math.hypot(...lobeDirection) - 1) > 1e-3) throw new Error("The directional extension direction must be a unit vector");
+  if (recipe.settings.lossKind !== undefined && !FIGURE_LOSS_KINDS.includes(recipe.settings.lossKind)) {
+    throw new Error('The automaton definition\'s loss kind must be "plain", "guided", "plain-margin" or "other"');
+  }
+  const lossKind = recipe.settings.lossKind as FigureLossKind | undefined;
+  const methodFields = readMethod(recipe.settings);
+  const anchor = readAnchor(file.anchor);
   const training = record(file.training, "training");
-  unsigned(training.seed, "training seed");
-  if (!Number.isSafeInteger(training.updates) || (training.updates as number) < 0) throw new Error("Invalid optimizer update count in the automaton definition");
+  const trainingSeed = unsigned(training.seed, "training seed");
+  if (!Number.isSafeInteger(training.updates) || (training.updates as number) < 0) {
+    throw new Error("Invalid optimizer update count in the automaton definition");
+  }
+  const trainingUpdates = training.updates as number;
   const rule = record(file.rule, "cellular model");
-  if ((rule.layout !== FIGURE_LAYOUT && rule.layout !== FIGURE_PYRAMID_LAYOUT) || rule.dtype !== "float32-le") throw new Error("Unsupported cellular model shape in the automaton definition");
-  const pyramid = rule.layout === FIGURE_PYRAMID_LAYOUT;
+  if ((rule.layout !== FIGURE_LAYOUT && rule.layout !== FIGURE_PYRAMID_LAYOUT) || rule.dtype !== "float32-le") {
+    throw new Error("Unsupported cellular model shape in the automaton definition");
+  }
+  const layout: FigureLayout = rule.layout;
+  const pyramid = layout === FIGURE_PYRAMID_LAYOUT;
   const fireRate = number(rule.fireRate, "cell update probability");
   if (fireRate <= 0 || fireRate > 1) throw new Error("The cell update probability must be in (0, 1]");
-  readFigureReading(file.reading);
-  if (file.start !== undefined) readStart(file.start);
+  const reading = readFigureReading(file.reading);
+  const start = file.start === undefined ? undefined : readStart(file.start);
+  let picture: { pixelsPerCell: PixelsPerCell } | undefined;
   if (file.picture !== undefined) {
     const pixels = record(file.picture, "picture").pixelsPerCell;
     if (pixels !== 1 && pixels !== 2) throw new Error("A picture has 1 or 2 pixels per cell");
+    picture = { pixelsPerCell: pixels };
   }
-  const picture = (file.reading as FigureReading).side * ((file.picture as { pixelsPerCell: number } | undefined)?.pixelsPerCell ?? 1);
-  if (!(PICTURE_SIDES as readonly number[]).includes(picture)) throw new Error("The measurement's picture must be 128 or 256 pixels wide");
+  const pictureSide = reading.side * (picture?.pixelsPerCell ?? 1);
+  if (!(PICTURE_SIDES as readonly number[]).includes(pictureSide)) {
+    throw new Error("The measurement's picture must be 128 or 256 pixels wide");
+  }
+  let playback: { hiddenNoise: number } | undefined;
   if (file.playback !== undefined) {
-    const playback = record(file.playback, "playback");
-    const sigma = number(playback.hiddenNoise, "hidden-channel noise");
+    const rawPlayback = record(file.playback, "playback");
+    const sigma = number(rawPlayback.hiddenNoise, "hidden-channel noise");
     if (sigma < 0) throw new Error("Hidden-channel noise must be zero or positive");
     if (pyramid && sigma !== 0) throw new Error("The two-scale cellular model has no playback noise");
+    playback = { hiddenNoise: sigma };
   }
-  if (pyramid && picture !== (file.reading as FigureReading).side) throw new Error("The two-scale cellular model draws one pixel per fine-grid cell");
+  if (pyramid && pictureSide !== reading.side) {
+    throw new Error("The two-scale cellular model draws one pixel per fine-grid cell");
+  }
   const count = pyramid ? FIGURE_PYRAMID_RULE_VALUES : FIGURE_RULE_VALUES;
-  return { file: file as unknown as FigureMaterialFile, values: decodeRule(text(rule.values, "cellular model values"), count) };
+  const encodedValues = text(rule.values, "cellular model values");
+  const values = decodeRule(encodedValues, count);
+  const settings: FigureMaterialFile["recipe"]["settings"] = {
+    ...recipe.settings,
+    medianNorm,
+    lobeDirection,
+    ...(lossKind !== undefined ? { lossKind } : {}),
+    ...methodFields,
+  };
+  const decoded: FigureMaterialFile = {
+    format: 4,
+    ...common,
+    engine,
+    recipe: {
+      name: recipe.name,
+      placeholder: false,
+      source: recipe.source,
+      sourceSha256: recipe.sourceSha256,
+      settings,
+    },
+    anchor,
+    training: { seed: trainingSeed, updates: trainingUpdates },
+    rule: { layout, dtype: "float32-le", fireRate, values: encodedValues },
+    ...(start !== undefined ? { start } : {}),
+    ...(picture !== undefined ? { picture } : {}),
+    reading,
+    ...(playback !== undefined ? { playback } : {}),
+  };
+  return { file: decoded, values };
 }
 
 /** A recipe setting the canonical file keeps: numbers, flags, short text, short number lists, small text maps. */
 function settingValue(value: unknown): unknown {
-  const shortText = (text: unknown) => typeof text === "string" && text.length <= 200;
+  const shortText = (entry: unknown) => typeof entry === "string" && entry.length <= 200;
   if (value === null || typeof value === "boolean" || (typeof value === "number" && Number.isFinite(value)) || shortText(value)) return value;
   if (Array.isArray(value) && value.length <= 64 && value.every((entry) => typeof entry === "number" && Number.isFinite(entry))) return [...value];
   if (value && typeof value === "object" && !Array.isArray(value)) {
     const entries = Object.entries(value);
-    if (entries.length <= 16 && entries.every(([key, text]) => SETTING_KEY.test(key) && shortText(text))) return Object.fromEntries(entries);
+    if (entries.length <= 16 && entries.every(([key, entry]) => SETTING_KEY.test(key) && shortText(entry))) return Object.fromEntries(entries);
   }
   return undefined;
 }
 const SETTING_KEY = /^[A-Za-z][A-Za-z0-9_.-]{0,63}$/;
 
 /**
- * The recipe settings a figure material may carry, by name; canonicalFigureFile drops any other.
- * Three sources write them: the archived trainer's Settings (original_recipe.py, its own snake_case
- * names), the research converter's provenance (convert_figure_material.py), and the browser Grow
- * (grow/figure-recipe.ts FIGURE_SETTINGS and figureMaterial). A new setting is added here first.
+ * Allowed recipe setting keys kept by canonicalFigureFile. Covers archived trainer settings,
+ * imported provenance metadata, and browser training settings.
  */
 export const FIGURE_SETTING_KEYS: ReadonlySet<string> = new Set([
-  // original_recipe.py Settings, as the E18 and E19 runs recorded them
+  // Archived trainer settings (snake_case)
   "block", "objective", "region_module", "region_target", "warm_start", "pole_target", "size", "render", "channels", "hidden",
   "fire_rate", "init", "pool", "batch", "rollout_min", "rollout_max", "reset_every", "iterations", "lr", "lr_final", "shift",
   "views", "gate_margin", "gate_radius", "overflow_weight", "rgb_overflow", "seed", "random_frame", "colony", "quantize",
   "checkpoint", "eval_only", "eval_size", "eval_steps", "eval_every",
-  // convert_figure_material.py and convert_stage5_material.py: the run's arm, loss and provenance
+  // Imported provenance and sweep metadata
   "arm", "loss", "targetCode", "inputSha256", "trainerSourceSha256", "experiment", "runFolder", "trainerSha256", "variant",
-  // convert_stage6_materials.py: the sweep stage and run.json's fire record
   "sweepStage", "firstFireUpdate", "retentionAtFirstFire", "retention4000AtFirstFire", "retainedFireUpdate",
   "retention4000AtRetainedFire",
-  // convert_stage6_materials.py --margin-rule: selection-margin settings
+  // Selection-margin training settings
   "selectionMargin", "marginRivalRank", "marginDeltaOverM2", "marginWeight",
-  // the browser Grow's figure recipe
+  // Browser training recipe settings
   "perception", "boundary", "fireRate", "rolloutMin", "rolloutMax", "checkpointChunk", "learningRate", "finalLearningRate",
   "schedule", "gradientNormalization", "overflowWeight", "display", "random", "batch1ResetEvery", "fires", "run", "runs", "trainingMs",
   "stage",
-  // m and u of the loss and the readout, for every source; which direction u is (absent: the main direction)
+  // Loss and readout calibration parameters (m, u, and measurement direction)
   "medianNorm", "lobeDirection", "measurementDirection",
-  // the loss the rule trained with, for every source (lossKindOf), and a guided rule's guide
+  // Loss variant and guidance parameters
   "lossKind", "guideRatio", "guideReleaseFraction", "guideReleaseFloor", "guideUnits",
-  // a Train run continued from a saved definition (ancestorId): its start update, its fresh optimizer, what it changed
+  // Continuation lineage metadata
   "continuedFromUpdate", "continuedOptimizer", "continuedChange",
-  // the browser Train's method (methodOfFile); a token method's layers and a set method's target set (readMethod)
+  // Training method, token layers, and target set
   "method", "layers", "set",
-  // a set method's reading step (grow/figure-recipe.ts READING_LADDER): the steps read and the own loss at each
+  // Reading ladder steps and per-step losses for set methods
   "readingLadder", "readingLosses",
 ]);
 

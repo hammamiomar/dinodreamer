@@ -568,7 +568,18 @@ describe("path anchor selection lifetime", () => {
 
   it("does not start an anchor pick for a missing request or a point target", () => {
     const initial = withOneRequest();
+    expect(initial.anchorPick).toBeNull();
     expect(run(initial, { type: "pickPathAnchor", requestId: 2, endpoint: 0 })).toBe(initial);
     expect(run(initial, { type: "pickPathAnchor", requestId: 1, endpoint: 0 })).toBe(initial);
+  });
+
+  it("preserves state identity when setCodeTarget or cancelPathAnchor is a no-op", () => {
+    const initial = withOneRequest();
+    expect(editorReducer(initial, { type: "cancelPathAnchor" })).toBe(initial);
+    expect(editorReducer(initial, { type: "setCodeTarget", requestId: 1, target: { kind: "point" } })).toBe(initial);
+    const picking = pathState();
+    const cancelled = editorReducer(picking, { type: "cancelPathAnchor" });
+    expect(cancelled).not.toBe(picking);
+    expect(cancelled.anchorPick).toBeNull();
   });
 });

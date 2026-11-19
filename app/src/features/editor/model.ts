@@ -285,7 +285,7 @@ export function combineStroke(area: Area, stroke: Stroke): Area {
 
 /**
  * Only a patch token's Respond like has a painted area. A CLS or storage token
- * measures its own slot (computation.md §6), so its area stays empty.
+ * measures its own slot, so its area stays empty.
  */
 export function hasPaintedRespondArea(token: Token): boolean {
   return token.role === "patch";
@@ -345,7 +345,7 @@ export function defaultReference(token: Token): Reference {
 
 /**
  * Replaces a request's reference pictures. A picture that stays keeps its edited
- * source window (computation.md §11); a new picture gets the default window.
+ * source window; a new picture gets the default window.
  * Duplicate images keep their first occurrence, and the list stops at the maximum.
  */
 export function setReferences(recipe: Recipe, requestId: number, tokens: Token[]): Recipe {
@@ -425,10 +425,11 @@ export function termIds(recipe: Recipe): TermId[] {
 export function getTerm(recipe: Recipe, id: TermId): Term | undefined {
   if (id === "rules:tv") return recipe.rules.tv;
   if (id === "rules:l2") return recipe.rules.l2;
-  const { requestId, row } = parseRequestTermId(id);
-  const request = findRequest(recipe, requestId);
+  const parsed = parseRequestTermId(id);
+  if (!parsed) return undefined;
+  const request = findRequest(recipe, parsed.requestId);
   if (!request) return undefined;
-  return row === "respond" ? request.respondLike : request.lookLike;
+  return parsed.row === "respond" ? request.respondLike : request.lookLike;
 }
 
 /** True when the term contributes to the loss: switched on with a positive weight. */
@@ -452,9 +453,10 @@ function updateTerm(recipe: Recipe, id: TermId, change: <T extends Term>(term: T
     const rule = change(recipe.rules[key]);
     return rule === recipe.rules[key] ? recipe : { ...recipe, rules: { ...recipe.rules, [key]: rule } };
   }
-  const { requestId, row } = parseRequestTermId(id);
-  return updateRequest(recipe, requestId, (request) => {
-    if (row === "respond") {
+  const parsed = parseRequestTermId(id);
+  if (!parsed) return recipe;
+  return updateRequest(recipe, parsed.requestId, (request) => {
+    if (parsed.row === "respond") {
       const respondLike = change(request.respondLike);
       return respondLike === request.respondLike ? request : { ...request, respondLike };
     }
@@ -463,12 +465,11 @@ function updateTerm(recipe: Recipe, id: TermId, change: <T extends Term>(term: T
   });
 }
 
-function parseRequestTermId(id: `request:${number}:${"respond" | "look"}`): {
-  requestId: number;
-  row: "respond" | "look";
-} {
-  const [, requestId, row] = id.split(":");
-  return { requestId: Number(requestId), row: row as "respond" | "look" };
+/** Parse a request term id (`request:<id>:respond|look`), returning null for non-request term ids. */
+export function parseRequestTermId(id: TermId): { requestId: number; row: AreaTerm } | null {
+  const match = /^request:(\d+):(respond|look)$/.exec(id);
+  if (!match) return null;
+  return { requestId: Number(match[1]), row: match[2] as AreaTerm };
 }
 
 // ---------------------------------------------------------------------------
