@@ -21,6 +21,7 @@ import { HOW_PICTURE } from "../how/how-source";
 import { fires, STORY_FOLDER, type StoryRecord } from "../how/training-story";
 import { useSourced } from "../how/use-sourced";
 import { BAND_NAMES, STRENGTH_BANDS } from "../look/strength-bands";
+import { HOME_TICKS_PER_SECOND } from "./home-material";
 import { HomeMaterial, type HomeStill } from "./home-material-view";
 import { frameAt, HOME_BEATS, layerAt, levelsArrived, type HomeBeat } from "./home-scroll";
 
@@ -94,12 +95,12 @@ export function HomePanel({ beat, progress, prefetch, still, entrance, thread, r
   /** The reader has scrolled: the beats' heavier files load now, before their figures show. */
   prefetch: boolean;
   still: HomeStill;
-  /** The automaton on the entrance: the visit's, from the featured pool, with no picture shown beside it. */
+  /** The automaton on the entrance: the visit's, from the essay's opening list, with no picture shown beside it; its cells go to the next one an arrow turns to. */
   entrance: Shown | null;
   /** The thread's automaton, basis group 4009's, at the end. */
   thread: Shown | null;
   recordedState: AutomatonState | null;
-  /** How many times the visitor has reset the entrance's automaton: each reset grows it again from noise. */
+  /** How many times the visitor has reset the entrance's automaton: each reset grows it again from its own start. */
   reset: number;
   story: StoryRecord | null;
   cloud: AtlasCloud | null;
@@ -126,7 +127,18 @@ export function HomePanel({ beat, progress, prefetch, still, entrance, thread, r
     <div ref={panel} className="home-panel">
       <div className="home-layer home-layer-live" data-shown={beat === "entrance" || undefined}>
         {entrance && (
-          <HomeMaterial key={`${entrance.entry.id}-${reset}`} entry={entrance.entry} material={beat === "entrance" && !still ? entrance.material : null} posterWhileRunning={false} drawRatio={FIELD_DRAW_RATIO} regrowAtTick={Number.POSITIVE_INFINITY} onNoReplay={onNoReplay} />
+          // An arrow press hands the cells to the next automaton (carryCells); a reset grows the shown one again from its own start.
+          <HomeMaterial
+            key={reset}
+            entry={entrance.entry}
+            material={beat === "entrance" && !still ? entrance.material : null}
+            posterWhileRunning={false}
+            drawRatio={FIELD_DRAW_RATIO}
+            regrowAtTick={Number.POSITIVE_INFINITY}
+            stepsPerSecond={HOME_TICKS_PER_SECOND}
+            carryCells
+            onNoReplay={onNoReplay}
+          />
         )}
       </div>
       <div className="home-layer home-layer-figure" data-shown={beat === "model" || undefined}>
@@ -148,6 +160,7 @@ export function HomePanel({ beat, progress, prefetch, still, entrance, thread, r
             posterUrl={`${AUTOMATON_RECORD_FOLDER}picture-128.png`}
             drawRatio={FIELD_DRAW_RATIO}
             regrowAtTick={END_REGROW_AT_TICK}
+            stepsPerSecond={HOME_TICKS_PER_SECOND}
             onNoReplay={onNoReplay}
           />
         )}

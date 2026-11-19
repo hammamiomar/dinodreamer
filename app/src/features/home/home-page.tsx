@@ -12,17 +12,19 @@ import { Link } from "react-router";
 import { useLibrary } from "../../app/library-session";
 import { fill, fillNodes, SITE_WORDS } from "../../app/site-words";
 import { useMediaMatch } from "../../ui/media-match";
-import { useLoaded } from "../../ui/use-loaded";
+import { useLoaded, type Loaded } from "../../ui/use-loaded";
 import { explorePath } from "../atlas/atlas-position";
 import { useMaterialIndex, usePublishedMaterial } from "../gallery/material-gallery";
 import type { MaterialEntry } from "../gallery/material-index";
-import { featuredMaterials } from "../playground/playground";
+import type { FigureMaterial } from "../../materials/material-file";
 import { HOW_AUTOMATON, loadHowStory } from "../how/figures/figure-data";
 import { loadAutomatonState } from "../how/automaton-record";
 import { HOW_PICTURE } from "../how/how-source";
 import { usePrefersReducedMotion } from "../landing/motion";
 import type { HomeStill } from "./home-material-view";
 import { HomePanel, type Shown } from "./home-panel";
+import { ENTRANCE_AUTOMATA, entrancePool, shuffled } from "./home-material";
+import { entranceAutomaton } from "./home-relay";
 import { approachedBeats, BEAT_PLAY_MS, HOME_BEATS, NARROW_PANEL_SHARE, readingLine, sectionAt, type HomeBeat } from "./home-scroll";
 import { ResetMark } from "../../ui/reset-mark";
 import "./home.css";
@@ -70,6 +72,14 @@ function useBeatPlay(beat: HomeBeat, reducedMotion: boolean): number {
   return progress;
 }
 
+/** The entrance's automaton (home-relay.ts, entranceAutomaton), with the one the field runs remembered between renders. */
+function useEntranceAutomaton(choice: MaterialEntry | null, file: Loaded<FigureMaterial>): Shown | null {
+  const [running, setRunning] = useState<Shown | null>(null);
+  const shown = entranceAutomaton(choice, file, running);
+  if (shown?.material && (running?.entry !== shown.entry || running.material !== shown.material)) setRunning(shown);
+  return shown;
+}
+
 export function HomePage() {
   const home = useRef<HTMLElement>(null);
   useLayoutEffect(() => {
@@ -100,14 +110,16 @@ export function HomePage() {
   const threadMaterial = usePublishedMaterial(still || !approached.end ? null : threadEntry);
   const endLoads = still === null && approached.end;
   const recordedState = useLoaded(endLoads, () => (endLoads ? loadAutomatonState() : null));
-  // The entrance's automaton: one of the featured pool that met its selection target, drawn per visit,
-  // the arrows turning to the next or the previous.
-  const pool = useMemo(() => (index.status === "ready" ? featuredMaterials(index.index.entries).filter((candidate) => candidate.fired) : []), [index]);
-  const [drawn] = useState(() => Math.random());
+  // The entrance's automaton: the essay's opening list in an order shuffled for the visit
+  // (home-material.ts, ENTRANCE_AUTOMATA), the arrows turning to the next or the previous, which grows
+  // out of the shown one's cells.
+  const [order] = useState(() => shuffled(ENTRANCE_AUTOMATA, Math.random));
+  const pool = useMemo(() => (index.status === "ready" ? entrancePool(index.index.entries, order) : []), [index, order]);
   const [turned, setTurned] = useState(0);
   const [reset, setReset] = useState(0);
-  const shownEntry: MaterialEntry | null = pool.length > 0 ? pool[(((Math.floor(drawn * pool.length) + turned) % pool.length) + pool.length) % pool.length]! : null;
-  const shownMaterial = usePublishedMaterial(still ? null : shownEntry);
+  const chosenEntry: MaterialEntry | null = pool.length > 0 ? pool[((turned % pool.length) + pool.length) % pool.length]! : null;
+  const chosenMaterial = usePublishedMaterial(still ? null : chosenEntry);
+  const entrance = useEntranceAutomaton(chosenEntry, chosenMaterial);
   const story = useLoaded("story", loadHowStory);
   const cloud = useLoaded("cloud", () => library.atlasCloud(HOW_PICTURE.block));
   const narrow = useMediaMatch(NARROW);
@@ -143,13 +155,13 @@ export function HomePage() {
     sections.current[at] = element;
   };
 
-  const failedLoad = [index, shownMaterial, threadMaterial, recordedState].find((loaded) => loaded.status === "failed");
+  const failedLoad = [index, chosenMaterial, threadMaterial, recordedState].find((loaded) => loaded.status === "failed");
   let problem: string | null = null;
   if (failedLoad) problem = fill(WORDS.materialFailed, { message: failedLoad.message });
-  else if (index.status === "ready" && (!threadEntry || !shownEntry)) {
+  else if (index.status === "ready" && (!threadEntry || !chosenEntry)) {
     problem = fill(WORDS.materialFailed, { message: HOW_AUTOMATON });
   }
-  const shown = (entry: MaterialEntry | null, loaded: typeof shownMaterial): Shown | null => (entry ? { entry, material: loaded.status === "ready" ? loaded.value : null } : null);
+  const shown = (entry: MaterialEntry | null, loaded: typeof chosenMaterial): Shown | null => (entry ? { entry, material: loaded.status === "ready" ? loaded.value : null } : null);
   const links = (
     <nav className="home-links" aria-label={WORDS.linksName}>
       <Link to={explorePath()}>{HEADER.explore}</Link>
@@ -165,7 +177,7 @@ export function HomePage() {
         progress={progress}
         prefetch={place.scrolled}
         still={still}
-        entrance={shown(shownEntry, shownMaterial)}
+        entrance={entrance}
         thread={shown(threadEntry, threadMaterial)}
         recordedState={recordedState.status === "ready" ? recordedState.value : null}
         reset={reset}
@@ -182,7 +194,7 @@ export function HomePage() {
             {pool.length > 1 && (
               <div className="home-turn" role="group" aria-label={WORDS.turnName}>
                 <button type="button" aria-label={WORDS.previousAutomaton} onClick={() => setTurned((count) => count - 1)}><Chevron direction="left" /></button>
-                <button type="button" aria-label={WORDS.resetAutomaton} disabled={still !== null || shownMaterial.status !== "ready"} onClick={() => setReset((count) => count + 1)}><ResetMark /></button>
+                <button type="button" aria-label={WORDS.resetAutomaton} disabled={still !== null || chosenMaterial.status !== "ready"} onClick={() => setReset((count) => count + 1)}><ResetMark /></button>
                 <button type="button" aria-label={WORDS.nextAutomaton} onClick={() => setTurned((count) => count + 1)}><Chevron direction="right" /></button>
               </div>
             )}
