@@ -3,12 +3,11 @@
 //   pnpm run research publish <folder> [--local <dir>] [--reread]
 //   pnpm run research show-default [--local <dir>] [--production]
 //
-// <folder> is the research repository's export: manifest.json, and runs/<id>/material.json with a
-// still-NNNN.png for every tick the index lists (app/src/features/research/research-runs.ts). The
-// command checks every file first and writes nothing when one is wrong. Then it writes the runs the
-// stored index does not list yet, and the new index last (src/research.ts), to the private bucket:
-// the owner's research page shows them; nothing is public. --local <dir> writes the local Worker's
-// bucket instead (`wrangler dev --local --persist-to <dir>`).
+// <folder> is an exported research run folder containing manifest.json and runs/<id>/material.json
+// with a still-NNNN.png for every tick listed in the index (app/src/features/research/research-runs.ts).
+// The command checks every file first and writes nothing when any file is invalid. It uploads runs
+// missing from the stored index and writes the new index last (src/research.ts) to the private bucket.
+// Use --local <dir> to target a local Worker bucket (`wrangler dev --local --persist-to <dir>`).
 //
 // A listed run whose file changed is refused, unless --reread is given: then a run whose reading was
 // taken again, at another step, replaces its file under the same id, when nothing but its reading and

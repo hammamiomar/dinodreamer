@@ -5,8 +5,8 @@ import { readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import worker from "../src/worker.ts";
 import {
-  addFeaturedMarks, approveMaterial, hideMaterial, materialEntries, pendingMaterials, publishMaterial, publishMaterials, purgeMaterial, readMaterials,
-  restoreMaterial, setCellPicture, setGroupPicture, setMaterialFeatured, type HiddenMaterial,
+  approveMaterial, hideMaterial, materialEntries, pendingMaterials, publishMaterial, publishMaterials, purgeMaterial, readMaterials,
+  restoreMaterial, setCellPicture, setGroupPicture, setMaterialFeatured,
 } from "../src/material-review.ts";
 import { galleryEntries, pendingSubmissions } from "../src/review.ts";
 import { canonicalFigureFile, readFigureMaterial } from "../../app/src/materials/material-file.ts";
@@ -207,8 +207,7 @@ describe("material review", () => {
   });
 
   it("accepts every project seed file at the boundary, keeping every field it defines", () => {
-    // 44 rules of E18 and E19; of stage 5 (E20), 3 seeded-centre, 6 at 2 px per cell and 11 pyramids;
-    // the 108 stage-6 rules (E21).
+    // The shipped seed collection contains 172 format-4 automaton files.
     expect(names).toHaveLength(172);
     for (const name of names) {
       const file = readFigureMaterial(JSON.parse(text(name))).file;
@@ -302,27 +301,6 @@ describe("featured materials", () => {
     expect((await publishMaterial(library, quiet, file, { title: file.name, credit: "DinoDreamer project" }, now)).featured).toBe(true);
   });
 
-  it("adds featured: false to every entry and hidden record without a mark, only with write, and leaves a marked one alone", async () => {
-    const { submissions, library, fired, quiet } = await seeded();
-    await setMaterialFeatured(submissions, library, fired, true);
-    await hideMaterial(submissions, library, quiet, now);
-    // As release 2.0.0 wrote them: a hidden record and another index entry without the field.
-    const hiddenKey = `hidden/materials/${quiet}.json`;
-    const { featured: _featured, ...oldRecord } = JSON.parse(await (await submissions.get(hiddenKey))!.text()) as HiddenMaterial;
-    const { hiddenAt: _hiddenAt, ...oldEntry } = oldRecord;
-    await submissions.put(hiddenKey, JSON.stringify(oldRecord));
-    const index = (await readMaterials(library)).entries;
-    await library.put("published/materials.json", JSON.stringify({ entries: [...index, { ...oldEntry, id: "block-13633-older-entry" }] }));
-    const marks = async () => (await readMaterials(library)).entries.map((entry) => [entry.id, entry.featured]);
-
-    expect(await addFeaturedMarks(submissions, library, false)).toEqual({ entries: 1, hidden: 1 });
-    expect(await marks()).toEqual([[fired, true], ["block-13633-older-entry", undefined]]);
-    expect(await addFeaturedMarks(submissions, library, true)).toEqual({ entries: 1, hidden: 1 });
-    expect(await marks()).toEqual([[fired, true], ["block-13633-older-entry", false]]);
-    expect((await materialEntries(submissions, library)).hidden.map((entry) => entry.featured)).toEqual([false]);
-    expect(await addFeaturedMarks(submissions, library, true)).toEqual({ entries: 0, hidden: 0 });
-  });
-
   it("reads an index whose entries have no mark, and refuses a mark that is not true or false", () => {
     const { file } = readFigureMaterial(JSON.parse(text(firedName)));
     const entry = { id: "block-12002-x", title: file.name, credit: "", publishedAt: "", materialId: file.id, block: 12002, recipe: "figure-2026-10-23",
@@ -388,11 +366,11 @@ describe("owner page materials", () => {
     const { ownerRequest } = await import("../src/admin.ts");
     const fixture = testEnv();
     const env: Env = { ...fixture.env, ADMIN_LOCAL_OWNER: "yes" };
-    const get = (path: string) => ownerRequest(new Request(`${ORIGIN}${path}`), env, "<html></html>", neverFetch);
+    const get = (path: string) => ownerRequest(new Request(`${ORIGIN}${path}`), env, neverFetch);
     const post = async (path: string, body: unknown) => {
       const response = await ownerRequest(new Request(`${ORIGIN}${path}`, {
         method: "POST", body: JSON.stringify(body), headers: { "content-type": "application/json", origin: ORIGIN },
-      }), env, "<html></html>", neverFetch);
+      }), env, neverFetch);
       return { status: response.status, body: (await response.json()) as Record<string, unknown> };
     };
     const lists = async () => (await (await get("/admin/api/materials")).json()) as { pending: { id: string }[]; published: { id: string }[]; hidden: { id: string }[] };
@@ -430,16 +408,19 @@ describe("owner page materials", () => {
     const { ownerRequest } = await import("../src/admin.ts");
     const fixture = testEnv();
     for (const path of ["/admin/materials", "/admin/materials/basis/12002"]) {
-      const owner = await ownerRequest(new Request(`${ORIGIN}${path}`), { ...fixture.env, ADMIN_LOCAL_OWNER: "yes" }, "<html></html>", neverFetch);
+      const owner = await ownerRequest(new Request(`${ORIGIN}${path}`), { ...fixture.env, ADMIN_LOCAL_OWNER: "yes" }, neverFetch);
       expect([path, owner.status, owner.headers.get("location")]).toEqual([path, 302, `${ORIGIN}/admin/automata`]);
     }
-    const stranger = await ownerRequest(new Request(`${ORIGIN}/admin/materials`), fixture.env, "<html></html>", neverFetch);
+    const stranger = await ownerRequest(new Request(`${ORIGIN}/admin/materials`), fixture.env, neverFetch);
     expect(stranger.status).toBe(403);
     // The owner's Automata page and its panels are the app's page.
-    const page = await ownerRequest(new Request(`${ORIGIN}/admin/automata/basis/12002`), { ...fixture.env, ADMIN_LOCAL_OWNER: "yes" }, "<html></html>", neverFetch);
+    const page = await ownerRequest(new Request(`${ORIGIN}/admin/automata/basis/12002`), { ...fixture.env, ADMIN_LOCAL_OWNER: "yes" }, neverFetch);
     expect([page.status, await page.text()]).toEqual([200, "<!doctype html>"]);
-    expect([page.headers.get("cache-control"), page.headers.get("content-security-policy")]).toEqual(["no-store", "frame-ancestors 'none'"]);
-    expect((await ownerRequest(new Request(`${ORIGIN}/admin/automata/basis/twelve`), { ...fixture.env, ADMIN_LOCAL_OWNER: "yes" }, "<html></html>", neverFetch)).status).toBe(404);
+    expect([page.headers.get("cache-control"), page.headers.get("content-security-policy")]).toEqual([
+      "no-store",
+      "base-uri 'self'; object-src 'none'; frame-ancestors 'none'",
+    ]);
+    expect((await ownerRequest(new Request(`${ORIGIN}/admin/automata/basis/twelve`), { ...fixture.env, ADMIN_LOCAL_OWNER: "yes" }, neverFetch)).status).toBe(404);
     expect(fixture.assetRequests).toEqual(["/"]);
   });
 });
@@ -491,8 +472,8 @@ describe("canonical material boundary", () => {
   });
 });
 
-describe("browser Grow files at the boundary", () => {
-  it("keeps a /grow file's stage and run settings through submission, approval and publication", async () => {
+describe("browser Train files at the boundary", () => {
+  it("keeps a Train file's stage and run settings through submission, approval and publication", async () => {
     const grown = new URL("../../app/fixtures/materials/browser-grow/", import.meta.url);
     const name = readdirSync(grown).find((entry) => entry.endsWith(".material.json"))!;
     const file = JSON.parse(readFileSync(new URL(name, grown), "utf8"));

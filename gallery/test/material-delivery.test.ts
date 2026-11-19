@@ -66,3 +66,12 @@ it("serves legacy material links and exact local revisions from the bound bucket
   expect(invalid.status).toBe(404);
   expect(read).not.toHaveBeenCalled();
 });
+
+it("returns 405 with Allow: GET for non-GET requests to /api/materials/:id/:file", async () => {
+  const { env } = testEnv();
+  for (const method of ["POST", "PUT", "DELETE"]) {
+    const response = await worker.fetch(new Request("https://app.test/api/materials/two-readings/material.json", { method }), env);
+    expect([method, response.status, response.headers.get("allow")]).toEqual([method, 405, "GET"]);
+    expect(await response.json()).toEqual({ error: "use GET" });
+  }
+});

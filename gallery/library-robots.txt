@@ -1,4 +1,4 @@
-# The Dinodreamer library: the data files that https://dinodreamer.computervision.vision reads.
+# The DinoDreamer library: the data files that https://dinodreamer.computervision.vision reads.
 # Crawlers may read what the site's top-level pages load. The model weights and the engine are not
 # for crawlers. Uploaded to the bucket's root as robots.txt (gallery/cloudflare-settings.md).
 User-agent: *

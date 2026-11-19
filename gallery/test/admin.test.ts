@@ -1,6 +1,8 @@
-import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
+import { unstable_readConfig } from "wrangler";
+import { libraryCdnBaseUrl } from "../review-cli.ts";
 import { ownerRequest } from "../src/admin.ts";
 import { ACCESS_TOKEN_HEADER } from "../src/access.ts";
 import { PURGE_BY_PREFIX_PLACE } from "../src/cdn-check.ts";
@@ -12,7 +14,7 @@ import { PNG, submit, testEnv } from "./fixtures.ts";
 
 const TEAM = "https://owner-test.cloudflareaccess.com";
 const AUD = "aud-of-the-owner-application";
-const PAGE = "<!doctype html><title>owner page</title>";
+const OWNER_CSP = "base-uri 'self'; object-src 'none'; frame-ancestors 'none'";
 const NOW_SECONDS = Math.floor(Date.now() / 1000);
 
 type KeyPair = { privateKey: CryptoKey; publicJwk: JsonWebKey & { kid: string } };
@@ -62,7 +64,7 @@ function accessEnv(): Env {
 
 async function entries(env: Env, token: string | null, fetcher: typeof fetch) {
   const headers: Record<string, string> = token === null ? {} : { [ACCESS_TOKEN_HEADER]: token };
-  const response = await ownerRequest(new Request("https://computervision.vision/admin/api/entries", { headers }), env, PAGE, fetcher);
+  const response = await ownerRequest(new Request("https://computervision.vision/admin/api/entries", { headers }), env, fetcher);
   return { status: response.status, body: (await response.json()) as { error?: string; owner?: string } };
 }
 
@@ -79,7 +81,7 @@ describe("owner access: the Worker's own check of the Access token", () => {
       headers: { origin, "content-type": "application/json", [ACCESS_TOKEN_HEADER]: await accessToken(teamKey) },
       body: JSON.stringify({ id }),
     });
-    const response = await ownerRequest(request, env, PAGE, fetcher);
+    const response = await ownerRequest(request, env, fetcher);
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       purged: id,
@@ -143,22 +145,55 @@ describe("owner access: the Worker's own check of the Access token", () => {
     expect(answer.body.error).toMatch(/could not be read/);
   });
 
-  it("serves the page only to the owner, framed by no other site; the app's fallback never answers /admin", async () => {
+  it("rejects a missing, empty, or non-string kid without fetching the team's certs", async () => {
+    for (const header of [{ kid: undefined }, { kid: "" }, { kid: 42 }]) {
+      const endpoint = certsEndpoint([teamKey]);
+      const token = await accessToken(teamKey, {}, header);
+      const answer = await entries(accessEnv(), token, endpoint.fetcher);
+      expect(answer.status).toBe(403);
+      expect(answer.body.error).toMatch(/no key id/);
+      expect(endpoint.requests).toEqual([]);
+    }
+  });
+
+  it("redirects /admin to /admin/automata and serves the app HTML only after checkOwner", async () => {
     const token = await accessToken(teamKey);
-    const page = await ownerRequest(new Request("https://computervision.vision/admin", { headers: { [ACCESS_TOKEN_HEADER]: token } }), accessEnv(), PAGE, fetcher);
+    const headers = { [ACCESS_TOKEN_HEADER]: token };
+    for (const path of ["/admin", "/admin/"]) {
+      const redirected = await ownerRequest(new Request(`https://computervision.vision${path}`, { headers }), accessEnv(), fetcher);
+      expect([path, redirected.status, redirected.headers.get("location")]).toEqual([path, 302, "https://computervision.vision/admin/automata"]);
+    }
+    const postAdmin = await ownerRequest(new Request("https://computervision.vision/admin", { method: "POST", headers }), accessEnv(), fetcher);
+    expect([postAdmin.status, postAdmin.headers.get("allow")]).toEqual([405, "GET"]);
+
+    const page = await ownerRequest(new Request("https://computervision.vision/admin/automata", { headers }), accessEnv(), fetcher);
     expect(page.status).toBe(200);
     expect(page.headers.get("content-type")).toBe("text/html; charset=utf-8");
-    expect(page.headers.get("content-security-policy")).toBe("frame-ancestors 'none'");
-    expect(await page.text()).toBe(PAGE);
+    expect(page.headers.get("cache-control")).toBe("no-store");
+    expect(page.headers.get("x-robots-tag")).toBe("noindex");
+    expect(page.headers.get("content-security-policy")).toBe(OWNER_CSP);
+    expect(await page.text()).toBe("<!doctype html>");
 
     const { env, assetRequests } = testEnv();
-    for (const path of ["/admin", "/admin/", "/admin/api/entries", "/admin/anything"]) {
+    for (const path of ["/admin", "/admin/", "/admin/automata", "/admin/api/entries", "/admin/anything"]) {
       const refused = await worker.fetch(new Request(`https://computervision.vision${path}`), env);
       expect(refused.status, path).toBe(403);
     }
     expect(assetRequests).toEqual([]);
     const page403 = await worker.fetch(new Request("https://computervision.vision/admin"), env);
     expect(await page403.text()).toMatch(/Owner access refused/);
+  });
+
+  it("returns 502 instead of throwing when ASSETS returns a non-OK status for /admin/automata", async () => {
+    const env = accessEnv();
+    env.ASSETS = { fetch: async () => new Response("missing", { status: 503 }) };
+    const response = await ownerRequest(
+      new Request("https://computervision.vision/admin/automata", { headers: { [ACCESS_TOKEN_HEADER]: await accessToken(teamKey) } }),
+      env,
+      fetcher,
+    );
+    expect(response.status).toBe(502);
+    expect(await response.text()).toMatch(/503/);
   });
 });
 
@@ -170,11 +205,13 @@ describe("the local owner under wrangler dev", () => {
   it("is admitted only with the dev var and a request to this machine", async () => {
     const { env } = testEnv();
     const local = { ...env, ADMIN_LOCAL_OWNER: "yes" };
-    const ask = (url: string, withEnv: Env) => ownerRequest(new Request(url), withEnv, PAGE, refuse);
+    const ask = (url: string, withEnv: Env) => ownerRequest(new Request(url), withEnv, refuse);
     const admitted = await ask("http://127.0.0.1:8791/admin/api/entries", local);
     expect(admitted.status).toBe(200);
     expect(((await admitted.json()) as { owner: string }).owner).toBe("local owner");
-    expect((await ask("http://localhost:8791/admin", local)).status).toBe(200);
+    const redirected = await ask("http://localhost:8791/admin", local);
+    expect([redirected.status, redirected.headers.get("location")]).toEqual([302, "http://localhost:8791/admin/automata"]);
+    expect((await ask("http://localhost:8791/admin/automata", local)).status).toBe(200);
     // The var alone opens nothing on a public host.
     expect((await ask("https://computervision.vision/admin/api/entries", local)).status).toBe(403);
     expect((await ask("https://dinodreamer-public.example.workers.dev/admin", local)).status).toBe(403);
@@ -183,13 +220,12 @@ describe("the local owner under wrangler dev", () => {
   });
 
   it("production config never sets the bypass; it names Access, the Images binding and the app's library host", () => {
-    const config = readFileSync(new URL("../wrangler.jsonc", import.meta.url), "utf8");
-    expect(config).not.toContain("ADMIN_LOCAL_OWNER");
-    expect(config).toContain(`"images": { "binding": "IMAGES" }`);
-    expect(config).toMatch(/"ACCESS_TEAM_DOMAIN": "https:\/\/[a-z0-9-]+\.cloudflareaccess\.com"/);
-    const appEnv = readFileSync(new URL("../../app/.env", import.meta.url), "utf8");
-    const appBase = appEnv.split("\n").find((line) => line.startsWith("ASSET_BASE_URL="))!.slice("ASSET_BASE_URL=".length).trim();
-    expect(config).toContain(`"ASSET_BASE_URL": "${appBase}"`);
+    const config = unstable_readConfig({ config: fileURLToPath(new URL("../wrangler.jsonc", import.meta.url)) });
+    expect(config.vars).not.toHaveProperty("ADMIN_LOCAL_OWNER");
+    expect(config.images).toEqual({ binding: "IMAGES" });
+    expect(config.vars.ACCESS_TEAM_DOMAIN).toMatch(/^https:\/\/[a-z0-9-]+\.cloudflareaccess\.com$/);
+    expect(config.vars.ACCESS_AUD).toMatch(/^[0-9a-f]{64}$/);
+    expect(config.vars.ASSET_BASE_URL).toBe(libraryCdnBaseUrl());
   });
 });
 
@@ -202,14 +238,14 @@ describe("owner API: the review operations", () => {
   function ownerSetup() {
     const fixture = testEnv();
     const env: Env = { ...fixture.env, ADMIN_LOCAL_OWNER: "yes" };
-    const get = async (path: string) => ownerRequest(new Request(`${ORIGIN}${path}`), env, PAGE, neverFetch);
+    const get = async (path: string) => ownerRequest(new Request(`${ORIGIN}${path}`), env, neverFetch);
     const post = async (path: string, body: unknown, headers: Record<string, string> = {}) => {
       const request = new Request(`${ORIGIN}${path}`, {
         method: "POST",
         body: typeof body === "string" ? body : JSON.stringify(body),
         headers: { "content-type": "application/json", origin: ORIGIN, ...headers },
       });
-      const response = await ownerRequest(request, env, PAGE, neverFetch);
+      const response = await ownerRequest(request, env, neverFetch);
       return { status: response.status, body: (await response.json()) as Record<string, unknown> & { error?: string } };
     };
     const lists = async () =>
@@ -300,10 +336,29 @@ describe("owner API: the review operations", () => {
     expect((await post("/admin/api/approve", { ids: [id] }, { origin: "https://elsewhere.test" })).status).toBe(403);
     expect((await post("/admin/api/approve", { ids: [id] }, { "content-type": "text/plain" })).status).toBe(415);
     expect((await get("/admin/api/unknown")).status).toBe(404);
-    const put = await ownerRequest(new Request(`${ORIGIN}/admin/api/entries`, { method: "PUT" }), env, PAGE, neverFetch);
+    const put = await ownerRequest(new Request(`${ORIGIN}/admin/api/entries`, { method: "PUT" }), env, neverFetch);
     expect(put.status).toBe(405);
     // Nothing above changed the pending submission.
     expect((await (await get("/admin/api/entries")).json()) as { pending: unknown[] }).toMatchObject({ pending: [{ id }] });
+  });
+
+  it("returns 409 for domain conflicts and 500 for unexpected storage errors", async () => {
+    const { post, submissions, library } = ownerSetup();
+    const missing = await post("/admin/api/approve", { ids: ["20261011-153012-a1b2c3d4"] });
+    expect(missing.status).toBe(409);
+    expect(missing.body.error).toMatch(/no pending submission/);
+
+    submissions.list = async () => {
+      throw new Error("R2 outage");
+    };
+    const outage = await post("/admin/api/reject", { id: "20261011-153012-a1b2c3d4" });
+    expect(outage.status).toBe(500);
+    expect(outage.body.error).toBe("internal server error");
+
+    await library.put("published/index.json", "{corrupt");
+    const corrupt = await post("/admin/api/hide", { id: "20261011-153012-a1b2c3d4" });
+    expect(corrupt.status).toBe(500);
+    expect(corrupt.body.error).toBe("internal server error");
   });
 
   it("lists an approval whose cleanup stopped after publishing, and finishes it with approve", async () => {
@@ -347,7 +402,7 @@ describe("the basis groups' names", () => {
   const localOwner = (): Env => ({ ...testEnv().env, ADMIN_LOCAL_OWNER: "yes" });
   const name = (env: Env, body: unknown, origin = "http://127.0.0.1:8791") => ownerRequest(new Request("http://127.0.0.1:8791/admin/api/basis-groups/name", {
     method: "POST", headers: { "content-type": "application/json", origin }, body: JSON.stringify(body),
-  }), env, PAGE, neverFetch);
+  }), env, neverFetch);
 
   it("the public Worker answers an empty object before the owner has named a group, then every name", async () => {
     const env = localOwner();

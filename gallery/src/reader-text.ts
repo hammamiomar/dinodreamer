@@ -7,10 +7,10 @@
 // where the app's loading line appears. A frame class that changes name only changes how this text looks.
 import { SITE_WORDS, fill } from "../../app/src/app/site-words.ts";
 import { escapeHtml, type TopPage } from "./link-preview.ts";
+import { PROJECT_SITE_ORIGIN } from "./site-location.ts";
 
-/** The links of the reader text's last line. */
-const ESSAY_URL = "https://computervision.vision/writing/dinodreamer/";
-const AUTHOR_URL = "https://computervision.vision";
+/** External links rendered in the fallback footer. */
+const ESSAY_URL = `${PROJECT_SITE_ORIGIN}/writing/dinodreamer/`;
 const CODE_URL = "https://github.com/hammamiomar/dinodreamer";
 const FEATURIZER_URL = "https://huggingface.co/hammamiomar/dinov3-vitb16-bsf-grassmannian-16384-rank3-k32";
 
@@ -23,7 +23,7 @@ export interface ReaderText {
   paragraph: string;
 }
 
-/** A top page's own words; a panel's group sentence; the home's words for the other public pages. */
+/** Build the fallback heading and summary paragraph for a public page or basis group panel. */
 export function readerText(page: TopPage | null, block: number | null): ReaderText {
   if (block !== null) {
     return {
@@ -35,7 +35,7 @@ export function readerText(page: TopPage | null, block: number | null): ReaderTe
   return { heading, paragraph };
 }
 
-/** The paragraph's words escaped, and each [words](address) as a link. */
+/** Render a summary paragraph as escaped HTML with [label](url) links. */
 export function paragraphHtml(paragraph: string): string {
   let html = "";
   let from = 0;
@@ -47,7 +47,7 @@ export function paragraphHtml(paragraph: string): string {
   return html + escapeHtml(paragraph.slice(from));
 }
 
-/** The frame's header with the site's destinations, in the header's order and with its words. */
+/** Render the fallback site header using the same navigation order as app/src/app/frame.tsx. */
 function headerHtml(): string {
   const header = SITE_WORDS.header;
   const links = [
@@ -56,7 +56,7 @@ function headerHtml(): string {
     `<a href="/train">${escapeHtml(header.grow)}</a>`,
     `<a href="/how" aria-label="${escapeHtml(header.how)}"><span class="frame-nav-full">${escapeHtml(header.how)}</span><span class="frame-nav-short">${escapeHtml(header.howShortForm)}</span></a>`,
     `<a href="/canvas" aria-label="${escapeHtml(header.experimental)}"><span class="frame-nav-full">${escapeHtml(header.experimental)}</span><span class="frame-nav-short" aria-hidden="true">${escapeHtml(header.experimentalShortForm)}</span></a>`,
-    `<a href="${AUTHOR_URL}" class="frame-nav-site">${escapeHtml(header.site)}</a>`,
+    `<a href="${PROJECT_SITE_ORIGIN}" class="frame-nav-site">${escapeHtml(header.site)}</a>`,
   ];
   // On a phone the frame shows a Menu button in place of the links. It is here so that the header does not change
   // when the app starts; it opens the menu only once the app runs, and the paragraph links every page meanwhile.
@@ -64,12 +64,11 @@ function headerHtml(): string {
   return `<header class="frame-header"><a href="/" class="wordmark">${escapeHtml(SITE_WORDS.frame.wordmark)}</a>${menu}<nav id="site-navigation" class="frame-nav" aria-label="${escapeHtml(header.navigationName)}">${links.join("")}</nav></header>`;
 }
 
-/** The write-up, the author, the code and the featurizer. */
 function footerHtml(): string {
   const words = SITE_WORDS.pageSummaries.footer;
   const links = [
     `<a href="${ESSAY_URL}">${escapeHtml(words.essay)}</a>`,
-    `<a href="${AUTHOR_URL}">${escapeHtml(words.author)}</a>`,
+    `<a href="${PROJECT_SITE_ORIGIN}">${escapeHtml(words.author)}</a>`,
     `<a href="${CODE_URL}">${escapeHtml(SITE_WORDS.footer.code)}</a>`,
     `<a href="${FEATURIZER_URL}">${escapeHtml(SITE_WORDS.footer.featurizer)}</a>`,
   ];
@@ -86,7 +85,7 @@ export function readerBody(text: ReaderText, home: boolean): string {
   return `${site}${headerHtml()}${main}${footerHtml()}</div>`;
 }
 
-/** The app's document with the reader text in its empty root element; any other document is returned unchanged. */
+/** Inject fallback reader markup into the empty #root element of index.html. */
 export function withReaderText(html: string, text: ReaderText, home: boolean): string {
   return html.replace('<div id="root"></div>', `<div id="root">${readerBody(text, home)}</div>`);
 }

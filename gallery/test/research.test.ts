@@ -297,10 +297,10 @@ describe("owner API: the research page", () => {
       const text = manifestText([{ id: RUN_ID }]);
       await writeResearch(env.SUBMISSIONS, text, checkedResearchManifest(text).runs, () => FILES);
     }
-    const get = (path: string) => ownerRequest(new Request(`${ORIGIN}${path}`), env, "<!doctype html>", neverFetch);
+    const get = (path: string) => ownerRequest(new Request(`${ORIGIN}${path}`), env, neverFetch);
     const post = async (path: string, body: unknown) => {
       const request = new Request(`${ORIGIN}${path}`, { method: "POST", body: JSON.stringify(body), headers: { "content-type": "application/json", origin: ORIGIN } });
-      const response = await ownerRequest(request, env, "<!doctype html>", neverFetch);
+      const response = await ownerRequest(request, env, neverFetch);
       return { status: response.status, body: (await response.json()) as Record<string, unknown> & { error?: string } };
     };
     return { env, get, post };
@@ -332,7 +332,7 @@ describe("owner API: the research page", () => {
     await writeResearch(env.SUBMISSIONS, text, checkedResearchManifest(text).runs, () => FILES);
     const show = (ids: unknown) => ownerRequest(new Request(`${ORIGIN}/admin/api/research/show`, {
       method: "POST", headers: { "content-type": "application/json", origin: ORIGIN }, body: JSON.stringify({ ids }),
-    }), env, "<!doctype html>", neverFetch);
+    }), env, neverFetch);
     const answered = await show([RUN_ID]);
     const body = (await answered.json()) as { result: { published: string[] }; entries: { id: string; gallery: unknown }[] };
     expect(answered.status).toBe(200);

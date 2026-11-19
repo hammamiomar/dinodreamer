@@ -1,9 +1,11 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { unstable_readConfig } from "wrangler";
 import { CELLS } from "../../app/src/recipe.ts";
 import { CREATION_FILE_FORMAT, decodeCreationFile } from "../../app/src/storage/recipe-file.ts";
+import { parseCanvasArgs } from "../canvas.ts";
 import { CREATION_FILE_FORMAT as RECOVERED_FORMAT } from "../src/creation-file.ts";
 import { withEntry } from "../src/gallery-index.ts";
 import { RestBucket } from "../src/rest-bucket.ts";
@@ -561,11 +563,12 @@ it("a refused token is renewed once and the request sent again; a fixed token is
 });
 
 it("wrangler.jsonc binds the buckets the scripts write, and sends API, owner and shared pages to the Worker first", () => {
-  const config = readFileSync(new URL("../wrangler.jsonc", import.meta.url), "utf8");
-  expect(config).toContain(`"binding": "SUBMISSIONS", "bucket_name": "${SUBMISSIONS_BUCKET}"`);
-  expect(config).toContain(`"binding": "LIBRARY", "bucket_name": "${PUBLIC_BUCKET}"`);
-  const routes = JSON.parse(/"run_worker_first":\s*(\[[^\]]+\])/.exec(config)![1]!) as string[];
-  expect(routes).toEqual(expect.arrayContaining([
+  const config = unstable_readConfig({ config: fileURLToPath(new URL("../wrangler.jsonc", import.meta.url)) });
+  expect(config.r2_buckets).toEqual(expect.arrayContaining([
+    expect.objectContaining({ binding: "SUBMISSIONS", bucket_name: SUBMISSIONS_BUCKET }),
+    expect.objectContaining({ binding: "LIBRARY", bucket_name: PUBLIC_BUCKET }),
+  ]));
+  expect(config.assets?.run_worker_first).toEqual(expect.arrayContaining([
     "/api/*", "/admin", "/admin/*", "/", "/basis/*",
     "/explore", "/explore/*", "/block/*", "/playground", "/playground/*", "/grow", "/grow/*",
     "/index", "/index/*", "/automata", "/automata/*", "/train", "/train/*", "/picture", "/picture/*",
@@ -575,8 +578,30 @@ it("wrangler.jsonc binds the buckets the scripts write, and sends API, owner and
 
 it("the owner's commands load under plain Node, without the app's bundler-only imports", () => {
   // Node strips types but needs explicit file extensions; app modules import without them.
-  const script = 'await import("./src/review.ts"); await import("./src/rest-bucket.ts"); await import("./src/material-review.ts");';
+  const script = 'await import("./src/review.ts"); await import("./src/rest-bucket.ts"); await import("./src/material-review.ts"); await import("./canvas.ts");';
   expect(() => execFileSync(process.execPath, ["--input-type=module", "-e", script], { cwd: new URL("..", import.meta.url) })).not.toThrow();
+});
+
+describe("canvas CLI argument parsing", () => {
+  it("parses every canvas review subcommand and rejects invalid invocations", () => {
+    expect(parseCanvasArgs(["list"])).toEqual({ ok: true, command: { kind: "list" } });
+    expect(parseCanvasArgs(["approve", "20261011-153012-a1b2c3d4"])).toEqual({ ok: true, command: { kind: "approve", all: false, id: "20261011-153012-a1b2c3d4" } });
+    expect(parseCanvasArgs(["approve", "--all"])).toEqual({ ok: true, command: { kind: "approve", all: true } });
+    expect(parseCanvasArgs(["reject", "id-1"])).toEqual({ ok: true, command: { kind: "reject", id: "id-1" } });
+    expect(parseCanvasArgs(["hide", "id-1"])).toEqual({ ok: true, command: { kind: "hide", id: "id-1" } });
+    expect(parseCanvasArgs(["restore", "id-1"])).toEqual({ ok: true, command: { kind: "restore", id: "id-1" } });
+    expect(parseCanvasArgs(["purge", "id-1"])).toEqual({ ok: true, command: { kind: "purge", id: "id-1" } });
+    expect(parseCanvasArgs(["recover", "id-1"])).toEqual({ ok: true, command: { kind: "recover", id: "id-1", directory: "." } });
+    expect(parseCanvasArgs(["recover", "id-1", "out"])).toEqual({ ok: true, command: { kind: "recover", id: "id-1", directory: "out" } });
+
+    expect(parseCanvasArgs([]).ok).toBe(false);
+    expect(parseCanvasArgs(["unknown"]).ok).toBe(false);
+    expect(parseCanvasArgs(["approve"]).ok).toBe(false);
+    expect(parseCanvasArgs(["approve", "--all", "id-1"]).ok).toBe(false);
+    expect(parseCanvasArgs(["hide"]).ok).toBe(false);
+    expect(parseCanvasArgs(["list", "--all"]).ok).toBe(false);
+    expect(parseCanvasArgs(["list", "--bogus"]).ok).toBe(false);
+  });
 });
 
 describe("painted recipe contract", () => {

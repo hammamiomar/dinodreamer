@@ -11,15 +11,15 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { appendFileSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { request } from "node:https";
-import { dirname, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
-import { fileURLToPath } from "node:url";
+import { libraryCdnBaseUrl } from "./review-cli.ts";
 import { engineWasmKey } from "./src/storage.ts";
 import { DINODREAMER_ORIGIN } from "./src/site-location.ts";
 
-const GALLERY = dirname(fileURLToPath(import.meta.url));
+const GALLERY = import.meta.dirname;
 const REPOSITORY = resolve(GALLERY, "..");
-const WORKTREE = resolve(REPOSITORY, "..", "dinodreamer-public-deploy");
+const WORKTREE = process.env.DEPLOY_WORKTREE ?? join(tmpdir(), "dinodreamer-public-deploy");
 const ENGINE_WASM = "dinodreamer_engine_bg.wasm";
 const PRODUCTION = DINODREAMER_ORIGIN;
 // Allow edge propagation before checking the deployed build.
@@ -59,14 +59,14 @@ export async function publishedEngineExists(url: string, fetcher: typeof fetch =
   return true;
 }
 
-/** Wrangler writes one JSON object per line; use its alias URL rather than its console format. */
-/** The account's workers.dev subdomain in a Worker address such as https://pr-7-dinodreamer-public.<subdomain>.workers.dev. */
+/** Extract the account's workers.dev subdomain from a Worker URL such as https://pr-7-dinodreamer-public.<subdomain>.workers.dev. */
 export function workersSubdomain(url: string): string {
   const subdomain = /\.([a-z0-9-]+)\.workers\.dev$/.exec(new URL(url).hostname)?.[1];
   if (subdomain === undefined) throw new Error(`Not a workers.dev address: ${url}`);
   return subdomain;
 }
 
+/** Read the preview alias URL from Wrangler's JSON-lines output rather than its console text. */
 export function previewUrl(output: string): string {
   const record = output.trim().split(/\r?\n/).map((line) => JSON.parse(line)).reverse().find((entry) => entry.type === "version-upload");
   const url = record?.preview_alias_url;
@@ -104,7 +104,7 @@ async function waitForBuild(index: string, assets: string[]): Promise<void> {
   console.log(`${PRODUCTION} serves the new build, every round for ${STABLE_MS / 1000} s`);
 }
 
-/** What production does not yet answer as this build does, as "path (answer)"; empty when it does. */
+/** Return paths where production does not yet serve the new build, or an empty array when ready. */
 async function notServed(index: string, assets: string[], deadline: number): Promise<string[]> {
   const answer = (path: string, read = true) => answerBefore(path, deadline, read);
   const waiting: string[] = [];
@@ -156,69 +156,97 @@ function reportPreview(message: string): void {
   if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `message=${message}\n`);
 }
 
-async function main(): Promise<void> {
-  const args = process.argv.slice(2);
+interface DeployOptions {
+  revision: string;
+  ci: boolean;
+  withoutGpu: boolean;
+  alias: string | undefined;
+}
+
+interface PreparedBuild {
+  app: string;
+  gallery: string;
+  commit: string;
+  engineKey: string;
+  message: string;
+}
+
+function parseDeployOptions(args: string[]): DeployOptions {
   const revision = args.find((arg) => !arg.startsWith("--")) ?? "main";
-  const ci = args.includes("--ci");
   const alias = args.find((arg) => arg.startsWith("--preview-alias="))?.split("=")[1];
   if (alias !== undefined && !/^pr-[1-9][0-9]*$/.test(alias)) throw new Error("Use --preview-alias=pr-<number>");
-  const repository = ci ? REPOSITORY : WORKTREE;
-  const commit = ci ? run("git", ["rev-parse", "HEAD"], repository).trim() : checkoutRevision(revision);
-  if (!ci) run("wasm-pack", ["build", "--target", "web", "--release", "--", "--locked"], join(repository, "engine"));
+  return { revision, ci: args.includes("--ci"), withoutGpu: args.includes("--without-gpu"), alias };
+}
+
+/** Check out the target revision, verify the qualified engine, and build the app bundle. Returns null when a PR preview is skipped. */
+async function prepareBuild(options: DeployOptions): Promise<PreparedBuild | null> {
+  const repository = options.ci ? REPOSITORY : WORKTREE;
+  const commit = options.ci ? run("git", ["rev-parse", "HEAD"], repository).trim() : checkoutRevision(options.revision);
+  if (!options.ci) run("wasm-pack", ["build", "--target", "web", "--release", "--", "--locked"], join(repository, "engine"));
 
   const wasm = readFileSync(join(repository, "engine", "pkg", ENGINE_WASM));
   const sha256 = createHash("sha256").update(wasm).digest("hex");
-  const qualified = JSON.parse(readFileSync(join(repository, "engine", "qualified-engine.json"), "utf8"));
-  if (alias === undefined) checkQualifiedEngine(sha256, qualified.sha256);
+  const qualified = JSON.parse(readFileSync(join(repository, "engine", "qualified-engine.json"), "utf8")) as { sha256: string };
+  if (options.alias === undefined) checkQualifiedEngine(sha256, qualified.sha256);
+
   const engineKey = engineWasmKey(qualified.sha256, ENGINE_WASM);
   const app = join(repository, "app");
-  const library = readFileSync(join(app, ".env"), "utf8").match(/^ASSET_BASE_URL=(https:\/\/\S+)$/m)?.[1];
-  if (!library) throw new Error("app/.env must name the public HTTPS library in ASSET_BASE_URL");
-  const url = `${library.replace(/\/$/, "")}/${engineKey}`;
-  if (!await publishedEngineExists(url)) {
-    if (alias !== undefined) {
+  const url = `${libraryCdnBaseUrl(join(app, ".env"))}/${engineKey}`;
+  if (!(await publishedEngineExists(url))) {
+    if (options.alias !== undefined) {
       reportPreview(`Preview skipped: the recorded qualified engine is not published at ${url}. GPU qualification and publication must finish outside CI.`);
-      return;
+      return null;
     }
     throw new Error(`Qualified engine is not published at ${url}. Nothing was deployed.`);
   }
-  if (alias !== undefined && sha256 !== qualified.sha256) {
+  if (options.alias !== undefined && sha256 !== qualified.sha256) {
     reportPreview(`Preview skipped: built engine ${sha256} differs from qualified ${qualified.sha256}. Qualify the CI artifact before previewing it.`);
-    return;
+    return null;
   }
-  if (!ci) run("pnpm", ["install", "--frozen-lockfile"], app);
+
+  if (!options.ci) run("pnpm", ["install", "--frozen-lockfile"], app);
   run("pnpm", ["build"], app, { ASSET_ENGINE_WASM: engineKey });
   writeFileSync(join(app, "dist", ".assetsignore"), "# Engine served by the public library.\n*.wasm\n");
 
   const gallery = join(repository, "gallery");
-  if (!ci) run("pnpm", ["install", "--frozen-lockfile"], gallery);
-  const message = `${revision} ${commit}`;
-  if (alias !== undefined) {
-    const temporary = mkdtempSync(join(tmpdir(), "dinodreamer-preview-"));
-    try {
-      const output = join(temporary, "wrangler.jsonl");
-      const uploaded = run("pnpm", ["exec", "wrangler", "versions", "upload", "--preview-alias", alias, "--message", message], gallery, {
-        WRANGLER_OUTPUT_FILE_PATH: output,
-      });
-      const url = previewUrl(readFileSync(output, "utf8"));
-      const inGitHub = process.env.GITHUB_ACTIONS === "true";
-      // GitHub replaces a masked text with *** in every later line of the log.
-      if (inGitHub) console.log(`::add-mask::${workersSubdomain(url)}`);
-      console.log(uploaded);
-      reportPreview(inGitHub ? `Preview ${alias} is ready behind Cloudflare Access.` : `Preview: ${url}`);
-    } finally {
-      rmSync(temporary, { recursive: true, force: true });
-    }
-    return;
-  }
+  if (!options.ci) run("pnpm", ["install", "--frozen-lockfile"], gallery);
+  return { app, gallery, commit, engineKey, message: `${options.revision} ${commit}` };
+}
 
-  console.log(run("pnpm", ["exec", "wrangler", "deploy", "--message", message], gallery));
-  console.log(`Deployed ${revision} at ${commit} with engine ${engineKey}`);
-  const assets = readdirSync(join(app, "dist", "assets")).filter((name) => !name.endsWith(".wasm"));
-  await waitForBuild(readFileSync(join(app, "dist", "index.html"), "utf8"), assets);
-  execFileSync(process.execPath, [join(gallery, "check-deployment.ts"), PRODUCTION, ...(args.includes("--without-gpu") ? ["--without-gpu"] : [])], {
+function uploadPreview(build: PreparedBuild, alias: string): void {
+  const temporary = mkdtempSync(join(tmpdir(), "dinodreamer-preview-"));
+  try {
+    const output = join(temporary, "wrangler.jsonl");
+    const uploaded = run("pnpm", ["exec", "wrangler", "versions", "upload", "--preview-alias", alias, "--message", build.message], build.gallery, {
+      WRANGLER_OUTPUT_FILE_PATH: output,
+    });
+    const url = previewUrl(readFileSync(output, "utf8"));
+    const inGitHub = process.env.GITHUB_ACTIONS === "true";
+    // Mask the account's workers.dev subdomain before logging Wrangler output in public GitHub logs.
+    if (inGitHub) console.log(`::add-mask::${workersSubdomain(url)}`);
+    console.log(uploaded);
+    reportPreview(inGitHub ? `Preview ${alias} is ready behind Cloudflare Access.` : `Preview: ${url}`);
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
+  }
+}
+
+async function deployProduction(build: PreparedBuild, options: DeployOptions): Promise<void> {
+  console.log(run("pnpm", ["exec", "wrangler", "deploy", "--message", build.message], build.gallery));
+  console.log(`Deployed ${options.revision} at ${build.commit} with engine ${build.engineKey}`);
+  const assets = readdirSync(join(build.app, "dist", "assets")).filter((name) => !name.endsWith(".wasm"));
+  await waitForBuild(readFileSync(join(build.app, "dist", "index.html"), "utf8"), assets);
+  execFileSync(process.execPath, [join(build.gallery, "check-deployment.ts"), PRODUCTION, ...(options.withoutGpu ? ["--without-gpu"] : [])], {
     stdio: "inherit",
   });
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main();
+async function main(): Promise<void> {
+  const options = parseDeployOptions(process.argv.slice(2));
+  const build = await prepareBuild(options);
+  if (build === null) return;
+  if (options.alias !== undefined) uploadPreview(build, options.alias);
+  else await deployProduction(build, options);
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === import.meta.filename) await main();

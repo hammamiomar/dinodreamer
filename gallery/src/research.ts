@@ -1,11 +1,10 @@
-// The research runs in the private bucket, for the owner's research page
-// (app/src/features/research/). The publish command (gallery/research.ts) writes them from the
-// research repository's export; the owner page reads them through admin.ts and promotes a run to a
-// pending material, which Approve publishes like any other. Nothing here reaches the public bucket.
+// Research runs stored in the private bucket for the owner's Automata view.
+// The CLI (gallery/research.ts) uploads exported run folders; admin.ts serves them to the owner
+// and publishes selected runs via showStoredRuns.
 //
-//   private bucket  research/manifest.json                     the run index, written last
-//                   research/runs/<id>/material.json           the run's format-4 file, as exported
-//                   research/runs/<id>/still-0200.png, ...     its stills, one per tick the index lists
+//   private bucket  research/manifest.json                     run index, written last
+//                   research/runs/<id>/material.json           exported format-4 automaton file
+//                   research/runs/<id>/still-0200.png, ...     stills listed by the index
 
 import { readFigureMaterial, type FigureMaterialFile } from "../../app/src/materials/material-file.ts";
 import {
@@ -18,7 +17,7 @@ import {
   checkedMaterial, hiddenMaterials, MATERIAL_DICTIONARIES, MATERIAL_LIMITS, PROJECT_CREDIT, publishMaterials, readMaterials,
   replaceMaterialFiles, setGalleryPlaces, type MaterialToPublish, type ReplacedMaterialFiles,
 } from "./material-review.ts";
-import { isPng, requiredObject, type Bucket } from "./storage.ts";
+import { ConflictError, isPng, requiredObject, sha256Hex, type Bucket } from "./storage.ts";
 
 /** Uploads in flight at once: the REST bucket answers each put in about a quarter of a second. */
 const CONCURRENT_UPLOADS = 8;
@@ -43,19 +42,13 @@ export interface ResearchRunFiles {
   stills: Map<number, Uint8Array<ArrayBuffer>>;
 }
 
-async function sha256(bytes: Uint8Array<ArrayBuffer>): Promise<string> {
-  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
-  return Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
 /**
- * What is wrong with a run's files, measured against its row in the index: the file's SHA-256, the
- * app's loader, its id and basis group, the size a promotion accepts, and a PNG for every still.
- * Empty when nothing is.
+ * Validate a run's files against its manifest row: SHA-256 digest, format-4 loader,
+ * id, basis group, submission size limit, and PNG header for every listed still.
  */
 export async function researchRunProblems(run: ResearchRun, files: ResearchRunFiles): Promise<string[]> {
   const problems: string[] = [];
-  if (await sha256(files.material) !== run.materialSha256) problems.push("material.json does not have the SHA-256 the index gives");
+  if (await sha256Hex(files.material) !== run.materialSha256) problems.push("material.json does not have the SHA-256 the index gives");
   if (files.material.length > MATERIAL_LIMITS.materialBytes) problems.push(`material.json is larger than ${MATERIAL_LIMITS.materialBytes} bytes, more than a promotion accepts`);
   try {
     const { file } = readFigureMaterial(JSON.parse(new TextDecoder().decode(files.material)));
@@ -78,25 +71,22 @@ export function changedRuns(stored: ResearchManifest | null, next: ResearchManif
 }
 
 /**
- * The runs a publish writes: those the stored index does not list yet. A run's files do not change
- * once written, so a listed run whose file has another SHA-256 is refused; a retrained run takes a
- * new id. Changed readings and outcomes of the index need no upload: the new index carries them.
- * The one exception is asked for by name (`reread`): a run whose reading was taken again keeps its
- * id and replaces its file, once rereadProblems finds nothing else changed.
+ * Return runs missing from the stored manifest. Rejects runs whose SHA-256 changed unless
+ * reread is true (in which case rereadProblems verifies only reading and preview changed).
  */
 export function runsToWrite(stored: ResearchManifest | null, next: ResearchManifest, reread = false): ResearchRun[] {
   const changed = changedRuns(stored, next);
   if (changed.length > 0 && !reread) {
-    throw new Error(`these runs changed their file; give each a new id, or publish with --reread when only their reading was taken again: ${changed.map((run) => run.id).join(", ")}`);
+    throw new ConflictError(`these runs changed their file; give each a new id, or publish with --reread when only their reading was taken again: ${changed.map((run) => run.id).join(", ")}`);
   }
   const written = new Set((stored?.runs ?? []).map((run) => run.id));
   return next.runs.filter((run) => !written.has(run.id));
 }
 
-/** The parts of a run's file that a new reading replaces: the reading, and the picture of its step. */
+/** Fields that a re-reading is allowed to replace on an existing run file. */
 const REREAD_FIELDS: readonly string[] = ["reading", "preview"];
 
-/** Whether two JSON values are the same: objects by their keys, in any order; arrays in order. */
+/** Deep structural JSON equality (key-order independent for objects). */
 function sameJson(a: unknown, b: unknown): boolean {
   if (a === b) return true;
   if (a === null || b === null || typeof a !== "object" || typeof b !== "object") return false;
@@ -107,9 +97,8 @@ function sameJson(a: unknown, b: unknown): boolean {
 }
 
 /**
- * Why a listed run's new file may not replace its stored one, or null when it may. It may when only
- * its reading and its preview differ: the rule, and everything that made it, are the same, so the id
- * still names the same automaton, read at another step.
+ * Return why a re-read file cannot replace the stored run file, or null when only
+ * reading and preview fields differ (meaning the rule and training metadata are unchanged).
  */
 export function rereadProblem(storedText: string, nextText: string): string | null {
   const stored = JSON.parse(storedText) as Record<string, unknown>;
@@ -119,7 +108,7 @@ export function rereadProblem(storedText: string, nextText: string): string | nu
   return differing.length === 0 ? null : `its file differs in ${differing.join(", ")}, more than its reading and preview`;
 }
 
-/** rereadProblem for each of these runs, against the file the bucket holds; empty when every one may replace its file. */
+/** Run rereadProblem against the bucket copy for every changed run. */
 export async function rereadProblems(bucket: Bucket, runs: readonly ResearchRun[], filesOf: (run: ResearchRun) => ResearchRunFiles): Promise<string[]> {
   const problems: string[] = [];
   for (const run of runs) {
@@ -130,7 +119,7 @@ export async function rereadProblems(bucket: Bucket, runs: readonly ResearchRun[
   return problems;
 }
 
-/** Write the runs' files, then the index, so a stored index never names a run without its files. */
+/** Upload run files before writing the manifest so the manifest never references missing objects. */
 export async function writeResearch(bucket: Bucket, manifestText: string, runs: ResearchRun[], filesOf: (run: ResearchRun) => ResearchRunFiles): Promise<void> {
   const queue = [...runs];
   const upload = async () => {
@@ -147,15 +136,14 @@ export async function writeResearch(bucket: Bucket, manifestText: string, runs: 
 }
 
 /**
- * Show the runs of these ids, for the owner's view: their rows come from the stored run index, and
- * the answer adds the entries as the published index now lists them, so the page can show each in
- * its place at once. An id the index does not list is refused before anything is written.
+ * Publish stored research runs onto the Automata page and return the resulting index entries.
+ * Rejects unknown run ids before writing anything.
  */
 export async function showStoredRuns(submissions: Bucket, library: Bucket, ids: readonly string[], now: Date): Promise<{ result: ShownRuns; entries: MaterialEntry[] }> {
   const manifest = await storedResearchManifest(submissions);
   const rows = new Map((manifest?.runs ?? []).map((run) => [run.id, run]));
   const unknown = ids.filter((id) => !rows.has(id));
-  if (unknown.length > 0) throw new Error(`no research run ${unknown.join(", ")}`);
+  if (unknown.length > 0) throw new ConflictError(`no research run ${unknown.join(", ")}`);
   const runs = ids.map((id) => rows.get(id)!);
   const result = await showResearchRuns(submissions, library, runs, now, true);
   const touched = new Set([...result.published, ...result.placed]);
@@ -164,10 +152,8 @@ export async function showStoredRuns(submissions: Bucket, library: Bucket, ids: 
 }
 
 /**
- * Give the Automata page the new reading of re-read runs, after their files are written: each one's
- * file comes from the private bucket, checked with the app's loader, and replaces the file of the
- * automaton that holds its rule, shown or hidden (material-review.ts replaceMaterialFiles). A run
- * that is not on the page changes nothing there.
+ * Propagate re-read run files from the private bucket to matching shown or hidden automata on the
+ * public site. Runs not published on the site are ignored.
  */
 export async function republishRereadRuns(submissions: Bucket, library: Bucket, runs: readonly ResearchRun[]): Promise<ReplacedMaterialFiles> {
   const entries = [...(await readMaterials(library)).entries, ...(await hiddenMaterials(submissions))];
@@ -177,16 +163,13 @@ export async function republishRereadRuns(submissions: Bucket, library: Bucket, 
   for (const run of runs) {
     const id = promoted.get(run.id) ?? entryIdOfRun(run);
     const checked = checkedMaterial(await (await requiredObject(submissions, researchRunKey(run.id, "material.json"))).text());
-    if ("error" in checked) throw new Error(`${run.id}: ${checked.error}`);
+    if ("error" in checked) throw new ConflictError(`${run.id}: ${checked.error}`);
     files.set(id, checked.file);
   }
   return replaceMaterialFiles(submissions, library, files);
 }
 
-/**
- * The runs an earlier promotion published under a submission's id (research-runs.ts
- * promotedRunEntries), with rules read from the run's private file and the automaton's public one.
- */
+/** Map research run ids to previously promoted automaton entry ids by comparing stored rules. */
 function promotedRuns(submissions: Bucket, library: Bucket, runs: readonly ResearchRun[], entries: readonly MaterialEntry[]): Promise<Map<string, string>> {
   const ruleAt = async (bucket: Bucket, key: string) => {
     const stored = await bucket.get(key);
@@ -199,25 +182,23 @@ function promotedRuns(submissions: Bucket, library: Bucket, runs: readonly Resea
   );
 }
 
-/** What showResearchRuns did, or in a dry run would do, by entry id. */
+/** Summary of entry ids handled by showResearchRuns. */
 export interface ShownRuns {
-  /** Runs published as new automata: their file and poster, and an index entry. */
+  /** Runs published as new automata. */
   published: string[];
-  /** Runs whose rule was a shown automaton already: its entry took the run's place in the grid, and nothing else changed. */
+  /** Already-shown automata whose grid place was updated without replacing their files. */
   placed: string[];
-  /** Runs left as the owner hid them: a hidden automaton stays hidden. */
+  /** Runs left hidden because the owner previously hid them. */
   keptHidden: string[];
-  /** Runs the grid has no place for; they are not published. */
+  /** Runs without a valid gallery grid place; skipped. */
   withoutPlace: string[];
 }
 
 /**
- * Show research runs on the Automata page. A run whose rule is not on the site becomes a published
- * automaton under the project's credit and without a title, with its place in its basis group's
- * grid and the review's mark within the group; its file is checked with the app's loader as any
- * submission's is. A run whose rule is a shown automaton already only gives that entry its place: a
- * published file never changes. One index write for all of them. With `write` false nothing is
- * written, and the answer is what would be.
+ * Publish research runs onto the Automata page in one index write.
+ * New rules are published under the project credit with their grid place and review mark.
+ * Already-shown rules only update their grid place. Hidden entries remain hidden.
+ * When write is false, return the plan without modifying storage.
  */
 export async function showResearchRuns(
   submissions: Bucket, library: Bucket, runs: readonly ResearchRun[], now: Date, write: boolean,
@@ -231,7 +212,7 @@ export async function showResearchRuns(
   const toPublish: MaterialToPublish[] = [];
   const places = new Map<string, GalleryPlace>();
   for (const run of runs) {
-    // The run's own entry when it has one, shown or hidden; else an earlier promotion's, by rule; else a new entry.
+    // Reuse a previously promoted entry matched by rule before falling back to the run's own entry id.
     const id = promoted.get(run.id) ?? entryIdOfRun(run);
     const place = placeOfRun(run);
     if (place === null) {
@@ -243,7 +224,7 @@ export async function showResearchRuns(
       result.placed.push(id);
     } else {
       const checked = checkedMaterial(await (await requiredObject(submissions, researchRunKey(run.id, "material.json"))).text());
-      if ("error" in checked) throw new Error(`${run.id}: ${checked.error}`);
+      if ("error" in checked) throw new ConflictError(`${run.id}: ${checked.error}`);
       toPublish.push({
         id, file: checked.file, label: { title: "", credit: PROJECT_CREDIT }, hidden: false, featured: false,
         gallery: place, featuredInBlock: run.review.featured,

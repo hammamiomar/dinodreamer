@@ -16,10 +16,9 @@
 //                           preview media (link-preview.ts), and its reader text (reader-text.ts)
 //   GET  other addresses   the same index.html with status 404; the app shows its unknown-page view
 
-import ownerPage from "./admin-page.html";
 import { isOwnerPath, ownerRequest, type OwnerEnv } from "./admin.ts";
 import { EMPTY_INDEX } from "./gallery-index.ts";
-import { CACHE_IMMUTABLE, CACHE_INDEX, INDEX_KEY, INDEX_MAX_AGE_SECONDS, submissionId, type Bucket } from "./storage.ts";
+import { CACHE_IMMUTABLE, CACHE_INDEX, INDEX_KEY, INDEX_MAX_AGE_SECONDS, jsonResponse, submissionId, type Bucket } from "./storage.ts";
 import { readCreationForm, readForm, readMaterialForm, storeSubmission, type ReleaseBlocks } from "./submission.ts";
 import { readMaterials, storeMaterialSubmission } from "./material-review.ts";
 import { storedNames } from "./basis-group-names.ts";
@@ -39,14 +38,7 @@ export interface Env extends OwnerEnv {
   TURNSTILE_SECRET?: string;
 }
 
-function json(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "content-type": "application/json", "cache-control": "no-store", ...headers },
-  });
-}
-
-/** A release's block count from its manifest on the public bucket (releases/<name>.json, about 4 KB). */
+/** Read a release's block count from its manifest on the public bucket (releases/<name>.json). */
 function publishedReleaseBlocks(library: Bucket): ReleaseBlocks {
   return async (release) => {
     const stored = await library.get(`releases/${release}.json`);
@@ -59,22 +51,22 @@ function publishedReleaseBlocks(library: Bucket): ReleaseBlocks {
 async function submit(request: Request, env: Env): Promise<Response> {
   const clientIp = request.headers.get("cf-connecting-ip");
   if (!(await env.SUBMISSION_LIMIT.limit({ key: clientIp ?? "unknown" })).success) {
-    return json({ error: "too many submissions; try again in a minute" }, 429);
+    return jsonResponse({ error: "too many submissions; try again in a minute" }, 429);
   }
   // Without the secret there is no human check, so nothing is stored.
-  if (!env.TURNSTILE_SECRET) return json({ error: "submissions are closed: the human check is not configured" }, 503);
+  if (!env.TURNSTILE_SECRET) return jsonResponse({ error: "submissions are closed: the human check is not configured" }, 503);
   const read = await readForm(request);
-  if (!read.ok) return json({ error: read.error }, read.status);
+  if (!read.ok) return jsonResponse({ error: read.error }, read.status);
   const material = read.form.get("kind") === "material";
   const result = material ? await readMaterialForm(read.form) : await readCreationForm(read.form, publishedReleaseBlocks(env.LIBRARY));
-  if (!result.ok) return json({ error: result.error, ...("problems" in result && result.problems ? { problems: result.problems } : {}) }, result.status);
+  if (!result.ok) return jsonResponse({ error: result.error, ...("problems" in result && result.problems ? { problems: result.problems } : {}) }, result.status);
   const human = await verifyTurnstile(result.turnstileToken, env.TURNSTILE_SECRET, clientIp);
-  if (!human.ok) return json({ error: human.error }, human.status);
+  if (!human.ok) return jsonResponse({ error: human.error }, human.status);
   const now = new Date();
   const id = submissionId(now, crypto.getRandomValues(new Uint8Array(4)));
   if ("file" in result.submission) await storeMaterialSubmission(env.SUBMISSIONS, id, result.submission, now);
   else await storeSubmission(env.SUBMISSIONS, id, result.submission, now);
-  return json({ id }, 201);
+  return jsonResponse({ id }, 201);
 }
 
 async function gallery(env: Env): Promise<Response> {
@@ -133,16 +125,16 @@ async function basisGroupNames(env: Env): Promise<Response> {
 
 /** Local gallery reads can select an exact revision. Older links resolve to the current files. */
 async function materialFile(env: Env, id: string, file: string, revision: string | null): Promise<Response> {
-  if (!isMaterialEntryId(id) || !MATERIAL_FILES.includes(file as MaterialFileName)) return json({ error: "not found" }, 404);
-  if (revision !== null && !isMaterialFileRevision(revision)) return json({ error: "not found" }, 404);
+  if (!isMaterialEntryId(id) || !MATERIAL_FILES.includes(file as MaterialFileName)) return jsonResponse({ error: "not found" }, 404);
+  if (revision !== null && !isMaterialFileRevision(revision)) return jsonResponse({ error: "not found" }, 404);
   const key = revision === null ? materialKey(id, file as MaterialFileName) : versionedMaterialKey(id, revision, file as MaterialFileName);
   const stored = await env.LIBRARY.get(key);
-  if (stored === null) return json({ error: "not found" }, 404);
+  if (stored === null) return jsonResponse({ error: "not found" }, 404);
   const type = file === "poster.png" ? "image/png" : "application/json";
   return new Response(await stored.arrayBuffer(), { headers: { "content-type": type, "cache-control": revision === null ? CACHE_INDEX : CACHE_IMMUTABLE } });
 }
 
-export default {
+const worker = {
   async fetch(request: Request, env: Env, context?: WorkerContext): Promise<Response> {
     const url = new URL(request.url);
     const { pathname } = url;
@@ -151,22 +143,26 @@ export default {
       url.pathname = canonical;
       return Response.redirect(url.href, request.method === "GET" || request.method === "HEAD" ? 301 : 308);
     }
-    if (isOwnerPath(pathname)) return ownerRequest(request, env, ownerPage);
+    if (isOwnerPath(pathname)) return ownerRequest(request, env);
     if (pathname === "/api/submissions") {
-      return request.method === "POST" ? submit(request, env) : json({ error: "use POST" }, 405, { allow: "POST" });
+      return request.method === "POST" ? submit(request, env) : jsonResponse({ error: "use POST" }, 405, { allow: "POST" });
     }
     if (pathname === "/api/gallery") {
-      return request.method === "GET" ? gallery(env) : json({ error: "use GET" }, 405, { allow: "GET" });
+      return request.method === "GET" ? gallery(env) : jsonResponse({ error: "use GET" }, 405, { allow: "GET" });
     }
     if (pathname === "/api/materials") {
-      return request.method === "GET" ? materials(url, env.LIBRARY, context) : json({ error: "use GET" }, 405, { allow: "GET" });
+      return request.method === "GET" ? materials(url, env.LIBRARY, context) : jsonResponse({ error: "use GET" }, 405, { allow: "GET" });
     }
     if (pathname === "/api/basis-groups") {
-      return request.method === "GET" ? basisGroupNames(env) : json({ error: "use GET" }, 405, { allow: "GET" });
+      return request.method === "GET" ? basisGroupNames(env) : jsonResponse({ error: "use GET" }, 405, { allow: "GET" });
     }
     const published = pathname.match(/^\/api\/materials\/([^/]+)\/([^/]+)$/);
-    if (published !== null && request.method === "GET") return materialFile(env, published[1]!, published[2]!, url.searchParams.get("revision"));
-    if (pathname.startsWith("/api/")) return json({ error: "not found" }, 404);
+    if (published !== null) {
+      return request.method === "GET"
+        ? materialFile(env, published[1]!, published[2]!, url.searchParams.get("revision"))
+        : jsonResponse({ error: "use GET" }, 405, { allow: "GET" });
+    }
+    if (pathname.startsWith("/api/")) return jsonResponse({ error: "not found" }, 404);
     // Existing build files bypass this Worker. A stale tab can request a file from an earlier build.
     if (pathname.startsWith("/assets/")) {
       return new Response(request.method === "HEAD" ? null : "File missing from this build. Reload the page.\n", {
@@ -186,3 +182,5 @@ export default {
     return new Response(unknown.body, { status: 404, headers: unknown.headers });
   },
 };
+
+export default worker;

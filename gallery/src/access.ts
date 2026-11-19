@@ -64,10 +64,11 @@ export async function verifyAccessToken(
   // JSON.parse also returns null, numbers and arrays; a token's header and payload are objects.
   if (!isJsonObject(header) || !isJsonObject(payload)) return { ok: false, reason: "malformed Access token" };
   if (header.alg !== "RS256") return { ok: false, reason: "the Access token is not RS256" };
+  if (typeof header.kid !== "string" || header.kid.length === 0) return { ok: false, reason: "the Access token has no key id" };
 
   let key: SigningKey | null;
   try {
-    key = await signingKey(teamDomain, String(header.kid), now, fetcher);
+    key = await signingKey(teamDomain, header.kid, now, fetcher);
   } catch (error) {
     return { ok: false, reason: `the team's keys could not be read: ${error instanceof Error ? error.message : String(error)}` };
   }

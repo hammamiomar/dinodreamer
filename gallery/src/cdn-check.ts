@@ -3,8 +3,9 @@
 // Origin and with the app's. One machine reaches one edge: a 404 here says nothing about
 // other edges, so the owner's manual cache purge is always needed, whatever this check sees.
 
-/** The app's own origin: the app loads bucket objects with CORS. */
 import { DINODREAMER_ORIGIN as APP_ORIGIN } from "./site-location.ts";
+
+/** The app's own origin: the app loads bucket objects with CORS. */
 export { APP_ORIGIN };
 
 export type CopyState = "served" | "absent here" | "unknown";
@@ -18,9 +19,9 @@ export interface CopyCheck {
 }
 
 /**
- * Where the owner purges an entry's cached copies by hand: wrangler's login cannot purge the
- * cache. Cloudflare's docs say a purge by URL leaves the copies cached with an Origin header,
- * so the step is the purge by prefix (README: CDN cache). The curl checks show what remains.
+ * Dashboard location for manual cache purges because wrangler's login cannot purge the cache.
+ * A purge by URL leaves copies cached with an Origin header, so use Purge by Prefix
+ * (see gallery/cloudflare-settings.md). The curl checks show what remains on this edge.
  */
 export const PURGE_BY_PREFIX_PLACE = "Cloudflare dashboard > computervision.vision > Caching > Configuration > Custom Purge > Purge by Prefix";
 

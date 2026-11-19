@@ -40,7 +40,7 @@
   "vars": {
     // The library CDN, as app/.env names it (a test checks): the owner page's purge step.
     "ASSET_BASE_URL": "https://library.computervision.vision",
-    // Cloudflare Access in front of /admin (src/access.ts, README: Owner page). Not secrets: the
+    // Cloudflare Access in front of /admin (src/access.ts). Not secrets: the
     // audience tag is inside every token. Without both, every /admin request is refused.
     "ACCESS_TEAM_DOMAIN": "https://morning-boat-6fad.cloudflareaccess.com",
     // The Access application "DinoDreamer owner page" (dinodreamer.computervision.vision/admin and /admin/*).

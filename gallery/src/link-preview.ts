@@ -33,7 +33,7 @@ export function previewKeys(materialId: string): { image: string; video: string 
 export const escapeHtml = (text: string) =>
   text.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 
-/** The top page that a path's first segment names, or null for the other public pages ("" is the home). */
+/** Map the first pathname segment to a top-level page key, or return null for secondary pages. */
 export function topPageOf(segment: string): TopPage | null {
   if (segment === "") return "home";
   return (TOP_PAGES as readonly string[]).includes(segment) ? (segment as TopPage) : null;
@@ -105,7 +105,7 @@ export function previewTags(preview: LinkPreview): string {
   ].join("\n    ");
 }
 
-/** Set the title and the description and append the other tags, without changing the application document or its scripts. */
+/** Rewrite <title> and meta description and insert Open Graph and Twitter tags before </head>. */
 export function withPreviewTags(html: string, preview: LinkPreview): string {
   const titled = html
     .replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(preview.title)}</title>`)
