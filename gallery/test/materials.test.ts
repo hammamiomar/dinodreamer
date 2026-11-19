@@ -1,17 +1,20 @@
 // The material flow: a format-4 file submitted with kind=material, pending until approved,
 // published with its poster into published/materials.json, hidden, restored and purged.
 
-import { readFileSync, readdirSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { copyFileSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { describe, expect, it, vi } from "vitest";
 import worker from "../src/worker.ts";
 import {
   approveMaterial, hideMaterial, materialEntries, pendingMaterials, publishMaterial, publishMaterials, purgeMaterial, readMaterials,
-  restoreMaterial, setCellPicture, setGroupPicture, setMaterialFeatured,
+  restoreMaterial, setCellPicture, setGalleryPlaces, setGroupPicture, setMaterialFeatured,
 } from "../src/material-review.ts";
 import { galleryEntries, pendingSubmissions } from "../src/review.ts";
 import { canonicalFigureFile, readFigureMaterial } from "../../app/src/materials/material-file.ts";
 import { materialKey, readMaterialIndex, versionedMaterialKey } from "../../app/src/features/gallery/material-index.ts";
 import { TEST_TURNSTILE_TOKEN, submit, testEnv } from "./fixtures.ts";
+import { localSeedMaterials, seedMaterialFolder } from "../material-seed.ts";
 import { terminalText } from "../review-cli.ts";
 import type { Env } from "../src/worker.ts";
 
@@ -262,6 +265,46 @@ describe("production seed", () => {
     expect(marks).toEqual({ [shown!.id]: true, [restored!.id]: false });
     expect((await materialEntries(submissions, library)).hidden.map((entry) => [entry.id, entry.featured])).toEqual([[hidden!.id, true]]);
   });
+});
+
+it("keeps the owner's labels, picture selections and grid positions through both seed operations", async () => {
+  const local = testEnv();
+  const destination = testEnv();
+  const directory = mkdtempSync(join(tmpdir(), "material-seed-"));
+  const site = "block-12002-figure-strongest-mean-seed-0";
+  const group = "block-12002-figure-strongest-mean-seed-1";
+  const hidden = "block-13633-figure-strongest-mean-seed-0";
+  const place = { start: "circle", method: "token-distribution" } as const;
+  try {
+    for (const id of [site, group, hidden]) {
+      const name = `${id}.material.json`;
+      copyFileSync(new URL(name, folder), join(directory, name));
+      const { file } = readFigureMaterial(JSON.parse(text(name)));
+      await publishMaterial(local.library, id, file, { title: "", credit: "Owner credit" }, new Date());
+    }
+    await setMaterialFeatured(local.submissions, local.library, site, true);
+    await setGalleryPlaces(local.library, new Map([[group, place], [hidden, place]]));
+    await setCellPicture(local.submissions, local.library, group);
+    await setGroupPicture(local.submissions, local.library, group);
+    await hideMaterial(local.submissions, local.library, hidden, new Date());
+
+    using writes = vi.spyOn(local.library, "put");
+    const result = await seedMaterialFolder(local.submissions, local.library, directory);
+    expect(writes.mock.calls.filter(([key]) => key === "published/materials.json")).toHaveLength(1);
+    expect(result).toEqual({ publishedIds: [site, group], keptHidden: 1 });
+    const copy = await localSeedMaterials(local);
+    await publishMaterials(destination.submissions, destination.library, copy.materials, new Date());
+    for (const store of [local, destination]) {
+      const entries = await materialEntries(store.submissions, store.library);
+      expect(entries.published.filter((entry) => entry.featured).map((entry) => entry.id)).toEqual([site]);
+      expect(entries.published.filter((entry) => entry.featuredInBlock).map((entry) => entry.id)).toEqual([group]);
+      expect(entries.published.filter((entry) => entry.cellPicture).map((entry) => entry.id)).toEqual([group]);
+      expect(entries.published.find((entry) => entry.id === group)).toMatchObject({ title: "", credit: "Owner credit", gallery: place });
+      expect(entries.hidden).toMatchObject([{ id: hidden, gallery: place, title: "", credit: "Owner credit" }]);
+    }
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 describe("featured materials", () => {

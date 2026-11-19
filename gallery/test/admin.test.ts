@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { unstable_readConfig } from "wrangler";
 import { libraryCdnBaseUrl } from "../review-cli.ts";
 import { ownerRequest } from "../src/admin.ts";
@@ -344,16 +344,20 @@ describe("owner API: the review operations", () => {
 
   it("returns 409 for domain conflicts and 500 for unexpected storage errors", async () => {
     const { post, submissions, library } = ownerSetup();
+    using logged = vi.spyOn(console, "error").mockImplementation(() => {});
     const missing = await post("/admin/api/approve", { ids: ["20261011-153012-a1b2c3d4"] });
     expect(missing.status).toBe(409);
     expect(missing.body.error).toMatch(/no pending submission/);
 
+    expect(logged).not.toHaveBeenCalled();
+    const failure = new Error("R2 outage");
     submissions.list = async () => {
-      throw new Error("R2 outage");
+      throw failure;
     };
     const outage = await post("/admin/api/reject", { id: "20261011-153012-a1b2c3d4" });
     expect(outage.status).toBe(500);
     expect(outage.body.error).toBe("internal server error");
+    expect(logged).toHaveBeenCalledWith("Owner API POST /admin/api/reject failed", failure);
 
     await library.put("published/index.json", "{corrupt");
     const corrupt = await post("/admin/api/hide", { id: "20261011-153012-a1b2c3d4" });

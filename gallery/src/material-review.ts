@@ -161,6 +161,7 @@ export interface MaterialToPublish {
   featured: boolean;
   gallery?: GalleryPlace;
   featuredInBlock?: boolean;
+  cellPicture?: boolean;
 }
 
 /**
@@ -175,7 +176,8 @@ export async function publishMaterials(submissions: Bucket, library: Bucket, mat
     const entry: MaterialEntry = {
       ...(await putMaterialObjects(library, material.id, material.file, material.label, now)),
       featured: material.featured,
-      ...(material.featuredInBlock === undefined ? {} : { featuredInBlock: material.featuredInBlock || material.featured }),
+      ...(material.featuredInBlock === undefined ? {} : { featuredInBlock: material.featuredInBlock }),
+      ...(material.cellPicture === undefined ? {} : { cellPicture: material.cellPicture }),
       ...(material.gallery === undefined ? {} : { gallery: material.gallery }),
     };
     if (material.hidden) {

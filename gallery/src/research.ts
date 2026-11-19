@@ -119,20 +119,30 @@ export async function rereadProblems(bucket: Bucket, runs: readonly ResearchRun[
   return problems;
 }
 
-/** Upload run files before writing the manifest so the manifest never references missing objects. */
-export async function writeResearch(bucket: Bucket, manifestText: string, runs: ResearchRun[], filesOf: (run: ResearchRun) => ResearchRunFiles): Promise<void> {
-  const queue = [...runs];
+/** Commit the manifest after every private file and published rereading is in place. A retry
+ * compares against the previous manifest and can finish a failed public write.
+ */
+export async function writeResearch(
+  submissions: Bucket,
+  library: Bucket,
+  manifestText: string,
+  runs: { added: ResearchRun[]; reread: ResearchRun[] },
+  filesOf: (run: ResearchRun) => ResearchRunFiles,
+): Promise<ReplacedMaterialFiles | null> {
+  const queue = [...runs.added, ...runs.reread];
   const upload = async () => {
     for (let run = queue.shift(); run !== undefined; run = queue.shift()) {
       const files = filesOf(run);
-      await bucket.put(researchRunKey(run.id, "material.json"), files.material, { httpMetadata: { contentType: "application/json" } });
+      await submissions.put(researchRunKey(run.id, "material.json"), files.material, { httpMetadata: { contentType: "application/json" } });
       for (const tick of run.stills) {
-        await bucket.put(researchRunKey(run.id, stillName(tick)), files.stills.get(tick)!, { httpMetadata: { contentType: "image/png" } });
+        await submissions.put(researchRunKey(run.id, stillName(tick)), files.stills.get(tick)!, { httpMetadata: { contentType: "image/png" } });
       }
     }
   };
   await Promise.all(Array.from({ length: CONCURRENT_UPLOADS }, upload));
-  await bucket.put(RESEARCH_MANIFEST_KEY, manifestText, { httpMetadata: { contentType: "application/json" } });
+  const replaced = runs.reread.length ? await republishRereadRuns(submissions, library, runs.reread) : null;
+  await submissions.put(RESEARCH_MANIFEST_KEY, manifestText, { httpMetadata: { contentType: "application/json" } });
+  return replaced;
 }
 
 /**
@@ -155,7 +165,7 @@ export async function showStoredRuns(submissions: Bucket, library: Bucket, ids: 
  * Propagate re-read run files from the private bucket to matching shown or hidden automata on the
  * public site. Runs not published on the site are ignored.
  */
-export async function republishRereadRuns(submissions: Bucket, library: Bucket, runs: readonly ResearchRun[]): Promise<ReplacedMaterialFiles> {
+async function republishRereadRuns(submissions: Bucket, library: Bucket, runs: readonly ResearchRun[]): Promise<ReplacedMaterialFiles> {
   const entries = [...(await readMaterials(library)).entries, ...(await hiddenMaterials(submissions))];
   // A re-read keeps the run's rule (rereadProblem), so an earlier promotion still matches the new file.
   const promoted = await promotedRuns(submissions, library, runs, entries);

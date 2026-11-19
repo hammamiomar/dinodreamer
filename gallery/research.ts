@@ -24,7 +24,7 @@ import { join } from "node:path";
 import { openBuckets, openLocalBuckets } from "./review-cli.ts";
 import { stillName, type ResearchRun } from "../app/src/features/research/research-runs.ts";
 import {
-  changedRuns, checkedResearchManifest, republishRereadRuns, rereadProblems, researchRunProblems, runsToWrite, showResearchRuns, storedResearchManifest,
+  changedRuns, checkedResearchManifest, rereadProblems, researchRunProblems, runsToWrite, showResearchRuns, storedResearchManifest,
   writeResearch, type ResearchRunFiles,
 } from "./src/research.ts";
 
@@ -94,11 +94,10 @@ try {
     console.error(`Nothing was written. ${rereadWrong.length} runs changed more than their reading:\n${rereadWrong.join("\n")}`);
     process.exit(1);
   }
-  await writeResearch(opened.submissions, manifestText, [...runs, ...rereadRuns], readRunFiles);
+  const replaced = await writeResearch(opened.submissions, opened.library, manifestText, { added: runs, reread: rereadRuns }, readRunFiles);
   const place = persistTo ? `the local store ${persistTo}` : "Cloudflare's private bucket";
   console.log(`Wrote ${runs.length} new runs and the index of ${manifest.runs.length} runs in ${manifest.studies.length} studies to ${place}`);
-  if (rereadRuns.length > 0) {
-    const replaced = await republishRereadRuns(opened.submissions, opened.library, rereadRuns);
+  if (replaced !== null) {
     console.log(`${rereadRuns.length} runs were read again and replaced their file.`);
     console.log(`  ${replaced.shown.length} are shown automata: their file, poster and entry took the new reading`);
     console.log(`  ${replaced.hidden.length} are hidden automata: their file, poster and recovery record took it`);

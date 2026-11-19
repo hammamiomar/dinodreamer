@@ -39,6 +39,8 @@ pnpm develop:fixtures   # the app with small local data: no GPU, no network
 To check a change, run `pnpm check && pnpm test` in `app/` and in `gallery/`, and
 `cargo test --no-default-features --features cpu` in `engine/`.
 
+The CI guide also explains how to run the [local gallery Worker](ci/README.md#local-gallery-worker).
+
 ## Data and licenses
 
 The code is under the Apache License 2.0 (`LICENSE`). `NOTICE` lists every third-party license.
