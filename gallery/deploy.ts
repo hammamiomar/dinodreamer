@@ -1,6 +1,6 @@
 // Deploy a committed revision, or the current CI checkout:
 //   pnpm run deploy [revision] [--ci] [--without-gpu] [--preview-alias=pr-<number>]
-// CI builds engine/pkg first. Local runs build in a separate worktree.
+// CI builds engine/pkg first. Local runs create a temporary worktree under DEPLOY_WORKTREE or the system temp directory.
 // Engine publication belongs to GPU qualification: this script only checks its public URL.
 // Releases require engine/qualified-engine.json to match the built WASM exactly.
 // A preview uploads a Worker version without changing production traffic. In GitHub it reports its alias
@@ -9,17 +9,17 @@
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { appendFileSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { request } from "node:https";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
+import { parseArgs } from "node:util";
 import { libraryCdnBaseUrl } from "./review-cli.ts";
 import { engineWasmKey } from "./src/storage.ts";
 import { DINODREAMER_ORIGIN } from "./src/site-location.ts";
 
 const GALLERY = import.meta.dirname;
 const REPOSITORY = resolve(GALLERY, "..");
-const WORKTREE = process.env.DEPLOY_WORKTREE ?? join(tmpdir(), "dinodreamer-public-deploy");
 const ENGINE_WASM = "dinodreamer_engine_bg.wasm";
 const PRODUCTION = DINODREAMER_ORIGIN;
 // Allow edge propagation before checking the deployed build.
@@ -35,10 +35,31 @@ function run(command: string, args: string[], cwd: string, env: Record<string, s
   return execFileSync(command, args, { cwd, env: { ...process.env, ...env }, encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] });
 }
 
-function checkoutRevision(revision: string): string {
-  if (!existsSync(WORKTREE)) run("git", ["worktree", "add", "--detach", WORKTREE, revision], REPOSITORY);
-  else run("git", ["checkout", "--detach", revision], WORKTREE);
-  return run("git", ["rev-parse", "HEAD"], WORKTREE).trim();
+/** Resolve the revision in its source repository. Keep the checkout private to this invocation
+ * until the build and its checks finish, including when another release runs at the same time.
+ */
+export async function withReleaseCheckout(
+  repository: string,
+  revision: string,
+  parent: string,
+  operation: (directory: string, commit: string) => Promise<void>,
+): Promise<void> {
+  const commit = run("git", ["rev-parse", "--verify", "--end-of-options", `${revision}^{commit}`], repository).trim();
+  mkdirSync(parent, { recursive: true });
+  const directory = mkdtempSync(join(parent, "dinodreamer-deploy-"));
+  try {
+    run("git", ["worktree", "add", "--detach", directory, commit], repository);
+  } catch (error) {
+    rmSync(directory, { recursive: true, force: true });
+    throw error;
+  }
+  try {
+    const checkedOut = run("git", ["rev-parse", "HEAD"], directory).trim();
+    if (checkedOut !== commit) throw new Error(`Expected to build ${commit}, but the worktree contains ${checkedOut}`);
+    await operation(directory, commit);
+  } finally {
+    run("git", ["worktree", "remove", "--force", directory], repository);
+  }
 }
 
 /** A release may only serve the exact runtime recorded by GPU qualification. */
@@ -171,17 +192,29 @@ interface PreparedBuild {
   message: string;
 }
 
-function parseDeployOptions(args: string[]): DeployOptions {
-  const revision = args.find((arg) => !arg.startsWith("--")) ?? "main";
-  const alias = args.find((arg) => arg.startsWith("--preview-alias="))?.split("=")[1];
-  if (alias !== undefined && !/^pr-[1-9][0-9]*$/.test(alias)) throw new Error("Use --preview-alias=pr-<number>");
-  return { revision, ci: args.includes("--ci"), withoutGpu: args.includes("--without-gpu"), alias };
+export function parseDeployOptions(args: string[]): DeployOptions {
+  const { values, positionals, tokens } = parseArgs({
+    args,
+    allowPositionals: true,
+    tokens: true,
+    options: {
+      ci: { type: "boolean", default: false },
+      "without-gpu": { type: "boolean", default: false },
+      "preview-alias": { type: "string" },
+    },
+  });
+  const revision = positionals[0] ?? "main";
+  if (positionals.length > 1 || !revision || revision.startsWith("-")) throw new Error("Specify at most one Git revision");
+  const alias = values["preview-alias"];
+  const aliases = tokens.filter((token) => token.kind === "option" && token.name === "preview-alias");
+  if (alias !== undefined && (!/^pr-[1-9][0-9]*$/.test(alias) || aliases.length !== 1 || !aliases[0]?.inlineValue)) {
+    throw new Error("Use one --preview-alias=pr-<number> option");
+  }
+  return { revision, ci: values.ci, withoutGpu: values["without-gpu"], alias };
 }
 
-/** Check out the target revision, verify the qualified engine, and build the app bundle. Returns null when a PR preview is skipped. */
-async function prepareBuild(options: DeployOptions): Promise<PreparedBuild | null> {
-  const repository = options.ci ? REPOSITORY : WORKTREE;
-  const commit = options.ci ? run("git", ["rev-parse", "HEAD"], repository).trim() : checkoutRevision(options.revision);
+/** Verify the qualified engine and build the app bundle. Returns null when a PR preview is skipped. */
+async function prepareBuild(options: DeployOptions, repository: string, commit: string): Promise<PreparedBuild | null> {
   if (!options.ci) run("wasm-pack", ["build", "--target", "web", "--release", "--", "--locked"], join(repository, "engine"));
 
   const wasm = readFileSync(join(repository, "engine", "pkg", ENGINE_WASM));
@@ -243,10 +276,17 @@ async function deployProduction(build: PreparedBuild, options: DeployOptions): P
 
 async function main(): Promise<void> {
   const options = parseDeployOptions(process.argv.slice(2));
-  const build = await prepareBuild(options);
-  if (build === null) return;
-  if (options.alias !== undefined) uploadPreview(build, options.alias);
-  else await deployProduction(build, options);
+  const deploy = async (repository: string, commit: string) => {
+    const build = await prepareBuild(options, repository, commit);
+    if (build === null) return;
+    if (options.alias !== undefined) uploadPreview(build, options.alias);
+    else await deployProduction(build, options);
+  };
+  if (options.ci) {
+    await deploy(REPOSITORY, run("git", ["rev-parse", "HEAD"], REPOSITORY).trim());
+  } else {
+    await withReleaseCheckout(REPOSITORY, options.revision, resolve(process.env.DEPLOY_WORKTREE ?? tmpdir()), deploy);
+  }
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === import.meta.filename) await main();
