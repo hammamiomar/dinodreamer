@@ -13,7 +13,9 @@ use std::{fs, path::Path};
 /// The engine's prepared set against the oracle's, from the same windows: relative error of the
 /// unit σ, the median distance h and the self-similarity, relative RMS of the mean μ and of the
 /// standardized features. DINO runs in float32 on both sides with different kernels and summation
-/// orders; a wrong layer, window, or dot shows at 1e-1 and above.
+/// orders. Measured on 17 November 2026 (group 12002, native WGPU): at most 5.8e-7 for the scalars,
+/// 7.0e-7 for the mean and 8.1e-6 for the standardized features. A wrong layer, window, or dot shows
+/// at 1e-1 and above.
 pub const SET_SCALAR_TOLERANCE: f64 = 1e-5;
 pub const SET_VECTOR_TOLERANCE: f64 = 1e-4;
 
