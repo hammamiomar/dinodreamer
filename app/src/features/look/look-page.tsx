@@ -25,11 +25,10 @@ import { pageHasPicture, pageToken, prepareCloud } from "./cloud-geometry";
 import { cloudTokenKey, hasPicture, type CloudToken } from "./cloud-token";
 import { CloudView, type CloudViewHandle, type LookTool } from "./cloud-view";
 import { LOOK_TEXT } from "./look-text";
-import { pictureAnchor, pictureGrowRequest } from "./grow-from-picture";
+import { pictureGrowRequest } from "./grow-from-picture";
 import { makeMaterialRequest, sentPoints } from "./material-request";
 import { defaultOccurrence, leadingPictures, occurrenceRequest, type OccurrenceSource } from "./occurrence-request";
-import { PictureSourceChip } from "./picture-entry";
-import { PicturePlace } from "./picture-place";
+import { PictureHere } from "./picture-here";
 import { anchorFollowingSelection, bandSelection, nearestInBand } from "./request-anchor";
 import { RequestPanel, type AnchorReason, type CanvasState, type PageLift } from "./request-panel";
 import { applyLasso, seedRegion, withinRegionRadius, REGION_SELECTION_DEFAULTS, REGION_GRAPH_ROWS, type LookSelection, type ProjectedPoint } from "./selection";
@@ -105,11 +104,15 @@ function useCloudSelection({
   const anchor = chosenAnchor ?? followed;
   const anchorReason: AnchorReason | null = chosenAnchor !== null ? "chosen" : followed !== null && selection.kind !== "none" ? selection.kind : null;
 
+  // The Level 4 library patch nearest a patch's direction, for any level: the lift below Level 4, a comparison at it.
+  const nearestStrongest = useCallback((index: number): PageLift | null => {
+    const near = nearestInBand(cloud.sample, prepared.native[index], STRONGEST, strength);
+    return near && { index: prepared.own + near.index, degrees: near.degrees };
+  }, [cloud.sample, prepared, strength]);
   const liftToStrongest = useCallback((index: number | null | undefined): PageLift | null => {
     if (index === null || index === undefined || prepared.bands[index] === STRONGEST) return null;
-    const lift = nearestInBand(cloud.sample, prepared.native[index], STRONGEST, strength);
-    return lift && { index: prepared.own + lift.index, degrees: lift.degrees };
-  }, [cloud.sample, prepared, strength]);
+    return nearestStrongest(index);
+  }, [prepared, nearestStrongest]);
 
   const anchorLift = useMemo(() => liftToStrongest(anchor), [liftToStrongest, anchor]);
   const ownMain = origin === null ? prepared.ownByStrength[0] ?? null : null;
@@ -187,6 +190,7 @@ function useCloudSelection({
     ownMain,
     ownLift,
     cloudLift,
+    nearestStrongest,
     chooseSeed,
     pickPatch,
     ask,
@@ -298,9 +302,9 @@ function LookBlock({ data, origin, scroller }: { data: LookData; origin: CloudTo
     else growFrom(growsToward);
   }
 
-  const pictureGrow = cloudState.ownMain === null ? null : pictureAnchor(cloudState.ownMain, cloudState.chosenAnchor, cloudState.ownLift?.index ?? null);
-  function growFromPicture() {
-    const grow = pictureGrowRequest(cloud, own, strength, cloudState.chosenAnchor, prepared);
+  /** Train from your picture toward `reference`: one of your patches or a library patch, null for your strongest patch. */
+  function growFromPicture(reference: number | null) {
+    const grow = pictureGrowRequest(cloud, own, strength, reference, prepared);
     if (grow === null) return;
     setRequest(grow.request, upload.picture ? { name: upload.picture.name, preview: upload.picture.preview, lift: grow.reason === "lift" } : null);
     navigate(trainPath(block, location.search));
@@ -343,14 +347,17 @@ function LookBlock({ data, origin, scroller }: { data: LookData; origin: CloudTo
           cloudSection.current?.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
         }} onGrow={origin.source === "library" ? () => growFrom(0) : null} />
       )}
-      {upload.readout && !origin && (
+      {upload.readout && upload.picture && uploadUrl && !origin && (
         <div className="look-own">
-          <PictureSourceChip />
-          <PicturePlace ownByStrength={prepared.ownByStrength} blockStrongest={prepared.members[STRONGEST]} token={token} strength={strength}
-            lift={cloudState.ownLift} growsToward={pictureGrow?.index ?? null} selected={cloudState.selectedSet} uploadUrl={uploadUrl}
-            onHover={cloudState.setHovered} onSeed={cloudState.chooseSeed} onSelectAnchor={cloudState.ask}
-            onSelectOwn={cloudState.selectOwn}
-            onGrowFrom={pictureGrow === null ? null : growFromPicture} />
+          <PictureHere pictureName={upload.picture.name} uploadUrl={uploadUrl} ownByStrength={prepared.ownByStrength} token={token} strength={strength}
+            chosen={cloudState.chosenAnchor} nearestStrongest={cloudState.nearestStrongest}
+            onChoose={(reference) => (reference === null ? cloudState.setChosenAnchor(null) : cloudState.ask(reference))}
+            onHover={cloudState.setHovered}
+            onShowInPlot={() => {
+              cloudState.selectOwn();
+              cloudSection.current?.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+            }}
+            onTrain={cloudState.ownMain === null ? null : growFromPicture} onRemove={upload.clear} />
         </div>
       )}
       <StrongestPictures indices={strongestRow} about={strongestAbout} token={token} lit={growHovered ? growsToward : null}

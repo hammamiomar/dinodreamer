@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ImageAddresses } from "../../reader/protocol";
-import { centreSquare, pictureReadout } from "./picture-readout";
+import { centreSquare, groupsAtPatch, groupsByCoverage, pictureReadout } from "./picture-readout";
 
 function addresses(): ImageAddresses {
   const rows = 256 * 32;
@@ -32,6 +32,29 @@ describe("an uploaded picture's addresses", () => {
     expect(blocks[0].block).toBe(101);
     expect(blocks.at(-1)?.block).toBe(99);
     expect(blocks.at(-2)?.block).toBe(100);
+  });
+
+  it("lists each patch's 32 groups with the largest response magnitude first", () => {
+    const read = addresses();
+    // Patch 3: reverse the magnitudes, so the reader's last group there is the strongest.
+    for (let rank = 0; rank < 32; rank++) read.norms[3 * 32 + rank] = rank + 1;
+    const byPatch = pictureReadout(read).byPatch;
+    expect(byPatch).toHaveLength(256);
+    expect(byPatch.every((groups) => groups.length === 32)).toBe(true);
+    expect(byPatch[0][0]).toEqual({ block: 100, norm: 32 });
+    expect(byPatch[3].slice(0, 2)).toEqual([{ block: 131, norm: 32 }, { block: 130, norm: 31 }]);
+  });
+
+  it("shows a group's level by its strongest patch in the list, and by the patch itself at a patch", () => {
+    const read = addresses();
+    read.norms[5 * 32] = 40; // Group 100 at patch 5.
+    const readout = pictureReadout(read);
+    expect(groupsByCoverage(readout, 2).map(({ entry, norm }) => [entry.block, norm])).toEqual([[100, 40], [101, 31]]);
+    const atFive = groupsAtPatch(readout, 5);
+    expect(atFive).toHaveLength(32);
+    expect(atFive[0].entry).toBe(readout.byBlock.get(100));
+    expect(atFive[0].norm).toBe(40);
+    expect(groupsAtPatch(readout, 6)[0].norm).toBe(32);
   });
 
   it("rejects incomplete, duplicate and nonfinite results at the reader boundary", () => {

@@ -4,60 +4,71 @@
 
 /*
  * Your picture (picture-page.tsx) on the 64 px module, in the page band (styles.css): at 1440 the
- * head at (64, 128), the picture 512 px at x = 64, the active blocks from x = 640, four 160 px cards
- * on a 176 px pitch.
+ * head at (64, 128), the map 512 px at x = 64 and in view while the list scrolls, the basis groups
+ * from x = 640. Every row and the column head share one grid (--picture-columns): your picture, a
+ * gap, then the four library levels, each column 128 px (an Index level's size) at 1440.
  */
 .picture-page { padding: var(--m) 0; }
 .picture-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 32px; min-height: var(--m); margin-bottom: var(--m); }
-.picture-head .label { margin: 0 0 8px; }
-.picture-head h1 { margin: 0; line-height: 32px; overflow-wrap: anywhere; }
+.picture-head h1 { margin: 0; line-height: 32px; }
+.picture-file { margin: 8px 0 0; font-size: var(--s-1); line-height: 16px; color: var(--ink-3); overflow-wrap: anywhere; }
 .picture-head > .link-control { flex-shrink: 0; font-size: var(--s-1); }
 .picture-layout { display: grid; grid-template-columns: 512px minmax(0, 1fr); gap: var(--m); align-items: start; }
 .picture-figure { position: sticky; top: var(--m); margin: 0; }
-.picture-preview { position: relative; width: 100%; aspect-ratio: 1; background: var(--black); }
-.picture-preview > img { display: block; width: 100%; height: 100%; object-fit: contain; }
-.picture-figure figcaption { min-height: 32px; margin-top: 16px; font-size: var(--s-1); line-height: 16px; color: var(--ink-2); }
-.picture-note { margin: 8px 0; font-size: var(--s-1); line-height: 16px; color: var(--ink-3); }
-.picture-blocks-head { padding-top: 15px; margin-bottom: 32px; border-top: 1px solid var(--line); }
-.picture-blocks-head h2 { margin: 0 0 8px; }
-.picture-blocks-head p { margin: 0; max-width: 64ch; color: var(--ink-2); }
-.picture-block-grid { display: grid; grid-template-columns: repeat(4, 160px); gap: 32px 16px; }
-.picture-block { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.picture-block-open { display: flex; flex-direction: column; gap: 8px; min-width: 0; color: inherit; text-decoration: none; }
-/* Grow from this: the band rule picks the patch (grow-from-picture.ts); the block page shows the same choice at length. */
-.picture-block-grow { align-self: stretch; }
-.picture-block-open > span { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px; font-size: var(--s-1); }
-.picture-block b { font-size: var(--s0); font-weight: 400; }
-.picture-block small { font-size: var(--s-1); color: var(--ink-3); }
-.picture-block .look-band-chip { flex: 0 0 100%; max-width: fit-content; }
-.picture-block-open > i { display: block; height: 2px; background: var(--line); }
-.picture-block-open > i > i { display: block; height: 100%; background: var(--ink-2); }
-.picture-list-count { margin: 32px 0 8px; color: var(--ink-3); font-size: var(--s-1); }
-.picture-blocks > .link-control { font-size: var(--s-1); }
+.picture-groups { --picture-columns: minmax(0, 128px) 8px repeat(4, minmax(0, 128px)); --picture-column-gap: 8px; }
+.picture-groups-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding-top: 15px; border-top: 1px solid var(--line); }
+.picture-groups-head h2 { margin: 0; font-size: var(--s0); font-weight: 400; }
+.picture-groups-head > span { font-size: var(--s-1); color: var(--ink-3); white-space: nowrap; }
+.picture-groups-head > .link-control { font-size: var(--s-1); }
+/*
+ * The column head: stated once, kept in view while the list scrolls. It reaches 8 px past the list on
+ * both sides, so its ground covers the level borders (2 px out, 2 px wide) of the rows passing under it.
+ */
+.picture-columns { position: sticky; top: 0; z-index: 1; display: grid; grid-template-columns: var(--picture-columns); column-gap: var(--picture-column-gap); row-gap: 4px; margin: 16px -8px 24px; padding: 16px 8px 8px; border-bottom: 1px solid var(--line); background: var(--black); font-size: var(--s-1); line-height: 16px; }
+.picture-columns-yours { grid-column: 1; grid-row: 2; color: var(--ink); }
+.picture-columns-scale { grid-column: 3 / -1; grid-row: 1; display: flex; align-items: center; gap: 8px; color: var(--ink-3); }
+.picture-columns-scale > i { position: relative; flex: 1; height: 1px; background: var(--ink-3); }
+.picture-columns-scale > i::after { content: ""; position: absolute; right: 0; top: -3px; width: 6px; height: 6px; border-top: 1px solid var(--ink-3); border-right: 1px solid var(--ink-3); transform: rotate(45deg); }
+.picture-columns-level { grid-row: 2; font-weight: 400; color: var(--band); }
+.picture-columns-level[data-band="0"], .picture-group-level[data-band="0"] { grid-column: 3; }
+.picture-columns-level[data-band="1"], .picture-group-level[data-band="1"] { grid-column: 4; }
+.picture-columns-level[data-band="2"], .picture-group-level[data-band="2"] { grid-column: 5; }
+.picture-columns-level[data-band="3"], .picture-group-level[data-band="3"] { grid-column: 6; }
+/* A row: its line over the squares, your picture under "Your picture", the library under the levels. */
+.picture-group-list { display: grid; gap: 24px; margin: 0; padding: 0; list-style: none; }
+.picture-group { min-width: 0; }
+.picture-group-open { display: grid; grid-template-columns: var(--picture-columns); column-gap: var(--picture-column-gap); row-gap: 8px; color: inherit; text-decoration: none; }
+.picture-group-line { grid-column: 1 / -1; grid-row: 1; display: flex; align-items: baseline; gap: 16px; font-size: var(--s-1); line-height: 16px; color: var(--ink-3); }
+.picture-group-number { font-size: var(--s0); font-weight: 400; color: var(--ink); }
+.picture-group-open:hover .picture-group-number, .picture-group-open:focus-visible .picture-group-number { text-decoration: underline; text-underline-offset: 4px; }
+.picture-group-yours { position: relative; grid-column: 1; grid-row: 2; }
+.picture-group-yours-level { grid-column: 1; grid-row: 3; font-size: var(--s-1); line-height: 16px; }
+.picture-group-patch { position: absolute; width: 6.25%; height: 6.25%; border: 1px solid #fff; outline: 1px solid var(--black); pointer-events: none; }
+/* Your level: your square and the library picture of the same level share the level's colour around them. */
+.picture-group-yours[data-marked], .picture-group-level[data-marked] { outline: 2px solid var(--band); outline-offset: 2px; }
+/* The group's levels (picture-levels.tsx): each library picture in its level's column, its patch marked and its level's line along the lower edge, as on the Index cards. */
+.picture-group-levels { display: contents; }
+.picture-group-level { position: relative; display: block; grid-row: 2; aspect-ratio: 1; overflow: hidden; background: color-mix(in srgb, var(--band) 22%, var(--black)); }
+.picture-group-level[data-marked] { overflow: visible; }
+.picture-group-level::after { content: ""; position: absolute; right: 0; bottom: 0; left: 0; height: 2px; background: var(--band); }
+.picture-group-level img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.picture-group-level i { position: absolute; width: 6.25%; height: 6.25%; border: 1px solid #fff; outline: 1px solid var(--black); }
+.picture-more { margin-top: 32px; font-size: var(--s-1); }
 .picture-status { margin: 16px 0; font-size: var(--s-1); line-height: 16px; color: var(--ink-2); }
 .picture-status [role=alert] { color: var(--danger); }
 .picture-empty { padding: 15px 0 0; border-top: 1px solid var(--line); color: var(--ink-2); }
 .picture-empty > p { margin: 0; }
 .picture-empty > .button { margin-top: 16px; }
 
-.picture-source-chip { display: flex; align-items: center; gap: 16px; width: fit-content; max-width: 100%; margin-bottom: 16px; padding: 8px 16px 8px 8px; border: 1px solid var(--line); font-size: var(--s-1); }
-.picture-source-chip > a { display: flex; align-items: center; gap: 10px; min-width: 0; color: var(--ink-2); text-decoration: none; }
-.picture-source-chip img { display: block; width: 32px; height: 32px; flex-shrink: 0; }
-.picture-source-chip span { display: flex; gap: 8px; min-width: 0; }
-.picture-source-chip b { max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 400; color: var(--ink); }
-.picture-source-chip button { flex-shrink: 0; }
 @media (max-width: 1407px) {
   .picture-layout { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); }
-  .picture-block-grid { grid-template-columns: repeat(auto-fill, minmax(144px, 1fr)); }
-}
-@media (max-width: 900px) {
-  .picture-block-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 8px; }
 }
 @media (max-width: 650px) {
   .picture-head { flex-direction: column; align-items: start; gap: 16px; margin-bottom: 32px; }
   .picture-layout { grid-template-columns: minmax(0, 1fr); gap: 32px; }
-  /* 352 px, 22 patches: the picture and what stacks under it keep to the 8 px baselines. */
-  .picture-figure { position: static; max-width: 352px; }
+  /* A phone: the map at full width above the list; the rows keep their five columns at a fifth of the width each. */
+  .picture-figure { position: static; }
+  .picture-groups { --picture-columns: minmax(0, 1fr) 0 repeat(4, minmax(0, 1fr)); --picture-column-gap: 6px; }
+  .picture-groups-head { flex-direction: column; gap: 8px; }
   .picture-head > .link-control { display: inline-flex; align-items: center; min-height: 48px; }
-  .picture-source-chip span { flex-direction: column; gap: 4px; }
 }

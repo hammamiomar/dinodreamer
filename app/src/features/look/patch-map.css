@@ -1,0 +1,21 @@
+/* The patch map (patch-map.tsx): a picture whose 16 × 16 patches can be pointed at and chosen. */
+.patch-map { position: relative; width: 100%; aspect-ratio: 1; background: var(--black); user-select: none; }
+.patch-map > img { display: block; width: 100%; height: 100%; object-fit: contain; }
+/* The button over the picture: transparent, a crosshair over the patches. */
+.patch-map-surface { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: 0; background: transparent; cursor: crosshair; touch-action: manipulation; }
+.patch-map-surface:focus-visible { outline: 1px solid var(--ink); outline-offset: 4px; }
+/* The patch grid: under a mouse or the keyboard focus, and always on a touch screen, so the picture reads as patches to choose. */
+.patch-map-surface:hover, .patch-map-surface:focus-visible {
+  background-image: linear-gradient(to right, rgb(255 255 255 / 0.2) 1px, transparent 1px), linear-gradient(to bottom, rgb(255 255 255 / 0.2) 1px, transparent 1px);
+  background-size: 6.25% 6.25%;
+}
+@media (pointer: coarse) {
+  .patch-map-surface {
+    background-image: linear-gradient(to right, rgb(255 255 255 / 0.14) 1px, transparent 1px), linear-gradient(to bottom, rgb(255 255 255 / 0.14) 1px, transparent 1px);
+    background-size: 6.25% 6.25%;
+  }
+}
+/* The chosen patch: a white box with a black edge, so it shows on light and dark pictures; the pointed patch: a thinner outline. */
+.patch-map-chosen, .patch-map-pointed { position: absolute; width: 6.25%; height: 6.25%; pointer-events: none; }
+.patch-map-chosen { border: 2px solid #fff; outline: 1px solid var(--black); }
+.patch-map-pointed { border: 1px solid #fff; outline: 1px solid var(--black); }
