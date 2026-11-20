@@ -520,13 +520,6 @@
   color: var(--ink-3);
 }
 
-.look-subhead {
-  margin: 16px 0 8px;
-  font-size: var(--s-1);
-  font-weight: 500;
-  color: var(--ink-2);
-}
-
 .look-warning {
   margin: 8px 0;
   font-size: var(--s-1);
@@ -538,87 +531,96 @@
   border-color: var(--ink);
 }
 
-/* Your picture in this block (picture-place.tsx), after the head. */
+/* Your picture on a basis group's page (picture-here.tsx), after the head. */
 .look-own {
   margin-top: var(--m);
 }
 
-.look-picture-here {
-  padding-bottom: 16px;
-}
-
-.look-picture-here > .look-strength-counts {
-  margin-bottom: 16px;
-}
-
 /*
- * Your patch, the arrow, the lift: one grid of four rows (caption, picture, level line, button)
- * that both cards share through a subgrid, so the pictures and the buttons line up whatever the
- * length of each card's caption and level line.
+ * Your picture on a basis group's page (picture-here.tsx): the levels of your patches, then your
+ * picture as a map and the most similar Level 4 library patch side by side, 384 px each at 1440, each
+ * in its level's colour, captioned and with its own Train button.
  */
-.look-lift {
+.picture-here-counts {
   display: grid;
-  grid-template-columns: 224px auto 224px;
-  column-gap: 16px;
-  row-gap: 8px;
+  grid-template-columns: auto minmax(0, 832px);
   align-items: start;
-}
-
-.look-lift-patch {
-  display: grid;
-  grid-row: 1 / span 4;
-  grid-template-rows: subgrid;
-  margin: 0;
+  gap: 16px;
+  margin-bottom: 32px;
   font-size: var(--s-1);
-  color: var(--ink-2);
-}
-
-.look-lift-patch:first-child {
-  grid-column: 1;
-}
-
-.look-lift-patch[data-lift] {
-  grid-column: 3;
-}
-
-/* In the lift's place when there is none: no Level 4 patch in the sample, or your patch is already Level 4. */
-.look-lift > .look-hint {
-  grid-column: 3;
-  grid-row: 2;
-  align-self: center;
-  margin: 0;
-}
-
-.look-lift-patch + .look-hint {
-  grid-column: 2 / 4;
-}
-
-.look-lift-patch figcaption {
-  color: var(--ink-3);
-}
-
-.look-lift-patch .look-token-picture {
-  width: 160px;
-}
-
-.look-lift-patch p {
-  margin: 0;
   line-height: 16px;
 }
 
-.look-lift-arrow {
-  grid-column: 2;
-  grid-row: 2;
-  align-self: center;
-  font-size: var(--s1);
+.picture-here-counts > span {
   color: var(--ink-2);
 }
 
-.look-picture-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 8px 0 16px;
+/* Three shared rows (pictures, captions, buttons) through a subgrid, so both sides line up and the arrow centres on the pictures. */
+.picture-here-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 384px) 64px minmax(0, 384px);
+  grid-template-rows: auto auto auto;
+  row-gap: 16px;
+  align-items: start;
+  margin-bottom: 32px;
+}
+
+.picture-here-picture {
+  display: grid;
+  grid-row: 1 / span 3;
+  grid-template-rows: subgrid;
+  justify-items: start;
+  margin: 0;
+}
+
+.picture-here-picture:first-child {
+  grid-column: 1;
+}
+
+.picture-here-picture:last-child {
+  grid-column: 3;
+}
+
+/* Each picture in its level's colour: the same colour as its level's name in the caption. */
+.picture-here-frame {
+  justify-self: stretch;
+  outline: 2px solid var(--band);
+  outline-offset: 4px;
+}
+
+.picture-here-picture figcaption {
+  font-size: var(--s-1);
+  line-height: 16px;
+}
+
+.picture-here-picture > .button {
+  justify-self: stretch;
+}
+
+.picture-here-arrow {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: center;
+  text-align: center;
+  color: var(--ink-3);
+}
+
+.picture-here-empty {
+  display: grid;
+  place-items: center;
+  justify-self: stretch;
+  aspect-ratio: 1;
+  margin: 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  text-align: center;
+  font-size: var(--s-1);
+  line-height: 16px;
+  color: var(--ink-3);
+}
+
+.picture-here-plot {
+  font-size: var(--s-1);
 }
 
 /* The request, inside Advanced (request-panel.tsx). */
@@ -777,6 +779,22 @@
 
 /* A phone: the module steps down to 16 px gutters; the view starts two patches under the bar. */
 @media (max-width: 640px) {
+  /* Your picture here: the heading over the file's line, the counts under their label, the two pictures side by side at half the width. */
+  .picture-here .look-section-head {
+    flex-direction: column;
+    align-items: start;
+    gap: 8px;
+  }
+
+  .picture-here-counts {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .picture-here-pair {
+    grid-template-columns: minmax(0, 1fr) 16px minmax(0, 1fr);
+  }
+
   .look-page {
     padding: 32px 0 var(--m);
   }
@@ -839,14 +857,6 @@
 
   .look-request-anchor {
     grid-template-columns: 96px minmax(0, 1fr);
-  }
-
-  .look-lift {
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  }
-
-  .look-lift-patch .look-token-picture {
-    width: 100%;
   }
 }
 

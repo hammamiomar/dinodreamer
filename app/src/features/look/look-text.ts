@@ -123,7 +123,7 @@ export const LOOK_TEXT = {
   /** Names the per-level counts for a screen reader (strength-display.tsx). */
   countsName: "Patches per response level",
 
-  // A strip of pictures (token-pictures.tsx TokenStrip): the level rows, Advanced, your picture's section.
+  // A strip of pictures (token-pictures.tsx TokenStrip): the level rows and Advanced.
   strip: {
     previous: (strip: string) => `Previous pictures in ${strip}`,
     next: (strip: string) => `Next pictures in ${strip}`,
@@ -131,13 +131,28 @@ export const LOOK_TEXT = {
     select: (picture: string, column: number, row: number) => `Select ${picture}, patch ${column}, ${row}`,
   },
 
-  // Your picture's source chip, over its section (picture-entry.tsx PictureSourceChip).
-  source: {
-    name: "Picture source",
-    from: "From your picture",
+  // Your picture on a basis group's page (picture-here.tsx).
+  pictureHere: {
+    title: "Your picture here",
+    none: "This basis group is not among the top 32 on any patch of your picture. Go back and choose another of its selected basis groups.",
+    /** The label before the levels of your patches. */
+    yourPatches: (count: number) => `Your ${count} ${count === 1 ? "patch" : "patches"}`,
+    /** The map's name for a screen reader. */
+    mapName: "Your picture with your patches in this basis group lit. Choose a lit patch to compare it.",
+    /** The two captions, each followed by its level. */
+    yours: "Your patch",
+    library: "Library",
+    /** After the library patch's level: it is the Level 4 patch nearest your patch's direction. */
+    mostSimilar: "most similar",
+    noLibrary: "The library has no similar Level 4 patch with a picture.",
+    /** The button under each picture. */
+    trainYours: "Train toward your patch",
+    trainLibrary: "Train toward this patch",
+    showInPlot: "Show your patches in the response plot",
     remove: "Remove",
-    removeName: "Remove picture",
+    removeName: "Remove your picture",
   },
+
 
   /** The panel's line for an address that names no basis group (basis-group-panel.tsx). */
   notABlock: "There is no basis group with this number.",
@@ -204,21 +219,6 @@ export const LOOK_TEXT = {
   // An Index card's link to Train (features/atlas/cloud-card.tsx).
   grow: "Train ↗",
 
-  // Your picture in this basis group (picture-place.tsx).
-  picture: {
-    title: "Your picture in this basis group",
-    patches: (value: number) => `${patches(value)} of your picture`,
-    none: "This basis group is not among the top 32 on any patch of your picture. Go back and choose another of its selected basis groups.",
-    strongestHere: "Your largest response magnitude here",
-    span: "The white box spans the response magnitudes of your picture’s patches in this basis group, smallest to largest; the ring marks your largest.",
-    alreadyStrongest: "Your patch is already in Level 4, the highest response level.",
-    selectAll: "Select your picture’s patches",
-    nearest: (band: BandIndex) => `Nearest ${BAND_NAMES[band]} patch in the same direction`,
-    blockStrongest: "The basis group’s patches with the largest response magnitudes",
-    whiteRings: "White rings in the response plot",
-    move: "Lift moves the reference patch outward along your patch’s direction, toward larger response magnitudes.",
-    growFrom: "Train from this",
-  },
 
   // Your picture's status while it is opened and analyzed (app/uploaded-picture.tsx): under the picture
   // page's head, on the Index's upload line and over a basis group's page. The error follows the failures.
@@ -233,23 +233,23 @@ export const LOOK_TEXT = {
   // The picture page (/picture, picture-page.tsx): your uploaded picture and the basis groups selected in it.
   picturePage: {
     label: "Your picture",
-    /** The heading when the upload has no name. */
-    untitled: "Your picture",
+    /** The map's name for a screen reader. */
+    mapName: "Your picture. Point at a patch, or move with the arrow keys and press Enter, to list the basis groups selected there.",
+    /** The list's heading: every group, or those at the chosen patch; Show all follows the second. */
+    groupsTitle: "Basis groups in your picture",
+    groupsAtPatchTitle: (column: number, row: number) => `Basis groups at patch ${column}, ${row}`,
+    showAll: "Show all",
+    /** The list's column head, kept in view: your picture, then the library's levels, weaker to stronger. */
+    columnYours: "Your picture",
+    weaker: "weaker",
+    stronger: "stronger",
+    /** A row's line over its pictures, after the group's number. */
+    rowPatches: (count: number) => `${count} of your ${count === 1 ? "patch" : "patches"}`,
+    /** A row's first square for a screen reader. */
+    locatorName: (block: number) => `Where basis group ${block} is selected in your picture`,
     chooseAnother: "Choose another picture",
     empty: "No picture is open. Upload a picture on the Index to start.",
     toExplore: "Go to the Index",
-    pictureName: "The centered square of your picture that the image analyzer sees",
-    /** Under the picture: the hovered basis group, or how to see one. */
-    hovered: (block: number, count: number) => `Basis group ${block} · selected on ${count} ${count === 1 ? "patch" : "patches"}`,
-    hoverHint: "Hover or focus a basis group to see the patches where it is selected.",
-    note: "This centered square is analyzed in your browser.",
-    blocksName: "Basis groups selected in your picture",
-    blocksTitle: "Selected basis groups",
-    blocksLead:
-      "Ranked by the number of patches where each is selected. The tag names the response level of your patch with the largest response magnitude in that basis group. Open a basis group to find your patches in its response plot, or train an automaton of what your picture showed there.",
-    patches: (count: number) => `${count} ${count === 1 ? "patch" : "patches"}`,
-    growFrom: "Train from this",
-    opening: "Opening Train…",
     listCount: (shown: number, total: number) => `${shown} of ${total} selected basis groups`,
     more: "Show more basis groups",
     readAgain: "Try reading again",
