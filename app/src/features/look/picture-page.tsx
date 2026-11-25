@@ -1,14 +1,14 @@
 import { useCallback, useMemo, useRef, useState, type CSSProperties } from "react";
-import { Link, useNavigation, useOutlet } from "react-router";
+import { useNavigation, useOutlet } from "react-router";
 import { useLibrary } from "../../app/library-session";
 import { useUploadedPicture } from "../../app/uploaded-picture";
 import { useLoaded } from "../../ui/use-loaded";
 import { GRID, PATCH_SLOT_OFFSET } from "../../recipe";
 import { ResponseView } from "../../ui/responses";
-import { indexPath } from "../atlas/atlas-position";
 import { BasisGroupLink } from "./basis-group-panel";
 import { BasisGroupLinkLabel } from "../../ui/basis-group-link-label";
 import { LOOK_TEXT } from "./look-text";
+import { ChoosePictureButton } from "./picture-entry";
 import { firingCells } from "./strongest-blocks";
 import { PatchMap } from "./patch-map";
 import { GroupLevels, LEVELS, rowsToRead, useRowsInView } from "./picture-levels";
@@ -37,7 +37,7 @@ export function UploadedPicturePage() {
           <h1 className="heading">{text.label}</h1>
           {upload.picture && <p className="picture-file">{upload.picture.name}</p>}
         </div>
-        <Link className="link-control" to={indexPath()}>{text.chooseAnother}</Link>
+        {upload.picture && <ChoosePictureButton className="link-control">{text.chooseAnother}</ChoosePictureButton>}
       </header>
       {upload.picture && upload.previewUrl ? (
         <PictureContent key={upload.revision} previewUrl={upload.previewUrl} readout={upload.readout} panelOpen={panel !== null} />
@@ -45,7 +45,7 @@ export function UploadedPicturePage() {
         <div className="picture-empty">
           {upload.phase === "empty" && <p>{text.empty}</p>}
           <PictureStatus />
-          {upload.phase !== "preparing" && <Link className="button" to={indexPath()}>{text.toExplore}</Link>}
+          {upload.phase !== "preparing" && <ChoosePictureButton className="button primary">{text.choose}</ChoosePictureButton>}
         </div>
       )}
       {panel}
