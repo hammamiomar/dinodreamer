@@ -193,9 +193,10 @@
   background: var(--ink);
 }
 
+/* The moves' row is Continue's 48 px, or the next steps' two lines when they wrap. */
 .how-navigation {
   display: grid;
-  grid-template-rows: 16px 48px;
+  grid-template-rows: 16px minmax(48px, auto);
   gap: 16px;
 }
 
@@ -212,6 +213,24 @@
   height: 48px;
   min-width: 0;
   white-space: normal;
+}
+
+/*
+ * After the last section, the next steps fill Continue's place: three buttons of one width on one line
+ * when their words fit, and on a narrow card the last goes to a second line rather than cut a word.
+ */
+.how-next {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* One padding for the three, the house's .button padding, so the primary's wider padding does not widen Train. */
+.how-next > .button {
+  flex: 1 0 0;
+  min-width: max-content;
+  height: 48px;
+  padding-inline: 16px;
 }
 
 .how-back {
@@ -263,7 +282,7 @@
   }
 
   .how-navigation {
-    grid-template-rows: var(--touch-target) 48px;
+    grid-template-rows: var(--touch-target) minmax(48px, auto);
     gap: 8px;
   }
 

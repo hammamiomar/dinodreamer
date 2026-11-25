@@ -4,7 +4,7 @@
 // it (how-navigation.ts), so Back returns and a link lands on a section. The words are in
 // app/site-words.ts under `how`; the figures in figures/; the map in how-map.tsx.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { Outlet, useLocation, useNavigate } from "react-router";
+import { Link, Outlet, useLocation, useNavigate } from "react-router";
 import { fill, SITE_WORDS } from "../../app/site-words";
 import { HowFigure } from "./figures/how-figure";
 import { GlossaryTerms } from "./glossary-terms";
@@ -181,13 +181,27 @@ function HowCard({ index, onGo, onLight, facts }: {
   );
 }
 
+/** Back, and Continue to the next section; after the last section, the next steps in Continue's place. */
 function Moves({ index, onGo, next }: { index: number; onGo: (index: number | null) => void; next: string }): ReactNode {
   const after = nextSection(index);
   const before = previousSection(index);
   return (
     <div className="how-moves">
       <button type="button" className="how-back" disabled={before === null} onClick={() => onGo(before)}>{WORDS.back}</button>
-      {after !== null && <button type="button" className="button primary" onClick={() => onGo(after)}>{next} <span aria-hidden="true">→</span></button>}
+      {after !== null
+        ? <button type="button" className="button primary" onClick={() => onGo(after)}>{next} <span aria-hidden="true">→</span></button>
+        : <NextSteps />}
     </div>
+  );
+}
+
+/** Where the story leads: the Index of every basis group, the Automata trained so far, and Train. */
+function NextSteps() {
+  return (
+    <nav className="how-next" aria-label={WORDS.nextSteps.name}>
+      <Link className="button" to="/index">{WORDS.nextSteps.index}</Link>
+      <Link className="button" to="/automata">{WORDS.nextSteps.automata}</Link>
+      <Link className="button primary" to="/train">{WORDS.nextSteps.train}</Link>
+    </nav>
   );
 }

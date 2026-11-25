@@ -22,12 +22,18 @@ import {
   SET_PICTURES, resolveTargetSet, sampleCandidates, selectionCandidates, setRefusal, targetSetRecord, weakSelection,
 } from "./target-set";
 import { DEFAULT_DEPTH, depthFromSearch, depthOfLayers, methodFromSearch } from "./train-method";
+import { AnotherRandomGroup, TrainTargetChoices } from "./train-target-choices";
 import "./grow.css";
 
 const WORDS = SITE_WORDS.grow;
 
-/** The patch Train aims at: its picture with the patch marked, one sentence, its band, the warning near the ring, and the way to another. */
-function Occurrence({ block, anchor, uploadUrl, lift }: { block: number; anchor: MaterialAnchor; uploadUrl?: string; lift: boolean }) {
+/**
+ * The patch Train aims at: its picture with the patch marked, one sentence, its band, the warning near
+ * the ring, and the way to another patch; for a patch Train chose itself (`chosenByTrain`), another group at random.
+ */
+function Occurrence({ block, anchor, uploadUrl, lift, chosenByTrain }: {
+  block: number; anchor: MaterialAnchor; uploadUrl?: string; lift: boolean; chosenByTrain: boolean;
+}) {
   let toward: string = WORDS.towardLibrary;
   if (anchor.source === "upload") toward = WORDS.towardUpload;
   else if (lift) toward = WORDS.towardNearest;
@@ -39,6 +45,7 @@ function Occurrence({ block, anchor, uploadUrl, lift }: { block: number; anchor:
       <span className={`band ${anchor.band}`}>{bandName(anchor.band)}</span>
       {warned && <p className="grow-warning">{WORDS.weakReference}</p>}
       <BasisGroupLink className="grow-pick" block={block}>{WORDS.pickAnother}</BasisGroupLink>
+      {chosenByTrain && <AnotherRandomGroup block={block} />}
     </div>
   </div>;
 }
@@ -61,10 +68,12 @@ function SetCrop({ picture }: { picture: SetPicture }) {
 /**
  * A set method's target, in the place and shape of the marked patch: the set's pictures, each the 3 × 3
  * patches it brings; one sentence; in the level's place what each picture brings; and in the place of
- * the way to another patch, the group's page, where its pictures show large. A set method does not train
- * toward the reference patch, so there is no level to choose.
+ * the way to another patch, the group's page, where its pictures show large; for a set Train chose itself,
+ * another group at random. A set method does not train toward the reference patch, so there is no level to choose.
  */
-function SetOccurrence({ block, pictures, sentence, warning }: { block: number; pictures: readonly SetPicture[]; sentence: string; warning: string | null }) {
+function SetOccurrence({ block, pictures, sentence, warning, chosenByTrain }: {
+  block: number; pictures: readonly SetPicture[]; sentence: string; warning: string | null; chosenByTrain: boolean;
+}) {
   return <div className="grow-set">
     <div className="grow-set-pictures" role="img" aria-label={fill(WORDS.setPictures, { count: pictures.length })}>
       {pictures.map((picture) => <SetCrop key={picture.imageId} picture={picture} />)}
@@ -74,6 +83,7 @@ function SetOccurrence({ block, pictures, sentence, warning }: { block: number; 
       <span className="band">{WORDS.setPatches}</span>
       {warning && <p className="grow-warning">{warning}</p>}
       <BasisGroupLink className="grow-pick" block={block}>{WORDS.setLink}</BasisGroupLink>
+      {chosenByTrain && <AnotherRandomGroup block={block} />}
     </div>
   </div>;
 }
@@ -265,6 +275,7 @@ export function GrowPage() {
     occurrence = <div className="grow-toward-problem">
       <p className="grow-note">{problem === "none" ? fill(WORDS.noStrongest, { block: asked ?? "" }) : problem}</p>
       {asked !== null && <BasisGroupLink className="grow-pick" block={asked}>{WORDS.pickAnother}</BasisGroupLink>}
+      {asked !== null && <AnotherRandomGroup block={asked} />}
     </div>;
   }
   else if (continuing && continued.problem !== null) occurrence = <p className="grow-note">{continued.problem}</p>;
@@ -272,7 +283,7 @@ export function GrowPage() {
     // A set method's definition continues toward its own set; the reference patch plays no part.
     const { pictures } = source.objective.set;
     const sentence = fill(WORDS.continuingSet, { update: source.fromUpdate.toLocaleString("en-US"), count: pictures.length });
-    occurrence = <SetOccurrence block={source.block} pictures={pictures} sentence={sentence} warning={null} />;
+    occurrence = <SetOccurrence block={source.block} pictures={pictures} sentence={sentence} warning={null} chosenByTrain={false} />;
   }
   else if (continuing && source) {
     occurrence = <>
@@ -293,11 +304,13 @@ export function GrowPage() {
       const refused = setRefusal(method, set) === "one-picture";
       const weak = set.source === "selection" && weakSelection(request.points, request.anchor.strength);
       occurrence = <SetOccurrence block={request.block} pictures={set.pictures} sentence={setSentence(set)}
-        warning={refused ? WORDS.setOnePicture : weak ? WORDS.weakSet : null} />;
+        warning={refused ? WORDS.setOnePicture : weak ? WORDS.weakSet : null} chosenByTrain={origin === "train"} />;
     }
   }
-  else if (request?.anchor) occurrence = <Occurrence block={request.block} anchor={request.anchor} uploadUrl={uploadUrl} lift={picture?.lift ?? false} />;
-  else occurrence = <p className="grow-note">{WORDS.nothing}</p>;
+  else if (request?.anchor) {
+    occurrence = <Occurrence block={request.block} anchor={request.anchor} uploadUrl={uploadUrl} lift={picture?.lift ?? false} chosenByTrain={origin === "train"} />;
+  }
+  else occurrence = <TrainTargetChoices />;
 
   return <main className="grow-page">
     <GrowPanel block={block} request={waiting ? null : request} origin={origin} continuation={continuing ? source : null}

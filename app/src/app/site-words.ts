@@ -95,6 +95,13 @@ export const SITE_WORDS = {
     previousStep: "Previous step",
     nextStep: "Next step",
     back: "Back",
+    /** After the last section, in Continue's place: the site's three next steps. */
+    nextSteps: {
+      name: "Where to go next",
+      index: "Index",
+      automata: "Automata",
+      train: "Train",
+    },
 
     acts: {
       overview: "Overview",
@@ -577,8 +584,17 @@ export const SITE_WORDS = {
     continuedRule: "A continued automaton keeps its grids.",
     choosing: "Choosing a Level 4 reference patch of basis group {block}.",
     noStrongest: "Basis group {block} has no Level 4 patch with a public picture. Pick a patch on its page.",
-    nothing: "Nothing to train yet. Pick a basis group in the Index, then a patch on its page.",
-    exploreLink: "Index",
+    /**
+     * With nothing to train toward, the three choices in the target's place (train-target-choices.tsx);
+     * `another` sits beside "Pick another patch" when Train chose the patch itself.
+     */
+    targetChoices: {
+      lead: "Choose what to train toward.",
+      random: "A basis group at random",
+      index: "Choose one in the Index",
+      picture: "Start from your picture",
+      another: "Another basis group at random",
+    },
     plant: "Localized activity simulation is not available yet. Your selection is retained.",
     noAnchor: "This selection has no reference patch, so Train has nothing to aim at. Open the basis group's page, select its patches and press Send to Train: the page then names the reference patch and its response level.",
     rule: "Grids",
@@ -760,6 +776,11 @@ export const SITE_WORDS = {
     failed: "The automata could not be read: {message}",
     nothingPublished: "No automaton is published yet.",
     unknownGroup: "Basis group {group} has no automaton yet.",
+    /** After unknownGroup: opens Train on that group. */
+    unknownGroupTrain: "Train one",
+    /** Under the wall's heading, with live numbers; wallNone links to the Index of the groups with none. */
+    wallCount: "{count} of {total} basis groups have an automaton.",
+    wallNone: "See the {count} with none in the Index",
 
     allGroups: "All basis groups",
     previousGroup: "Previous",
@@ -824,13 +845,16 @@ export const SITE_WORDS = {
     cellName: "{start}, {method}: {count}",
     cellEmpty: "{start}, {method}: no automaton",
     cellEmptyMark: "—",
+    /** An empty cell Train offers: its accessible name, and the word it shows. It opens Train with its start and method. */
+    cellTrain: "{start}, {method}: no automaton yet. Train one",
+    cellTrainMark: "Train",
     cellTries: "{count} tries",
     gridExplainSubject: "the grid",
     gridExplanation: [
       "A row is the state an automaton starts from: a noise field, with noise in every cell, or a noise disc at the center, alone or on faint noise.",
       "A column is what its training asked for. Basis-group matching compares the three numbers a basis group reads from each patch. Token matching compares DINO's whole token, 768 numbers. Mean matching asks the image's patches to give the target on average. Distribution matching asks them to be spread like the group's strongest patches. A guide also holds units inside DINO at the levels they have on the group's real images, for the first part of training.",
       "Two trainings with the same row and column give different automata. Those are the tries of a cell.",
-      "A dash means that no automaton was trained that way for this basis group.",
+      "An empty cell has no automaton yet. Where it says Train, it opens Train with that start and that method. A dash marks a start or a method that Train does not offer.",
     ],
 
     triesTitle: "Tries",

@@ -476,6 +476,20 @@
   cursor: default;
 }
 
+/* An empty cell that opens Train: the word in the cell's square, inside a faint line. */
+.automata-cell-train {
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink-3);
+  font-size: var(--s-1);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.automata-cell-train:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: -2px;
+}
+
 /* The cell on the stage: an ink line around its picture, clear of it; its count in ink. */
 .automata-cell[aria-pressed="true"] img,
 .automata-try[aria-pressed="true"] img {
@@ -829,23 +843,39 @@
   }
 
   /* The grid, turned: the starts across the page, each method a line of words over its row of pictures. */
+  /* Its own width container: on a phone the pane has no box, so 100cqw would be the screen's width, not the grid's. */
   .automata-grid[data-turned] {
     --label: 0px;
     --gap: 12px;
+    container-type: inline-size;
   }
 
+  /* The "?" ends the line at the grid's edge; its finger target (styles.css, 10 px around it) stops there, not past the screen. */
   .automata-grid[data-turned] .automata-grid-titles {
     padding-left: 0;
+    overflow-x: clip;
   }
 
+  /*
+   * The columns fill the width exactly: each is a tile and the gap after it, the last a tile alone,
+   * so the last cell ends on the pane's edge and nothing reaches past the screen.
+   */
   .automata-grid[data-turned] table {
     --tile: calc((100cqw - (var(--columns) - 1) * var(--gap)) / var(--columns));
-    width: calc(100% + var(--gap));
-    margin-right: calc(-1 * var(--gap));
+    width: 100%;
   }
 
   .automata-grid[data-turned] col.automata-grid-column {
-    width: auto;
+    width: calc(var(--tile) + var(--gap));
+  }
+
+  .automata-grid[data-turned] col.automata-grid-column:last-child {
+    width: var(--tile);
+  }
+
+  .automata-grid[data-turned] td:last-child,
+  .automata-grid[data-turned] thead th:last-child {
+    padding-right: 0;
   }
 
   .automata-grid[data-turned] thead th {
@@ -883,6 +913,11 @@
   .automata-grid[data-turned] tr:not(:has(button)) .automata-cell-empty {
     height: var(--patch);
     aspect-ratio: auto;
+  }
+
+  /* In such a row, a cell that opens Train keeps a finger's height. */
+  .automata-grid[data-turned] tr:not(:has(button)) .automata-cell-train {
+    height: var(--touch-target);
   }
 
   .automata-tries-line {
@@ -1019,6 +1054,15 @@
 .automata-status {
   margin: 0 0 var(--m);
   color: var(--ink-2);
+}
+
+/* The count of the groups with an automaton under the heading, and the way to those with none. */
+.automata-wall-count {
+  color: var(--ink-2);
+}
+
+.automata-wall-count .link-control {
+  font-size: inherit;
 }
 
 /* The find field and the order, on one line under the heading, as on the Index. */
@@ -1347,6 +1391,11 @@
 @media (hover: hover) and (pointer: fine) {
   .automata-cell:hover {
     color: var(--ink-2);
+  }
+
+  .automata-cell-train:hover {
+    box-shadow: inset 0 0 0 1px var(--line-2);
+    color: var(--ink);
   }
 
   .automata-cell:not([aria-pressed="true"]):hover img,

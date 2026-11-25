@@ -352,12 +352,10 @@ export function GrowPanel({ block, request, origin, continuation, method, onMeth
   };
   const download = ({ file }: KeepFailure) => downloadBlob(new Blob([JSON.stringify(file)], { type: "application/json" }), `${file.id}.material.json`);
 
-  // The one primary. With no block named, the step to take is finding one in Explore.
+  // The one primary. With nothing to train toward it waits, disabled; the choices above it lead to a target.
   let goControl: ReactNode;
   if (primary === "open" && result) {
     goControl = <Link className="button primary" to={`/automata?material=${encodeURIComponent(result.id)}`}>{WORDS.open}</Link>;
-  } else if (block === null && !request) {
-    goControl = <Link className="button primary" to="/index">{WORDS.exploreLink}</Link>;
   } else {
     const button = PRIMARY_BUTTON[primary];
     goControl = <button type="button" className={button.className} disabled={primary === "grow" && !ready} onClick={onPrimary}>{button.words}</button>;
