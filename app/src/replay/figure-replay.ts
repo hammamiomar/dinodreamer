@@ -93,7 +93,7 @@ export async function createFigureReplay(options: FigureReplayOptions, rule: Fig
     return value;
   };
   const checkScale = (value: number) => {
-    if (!Number.isInteger(value) || value < 1 || value > 8) throw new Error("Draw 1–8 pixels per cell.");
+    if (!Number.isInteger(value) || value < 1 || value > 16) throw new Error("Draw 1–16 pixels per cell.");
     return value;
   };
   if (!Number.isInteger(side) || side < 4 || side > 512) throw new Error("A replay grid has 4–512 cells per side.");

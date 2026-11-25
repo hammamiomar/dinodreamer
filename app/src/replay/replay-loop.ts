@@ -38,6 +38,8 @@ export interface ReplayLoop {
   /** Present the current cells again, including while paused. */
   redraw(): void;
   setSpeed(speed: number): void;
+  /** A new pace for a loop started with stepsPerSecond; a loop that counts steps per frame throws. */
+  setStepsPerSecond(stepsPerSecond: number): void;
   /** Grow again from this seed's noise at tick 0. */
   reseed(seed: number): void;
   /** Queue a damage disc; the next frame applies it before stepping. */
@@ -73,8 +75,11 @@ export function startReplayLoop(replay: FigureReplay, options: ReplayLoopOptions
   // In steps per second: when the last frame ran, and the part of a tick that time has owed since.
   const MOST_FRAME_MS = 100;
   const MOST_TICKS_PER_FRAME = 64;
-  const rate = options.stepsPerSecond;
-  if (rate !== undefined && !(rate > 0 && Number.isFinite(rate))) throw new Error("Steps per second must be a positive number.");
+  const checkRate = (value: number) => {
+    if (!(value > 0 && Number.isFinite(value))) throw new Error("Steps per second must be a positive number.");
+    return value;
+  };
+  let rate = options.stepsPerSecond === undefined ? undefined : checkRate(options.stepsPerSecond);
   let lastFrameAt = performance.now();
   let secondsPlayed = 0;
   let owed = 0;
@@ -169,6 +174,10 @@ export function startReplayLoop(replay: FigureReplay, options: ReplayLoopOptions
       framesOnTick = 0;
       if (!playing) dirty = true;
       wake();
+    },
+    setStepsPerSecond(value) {
+      if (rate === undefined) throw new Error("This loop counts steps per frame: use setSpeed.");
+      rate = checkRate(value);
     },
     reseed(seed) {
       if (!Number.isInteger(seed) || seed < 0 || seed > 0xffffffff) throw new Error("Seed must be an unsigned 32-bit integer.");

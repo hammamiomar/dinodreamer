@@ -96,7 +96,7 @@ function PublishedGallery({ groups, names, status }: { groups: GalleryGroup<Publ
       </GroupWall>
       {open && (
         <GroupScreen group={group} name={nameOf(names, group.group)} neighbours={neighboursOf(groups, group.group)} playing={playing} onChoose={choose}
-          stage={<MaterialStage entries={[playing.automaton.entry]} source={PUBLISHED_SOURCE} layout="instrument" gridNote={gridNoteOf(playing.automaton)} />}>
+          stage={<MaterialStage entry={playing.automaton.entry} source={PUBLISHED_SOURCE} gridNote={gridNoteOf(playing.automaton)} />}>
           {panel}
         </GroupScreen>
       )}

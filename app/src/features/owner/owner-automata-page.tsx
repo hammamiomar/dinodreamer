@@ -294,7 +294,7 @@ function OwnerStage({ automaton, actions, notice }: { automaton: OwnerAutomaton;
       </section>
     );
   }
-  return <MaterialStage entries={[played]} source={source} layout="instrument" gridNote={gridNoteOf(automaton)} ownerActions={actions} notice={notice} />;
+  return <MaterialStage entry={played} source={source} gridNote={gridNoteOf(automaton)} ownerActions={actions} notice={notice} />;
 }
 
 /**
