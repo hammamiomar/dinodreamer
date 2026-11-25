@@ -4,7 +4,6 @@
 import { createElement, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
 import { fill, SITE_WORDS } from "../../app/site-words";
-import { FIGURE_PYRAMID_LAYOUT } from "../../materials/material-file";
 import { agentBrief, automatonEmbed, automatonTagName, embedSnippet, type AutomatonEmbed } from "../../replay/automaton-embed";
 import { makerLine } from "../../replay/material-facts";
 import { EXPORT_FRAGMENT } from "../../replay/material-stage";
@@ -58,16 +57,10 @@ export function HomeKeepStage({ entries, names, approached, active, still }: {
   );
   useRegisteredEmbed(embed);
 
-  const previewTag = entry ? automatonTagName({ id: entry.materialId, block: entry.block }) : "dinodreamer-2801-000000";
+  const previewTag = entry ? automatonTagName({ id: entry.materialId, block: entry.block }) : "dinodreamer-12002-000000";
   const snippet = embed
     ? embedSnippet(embed)
     : embedSnippet({ tagName: previewTag, fileName: `${previewTag}.js` });
-
-  const parameterCount = loaded
-    ? loaded.values.length
-    : entry?.layout === FIGURE_PYRAMID_LAYOUT
-      ? 17088
-      : 7776;
 
   const defaultNames = WORDS.groupDefaultNames as Record<number, string | undefined>;
   const groupName = entry ? (nameOf(names, entry.block) ?? defaultNames[entry.block] ?? null) : null;
@@ -122,13 +115,12 @@ export function HomeKeepStage({ entries, names, approached, active, still }: {
       </div>
 
       {entry && (
-        <p className="home-keep-meta">
+        <p className="home-stage-caption">
           <span>
             {[
-              `Basis group ${entry.block}`,
+              `Group ${entry.block}`,
               groupName,
               maker || null,
-              fill(WORDS.parameters, { count: parameterCount.toLocaleString("en-US") }),
             ].filter(Boolean).join(" · ")}
           </span>
           <span className="label">{WORDS.standalone}</span>

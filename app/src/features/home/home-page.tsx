@@ -1,15 +1,8 @@
-// The home page (`/`): an untouched negative-space entrance followed by four interactive scenes
-// that introduce what a basis group sees, the 16,384-group basis collection (and Your picture),
-// browser WebGPU training into the public gallery, and standalone rule export.
-//
-// On wide screens (>= 1024 px), the pure-black right-hand panel stays sticky and cross-fades
-// across the five stages while the left column scrolls over the lattice. On narrow screens
-// (<= 1023 px), each section places its interactive stage directly beneath its prose so controls
-// and touch targets have full breathing room.
+// The home page (`/`): an untouched negative-space entrance followed by four concise, scannable
+// scenes paired with interactive stages on the pure-black right-hand panel (or inline on narrow screens).
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
-import { fillNodes } from "../../app/fill-nodes";
 import { fill, SITE_WORDS } from "../../app/site-words";
 import type { FigureMaterial } from "../../materials/material-file";
 import { useMediaMatch } from "../../ui/media-match";
@@ -35,7 +28,6 @@ import "./home.css";
 
 const WORDS = SITE_WORDS.home;
 const HEADER = SITE_WORDS.header;
-const BURN_URL = "https://burn.dev";
 const NARROW_QUERY = "(max-width: 1023px)";
 
 const STILL_WORDS: Record<Exclude<HomeStill, null>, string> = {
@@ -57,7 +49,6 @@ export function HomePage() {
   const home = useRef<HTMLElement>(null);
   useLayoutEffect(() => {
     const update = () => {
-      // Safari can paint the page under floating controls outside its reported viewport.
       const fullWidthTouch = window.matchMedia("(pointer: coarse)").matches && Math.abs(screen.width - window.innerWidth) < 2;
       home.current?.style.setProperty("--home-background-height", fullWidthTouch ? `${screen.height}px` : "100lvh");
     };
@@ -208,17 +199,13 @@ export function HomePage() {
           {problem && <p className="home-note" role="status">{problem}</p>}
         </section>
 
-        {/* 1. Photographs vs. What Grows */}
+        {/* 1. Why grow them: concise contrast + brush note */}
         <section ref={section(1)} className="home-beat" data-beat="properties">
           <div className="home-beat-words">
             <p className="label">{WORDS.properties.label}</p>
             <h2 className="heading">{WORDS.properties.heading}</h2>
-            {WORDS.properties.sentences.map((sentence) => (
-              <p key={sentence} className="home-sentence">{sentence}</p>
-            ))}
-            <div className="home-doors">
-              <Link className="button" to="/automata">{WORDS.properties.automataDoor}</Link>
-            </div>
+            <p className="home-sentence">{WORDS.properties.body}</p>
+            {!still && <p className="home-hint">{WORDS.properties.brushHint}</p>}
           </div>
           {narrow && (
             <div className="home-inline-stage">
@@ -234,28 +221,29 @@ export function HomePage() {
           )}
         </section>
 
-        {/* 2. The 16,384 Basis Groups & Your Picture */}
+        {/* 2. The open collection: 2-row tabular ledger + picture door */}
         <section ref={section(2)} className="home-beat" data-beat="collection">
           <div className="home-beat-words">
             <p className="label">{WORDS.collection.label}</p>
-            <h2 className="heading">
-              {index.status === "ready"
-                ? fill(WORDS.collection.heading, {
-                    lit: coverage.withAutomaton.toLocaleString("en-US"),
-                    total: coverage.total.toLocaleString("en-US"),
-                    unlit: coverage.withoutAutomaton.toLocaleString("en-US"),
-                  })
-                : WORDS.collection.headingLoading}
-            </h2>
-            {WORDS.collection.sentences.map((sentence) => (
-              <p key={sentence} className="home-sentence">{sentence}</p>
-            ))}
+            <h2 className="heading">{WORDS.collection.heading}</h2>
+            <dl className="home-ledger">
+              <div className="home-ledger-row">
+                <dt>
+                  <strong>{index.status === "ready" ? coverage.withAutomaton.toLocaleString("en-US") : "—"}</strong>{" "}
+                  <span>{WORDS.collection.grownLabel}</span>
+                </dt>
+                <dd><Link className="link-control" to="/automata">{WORDS.collection.grownLink}</Link></dd>
+              </div>
+              <div className="home-ledger-row">
+                <dt>
+                  <strong>{index.status === "ready" ? coverage.withoutAutomaton.toLocaleString("en-US") : "16,384"}</strong>{" "}
+                  <span>{WORDS.collection.openLabel}</span>
+                </dt>
+                <dd><Link className="link-control" to={openIndexUrl}>{WORDS.collection.openLink}</Link></dd>
+              </div>
+            </dl>
+            <p className="home-sentence">{WORDS.collection.body}</p>
             <div className="home-doors">
-              <Link className="button" to={openIndexUrl}>
-                {index.status === "ready"
-                  ? fill(WORDS.collection.indexDoor, { unlit: coverage.withoutAutomaton.toLocaleString("en-US") })
-                  : WORDS.collection.indexDoorLoading}
-              </Link>
               <ChoosePictureButton className="button">{WORDS.collection.pictureDoor}</ChoosePictureButton>
             </div>
           </div>
@@ -271,18 +259,19 @@ export function HomePage() {
           )}
         </section>
 
-        {/* 3. Train in Your Browser & Sign Your Place in the Gallery */}
+        {/* 3. Train & publish: 3 scannable one-line steps */}
         <section ref={section(3)} className="home-beat" data-beat="train">
           <div className="home-beat-words">
             <p className="label">{WORDS.train.label}</p>
             <h2 className="heading">{WORDS.train.heading}</h2>
-            {WORDS.train.sentences.map((sentence) => (
-              <p key={sentence} className="home-sentence">
-                {fillNodes(sentence, {
-                  burn: <a href={BURN_URL} target="_blank" rel="noreferrer">{WORDS.train.burn}</a>,
-                })}
-              </p>
-            ))}
+            <ol className="home-steps">
+              {WORDS.train.steps.map((step, indexAt) => (
+                <li key={step}>
+                  <span className="home-step-num" aria-hidden="true">{indexAt + 1}</span>
+                  <span>{step}</span>
+                </li>
+              ))}
+            </ol>
             <div className="home-doors">
               <Link className="button" to="/train">{WORDS.train.trainDoor}</Link>
             </div>
@@ -301,15 +290,13 @@ export function HomePage() {
           )}
         </section>
 
-        {/* 4. Yours to Keep: Standalone Embed + Closing Doors */}
+        {/* 4. Take it with you: concise takeaway + closing doors */}
         <section ref={section(4)} className="home-beat home-end" data-beat="keep">
           <div className="home-beat-words">
             <p className="label">{WORDS.keep.label}</p>
             <h2 className="heading">{WORDS.keep.heading}</h2>
-            {WORDS.keep.sentences.map((sentence) => (
-              <p key={sentence} className="home-sentence">{sentence}</p>
-            ))}
-            {still && <p className="home-sentence">{STILL_WORDS[still]}</p>}
+            <p className="home-sentence">{WORDS.keep.body}</p>
+            {still && <p className="home-hint">{STILL_WORDS[still]}</p>}
             {narrow && (
               <div className="home-inline-stage">
                 <HomeKeepStage

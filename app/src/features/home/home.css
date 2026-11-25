@@ -147,25 +147,93 @@
 
 .home-beat-words {
   display: grid;
-  gap: var(--patch);
+  gap: var(--space-6);
   padding-block: var(--m);
 }
 
 .home-beat-words .label {
-  margin: 0;
+  margin: 0 0 calc(-1 * var(--patch));
 }
 
 .home-sentence {
-  max-width: 44ch;
+  max-width: 40ch;
   margin: 0;
   color: var(--ink-2);
+}
+
+.home-hint {
+  max-width: 42ch;
+  margin: 0;
+  padding-top: var(--patch);
+  border-top: 1px solid var(--line);
+  font-size: var(--s-1);
+  line-height: var(--lh-1);
+  color: var(--ink-3);
+}
+
+/* Scene 2 left-column ledger: scannable live counts instead of prose. */
+.home-ledger {
+  display: grid;
+  margin: 0;
+  border-top: 1px solid var(--line);
+}
+
+.home-ledger-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--patch);
+  padding-block: var(--space-3);
+  border-bottom: 1px solid var(--line);
+}
+
+.home-ledger-row dt {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  color: var(--ink-2);
+}
+
+.home-ledger-row dt strong {
+  color: var(--ink);
+  font-size: var(--s0);
+  font-weight: 500;
+}
+
+.home-ledger-row dd {
+  margin: 0;
+  font-size: var(--s-1);
+  line-height: var(--lh-1);
+}
+
+/* Scene 3 left-column numbered workflow: three single-breath lines. */
+.home-steps {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+
+.home-steps li {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: baseline;
+  padding-block: var(--space-3);
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-2);
+}
+
+.home-step-num {
+  font-size: var(--s-1);
+  line-height: var(--lh-1);
+  color: var(--ink-3);
 }
 
 .home-doors {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-3);
-  margin-top: var(--space-2);
 }
 
 /* --- Right-hand panel layers & shared stage frame --- */
@@ -776,6 +844,13 @@
 /* --- Phone adjustments (<= 640 px) --- */
 
 @media (max-width: 640px) {
+  .home-stage-frame .segmented {
+    flex-wrap: nowrap;
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
   .home-entrance,
   .home-beat {
     padding-inline: var(--patch);

@@ -1,5 +1,5 @@
-// Scene 2 stage: proportional view of the 16,384-group basis collection alongside one unexplored
-// basis group drawn uniformly at random, showing its three-coordinate patch cloud and four response levels.
+// Scene 2 stage: proportional bar of the 16,384-group basis collection over one unexplored basis
+// group drawn uniformly at random, showing its three-coordinate patch cloud and four response levels.
 
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
@@ -9,7 +9,6 @@ import { DRAWN_AT_RANDOM } from "../../grow/random-group";
 import type { AtlasBand, AtlasCloud } from "../../library/atlas-cloud";
 import { ResetMark } from "../../ui/reset-mark";
 import { useLoaded } from "../../ui/use-loaded";
-import { indexPath } from "../atlas/atlas-position";
 import { nameOf, type BasisGroupNames } from "../gallery/basis-groups";
 import type { MaterialEntry } from "../gallery/material-index";
 import { STRENGTH_BANDS } from "../look/strength-bands";
@@ -79,8 +78,6 @@ export function HomeCollectionStage({ entries, indexReady, names, approached }: 
   const [block, setBlock] = useState(() => randomUnexploredGroup([], Math.random(), null));
   const [highlightedBand, setHighlightedBand] = useState<AtlasBand | null>(null);
 
-  // If the initial random draw happens to land on one of the few explored groups once the index arrives,
-  // step to an open group automatically.
   useEffect(() => {
     if (!indexReady) return;
     const explored = new Set(groupsWithAutomata(entries));
@@ -92,7 +89,6 @@ export function HomeCollectionStage({ entries, indexReady, names, approached }: 
   const coverage = collectionCoverage(entries);
   const cloud = useLoaded(approached ? `collection:${block}` : null, () => (approached ? library.atlasCloud(block) : null));
   const groupName = nameOf(names, block);
-  const openIndexUrl = `${indexPath()}?material=none`;
 
   const drawAnother = () => {
     setHighlightedBand(null);
@@ -101,32 +97,18 @@ export function HomeCollectionStage({ entries, indexReady, names, approached }: 
 
   return (
     <div className="home-stage-frame home-collection">
-      <div className="home-coverage">
-        <div className="home-coverage-numbers">
-          <Link className="link-control" to="/automata">
-            {indexReady
-              ? fill(WORDS.barLit, { lit: coverage.withAutomaton.toLocaleString("en-US") })
-              : WORDS.barLit.replace("{lit} ", "")}
-          </Link>
-          <Link className="link-control" to={openIndexUrl}>
-            {indexReady
-              ? fill(WORDS.barUnlit, { unlit: coverage.withoutAutomaton.toLocaleString("en-US") })
-              : WORDS.barUnlit.replace("{unlit} ", "")}
-          </Link>
-        </div>
-        <div
-          className="home-coverage-bar"
-          role="img"
-          aria-label={fill(WORDS.barLabel, {
-            lit: coverage.withAutomaton.toLocaleString("en-US"),
-            total: coverage.total.toLocaleString("en-US"),
-          })}
-        >
-          <span
-            className="home-coverage-fill"
-            style={{ width: indexReady ? `max(3px, ${(coverage.fraction * 100).toFixed(3)}%)` : "3px" }}
-          />
-        </div>
+      <div
+        className="home-coverage-bar"
+        role="img"
+        aria-label={fill(WORDS.barLabel, {
+          lit: coverage.withAutomaton.toLocaleString("en-US"),
+          total: coverage.total.toLocaleString("en-US"),
+        })}
+      >
+        <span
+          className="home-coverage-fill"
+          style={{ width: indexReady ? `max(3px, ${(coverage.fraction * 100).toFixed(3)}%)` : "3px" }}
+        />
       </div>
 
       <article className="home-specimen" aria-label={fill(WORDS.specimenHeading, { block })}>

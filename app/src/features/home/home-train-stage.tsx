@@ -176,7 +176,6 @@ export function HomeTrainStage({ entries, names, approached, active, still, onNo
           {fill(WORDS.tableCaption, {
             filled: matrix.filledCount,
             total: matrix.cells.length,
-            block: group,
           })}
         </span>
       </p>
