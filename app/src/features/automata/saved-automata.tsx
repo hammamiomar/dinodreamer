@@ -125,8 +125,8 @@ export function SavedScreen({ saved }: { saved: SavedAutomata & { refresh: () =>
           ))}
         </ul>
         {playing && (
-          <div key={playing.entry.id} className="automata-saved-actions" role="group" aria-label={playing.entry.title}>
-            <span>{playing.entry.title}</span>
+          <div key={playing.entry.id} className="automata-saved-actions" role="group" aria-label={savedLine(playing.entry)}>
+            <span>{savedLine(playing.entry)}</span>
             <Remove id={playing.entry.id} onRemoved={() => { saved.refresh(); play(null); }} />
           </div>
         )}

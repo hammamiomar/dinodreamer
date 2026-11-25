@@ -111,6 +111,7 @@ const automaton = { ...${scriptJson(settings)}, rule: material.rule.values, stil
 `;
 }
 
+/** The page's file name: the embed's name, so the page and the embed file of one automaton sort together. */
 export function replayPageName(file: FigureMaterialFile): string {
-  return `${file.id}.html`;
+  return `${automatonTagName(file)}.html`;
 }

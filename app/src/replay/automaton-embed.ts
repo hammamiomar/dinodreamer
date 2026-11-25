@@ -367,7 +367,7 @@ function embedHeader(file: FigureMaterialFile, maker: AutomatonMaker, tagName: s
     ` * ${commentText(named + by)}.`,
     " * Made with DinoDreamer: https://dinodreamer.computervision.vision",
     " *",
-    " * Load this file once with a script element. Then put this element where the automaton shows:",
+    " * Load this file once with a deferred script element. Then put this element where the automaton shows:",
     ` *   <${tagName}></${tagName}>`,
     " * Give it a size with CSS, as for an image. Without CSS it is 256 pixels square.",
     " * A box that is not square shows the automaton repeated.",
@@ -415,7 +415,7 @@ export function agentBrief(embed: AutomatonEmbed, file: FigureMaterialFile): str
   });
 }
 
-/** The two lines a visitor puts on their page: the script, then the element. */
+/** The two lines a visitor puts on their page: the script, deferred so that it never holds up the page, then the element. */
 export function embedSnippet(embed: Pick<AutomatonEmbed, "tagName" | "fileName">, src = embed.fileName): string {
-  return `<script src="${src}"></script>\n<${embed.tagName}></${embed.tagName}>`;
+  return `<script src="${src}" defer></script>\n<${embed.tagName}></${embed.tagName}>`;
 }

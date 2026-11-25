@@ -474,6 +474,7 @@ export const SITE_WORDS = {
     didNotFire: "selection target not met",
     metadata: {
       title: "Title",
+      credit: "Made by",
       method: "Asked for",
       reference: "Reference patch",
       projection: "Projection on the target",
@@ -512,7 +513,7 @@ export const SITE_WORDS = {
 I downloaded the file {file}. It is in my downloads folder. It is one JavaScript file. It defines the HTML element <{tag}>, it loads nothing from the network, and it needs no package or build step.
 
 1. Copy {file} into the folder that holds the site's static files.
-2. Load it once on the page with a script element: <script src="/{file}"></script>
+2. Load it once on the page with a deferred script element, in the head or the body: <script src="/{file}" defer></script>
 3. Put <{tag}></{tag}> where the automaton must show.
 4. Give the element a size with CSS, as for an image. Without CSS it is 256 pixels square. A box that is not square shows the automaton repeated.
 

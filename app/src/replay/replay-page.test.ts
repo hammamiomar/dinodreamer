@@ -24,7 +24,7 @@ describe("standalone replay page", () => {
     expect(html).toContain(`<${automatonTagName(file)} draw></${automatonTagName(file)}>`);
     expect(html).not.toMatch(/https?:\/\//);
     expect(html).not.toMatch(/\bimport\s*[({"']/);
-    expect(replayPageName(file)).toBe("block-12002-figure-strongest-mean-seed-1.html");
+    expect(replayPageName(file)).toBe(`${automatonTagName(file)}.html`);
   });
 
   it("holds the rule and the still image once: the element takes them from the definition", () => {
