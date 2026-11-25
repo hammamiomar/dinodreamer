@@ -214,7 +214,8 @@
 }
 
 .grow-note,
-.grow-toward p {
+.grow-toward p,
+.grow-target-choices p {
   overflow-wrap: anywhere;
   margin: 0;
   color: var(--ink-2);
@@ -347,16 +348,7 @@ button.grow-pick {
   cursor: pointer;
 }
 
-/*
- * No target yet: the patch picture's place stays, empty, and beside it one line of words and the three
- * choices, on the sentence's 24 px lines: four lines, the picture's 96 px, so nothing under it moves.
- */
-.grow-target-place {
-  width: var(--grow-picture);
-  aspect-ratio: 1;
-  box-shadow: inset 0 0 0 1px var(--line);
-}
-
+/* No target yet: one line of words and the three choices on the sentence's 24 px lines, four lines in the picture's 96 px. */
 .grow-target-choices .grow-pick {
   line-height: 24px;
 }

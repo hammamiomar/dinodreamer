@@ -586,7 +586,7 @@ export const SITE_WORDS = {
     noStrongest: "Basis group {block} has no Level 4 patch with a public picture. Pick a patch on its page.",
     /**
      * With nothing to train toward, the three choices in the target's place (train-target-choices.tsx);
-     * `another` sits beside "Pick another patch" when Train chose the patch itself.
+     * `another` sits beside "Pick another patch" after a draw at random, and for a group Train cannot start.
      */
     targetChoices: {
       lead: "Choose what to train toward.",

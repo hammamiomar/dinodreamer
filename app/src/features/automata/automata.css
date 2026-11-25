@@ -1057,12 +1057,23 @@
 }
 
 /* The count of the groups with an automaton under the heading, and the way to those with none. */
+/* One line under the heading: it takes the head's width, not a paragraph's measure. */
 .automata-wall-count {
   color: var(--ink-2);
 }
 
-.automata-wall-count .link-control {
+.automata-wall-head .automata-wall-count {
+  max-width: none;
+}
+
+/* A link inside a sentence: the sentence's size, in ink and underlined, so a finger with no hover sees that it is a link. */
+.automata-wall-count .link-control,
+.automata-status .link-control {
   font-size: inherit;
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--line-2);
+  text-underline-offset: 5px;
 }
 
 /* The find field and the order, on one line under the heading, as on the Index. */

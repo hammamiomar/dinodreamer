@@ -14,3 +14,11 @@ export function randomGroup(random: number, current: number | null = null): numb
   const drawn = Math.min(BASIS_GROUPS - 2, Math.floor(random * (BASIS_GROUPS - 1)));
   return drawn >= current ? drawn + 1 : drawn;
 }
+
+/** The history state of a Train address a draw at random opened; Back and a reload keep it. */
+export const DRAWN_AT_RANDOM = { drawnAtRandom: true } as const;
+
+/** Whether a location's history state says a draw at random opened it: then Train offers another draw. */
+export function drawnAtRandom(state: unknown): boolean {
+  return typeof state === "object" && state !== null && (state as { drawnAtRandom?: unknown }).drawnAtRandom === true;
+}
