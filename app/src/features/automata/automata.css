@@ -656,6 +656,18 @@
     grid-column: 1 / -1;
   }
 
+  /*
+   * The saved automata have no levels, grid or tries to give the page: their pane stays one box across
+   * the page, under the bar, and the stage's controls follow it.
+   */
+  .automata-group[data-saved] .automata-saved {
+    display: block;
+    grid-row: 4;
+    grid-column: 1 / -1;
+    /* The bar above already parts it from the frame: no module above it, as one column has. */
+    padding-top: 0;
+  }
+
   .automata-head {
     grid-row: 1;
     display: grid;
