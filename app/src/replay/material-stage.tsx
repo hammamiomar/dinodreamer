@@ -22,7 +22,7 @@ import { openStageSession, type StageSession } from "./stage-session";
 import { checkVideoPlan, recordReplayVideo, videoFileName } from "./replay-video";
 import { PauseIcon, PlayIcon } from "./stage-icons";
 import { makerLine, ownTitle } from "./material-facts";
-import { PublishPanel } from "../features/gallery/publish-material";
+import { PublishPanel, PublishWord } from "../features/gallery/publish-material";
 import { ResetMark } from "../ui/reset-mark";
 import { useMediaMatch } from "../ui/media-match";
 import { assertUnsigned32 } from "../decode";
@@ -345,7 +345,7 @@ export function MaterialStage({ entry, source = PUBLISHED_SOURCE, publishable = 
   </div>;
 
   const panels = <>
-    {panel === "publish" && material && <div className="stage-panel" role="group" aria-label={INSTRUMENT_WORDS.publish}>
+    {panel === "publish" && material && <div className="stage-panel" role="group" aria-label={SITE_WORDS.publish.word}>
       <PublishPanel key={material.file.id} file={material.file} onClose={() => setPanel("none")} />
     </div>}
     {panel === "video" && <div className="stage-panel" role="group" aria-label={WORDS.video}>
@@ -409,7 +409,7 @@ export function MaterialStage({ entry, source = PUBLISHED_SOURCE, publishable = 
         <div className="stage-actions">
           <p className="stage-words">
             {material && source.keepable(entry) && <><KeepWord key={entry.id} material={material} entryId={entry.id} className="stage-word" />{dot}</>}
-            {material && publishable && <>{panelWord("publish", INSTRUMENT_WORDS.publish)}{dot}</>}
+            {material && publishable && <><PublishWord key={entry.id} file={material.file} expanded={panel === "publish"} onToggle={() => togglePanel("publish")} className="stage-word" />{dot}</>}
             {panelWord("video", WORDS.video)}
             {dot}
             {panelWord("export", INSTRUMENT_WORDS.export)}

@@ -549,6 +549,10 @@ Without WebGPU, or when a visitor asks for reduced motion, it shows a still imag
   },
 
   publish: {
+    /** The stage's quiet word, and what it says once the definition is sent (publish-material.tsx, PublishWord). */
+    word: "Publish",
+    publishedWord: "Published",
+    awaitingWord: "Sent for approval",
     open: "Publish to the gallery",
     published: "Published in the gallery",
     awaiting: "Sent to the gallery · waiting for the owner's approval",

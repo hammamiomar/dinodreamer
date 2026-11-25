@@ -11,12 +11,12 @@ import "./publish-material.css";
 
 const WORDS = SITE_WORDS.publish;
 
-/** Where a saved definition stands in the gallery, read again after a send. */
+/** Where a saved definition stands in the gallery: the published index and this device's records, read at each render. */
 function usePublishState(file: FigureMaterialFile) {
   const index = useMaterialIndex();
-  const [records, setRecords] = useState(readPublishRecords);
-  const state = publishState(file, new Set(index.index.entries.map((entry) => entry.id)), records);
-  return { state, reread: () => setRecords(readPublishRecords()) };
+  const [, setRevision] = useState(0);
+  const state = publishState(file, new Set(index.index.entries.map((entry) => entry.id)), readPublishRecords());
+  return { state, reread: () => setRevision((revision) => revision + 1) };
 }
 
 /** "Published" or "waiting for approval", or nothing while the definition is not yet sent. */
@@ -35,11 +35,20 @@ export function PublishMaterial({ file }: { file: FigureMaterialFile }) {
   return <PublishForm file={file} onSent={() => { reread(); setOpen(false); }} onCancel={() => setOpen(false)} />;
 }
 
-/** The Automata stage's Publish panel: the form, or where the definition stands once it is sent. */
+/**
+ * The Automata stage's quiet word: "Publish", which opens the stage's Publish panel, or, once the
+ * definition is sent, where it stands.
+ */
+export function PublishWord({ file, expanded, onToggle, className }: { file: FigureMaterialFile; expanded: boolean; onToggle: () => void; className: string }) {
+  const { state } = usePublishState(file);
+  if (state === "published") return <span className={className} role="status">{WORDS.publishedWord}</span>;
+  if (state === "awaiting") return <span className={className} role="status">{WORDS.awaitingWord}</span>;
+  return <button type="button" className={className} aria-expanded={expanded} onClick={onToggle}>{WORDS.word}</button>;
+}
+
+/** The stage's Publish panel: the form. Sent or cancelled, it closes, and the word says where the definition stands. */
 export function PublishPanel({ file, onClose }: { file: FigureMaterialFile; onClose: () => void }) {
-  const { state, reread } = usePublishState(file);
-  if (state !== "idle") return <PublishStatus state={state} />;
-  return <PublishForm file={file} onSent={reread} onCancel={onClose} />;
+  return <PublishForm file={file} onSent={onClose} onCancel={onClose} />;
 }
 
 /** The title and the name to publish under, then the check and Send. Uploads the format-4 definition for owner review. */
