@@ -49,7 +49,8 @@
 
 .atlas-search,
 .atlas-sort,
-.atlas-category {
+.atlas-category,
+.atlas-automaton {
   display: inline-flex;
   align-items: center;
   gap: 16px;
@@ -132,8 +133,11 @@
   white-space: nowrap;
 }
 
-/* The block's response category after its number; Grow stays at the right. A long name is cut on a narrow card. */
-.atlas-cloud-category {
+/*
+ * After the number, the owner's name for the group and its response category, on one line; Train stays
+ * at the right. A long line is cut on a narrow card.
+ */
+.atlas-cloud-label {
   min-width: 0;
   margin-right: auto;
   overflow: hidden;
@@ -141,6 +145,11 @@
   color: var(--ink-2);
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+.atlas-cloud-name {
+  margin-right: 16px;
+  color: var(--ink);
 }
 
 /* The cloud runs into the band strip's line: 32 + 16 + the cloud + 16 puts the band groups on the module. */
@@ -354,7 +363,8 @@
   /* The label over the field, so the field and the longest order take the full width. */
   .atlas-search,
   .atlas-sort,
-  .atlas-category {
+  .atlas-category,
+  .atlas-automaton {
     display: grid;
     gap: 8px;
     width: 100%;
@@ -362,7 +372,8 @@
 
   .atlas-search input,
   .atlas-sort .select,
-  .atlas-category .select {
+  .atlas-category .select,
+  .atlas-automaton .select {
     width: 100%;
   }
 
@@ -437,7 +448,8 @@
 @media (max-width: 640px) and (pointer: coarse) {
   .atlas-search,
   .atlas-sort,
-  .atlas-category {
+  .atlas-category,
+  .atlas-automaton {
     gap: 12px;
   }
 

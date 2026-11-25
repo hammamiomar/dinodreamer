@@ -6,7 +6,6 @@ export const ATLAS_TEXT = {
   title: "The shape of a basis group",
   upload: {
     button: "Explore your own picture (optional)",
-    choose: "Choose your picture",
     view: "View your picture",
   },
 
@@ -22,7 +21,15 @@ export const ATLAS_TEXT = {
     pole: "Larger opposite-direction extension",
     block: "Basis group order",
   },
-  hasMaterial: "Has an automaton",
+  /** The automaton filter (atlas-page.tsx): every group, the groups with an automaton, or those with none. */
+  automaton: {
+    label: "Automata",
+    filters: {
+      any: "Any",
+      some: "Has an automaton",
+      none: "No automaton yet",
+    },
+  },
   starred: "Starred",
   // The response category: the filter in the first row of controls and a card's label line
   // (cloud-card.tsx). The category names are `families` below.

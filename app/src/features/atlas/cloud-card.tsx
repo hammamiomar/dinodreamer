@@ -108,11 +108,14 @@ function categoryName(word: string): string {
 export function CloudBlockCard({
   entry,
   category,
+  name,
   engine,
 }: {
   entry: AtlasIndexEntry;
   /** The block's response category word (the patch role's), or null for a block without one. */
   category: string | null;
+  /** The owner's name for the group (basis-groups.ts), or null for a group without one. */
+  name: string | null;
   engine: string | null;
 }) {
   const library = useLibrary();
@@ -151,7 +154,10 @@ export function CloudBlockCard({
     >
       <header className="atlas-cloud-identity">
         <BasisGroupLink className="atlas-block-number heading" block={entry.block} aria-label={ATLAS_TEXT.openBlock(entry.block)} />
-        {category !== null && <span className="atlas-cloud-category">{ATLAS_TEXT.category.card(categoryName(category))}</span>}
+        <span className="atlas-cloud-label">
+          {name !== null && <span className="atlas-cloud-name">{name}</span>}
+          {category !== null && <span className="atlas-cloud-category">{ATLAS_TEXT.category.card(categoryName(category))}</span>}
+        </span>
         <Link className="atlas-grow" to={trainPath(entry.block, engine === "fake" ? "?engine=fake" : "")}>
           {LOOK_TEXT.grow}
         </Link>

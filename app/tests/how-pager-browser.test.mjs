@@ -41,7 +41,10 @@ for (const width of [320, 390, 430]) {
           await section(page, sections[index]);
           await pager.getByRole("combobox", { name: positions[index], exact: true }).waitFor();
           assert.equal(await page.locator(".how-back").count(), 1);
-          assert.equal(await page.locator(".how-moves .primary").count(), index === sections.length - 1 ? 0 : 1);
+          // Continue on every section but the last; the last ends on the next steps, in Continue's place.
+          const last = index === sections.length - 1;
+          assert.equal(await page.locator(".how-moves > button.primary").count(), last ? 0 : 1);
+          assert.deepEqual(await page.locator(".how-next a").evaluateAll((links) => links.map((link) => link.getAttribute("href"))), last ? ["/index", "/automata", "/train"] : []);
           assert.equal(await page.getByRole("button", { name: /Scroll architecture/ }).count(), 0);
           assert.ok(await pager.evaluate((element) => {
             const box = element.getBoundingClientRect();

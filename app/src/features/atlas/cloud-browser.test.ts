@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AtlasIndexEntry } from "../../library/atlas-cloud";
-import { cloudSearch, initialCloudSearch, parseCloudQuery, randomCloudPage, visibleClouds } from "./cloud-browser";
+import { AUTOMATON_FILTERS, cloudSearch, initialCloudSearch, noAutomatonSearch, parseCloudQuery, randomCloudPage, visibleClouds } from "./cloud-browser";
 import { ATLAS_TEXT } from "./atlas-text";
 
 const entries: AtlasIndexEntry[] = [
@@ -40,9 +40,14 @@ const blocks = (change: Parameters<typeof visibleClouds>[1]) =>
   );
 
 describe("cloud Atlas choices", () => {
-  it("round-trips the order, the category, the two checks, the search and the page", () => {
-    const query = { ...defaults, order: "pole", category: "surround", hasMaterial: true, starred: true, search: "12", page: 4 } as const;
+  it("round-trips the order, the category, the automaton filter, the star check, the search and the page", () => {
+    const query = { ...defaults, order: "pole", category: "surround", automaton: "some", starred: true, search: "12", page: 4 } as const;
     expect(parseCloudQuery(new URLSearchParams(cloudSearch(query, "fake")))).toEqual(query);
+    for (const automaton of AUTOMATON_FILTERS) {
+      expect(parseCloudQuery(new URLSearchParams(cloudSearch({ ...defaults, automaton }))).automaton).toBe(automaton);
+    }
+    expect(cloudSearch({ ...defaults, automaton: "none" })).toContain("material=none");
+    expect(cloudSearch(defaults)).not.toContain("material");
     expect(cloudSearch(query, "fake")).toContain("engine=fake");
     expect(cloudSearch(query, "fake")).toContain("family=surround");
     expect(cloudSearch(defaults)).not.toContain("family");
@@ -51,9 +56,9 @@ describe("cloud Atlas choices", () => {
 
   it("opens earlier links without the removed choices", () => {
     expect(parseCloudQuery(new URLSearchParams("view=bands&colour=family&shape=pole&bands=13&collection=in_use&sort=materials"))).toEqual(defaults);
-    expect(parseCloudQuery(new URLSearchParams("material=fired")).hasMaterial).toBe(true);
-    expect(parseCloudQuery(new URLSearchParams("material=grown")).hasMaterial).toBe(true);
-    expect(parseCloudQuery(new URLSearchParams("material=none")).hasMaterial).toBe(false);
+    expect(parseCloudQuery(new URLSearchParams("material=fired")).automaton).toBe("some");
+    expect(parseCloudQuery(new URLSearchParams("material=grown")).automaton).toBe("some");
+    expect(parseCloudQuery(new URLSearchParams("material=other")).automaton).toBe("any");
     expect(parseCloudQuery(new URLSearchParams("sort=starred")).starred).toBe(true);
     expect(parseCloudQuery(new URLSearchParams("collection=starred")).starred).toBe(true);
   });
@@ -84,10 +89,12 @@ describe("cloud Atlas choices", () => {
     expect(entries.map((entry) => entry.block)).toEqual([10, 20, 30]);
   });
 
-  it("filters by material, by star and by number without card reads", () => {
-    expect(blocks({ ...defaults, hasMaterial: true })).toEqual([20, 30]);
+  it("filters by automaton, by star and by number without card reads", () => {
+    expect(blocks({ ...defaults, automaton: "some" })).toEqual([20, 30]);
+    expect(blocks({ ...defaults, automaton: "none" })).toEqual([10]);
     expect(blocks({ ...defaults, starred: true })).toEqual([10, 30]);
-    expect(blocks({ ...defaults, hasMaterial: true, starred: true })).toEqual([30]);
+    expect(blocks({ ...defaults, automaton: "some", starred: true })).toEqual([30]);
+    expect(blocks({ ...defaults, automaton: "none", starred: true })).toEqual([10]);
     expect(blocks({ ...defaults, starred: true, search: "2" })).toEqual([]);
     expect(blocks({ ...defaults, search: "2" })).toEqual([20]);
   });
@@ -96,8 +103,9 @@ describe("cloud Atlas choices", () => {
     expect(blocks({ ...defaults, category: "surround" })).toEqual([10]);
     expect(blocks({ ...defaults, category: "local" })).toEqual([20]);
     expect(blocks({ ...defaults, category: "global" })).toEqual([]);
-    expect(blocks({ ...defaults, category: "local", hasMaterial: true })).toEqual([20]);
-    expect(blocks({ ...defaults, category: "surround", hasMaterial: true })).toEqual([]);
+    expect(blocks({ ...defaults, category: "local", automaton: "some" })).toEqual([20]);
+    expect(blocks({ ...defaults, category: "surround", automaton: "some" })).toEqual([]);
+    expect(blocks({ ...defaults, category: "surround", automaton: "none" })).toEqual([10]);
     expect(blocks(defaults)).toEqual([10, 20, 30]);
   });
 
@@ -110,6 +118,14 @@ describe("cloud Atlas choices", () => {
     expect(randomCloudPage(2, 1, 0.3)).toBe(2);
     expect(randomCloudPage(2, 2, 0.7)).toBe(1);
     for (let random = 0; random < 1; random += 0.01) expect(randomCloudPage(683, 72, random)).not.toBe(72);
+  });
+
+  it("opens the groups with no automaton at a page drawn among theirs", () => {
+    // 16,335 groups with none fill 681 pages of 24.
+    expect(noAutomatonSearch(16335, 0)).toBe("?sort=block&material=none&page=1");
+    expect(noAutomatonSearch(16335, 0.99999)).toBe("?sort=block&material=none&page=681");
+    expect(parseCloudQuery(new URLSearchParams(noAutomatonSearch(16335, 0.5)))).toEqual({ ...defaults, automaton: "none", page: 341 });
+    expect(noAutomatonSearch(0, 0.7)).toBe("?sort=block&material=none&page=1");
   });
 
   it("has no random page when the choices fill one page", () => {

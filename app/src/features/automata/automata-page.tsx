@@ -3,13 +3,15 @@
 // the owner's names for the groups come with them. The owner's view draws the same wall and the same
 // screen over every research run (features/owner/).
 
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Link, Outlet, useLocation, useNavigate, useSearchParams } from "react-router";
 import type { BasisGroupPanelOutlet } from "../look/basis-group-panel";
 import { fill, SITE_WORDS } from "../../app/site-words";
 import { MaterialStage, PUBLISHED_SOURCE } from "../../replay/material-stage";
 import { fetchPublishedMaterial, materialFileUrl, useMaterialIndex } from "../gallery/material-gallery";
 import { nameOf, type BasisGroupNames } from "../gallery/basis-groups";
+import { noAutomatonSearch } from "../atlas/cloud-browser";
+import { trainPath } from "../look/strongest-request";
 import { useBasisGroupNames } from "./basis-group-names";
 import {
   addressSearch, arrangeGroups, automatonToPlay, groupOfAutomaton, neighboursOf, readAddress, SAVED_GROUP, type GalleryAutomaton, type GalleryGroup,
@@ -21,6 +23,8 @@ import { SavedScreen, useSavedAutomata } from "./saved-automata";
 import "./automata.css";
 
 const WORDS = SITE_WORDS.automata;
+/** The basis collection's size, for the wall's count of the groups with an automaton. */
+const BASIS_GROUPS = 16384;
 
 /**
  * The group the address opens: the one it names, or the one that holds the automaton it names (a link
@@ -83,7 +87,8 @@ function PublishedGallery({ groups, names, status }: { groups: GalleryGroup<Publ
 
   // Keep the wall mounted under the group, so Back restores its sort, filter and scroll position.
   const open = group !== null && playing !== null;
-  const missing = typeof address.group === "number" && status === null ? fill(WORDS.unknownGroup, { group: address.group }) : status;
+  // A group the address names that has no automaton: the way to train one.
+  const missing = typeof address.group === "number" && status === null ? <MissingGroup group={address.group} /> : status;
   const savedWay = (
     <Link className="link-control automata-saved-way" to={{ search: addressSearch({ group: SAVED_GROUP, automaton: null }) }}>
       {saved.automata.length === 0 ? WORDS.savedLine : fill(WORDS.savedLineCount, { count: saved.automata.length })}
@@ -91,7 +96,8 @@ function PublishedGallery({ groups, names, status }: { groups: GalleryGroup<Publ
   );
   return (
     <>
-      <GroupWall groups={groups} names={names} status={open ? null : missing} aside={savedWay} loadFace={loadPublishedFace} hidden={open}>
+      <GroupWall groups={groups} names={names} status={open ? null : missing} aside={savedWay} loadFace={loadPublishedFace} hidden={open}
+        lead={status === null && <WallCount groups={groups.length} />}>
         {!open && panel}
       </GroupWall>
       {open && (
@@ -100,6 +106,29 @@ function PublishedGallery({ groups, names, status }: { groups: GalleryGroup<Publ
           {panel}
         </GroupScreen>
       )}
+    </>
+  );
+}
+
+/** The wall's count: how many of the collection's groups have an automaton, and the way to those with none. */
+function WallCount({ groups }: { groups: number }) {
+  // The Index page it opens is drawn once, as a fresh Index visit's is.
+  const [random] = useState(Math.random);
+  const none = BASIS_GROUPS - groups;
+  return (
+    <p className="automata-wall-count">
+      {fill(WORDS.wallCount, { count: groups.toLocaleString("en-US"), total: BASIS_GROUPS.toLocaleString("en-US") })}{" "}
+      <Link className="link-control" to={`/index${noAutomatonSearch(none, random)}`}>{fill(WORDS.wallNone, { count: none.toLocaleString("en-US") })}</Link>
+    </p>
+  );
+}
+
+/** A group the address names with no automaton: it says so, and offers to train one. */
+function MissingGroup({ group }: { group: number }) {
+  return (
+    <>
+      {fill(WORDS.unknownGroup, { group })}{" "}
+      {group < BASIS_GROUPS && <Link className="link-control" to={trainPath(group, "")}>{WORDS.unknownGroupTrain}</Link>}
     </>
   );
 }

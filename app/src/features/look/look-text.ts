@@ -248,8 +248,9 @@ export const LOOK_TEXT = {
     /** A row's first square for a screen reader. */
     locatorName: (block: number) => `Where basis group ${block} is selected in your picture`,
     chooseAnother: "Choose another picture",
-    empty: "No picture is open. Upload a picture on the Index to start.",
-    toExplore: "Go to the Index",
+    /** With no picture open: what the page does with one. The picture is read in this tab and is not sent. */
+    empty: "Choose a picture of your own. It is read in this tab, and this page lists the basis groups its patches select.",
+    choose: "Choose a picture",
     listCount: (shown: number, total: number) => `${shown} of ${total} selected basis groups`,
     more: "Show more basis groups",
     readAgain: "Try reading again",

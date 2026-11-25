@@ -214,7 +214,8 @@
 }
 
 .grow-note,
-.grow-toward p {
+.grow-toward p,
+.grow-target-choices p {
   overflow-wrap: anywhere;
   margin: 0;
   color: var(--ink-2);
@@ -334,6 +335,22 @@
   line-height: 16px;
   text-decoration-color: var(--line-2);
   text-underline-offset: 5px;
+}
+
+/* A way that is a button (another group at random, your picture) reads as the links beside it. */
+button.grow-pick {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  text-align: left;
+  text-decoration-line: underline;
+  cursor: pointer;
+}
+
+/* No target yet: one line of words and the three choices on the sentence's 24 px lines, four lines in the picture's 96 px. */
+.grow-target-choices .grow-pick {
+  line-height: 24px;
 }
 
 .grow-field {

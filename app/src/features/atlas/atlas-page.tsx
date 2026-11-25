@@ -19,6 +19,7 @@ import { ATLAS_TEXT } from "./atlas-text";
 import { NEXT_PAGE_CARDS } from "./card-loading";
 import { CloudBlockCard, cardLoader } from "./cloud-card";
 import {
+  AUTOMATON_FILTERS,
   CLOUD_CATEGORIES,
   CLOUD_ORDERS,
   CLOUD_PAGE_SIZE,
@@ -33,6 +34,8 @@ import {
 import "./cloud-atlas.css";
 import { useMaterialIndex } from "../gallery/material-gallery";
 import { materialCounts } from "../gallery/material-index";
+import { nameOf } from "../gallery/basis-groups";
+import { useBasisGroupNames } from "../automata/basis-group-names";
 
 /** The category filter's value for every block; parseCategory reads it as no category. */
 const ANY_CATEGORY = "any";
@@ -52,6 +55,8 @@ export function AtlasPage() {
   // The material status comes from the gallery's published index.
   const materialIndex = useMaterialIndex();
   const materials = useMemo(() => materialCounts(materialIndex.index), [materialIndex.index]);
+  // The owner's names for the groups, after their numbers on the cards; a group without one shows its number alone.
+  const names = useBasisGroupNames();
   const library = useLibrary();
   // Every block's response category: one small file, read once per session. The filter and the
   // card labels use it; without the file (an older table) neither is shown.
@@ -59,18 +64,18 @@ export function AtlasPage() {
   const categories = categoryFile.status === "ready" ? (categoryFile.value.roles.patch ?? null) : null;
   const showCategories = categoryFile.status === "loading" || categories !== null || query.category !== null;
   const waitingForFilters = (query.category !== null && categoryFile.status === "loading")
-    || (query.hasMaterial && materialIndex.status === "loading");
+    || (query.automaton !== "any" && materialIndex.status === "loading");
   let filterProblem: string | null = null;
   if (query.category !== null && categoryFile.status !== "loading" && categories === null) {
     filterProblem = categoryFile.status === "failed" ? categoryFile.message : ATLAS_TEXT.categoryUnavailable;
   }
-  if (query.hasMaterial && materialIndex.status === "failed") filterProblem = materialIndex.message;
-  const { order, category, hasMaterial, starred: starredOnly, search: blockSearch } = query;
+  if (query.automaton !== "any" && materialIndex.status === "failed") filterProblem = materialIndex.message;
+  const { order, category, automaton, starred: starredOnly, search: blockSearch } = query;
   const shown = useMemo(() => {
     if (waitingForFilters || filterProblem) return [];
     return visibleClouds(
       entries,
-      { order, category, hasMaterial, starred: starredOnly, search: blockSearch },
+      { order, category, automaton, starred: starredOnly, search: blockSearch },
       materials,
       new Set(starred),
       categories ?? NO_CATEGORIES,
@@ -79,7 +84,7 @@ export function AtlasPage() {
     entries,
     order,
     category,
-    hasMaterial,
+    automaton,
     starredOnly,
     blockSearch,
     materials,
@@ -192,9 +197,11 @@ export function AtlasPage() {
           )}
         </div>
         <div className="atlas-control-row">
-          <label className="atlas-check">
-            <input type="checkbox" checked={query.hasMaterial} onChange={(event) => choose({ hasMaterial: event.target.checked })} />
-            {ATLAS_TEXT.hasMaterial}
+          <label className="atlas-automaton">
+            <span className="label">{ATLAS_TEXT.automaton.label}</span>
+            <Select value={query.automaton} onChange={(event) => choose({ automaton: event.target.value as CloudQuery["automaton"] })}>
+              {AUTOMATON_FILTERS.map((filter) => <option key={filter} value={filter}>{ATLAS_TEXT.automaton.filters[filter]}</option>)}
+            </Select>
           </label>
           <label className="atlas-check">
             <input type="checkbox" checked={query.starred} onChange={(event) => choose({ starred: event.target.checked })} />
@@ -214,6 +221,7 @@ export function AtlasPage() {
             key={entry.block}
             entry={entry}
             category={categories?.get(entry.block) ?? null}
+            name={nameOf(names, entry.block)}
             engine={engine}
           />
         ))}
