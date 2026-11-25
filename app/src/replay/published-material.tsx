@@ -2,11 +2,6 @@ import { placeOf, type MaterialEntry } from "../features/gallery/material-index"
 import { FIGURE_METHODS, FIGURE_PYRAMID_LAYOUT, methodReadsTokens, type FigureLayer, type FigureMethod } from "../materials/material-file";
 import { DEFAULT_DEPTH, DEFAULT_METHOD, depthOfLayers } from "../grow/train-method";
 
-/** Route to continue training this automaton from its saved or published rule. */
-export function continueTrainingPath(entry: MaterialEntry): string {
-  return `/train?continue=${encodeURIComponent(entry.id)}`;
-}
-
 /**
  * Grow's page for another variation of the same kind: the rule layout, the start and, when Train
  * trains it and it is not the default, the method of the automaton's place (Grow reads all three). A

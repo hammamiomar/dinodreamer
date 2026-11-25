@@ -468,7 +468,6 @@ export const SITE_WORDS = {
   },
 
   stage: {
-    name: "Automata of this basis group",
     readingBlock: "Basis group {block}",
     readingToward: "trained toward a {band} reference patch",
     /** Labels keyed by `strengthStatistic`, all reported in multiples of the group median response (`m`). */
@@ -482,6 +481,7 @@ export const SITE_WORDS = {
     didNotFire: "selection target not met",
     metadata: {
       title: "Title",
+      credit: "Made by",
       method: "Asked for",
       reference: "Reference patch",
       projection: "Projection on the target",
@@ -495,11 +495,8 @@ export const SITE_WORDS = {
       notMet: "not met",
       updates: "Updates",
     },
+    /** The maker's name, after the title in the frame's corner; an automaton without a name shows none. */
     by: "by {credit}",
-    anonymous: "an anonymous trainer",
-    growAnother: "Train another variation",
-    continueTraining: "Continue training",
-    frameLabel: "{block} · {kind}",
     frameGrid: "{side} × {side} cells",
     loading: "Loading {name}…",
     canvasName: "{title}, running; draw on it to disturb it",
@@ -510,17 +507,34 @@ export const SITE_WORDS = {
     resetName: "Reset to step 0",
     speed: "Speed",
     brush: "Brush",
-    pixelsPerCell: "{pixels} px",
-    pixelsPerCellName: "Pixels per cell",
-    downloads: "Downloads",
     options: "Options",
+    /** The embed (replay/automaton-embed.ts): one JavaScript file that puts the automaton on another site. */
+    downloadEmbed: "Download for your site",
+    /** Copies agentBrief and downloads the embed file in the same click. */
+    copyForAgent: "Copy for a coding agent",
+    copiedForAgent: "Copied. Paste it to your coding agent. The file is in your downloads.",
+    copyFailed: "It could not be copied: {message}",
+    /** The brief a visitor pastes to a coding agent, beside the downloaded embed file. */
+    agentBrief: `Add an automaton from DinoDreamer to my website.
+
+I downloaded the file {file}. It is in my downloads folder. It is one JavaScript file. It defines the HTML element <{tag}>, it loads nothing from the network, and it needs no package or build step.
+
+1. Copy {file} into the folder that holds the site's static files.
+2. Load it once on the page with a deferred script element, in the head or the body: <script src="/{file}" defer></script>
+3. Put <{tag}></{tag}> where the automaton must show.
+4. Give the element a size with CSS, as for an image. Without CSS it is 256 pixels square. A box that is not square shows the automaton repeated.
+
+To let visitors draw on it, add the word draw: <{tag} draw></{tag}>
+Other attributes, all optional: seed="{seed}" (each seed grows another variation), speed="1" ({slowest} to {fastest}), cells="{cells}" (the grid: {grids} cells a side), paused.
+Without WebGPU, or when a visitor asks for reduced motion, it shows a still image. Do not edit the file.`,
     downloadMaterial: "Download automaton definition",
     downloadPage: "Download page",
     downloadShader: "Download WGSL shader",
     downloadShadertoy: "Download Shadertoy shader",
     shadertoyUnavailable: "Shadertoy export is not yet available for coarse + fine automata.",
-    video: "Video · {seconds} s",
-    videoSettings: "Video settings",
+    /** The record button in the controls row, and its settings under Options. */
+    record: "Record a {seconds} s video",
+    video: "Video",
     fromTick: "From step",
     seconds: "Seconds",
     framesPerSecond: "Frames per second",
@@ -530,11 +544,8 @@ export const SITE_WORDS = {
     growFromSeed: "Restart from this seed",
     grid: "Grid",
     gridOption: "{cells} cells",
-    thumbnails: "This basis group's automata",
-    keep: "Save on this device",
-    kept: "Saved. It is under {yours} in Automata.",
-    yoursLink: "Saved automata",
-    keepFailed: "It could not be saved: {message}",
+    /** The replay did not start: no WebGPU, or no adapter. The frame keeps the saved image. */
+    noReplay: "This browser could not start WebGPU, so this is the saved image.",
   },
 
   owner: {
@@ -546,6 +557,10 @@ export const SITE_WORDS = {
   },
 
   publish: {
+    /** The stage's quiet word, and what it says once the definition is sent (publish-material.tsx, PublishWord). */
+    word: "Publish",
+    publishedWord: "Published",
+    awaitingWord: "Sent for approval",
     open: "Publish to the gallery",
     published: "Published in the gallery",
     awaiting: "Sent to the gallery · waiting for the owner's approval",
@@ -558,6 +573,8 @@ export const SITE_WORDS = {
     credit: "Credit",
     creditHint: "Your name, optional",
     whatIsSent: "The gallery receives the automaton definition only: its weights, measurements and preview. It appears after the owner approves it.",
+    /** The terms a published automaton carries; the embed file's header states the same license. */
+    terms: "A published automaton is open: anyone may download, use and change it under the Apache License 2.0.",
     send: "Send",
     sending: "Sending…",
     cancel: "Cancel",

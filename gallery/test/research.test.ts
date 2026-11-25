@@ -6,7 +6,7 @@ import {
   changedRuns, checkedResearchManifest, rereadProblem, rereadProblems, researchRunProblems, runsToWrite,
   showResearchRuns, storedResearchManifest, writeResearch, type ResearchRunFiles,
 } from "../src/research.ts";
-import { approveMaterial, checkedMaterial, hideMaterial, materialPoster, readMaterials, storeMaterialSubmission } from "../src/material-review.ts";
+import { approveMaterial, checkedMaterial, hideMaterial, materialPoster, PROJECT_CREDIT, readMaterials, storeMaterialSubmission } from "../src/material-review.ts";
 import { entryIdOfRun, placeOfRun, RESEARCH_MANIFEST_KEY, type ResearchManifest } from "../../app/src/features/research/research-runs.ts";
 import type { Env } from "../src/worker.ts";
 import type { MemoryBucket } from "./memory-bucket.ts";
@@ -130,7 +130,7 @@ describe("showing research runs on the Automata page", () => {
     expect(result).toEqual({ published: [RUN_ID], placed: [], keptHidden: [], withoutPlace: [] });
     const [entry] = (await readMaterials(env.LIBRARY)).entries;
     expect(entry).toMatchObject({
-      id: RUN_ID, materialId: RUN_ID, title: "", credit: "DinoDreamer project", block: 12002,
+      id: RUN_ID, materialId: RUN_ID, title: "", credit: PROJECT_CREDIT, block: 12002,
       gallery: { start: "circle", method: "token-distribution" }, featuredInBlock: true, featured: false,
     });
     expect((env.LIBRARY as MemoryBucket).objects.has(`gallery/materials/${RUN_ID}/poster.png`)).toBe(true);
@@ -190,7 +190,7 @@ describe("showing research runs on the Automata page", () => {
     expect(result).toEqual({ published: [RUN_ID], placed: [], keptHidden: [], withoutPlace: [] });
     const entries = (await readMaterials(env.LIBRARY)).entries;
     expect(entries.map((entry) => [entry.id, entry.credit, entry.gallery ?? null])).toEqual([
-      [RUN_ID, "DinoDreamer project", { start: "circle", method: "token-distribution" }], [visitor, "A visitor", null],
+      [RUN_ID, PROJECT_CREDIT, { start: "circle", method: "token-distribution" }], [visitor, "A visitor", null],
     ]);
   });
 

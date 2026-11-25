@@ -32,10 +32,9 @@ describe("site copy helpers and placeholders", () => {
     expectPlaceholders(SITE_WORDS.home.kind, ["rule"]);
     expectPlaceholders(SITE_WORDS.stage.readingToward, ["band"]);
     expectPlaceholders(SITE_WORDS.stage.readingStrength, ["strength"]);
-    expectPlaceholders(SITE_WORDS.stage.frameLabel, ["kind"]);
     expectPlaceholders(SITE_WORDS.stage.frameGrid, ["side"]);
     expectPlaceholders(SITE_WORDS.stage.canvasName, ["title"]);
-    expectPlaceholders(SITE_WORDS.stage.video, ["seconds"]);
+    expectPlaceholders(SITE_WORDS.stage.record, ["seconds"]);
 
     const grow = SITE_WORDS.grow;
     for (const time of [grow.timeBefore, grow.timeLeft, grow.timeTaken]) {

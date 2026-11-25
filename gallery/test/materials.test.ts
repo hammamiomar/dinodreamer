@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from "vitest";
 import worker from "../src/worker.ts";
 import {
   approveMaterial, hideMaterial, materialEntries, pendingMaterials, publishMaterial, publishMaterials, purgeMaterial, readMaterials,
-  restoreMaterial, setCellPicture, setGalleryPlaces, setGroupPicture, setMaterialFeatured,
+  renameCredit, restoreMaterial, setCellPicture, setGalleryPlaces, setGroupPicture, setMaterialFeatured,
 } from "../src/material-review.ts";
 import { galleryEntries, pendingSubmissions } from "../src/review.ts";
 import { canonicalFigureFile, readFigureMaterial } from "../../app/src/materials/material-file.ts";
@@ -536,5 +536,42 @@ describe("browser Train files at the boundary", () => {
     await approveMaterial(submissions, library, id, new Date());
     const published = JSON.parse(new TextDecoder().decode(library.objects.get(materialKey(id, "material.json"))!.body));
     expect(published.recipe.settings).toEqual(file.recipe.settings);
+  });
+});
+
+describe("a credit renamed in bulk", () => {
+  const now = new Date("2026-11-25T18:00:00Z");
+  /** Two project automata, one of them hidden, and a visitor's. */
+  async function gallery() {
+    const fixture = testEnv();
+    const { file } = readFigureMaterial(JSON.parse(text(firedName)));
+    const project = { title: "", credit: "DinoDreamer project" };
+    await publishMaterials(fixture.submissions, fixture.library, [
+      { id: "project-shown", file, label: project, hidden: false, featured: true },
+      { id: "project-hidden", file, label: project, hidden: true, featured: false },
+      { id: "visitor", file, label: { title: "Scales", credit: "Ada" }, hidden: false, featured: false },
+    ], now);
+    return fixture;
+  }
+  const credits = async (fixture: ReturnType<typeof testEnv>) => {
+    const { published, hidden } = await materialEntries(fixture.submissions, fixture.library);
+    return Object.fromEntries([...published, ...hidden].map((entry) => [entry.id, entry.credit]));
+  };
+
+  it("a dry run lists the shown and hidden automata it would rename and writes nothing", async () => {
+    const fixture = await gallery();
+    const before = await credits(fixture);
+    expect(await renameCredit(fixture.submissions, fixture.library, "DinoDreamer project", "Omar Hammami", false))
+      .toEqual({ shown: ["project-shown"], hidden: ["project-hidden"] });
+    expect(await credits(fixture)).toEqual(before);
+  });
+
+  it("renames shown and hidden automata alike and keeps their titles and marks; another credit stays", async () => {
+    const fixture = await gallery();
+    await renameCredit(fixture.submissions, fixture.library, "DinoDreamer project", "Omar Hammami", true);
+    expect(await credits(fixture)).toEqual({ "project-shown": "Omar Hammami", "project-hidden": "Omar Hammami", visitor: "Ada" });
+    const shown = (await readMaterials(fixture.library)).entries.find((entry) => entry.id === "project-shown")!;
+    expect(shown).toMatchObject({ title: "", featured: true });
+    expect(await renameCredit(fixture.submissions, fixture.library, "DinoDreamer project", "Omar Hammami", false)).toEqual({ shown: [], hidden: [] });
   });
 });

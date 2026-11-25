@@ -65,7 +65,7 @@ describe("Shadertoy export", () => {
 
   it("offers the supported export and states why the pyramid download is disabled", () => {
     const markup = (material: typeof pyramid) => renderToStaticMarkup(createElement(MaterialExports, {
-      material, onError: () => {},
+      material, maker: { title: "", credit: "" }, onError: () => {},
     }));
     expect(markup(materials[0])).toContain(">Download Shadertoy shader</button>");
     expect(markup(materials[0])).not.toContain("disabled");

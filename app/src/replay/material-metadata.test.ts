@@ -27,10 +27,10 @@ describe("the metadata table", () => {
     expect(JSON.stringify(rows)).not.toMatch(/pyramid|strongest|seed/);
   });
 
-  test("leads with a title of the person's own, and leaves out what was not measured", () => {
-    const rows = metadataRows(entry({ strength: null, winnerFraction: null, fired: false }), 1250, "Garden at dusk");
-    expect(rows[0]).toEqual({ label: "Title", value: "Garden at dusk" });
-    expect(rows.map((row) => row.label)).toEqual(["Title", "Grids", "Start", "Asked for", "Reference patch", "Selection target", "Updates"]);
+  test("leads with a title of the person's own and its maker, and leaves out what was not measured", () => {
+    const rows = metadataRows(entry({ strength: null, winnerFraction: null, fired: false, credit: "Ada" }), 1250, "Garden at dusk");
+    expect(rows.slice(0, 2)).toEqual([{ label: "Title", value: "Garden at dusk" }, { label: "Made by", value: "Ada" }]);
+    expect(rows.map((row) => row.label)).toEqual(["Title", "Made by", "Grids", "Start", "Asked for", "Reference patch", "Selection target", "Updates"]);
     expect(rows.at(-2)).toEqual({ label: "Selection target", value: "not met" });
     expect(rows.at(-1)).toEqual({ label: "Updates", value: "1,250" });
   });

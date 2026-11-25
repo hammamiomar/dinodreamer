@@ -248,4 +248,24 @@ describe("replay loop in steps per second", () => {
       clock.mockRestore();
     }
   });
+
+  it("takes a new pace from the next frame, and refuses one for a loop that counts frames", async () => {
+    const { replay } = replayStub();
+    const frames = manualFrames();
+    let now = 1000;
+    const clock = vi.spyOn(performance, "now").mockImplementation(() => now);
+    try {
+      const loop = startReplayLoop(replay, { speed: 1, stepsPerSecond: 60, playing: true, schedule: frames.schedule });
+      now += 50; await frames.frame();
+      expect(replay.tick).toBe(3);
+      loop.setStepsPerSecond(240);
+      now += 50; await frames.frame();
+      expect(replay.tick).toBe(15);
+      expect(() => loop.setStepsPerSecond(0)).toThrow(/positive/);
+      const perFrame = startReplayLoop(replayStub().replay, { speed: 1, playing: false, schedule: frames.schedule });
+      expect(() => perFrame.setStepsPerSecond(60)).toThrow(/steps per frame/);
+    } finally {
+      clock.mockRestore();
+    }
+  });
 });
