@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 import { fill, SITE_WORDS } from "../app/site-words";
 import type { MaterialEntry } from "../features/gallery/material-index";
 import { fetchPublishedMaterial, materialFileUrl } from "../features/gallery/material-gallery";
@@ -104,6 +104,8 @@ export const PUBLISHED_SOURCE: MaterialSource = {
 
 /** The panel open under the quiet words: none, or the one the visitor asked for. */
 type StagePanel = "none" | "publish" | "video" | "export" | "options";
+/** The address's fragment that opens the Export panel: the home's link to the embed and the agent brief. */
+export const EXPORT_FRAGMENT = "#export";
 
 /**
  * One automaton on Automata's stage: the cells large in their frame, which is the brush, with the
@@ -143,7 +145,7 @@ export function MaterialStage({ entry, source = PUBLISHED_SOURCE, publishable = 
   const zoom = stageZoom(pictureSide, room);
   const [brush, setBrush] = useState(BRUSH.start);
   const hovering = useRef(false);
-  const [panel, setPanel] = useState<StagePanel>("none");
+  const [panel, setPanel] = useState<StagePanel>(useLocation().hash === EXPORT_FRAGMENT ? "export" : "none");
   const [video, setVideo] = useState(VIDEO);
   const [recording, setRecording] = useState(false);
   const [message, setMessage] = useState("");
