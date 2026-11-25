@@ -26,9 +26,11 @@ describe("site copy helpers and placeholders", () => {
       for (const word of leaves(group)) expect(typeof word).toBe("string");
     }
 
-    expectPlaceholders(SITE_WORDS.home.layerLine, ["layer"]);
-    expectPlaceholders(SITE_WORDS.home.readoutLine, ["update", "strength"]);
-    expectPlaceholders(SITE_WORDS.home.firedLine, ["update", "wins"]);
+    expectPlaceholders(SITE_WORDS.home.properties.openGroup, ["block"]);
+    expectPlaceholders(SITE_WORDS.home.collection.heading, ["lit", "total", "unlit"]);
+    expectPlaceholders(SITE_WORDS.home.collection.cloudSummary, ["patches"]);
+    expectPlaceholders(SITE_WORDS.home.train.tableCaption, ["filled", "total", "block"]);
+    expectPlaceholders(SITE_WORDS.home.keep.parameters, ["count"]);
     expectPlaceholders(SITE_WORDS.home.kind, ["rule"]);
     expectPlaceholders(SITE_WORDS.stage.readingToward, ["band"]);
     expectPlaceholders(SITE_WORDS.stage.readingStrength, ["strength"]);

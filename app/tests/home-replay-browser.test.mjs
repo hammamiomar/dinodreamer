@@ -47,7 +47,6 @@ test("recorded grids resume at their tick and match the poster and CPU update", 
         context.drawImage(picture, 0, 0);
         const posterDifference = maximumDifference(await replay.readPixels(), context.getImageData(0, 0, 128, 128).data);
         replay.dispose();
-        // A small grid exercises both buffers and the recorded fire-mask tick cheaply.
         let expected = { fine: record.fine.state.slice(0, 8 * 8 * 16), coarse: record.coarse.state.slice(0, 4 * 4 * 16) };
         replay = await createFigureReplay({ device, side: 8, seed: record.replay.seed, initialState: { tick: 600, ...expected } }, rule, FIGURE_SHADERS);
         const errors = [];
@@ -68,108 +67,83 @@ test("recorded grids resume at their tick and match the poster and CPU update", 
     assert.equal(result.resumedTick, 603);
     assert.equal(result.reset, 0);
     assert.equal(result.resetTick, 0);
-    console.log("Recorded state:", result);
   } finally { await page.close(); }
 });
 
 for (const width of [390, 1440]) {
-  test(`fast training-to-end scrolling starts from tick 600 without hidden updates at ${width}px`, async () => {
+  test(`stage automata run when their section is active and pause when scrolled away at ${width}px`, async () => {
     const page = await browser.newPage({ viewport: { width, height: 900 } });
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
-    const diagnostics = [];
-    page.on("console", (message) => {
-      if (["warning", "error"].includes(message.type())) diagnostics.push(message.text());
-    });
-    page.on("response", (response) => {
-      if (response.status() >= 400) diagnostics.push(response.status() + " " + new URL(response.url()).pathname);
-    });
     try {
       await page.addInitScript(() => {
-        window.recordedQueues = [];
+        window.bufferTicks = new Map();
         const writeBuffer = GPUQueue.prototype.writeBuffer;
-        GPUQueue.prototype.writeBuffer = function(buffer, offset, data, ...rest) {
-          let record = window.recordedQueues.find((item) => item.queue === this);
-          if (buffer.label === "figure state 0") {
-            if (!record) { record = { queue: this, ticks: [] }; window.recordedQueues.push(record); }
-          }
-          if (record && buffer.label === "figure ticks") {
-            const bytes = ArrayBuffer.isView(data) ? data.buffer : data;
-            record.ticks.push({ tick: new Uint32Array(bytes)[2], beat: document.querySelector(".home")?.dataset.beat, time: performance.now() });
+        GPUQueue.prototype.writeBuffer = function (buffer, offset, data, ...rest) {
+          if (buffer.label === "figure ticks") {
+            const beat = document.querySelector(".home")?.dataset.beat;
+            const entry = window.bufferTicks.get(buffer) ?? { firstBeat: beat, count: 0 };
+            entry.count += 1;
+            window.bufferTicks.set(buffer, entry);
           }
           return writeBuffer.call(this, buffer, offset, data, ...rest);
         };
       });
       await page.goto(base);
-      // The end's grids load as the reader approaches it: on the training beat, one section before.
-      await page.locator('.home-beat[data-beat="automaton"]').waitFor({ state: "attached" });
-      await page.evaluate(() => document.querySelector('.home-beat[data-beat="automaton"]').scrollIntoView());
-      await page.waitForFunction(() => document.querySelector(".home").dataset.beat === "automaton");
-      const field = page.locator(".home-layer").last().locator(".home-field");
-      await field.locator("canvas").waitFor({ state: "attached" });
-      await page.waitForFunction(() => document.querySelector(".home-layer:last-child .home-field")?.hasAttribute("data-live"));
-      assert.equal(await page.evaluate(() => window.recordedQueues.length), 1);
-      assert.equal(await page.evaluate(() => window.recordedQueues[0].ticks.length), 0);
-      const started = await page.evaluate(() => { document.querySelector(".home-end").scrollIntoView(); return performance.now(); });
-      await page.waitForFunction(() => window.recordedQueues[0].ticks.length >= 2);
-      const ticks = await page.evaluate(() => window.recordedQueues[0].ticks.slice(0, 2));
-      // The home steps by time, 60 ticks a second; a frame counts for at most 100 ms (replay-loop.ts),
-      // so the first update covers 1 to 6 ticks, and the paused time is not made up.
-      assert.deepEqual(ticks.map(({ beat }) => beat), ["end", "end"]);
-      assert.equal(ticks[0].tick, 600);
-      assert.ok(ticks[1].tick > 600 && ticks[1].tick <= 606, JSON.stringify(ticks));
-      assert.equal(await field.getAttribute("data-live"), "true");
-      assert.match(await field.evaluate((element) => element.style.backgroundImage), /picture-128\.png/);
-      await page.evaluate(() => document.querySelector('.home-beat[data-beat="automaton"]').scrollIntoView());
-      await page.waitForFunction(() => document.querySelector(".home").dataset.beat === "automaton");
-      // Allow an update already submitted at the transition to finish, then verify the pause.
-      await page.waitForTimeout(200);
-      const paused = await page.evaluate(() => window.recordedQueues[0].ticks.length);
-      await page.waitForTimeout(200);
-      assert.equal(await page.evaluate(() => window.recordedQueues[0].ticks.length), paused);
+      await page.locator('.home-beat[data-beat="properties"]').waitFor({ state: "attached" });
+      await page.evaluate(() => document.querySelector('.home-beat[data-beat="properties"]').scrollIntoView());
+      await page.waitForFunction(() => document.querySelector(".home")?.dataset.beat === "properties");
+      await page.waitForFunction(() => document.querySelector(".home-properties-automaton .home-field")?.hasAttribute("data-live"));
+      await page.waitForFunction(() => [...window.bufferTicks.values()].some((item) => item.firstBeat === "properties" && item.count >= 1));
+
+      // Scroll away to collection and verify the properties stage's own replay stops advancing.
+      await page.evaluate(() => document.querySelector('.home-beat[data-beat="collection"]').scrollIntoView());
+      await page.waitForFunction(() => document.querySelector(".home")?.dataset.beat === "collection");
+      await page.waitForTimeout(250);
+      const countAtPause = await page.evaluate(() =>
+        [...window.bufferTicks.values()].filter((item) => item.firstBeat === "properties").reduce((sum, item) => sum + item.count, 0),
+      );
+      assert.ok(countAtPause >= 1);
+      await page.waitForTimeout(250);
+      const countAfterWait = await page.evaluate(() =>
+        [...window.bufferTicks.values()].filter((item) => item.firstBeat === "properties").reduce((sum, item) => sum + item.count, 0),
+      );
+      assert.equal(countAfterWait, countAtPause);
       assert.deepEqual(errors, []);
-      console.log(`${width}px first update after a direct scroll: ${(ticks[0].time - started).toFixed(1)} ms; no catch-up updates`);
-    } catch (error) {
-      console.error("Home replay at failure", await page.locator(".home-layer").last().textContent({ timeout: 2000 }), { errors, diagnostics });
-      throw error;
     } finally { await page.close(); }
   });
 }
 
-test("an untouched entrance downloads none of the figures below it", async () => {
+test("an untouched entrance downloads none of the cloud records below it", async () => {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   const below = [];
-  page.on("request", (request) => { if (/grid-(fine|coarse)-600|\/story\/.*\.webp/.test(request.url())) below.push(new URL(request.url()).pathname); });
+  page.on("request", (request) => {
+    if (/atlas-clouds\/.*\.bin/.test(request.url())) below.push(new URL(request.url()).pathname);
+  });
   try {
     await page.goto(base);
     await page.locator(".home-down").waitFor();
-    // The entrance's own files have arrived; give a late request time to appear.
     await page.waitForLoadState("networkidle");
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(600);
     assert.deepEqual(below, []);
-    // On the basis beat the training strip loads; on the training beat the end's grids load.
-    await page.evaluate(() => document.querySelector('.home-beat[data-beat="automaton"]').scrollIntoView());
-    await page.waitForFunction(() => document.querySelector(".home").dataset.beat === "automaton");
-    await page.waitForFunction(() => document.querySelector(".home-strip img") !== null);
-    await page.waitForFunction(() => document.querySelector(".home-layer:last-child .home-field")?.hasAttribute("data-live"));
-    assert.ok(below.some((path) => /grid-fine-600/.test(path)), JSON.stringify(below));
-    assert.ok(below.some((path) => /\/story\/.*\.webp/.test(path)), JSON.stringify(below));
+
+    await page.evaluate(() => document.querySelector('.home-beat[data-beat="properties"]').scrollIntoView());
+    await page.waitForFunction(() => document.querySelector(".home")?.dataset.beat === "properties");
+    await page.waitForFunction(() => document.querySelectorAll(".home-properties .home-patch-picture img").length > 0);
+    assert.ok(below.length > 0);
   } finally { await page.close(); }
 });
 
 for (const mode of ["reduced motion", "no WebGPU"]) {
-  test(`${mode} keeps the matching poster and does not fetch recorded grids`, async () => {
+  test(`${mode} keeps still posters without starting WebGPU canvases`, async () => {
     const page = await browser.newPage({ reducedMotion: mode === "reduced motion" ? "reduce" : "no-preference" });
-    const grids = [];
-    page.on("request", (request) => { if (/grid-(fine|coarse)-600/.test(request.url())) grids.push(request.url()); });
     try {
       if (mode === "no WebGPU") await page.addInitScript(() => { delete Navigator.prototype.gpu; });
       await page.goto(base);
-      await page.locator(".home-layer:last-child .home-field").waitFor({ state: "attached" });
-      await page.evaluate(() => document.querySelector(".home-end").scrollIntoView());
-      await page.waitForFunction(() => document.querySelector(".home").dataset.beat === "end");
-      assert.equal(await page.locator(".home-layer:last-child canvas").count(), 0);
-      assert.deepEqual(grids, []);
+      await page.locator(".home-down").waitFor();
+      await page.evaluate(() => document.querySelector('.home-beat[data-beat="keep"]').scrollIntoView());
+      await page.waitForFunction(() => document.querySelector(".home")?.dataset.beat === "keep");
+      assert.equal(await page.locator(".home-field canvas").count(), 0);
     } finally { await page.close(); }
   });
 }

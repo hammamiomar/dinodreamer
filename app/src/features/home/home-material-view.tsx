@@ -21,7 +21,7 @@ import { REPLAY_DEFAULT_SPEED } from "../../replay/replay-loop";
 import { openStageSession, type StageSession } from "../../replay/stage-session";
 import { figurePlayback, type FigureMaterial } from "../../materials/material-file";
 import { SAMPLE_EVERY_TICKS, sampledAccent } from "../../ui/sampled-accent";
-import { canvasPixelRatio, pageScale } from "../../ui/page-scale";
+import { canvasPixelRatio, pagePointer, pageScale } from "../../ui/page-scale";
 import { materialFileUrl } from "../gallery/material-gallery";
 import type { MaterialEntry } from "../gallery/material-index";
 import { nextSeed, REGROW_AT_TICK, strokeOnTorus, tiledCanvas } from "./home-material";
@@ -287,6 +287,7 @@ export function HomeMaterial({
   drawRatio = Number.POSITIVE_INFINITY,
   posterWhileRunning = true,
   brush = true,
+  brushRing = false,
   carryCells = false,
   onNoReplay,
   regrowAtTick = REGROW_AT_TICK,
@@ -310,6 +311,8 @@ export function HomeMaterial({
   posterWhileRunning?: boolean;
   /** Whether the canvas is the brush. False where the page wants the growth watched, not touched. */
   brush?: boolean;
+  /** Whether a mouse pointer over the live canvas shows a 1 px ring at the brush's cell diameter. */
+  brushRing?: boolean;
   /**
    * Whether another automaton's material takes over the running cells (the relay, home-relay.ts)
    * instead of starting from its own start. Its other settings are fixed for the field's life.
@@ -325,6 +328,7 @@ export function HomeMaterial({
   const field = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const spareCanvas = useRef<HTMLCanvasElement>(null);
+  const ring = useRef<HTMLSpanElement>(null);
   const runs = useRef<FieldRuns>({ shown: null, next: null, relays: 0 });
   const visible = useRef(true);
   const requestedPlaying = useRef(playing);
@@ -430,7 +434,19 @@ export function HomeMaterial({
     const ratio = event.currentTarget.width / box.width / (runs.current.shown?.scale ?? 1);
     return { x: (event.clientX - box.left) * ratio, y: (event.clientY - box.top) * ratio };
   };
+  const hideRing = () => {
+    if (ring.current) delete ring.current.dataset.visible;
+  };
+  const showRing = (event: PointerEvent<HTMLCanvasElement>) => {
+    const area = field.current;
+    if (!brushRing || event.pointerType !== "mouse" || !ring.current || !area) return;
+    const pointer = pagePointer(event, area);
+    ring.current.style.left = `${pointer.x}px`;
+    ring.current.style.top = `${pointer.y}px`;
+    ring.current.dataset.visible = "";
+  };
   const stroke = (event: PointerEvent<HTMLCanvasElement>) => {
+    showRing(event);
     if (event.buttons === 0 || !last.current) return;
     const next = cellAt(event);
     const { x0, y0, x1, y1 } = strokeOnTorus(last.current, next, side);
@@ -440,17 +456,20 @@ export function HomeMaterial({
   };
 
   const tile = cellPixels === null ? undefined : `${side * cellPixels}px`;
+  const ringDiameter = cellPixels === null ? 24 : Math.max(12, Math.round(2 * ((BRUSH_RADIUS * side) / 128) * cellPixels));
   // A replay that has stopped (a lost device) gives the poster back under its message.
   const poster = !material || posterWhileRunning || message !== "";
   const canvasProps = {
     "aria-label": fill(brush ? WORDS.canvasLabel : WORDS.canvasStill, { block: onField.block }),
     onPointerDown: brush ? (event: PointerEvent<HTMLCanvasElement>) => {
       event.currentTarget.setPointerCapture(event.pointerId);
+      showRing(event);
       last.current = cellAt(event);
     } : undefined,
     onPointerMove: brush ? stroke : undefined,
     onPointerUp: brush ? () => { last.current = null; } : undefined,
-    onPointerCancel: brush ? () => { last.current = null; } : undefined,
+    onPointerLeave: brush ? hideRing : undefined,
+    onPointerCancel: brush ? () => { last.current = null; hideRing(); } : undefined,
   };
   return (
     <div className="home-material" style={accent ? ({ "--sampled": accent } as CSSProperties) : undefined}>
@@ -466,6 +485,14 @@ export function HomeMaterial({
         {material && <canvas ref={canvas} {...canvasProps} />}
         {/* The relay's second canvas: the next automaton starts on it, hidden, from the shown cells. */}
         {material && carryCells && <canvas ref={spareCanvas} {...canvasProps} />}
+        {material && brush && brushRing && (
+          <span
+            ref={ring}
+            className="home-brush-ring"
+            aria-hidden="true"
+            style={{ width: ringDiameter, height: ringDiameter }}
+          />
+        )}
       </div>
       {children}
       {message && <p className="home-material-note" role="status">{message}</p>}

@@ -1,17 +1,16 @@
 /*
- * The home (home-page.tsx): the words column at the left scrolling through five sections, the panel
- * at the right stuck to the window and reaching its top, right and bottom edges. The header is out
- * of view on the entrance and slides in after it (styles.css, .site[data-home]). Sizes sit on the
- * 64 px module. The automaton's field is home-material.css. Nothing is drawn on a material's cells.
+ * The home (home-page.tsx): on wide screens (>= 1024 px), a scrolling words column over the lattice
+ * paired with a pure-black sticky right-hand optical stage (home-panel.tsx). On narrow screens
+ * (<= 1023 px), the entrance shows the living field over the title and doors, and each scene below
+ * places its interactive stage directly beneath its prose.
+ *
+ * Typography uses only the four Paper Mono sizes (--s-1, --s0, --s1, --s2). Edges and spacing sit on
+ * the 64 px module (--m), 16 px patch (--patch), and 8 px baselines. Nothing is drawn over cells.
  */
 
 .home {
   --home-words: 448px;
-  /* The window's height as a page length: the site is drawn at --page-scale (styles.css), and a viewport unit inside it scales too. */
-  /* The small viewport: the window with a phone browser's bars shown. It stays fixed while the bars
-     hide during a scroll, so the panel and the sections never resize under the finger. */
   --window: calc(100svh / var(--page-scale));
-  /* The panel's width: the window less the band's edge, the words and a module. The words sit centred in the room left of it. */
   --home-panel: calc(100% - var(--edge) - var(--home-words) - var(--m));
   display: grid;
   grid-column: full;
@@ -24,11 +23,10 @@
   grid-column: 2;
   grid-row: 1;
   min-width: 0;
-  /* The title is sized to the column's width (cqw). */
   container-type: inline-size;
 }
 
-/* The panel: the whole window beside the words, held while they scroll; its ground covers the lattice. */
+/* Sticky pure-black stage on the right; a 1 px left rule separates it from the lattice after the entrance. */
 .home-panel {
   position: sticky;
   top: 0;
@@ -37,9 +35,15 @@
   height: var(--window);
   overflow: hidden;
   background: var(--black);
+  border-left: 1px solid transparent;
 }
 
-/* The entrance: the site's name across the top of the column, as large as the column allows, the four links centred under it. */
+.home-panel[data-framed] {
+  border-left-color: var(--line);
+}
+
+/* --- Entrance: pure negative space, centered doors, minimal foot --- */
+
 .home-entrance {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
@@ -48,7 +52,6 @@
   padding-block: var(--m);
 }
 
-/* The display face, fitted to the column: eleven characters of the mono face at about 0.56 em each, 104 px at most. */
 .home-title {
   color: var(--ink);
   font-size: min(var(--s2), calc(100cqw / 6.2));
@@ -69,12 +72,22 @@
 .home-end .home-links {
   justify-items: start;
   text-align: left;
+  margin-top: var(--space-6);
 }
 
-/*
- * The column's foot: the chevron down at the bottom, the hint that the page goes on, and the arrows
- * that turn the entrance's automaton close above it. The two are one group, apart from the links.
- */
+.home-links a {
+  color: var(--ink);
+  font-size: var(--s1);
+  line-height: var(--lh1);
+  letter-spacing: -0.02em;
+  text-decoration: none;
+}
+
+.home-links a:hover {
+  text-decoration: underline;
+  text-underline-offset: 6px;
+}
+
 .home-foot {
   display: grid;
   gap: var(--space-1);
@@ -116,19 +129,6 @@
   color: var(--ink-3);
 }
 
-.home-links a {
-  color: var(--ink);
-  font-size: var(--s1);
-  line-height: var(--lh1);
-  letter-spacing: -0.02em;
-  text-decoration: none;
-}
-
-.home-links a:hover {
-  text-decoration: underline;
-  text-underline-offset: 6px;
-}
-
 .home-note {
   grid-row: 3;
   margin: var(--patch) 0 0;
@@ -136,12 +136,13 @@
   color: var(--ink-3);
 }
 
-/* A beat: one window, its words centred. */
-.home-beat,
-.home-end {
+/* --- Left-column scrolling beats --- */
+
+.home-beat {
   display: grid;
   align-content: center;
   min-height: var(--window);
+  scroll-margin-top: 0;
 }
 
 .home-beat-words {
@@ -160,11 +161,15 @@
   color: var(--ink-2);
 }
 
-.home-end .home-links {
-  margin-top: var(--patch);
+.home-doors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
 }
 
-/* The panel's layers, one per beat, cross-faded; only the shown one takes the pointer. */
+/* --- Right-hand panel layers & shared stage frame --- */
+
 .home-layer {
   position: absolute;
   inset: 0;
@@ -177,7 +182,6 @@
   pointer-events: auto;
 }
 
-/* The automaton fills the panel; the figures sit centred under the header's room. */
 .home-layer-live .home-material,
 .home-layer-live .home-field {
   height: 100%;
@@ -187,113 +191,552 @@
   display: none;
 }
 
-/* A replay that stopped says so inside the panel, at its foot. */
 .home-layer-live .home-material-note {
   top: auto;
   bottom: var(--patch);
   left: var(--patch);
 }
 
-.home-layer-figure {
+.home-layer-stage {
   display: grid;
   align-content: center;
-  justify-content: center;
-  padding-top: var(--top);
+  justify-items: center;
+  padding: calc(var(--top) + var(--space-6)) var(--m) var(--space-6);
+  overflow-y: auto;
 }
 
-.home-figure {
-  display: grid;
+.home-stage-frame {
+  display: flex;
+  flex-direction: column;
   gap: var(--patch);
+  width: min(100%, 640px);
+  min-width: 0;
+}
+
+/* Compact 12 px segmented tabs inside stages so four named basis groups sit on one crisp line. */
+.home-stage-frame .segmented {
+  gap: 10px var(--patch);
+  padding: 6px 0;
+}
+
+.home-stage-frame .segmented > button {
+  font-size: var(--s-1);
+  line-height: var(--lh-1);
+}
+
+.home-stage-frame .segmented > button::before {
+  bottom: -7px;
+}
+
+.home-stage-caption {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-2) var(--patch);
   margin: 0;
+  font-size: var(--s-1);
+  line-height: var(--lh-1);
+  color: var(--ink-2);
 }
 
-.home-picture {
+/* --- Marked patch thumbnails (shared by Scene 1 and Scene 2) --- */
+
+.home-patch-picture {
   position: relative;
+  display: block;
+  aspect-ratio: 1;
+  overflow: hidden;
+  background: var(--line-faint);
 }
 
-.home-neighbourhood {
+.home-patch-picture img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.home-patch-picture i {
   position: absolute;
-  box-sizing: border-box;
-  border: 1px dashed var(--ink);
+  width: 6.25%;
+  aspect-ratio: 1;
+  outline: 1px solid #fff;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.7);
   pointer-events: none;
 }
 
-.home-caption {
+/* --- Scene 1: Photographs vs. Grown Automaton --- */
+
+.home-properties-pair {
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-6);
+  align-items: start;
+}
+
+.home-properties-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.home-patch-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px;
+  width: 100%;
+  aspect-ratio: 1;
+  border: 1px solid var(--line);
+  background: var(--black);
+}
+
+.home-square-placeholder {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  padding: var(--patch);
+  border: 1px solid var(--line);
+  text-align: center;
+  font-size: var(--s-1);
+}
+
+.home-properties-automaton {
+  width: 100%;
+  aspect-ratio: 1;
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.home-properties-automaton .home-material,
+.home-properties-automaton .home-field {
+  width: 100%;
+  height: 100%;
+}
+
+.home-properties-automaton .home-field-ticks {
+  display: none;
+}
+
+.home-properties-controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* --- Scene 2: 16,384 Basis Groups Coverage & Specimen --- */
+
+.home-coverage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.home-coverage-numbers {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-2) var(--patch);
+  font-size: var(--s-1);
+  line-height: var(--lh-1);
+}
+
+.home-coverage-bar {
+  display: flex;
+  width: 100%;
+  height: 8px;
+  border: 1px solid var(--line-2);
+  background: var(--line-faint);
+}
+
+.home-coverage-fill {
+  display: block;
+  height: 100%;
+  background: var(--ink);
+}
+
+.home-specimen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--patch);
+  padding: var(--patch);
+  border: 1px solid var(--line);
+  background: var(--black);
+}
+
+.home-specimen-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.home-specimen-identity {
+  display: flex;
+  flex-direction: column;
   gap: 4px;
-  min-height: 40px;
-  margin: 0;
+}
+
+.home-specimen-cloud {
+  position: relative;
+  border: 1px solid var(--line);
+  padding: var(--space-2);
+}
+
+.home-specimen-cloud svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.home-specimen-axis {
+  stroke: var(--line);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.home-specimen-ring {
+  fill: rgb(255 255 255 / 0.03);
+  stroke: var(--ink-3);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.home-specimen-points {
+  fill: none;
+  stroke-width: 4.8;
+  stroke-linecap: round;
+  opacity: 0.95;
+}
+
+.home-specimen-points[data-band="barely"] {
+  stroke: var(--barely);
+}
+
+.home-specimen-points[data-band="weakly"] {
+  stroke: var(--weakly);
+}
+
+.home-specimen-points[data-band="strongly"] {
+  stroke: var(--strongly);
+}
+
+.home-specimen-points[data-band="strongest"] {
+  stroke: var(--strongest);
+}
+
+.home-specimen-points[data-dimmed] {
+  opacity: 0.14;
+}
+
+.home-specimen-cloud-note {
+  display: block;
+  margin-top: 4px;
   font-size: var(--s-1);
   line-height: var(--lh-1);
   color: var(--ink-3);
 }
 
-/* The cloud's label hangs under its figure (ui/atlas-cloud-figure.css), so the caption keeps clear of it. */
-.home-cloud {
-  position: relative;
-  margin-bottom: var(--patch);
+.home-specimen-levels {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
 }
 
-/* The levels arrive in order with the beat's progress (home-panel.tsx, data-arrived 0 to 5), the lit point last. */
-.home-cloud .cloud-figure-band,
-.home-cloud .cloud-figure-lit,
-.home-cloud .cloud-figure-label {
-  opacity: 0;
+.home-specimen-level {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  cursor: default;
 }
 
-.home-cloud:not([data-arrived="0"]) .cloud-figure-band[data-band="barely"],
-.home-cloud:is([data-arrived="2"], [data-arrived="3"], [data-arrived="4"], [data-arrived="5"]) .cloud-figure-band[data-band="weakly"],
-.home-cloud:is([data-arrived="3"], [data-arrived="4"], [data-arrived="5"]) .cloud-figure-band[data-band="strongly"],
-.home-cloud:is([data-arrived="4"], [data-arrived="5"]) .cloud-figure-band[data-band="strongest"],
-.home-cloud[data-arrived="5"] .cloud-figure-lit,
-.home-cloud[data-arrived="5"] .cloud-figure-label {
-  opacity: 1;
+.home-specimen-level-pictures {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px;
+  padding-bottom: 6px;
+  margin-bottom: 2px;
+  border-bottom: 2px solid var(--level-line, var(--barely));
 }
 
-.home-strip {
-  position: relative;
-  overflow: hidden;
+.home-specimen-level[data-band="barely"] {
+  --level-line: var(--barely);
+}
+
+.home-specimen-level[data-band="weakly"] {
+  --level-line: var(--weakly);
+}
+
+.home-specimen-level[data-band="strongly"] {
+  --level-line: var(--strongly);
+}
+
+.home-specimen-level[data-band="strongest"] {
+  --level-line: var(--strongest);
+}
+
+.home-specimen-level-name {
+  font-size: var(--s-1);
+  line-height: var(--lh-1);
+  color: var(--ink-2);
+}
+
+.home-specimen-skeleton {
+  height: 288px;
   border: 1px solid var(--line);
+  background: var(--line-faint);
 }
 
-.home-strip img {
-  position: absolute;
-  top: 0;
-  max-width: none;
+.home-specimen-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--patch);
+}
+
+/* --- Scene 3: Train Preview & Starts × Methods Matrix --- */
+
+.home-train-preview {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  gap: var(--space-6);
+  align-items: center;
+  padding-bottom: var(--patch);
+  border-bottom: 1px solid var(--line);
+}
+
+.home-train-player {
+  width: 160px;
+  height: 160px;
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.home-train-player .home-material,
+.home-train-player .home-field {
+  width: 100%;
+  height: 100%;
+}
+
+.home-train-player .home-field-ticks {
+  display: none;
+}
+
+.home-train-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.home-train-meta p {
+  margin: 0;
+}
+
+.home-train-group {
+  align-self: flex-start;
+  font-size: var(--s-1);
+  line-height: var(--lh-1);
+  color: var(--ink-2);
+}
+
+.home-train-recipe {
+  font-size: var(--s0);
+  line-height: var(--lh0);
+  color: var(--ink);
+}
+
+.home-train-credit {
+  font-size: var(--s-1);
+  line-height: var(--lh-1);
+  color: var(--ink-2);
+}
+
+.home-train-scroll {
+  overflow-x: auto;
+}
+
+.home-train-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: var(--s-1);
+  line-height: var(--lh-1);
+}
+
+.home-train-table th,
+.home-train-table td {
+  padding: var(--space-2);
+  border: 1px solid var(--line);
+  text-align: left;
+  vertical-align: middle;
+  font-weight: 400;
+}
+
+.home-train-corner {
+  width: 112px;
+  vertical-align: bottom;
+}
+
+.home-train-band {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.home-train-col {
+  color: var(--ink-2);
+}
+
+.home-train-row {
+  color: var(--ink-2);
+}
+
+.home-matrix-cell {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 1;
+  max-width: 96px;
+  margin-inline: auto;
+  padding: 0;
+  border: 1px solid var(--line-2);
+  background: var(--black);
+  color: var(--ink-2);
+  font-size: var(--s-1);
+  line-height: var(--lh-1);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.home-matrix-cell img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
   image-rendering: pixelated;
 }
 
-/* Continuity: the layers and the cloud's levels fade on the move curve; the scrubs themselves only move with the scroll. */
+.home-matrix-cell[aria-pressed="true"] {
+  border-color: var(--ink);
+  outline: 1px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.home-matrix-open {
+  border-style: dashed;
+  background: var(--line-faint);
+}
+
+.home-matrix-cell:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+/* --- Scene 4: Standalone Custom-Element Embed --- */
+
+.home-keep-canvas {
+  position: relative;
+  width: 100%;
+  height: 240px;
+  border: 1px solid var(--line);
+  background-color: var(--black);
+  background-repeat: repeat;
+  background-size: 240px 240px;
+  image-rendering: pixelated;
+  overflow: hidden;
+}
+
+/* Size the custom element via parent selector so React 18's `classname` attribute is unnecessary. */
+.home-keep-canvas > * {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.home-keep-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  font-size: var(--s-1);
+  line-height: var(--lh-1);
+  color: var(--ink-2);
+}
+
+.home-keep-snippet {
+  max-width: 100%;
+  margin: 0;
+  padding: var(--space-3) var(--patch);
+  border: 1px solid var(--line);
+  background: var(--black);
+  color: var(--ink);
+  font: 400 var(--s-1) / var(--lh0) var(--mono);
+  overflow-x: auto;
+}
+
+.home-keep-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.home-keep-feedback {
+  margin: 0;
+  font-size: var(--s-1);
+  line-height: var(--lh-1);
+  color: var(--ink-2);
+}
+
+/* --- Motion continuity --- */
+
 @media (prefers-reduced-motion: no-preference) {
   .home-layer,
-  .home-cloud .cloud-figure-band,
-  .home-cloud .cloud-figure-lit,
-  .home-cloud .cloud-figure-label {
-    transition: opacity var(--motion-move);
+  .home-panel,
+  .home-specimen-points {
+    transition:
+      opacity var(--motion-move),
+      border-color var(--motion-move);
   }
 }
 
-/* Narrow: one column, the panel stuck at the top at 60 % of the window, the words under it in the band. */
+/* --- Narrow screens (<= 1023 px): full-bleed entrance top, inline interactive stages --- */
+
 @media (max-width: 1023px) {
   .home {
     display: block;
-  }
-
-  .home-panel {
-    z-index: 1;
-    height: calc(0.6 * var(--window));
+    max-width: 100%;
+    overflow-x: clip;
   }
 
   .home-words {
-    padding-inline: var(--edge);
+    padding-inline: 0;
   }
 
-  /* The lower 40 % of the window holds the title, the links and the foot: the foot keeps a patch above it, and the chevron is a lower hint at the bottom edge. */
   .home-entrance {
-    min-height: calc(0.4 * var(--window));
-    /* Preserve foreground sizing; continue the background under floating browser controls. */
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    min-height: var(--window);
     margin-bottom: max(0px, calc(var(--home-background-height, 100lvh) / var(--page-scale) - var(--window)));
-    padding-block: var(--patch) var(--space-2);
+    padding: 0 var(--edge) var(--patch);
+    container-type: inline-size;
+  }
+
+  .home-narrow-entrance-field {
+    width: calc(100% + 2 * var(--edge));
+    height: calc(0.48 * var(--window));
+    margin-bottom: var(--patch);
+    overflow: hidden;
+  }
+
+  .home-narrow-entrance-field .home-material,
+  .home-narrow-entrance-field .home-field {
+    height: 100%;
+  }
+
+  .home-narrow-entrance-field .home-field-ticks {
+    display: none;
   }
 
   .home-foot {
@@ -301,27 +744,73 @@
   }
 
   .home-down {
-    height: 24px;
+    height: 32px;
   }
 
-  /*
-   * Only the window's lower 40 % shows the words, and they are usually taller than that. Each section
-   * is as tall as its words, so one beat's words follow the last with no empty window between them.
-   * A scroll to a section (the chevron) lands its words under the panel.
-   */
-  .home-beat,
-  .home-end {
-    align-content: start;
+  .home-beat {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
     min-height: 0;
-    scroll-margin-top: calc(0.6 * var(--window));
-  }
-
-  /* The footer follows the end's words: at the page's end both fit under the panel. */
-  .home-end .home-beat-words {
-    padding-bottom: var(--patch);
+    min-width: 0;
+    padding: var(--m) var(--edge);
+    border-top: 1px solid var(--line);
+    scroll-margin-top: var(--top);
   }
 
   .home-beat-words {
-    padding-block: var(--patch) var(--m);
+    min-width: 0;
+    padding-block: 0;
+  }
+
+  .home-inline-stage {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .home-stage-frame {
+    width: 100%;
+  }
+}
+
+/* --- Phone adjustments (<= 640 px) --- */
+
+@media (max-width: 640px) {
+  .home-entrance,
+  .home-beat {
+    padding-inline: var(--patch);
+  }
+
+  .home-narrow-entrance-field {
+    width: calc(100% + 2 * var(--patch));
+  }
+
+  .home-properties-pair {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--patch);
+  }
+
+  .home-specimen-levels {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: var(--patch);
+  }
+
+  .home-train-preview {
+    grid-template-columns: 112px minmax(0, 1fr);
+    gap: var(--patch);
+  }
+
+  .home-train-player {
+    width: 112px;
+    height: 112px;
+  }
+
+  .home-train-table-turned .home-train-corner {
+    width: 44%;
+  }
+
+  .home-keep-canvas {
+    height: 192px;
+    background-size: 192px 192px;
   }
 }
