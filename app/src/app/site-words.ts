@@ -9,11 +9,13 @@ export const SITE_WORDS = {
     picture: "Inspect Picture",
     /** Short label below 1056 px; assistive technology keeps the full label. */
     pictureShortForm: "Inspect",
-    how: "How It Works",
-    /** Short label below 1056 px; assistive technology keeps the full label. */
-    howShortForm: "How",
+    how: "Interactive Guide",
+    /** Short label below 1248 px; assistive technology keeps the full label. */
+    howShortForm: "Guide",
+    essay: "Essay",
+    essayTitle: "Growing cellular automata to visualize DINOv3, on computervision.vision.",
     experimental: "Experimental",
-    /** Short label below 1056 px; assistive technology keeps the full label. */
+    /** Short label below 1248 px; assistive technology keeps the full label. */
     experimentalShortForm: "Lab",
     menu: "Menu",
     navigationName: "Site navigation",
@@ -150,6 +152,20 @@ export const SITE_WORDS = {
       copyHtml: "Copy HTML",
       copiedHtml: "Copied two-line HTML snippet.",
       moreExports: "More exports →",
+    },
+    finale: {
+      essayLabel: "Essay",
+      essayTitle: "Growing cellular automata to visualize DINOv3",
+      essaySummary: "Why dataset patches and pixel optimization mislead us, how cellular-automaton constraints separate what makes a feature fire from what correlates with it, and what tightening and loosening those constraints reveals across 16,384 basis groups.",
+      guideLabel: "Interactive Guide",
+      guideSummary: "Step through this hibiscus picture patch by patch across DINOv3's 12 attention layers, the 3D basis-group map, and the cellular rule.",
+      doorsLabel: "Explore and train",
+      doors: {
+        index: "Browse the Index",
+        automata: "Watch Automata",
+        train: "Train Your Own",
+        picture: "Inspect a Picture",
+      },
     },
     end: "Everything runs on WebGPU in your browser, training included, on a Rust engine built with {burn}.",
     burn: "Burn.rs",
@@ -644,6 +660,8 @@ export const SITE_WORDS = {
   },
 
   footer: {
+    essay: "Essay",
+    essayTitle: "Growing cellular automata to visualize DINOv3, on computervision.vision.",
     site: "computervision.vision",
     siteTitle: "Omar Hammami's site, of which DinoDreamer is one part.",
     code: "GitHub",
@@ -1111,7 +1129,7 @@ export const SITE_WORDS = {
       paragraph: "DINO is a vision transformer that learned to see without labels. It turns a picture into 256 descriptions, one for each patch. A basis collection reads each description with 16,384 small learned spaces, three numbers wide: the basis groups. A cellular automaton is then trained until DINOv3 reads the image it grows as a chosen patch. This page follows one picture of a hibiscus through all three. After it, open the [Index](/index), watch the [Automata](/automata), or [Train](/train) one. The longer account is the write-up, [Growing cellular automata to visualize DINOv3](https://computervision.vision/writing/dinodreamer/).",
     },
     footer: {
-      essay: "Write-up",
+      essay: "Essay",
       author: "Omar Hammami",
     },
   },

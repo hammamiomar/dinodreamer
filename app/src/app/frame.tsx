@@ -10,9 +10,8 @@ import { LibraryReadError } from "../library/library";
 import { EditorSessionProvider, useEditorSession } from "./editor-session";
 import { LibraryDock } from "./library-dock";
 import { TrainTray } from "../grow/train-tray";
-import { SiteFooter } from "./site-footer";
+import { ESSAY_URL, SITE_URL, SiteFooter } from "./site-footer";
 import { SITE_WORDS } from "./site-words";
-import { SITE_URL } from "./site-footer";
 import { engineStartFailedForStaleBuild, reloadForStaleBuild } from "./stale-build";
 import type { PointerEvent, ReactNode, RefObject } from "react";
 
@@ -233,6 +232,16 @@ function FrameLayout({ busy, children }: { busy: boolean; children: ReactNode })
   );
 }
 
+/** Drawn 1 px north-east arrow for external links so mobile platforms never substitute an emoji glyph. */
+export function ExternalMark() {
+  return (
+    <svg className="external-mark" viewBox="0 0 12 12" width="11" height="11" aria-hidden="true">
+      <polyline points="4,2.5 9.5,2.5 9.5,8" fill="none" stroke="currentColor" strokeWidth="1.1" />
+      <line x1="2.5" y1="9.5" x2="9.5" y2="2.5" stroke="currentColor" strokeWidth="1.1" />
+    </svg>
+  );
+}
+
 /** Primary destination links shared by the top header and the Automata wall footer navigation. */
 export function SiteNavLinks({ pathname }: { pathname?: string }) {
   return (
@@ -240,7 +249,7 @@ export function SiteNavLinks({ pathname }: { pathname?: string }) {
       <NavLink to={indexPath()}>{SITE_WORDS.header.explore}</NavLink>
       <NavLink to="/automata">{SITE_WORDS.header.playground}</NavLink>
       <NavLink to="/train">{SITE_WORDS.header.grow}</NavLink>
-      {/* Below 1056 px CSS toggles .frame-nav-full and .frame-nav-short with display: none so visible and accessible labels match. */}
+      {/* Below 1248 px CSS toggles .frame-nav-full and .frame-nav-short with display: none so visible and accessible labels match. */}
       <NavLink to="/picture">
         <span className="frame-nav-full">{SITE_WORDS.header.picture}</span>
         <span className="frame-nav-short">{SITE_WORDS.header.pictureShortForm}</span>
@@ -249,6 +258,10 @@ export function SiteNavLinks({ pathname }: { pathname?: string }) {
         <span className="frame-nav-full">{SITE_WORDS.header.how}</span>
         <span className="frame-nav-short">{SITE_WORDS.header.howShortForm}</span>
       </NavLink>
+      <a href={ESSAY_URL} target="_blank" rel="noreferrer" title={SITE_WORDS.header.essayTitle}>
+        {SITE_WORDS.header.essay}
+        <ExternalMark />
+      </a>
       <NavLink
         to="/canvas"
         className={({ isPending }) => [pathname !== undefined && experimentalPage(pathname) && "active", isPending && "pending"].filter(Boolean).join(" ")}

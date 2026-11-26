@@ -5,6 +5,8 @@
 
 import { SITE_WORDS } from "./site-words";
 
+/** The full research essay on computervision.vision. */
+export const ESSAY_URL = "https://computervision.vision/writing/dinodreamer/";
 /** The author's site, of which this app is one part; the header links it too (frame.tsx). */
 export const SITE_URL = "https://computervision.vision";
 /** The source code of the site, the engine and the Worker. */
@@ -17,6 +19,9 @@ const WORDS = SITE_WORDS.footer;
 export function SiteFooter() {
   return (
     <footer className="site-footer">
+      <a href={ESSAY_URL} target="_blank" rel="noreferrer" title={WORDS.essayTitle}>
+        {WORDS.essay}
+      </a>
       <a href={SITE_URL} target="_blank" rel="noreferrer" title={WORDS.siteTitle}>
         {WORDS.site}
       </a>
