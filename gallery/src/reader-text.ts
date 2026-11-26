@@ -54,7 +54,9 @@ function headerHtml(): string {
     `<a href="/index">${escapeHtml(header.explore)}</a>`,
     `<a href="/automata">${escapeHtml(header.playground)}</a>`,
     `<a href="/train">${escapeHtml(header.grow)}</a>`,
+    `<a href="/picture" aria-label="${escapeHtml(header.picture)}"><span class="frame-nav-full">${escapeHtml(header.picture)}</span><span class="frame-nav-short">${escapeHtml(header.pictureShortForm)}</span></a>`,
     `<a href="/how" aria-label="${escapeHtml(header.how)}"><span class="frame-nav-full">${escapeHtml(header.how)}</span><span class="frame-nav-short">${escapeHtml(header.howShortForm)}</span></a>`,
+    `<a href="${ESSAY_URL}">${escapeHtml(header.essay)}</a>`,
     `<a href="/canvas" aria-label="${escapeHtml(header.experimental)}"><span class="frame-nav-full">${escapeHtml(header.experimental)}</span><span class="frame-nav-short" aria-hidden="true">${escapeHtml(header.experimentalShortForm)}</span></a>`,
     `<a href="${PROJECT_SITE_ORIGIN}" class="frame-nav-site">${escapeHtml(header.site)}</a>`,
   ];

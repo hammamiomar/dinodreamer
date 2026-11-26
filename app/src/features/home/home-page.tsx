@@ -1,9 +1,11 @@
 // The home page (`/`): an untouched negative-space entrance followed by four zero-prerequisite
 // scenes paired with interactive stages on the pure-black right-hand panel (or inline on narrow screens).
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Link } from "react-router";
 import { fillNodes } from "../../app/fill-nodes";
+import { ExternalMark } from "../../app/frame";
+import { ESSAY_URL } from "../../app/site-footer";
 import { fill, SITE_WORDS } from "../../app/site-words";
 import { useManifoldFocus, type ManifoldFocus } from "../../ground/manifold-focus";
 import { DRAWN_AT_RANDOM } from "../../grow/random-group";
@@ -194,6 +196,10 @@ export function HomePage() {
       <Link to="/train">{HEADER.grow}</Link>
       <Link to="/picture">{HEADER.picture}</Link>
       <Link to="/how">{HEADER.how}</Link>
+      <a href={ESSAY_URL} target="_blank" rel="noreferrer" title={HEADER.essayTitle}>
+        {HEADER.essay}
+        <ExternalMark />
+      </a>
     </nav>
   );
 
@@ -401,8 +407,13 @@ export function HomePage() {
           </div>
         </section>
 
-        {/* 5. Finale: closing navigation doors paired with the living hibiscus automaton */}
-        <section ref={section(5)} className="home-end" data-beat="end">
+        {/* 5. Finale: two-path departure (Essay + Interactive Guide, and direct instrument doors) beside the hibiscus */}
+        <section
+          ref={section(5)}
+          className="home-end"
+          data-beat="end"
+          style={endAccent ? ({ "--sampled": endAccent } as CSSProperties) : undefined}
+        >
           {narrow && (
             <div className="home-narrow-entrance-field">
               {endShown && (
@@ -421,8 +432,36 @@ export function HomePage() {
               )}
             </div>
           )}
-          <Link to="/" className="home-title">{SITE_WORDS.frame.wordmark}</Link>
-          {links}
+          <div className="home-end-body">
+            <a
+              href={ESSAY_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="home-end-essay"
+            >
+              <span className="home-end-eyebrow">
+                <span>{WORDS.finale.essayLabel}</span>
+                <ExternalMark />
+              </span>
+              <span className="home-end-essay-title">{WORDS.finale.essayTitle}</span>
+              <span className="home-end-summary">{WORDS.finale.essaySummary}</span>
+            </a>
+
+            <Link to="/how" className="home-end-guide">
+              <span className="home-end-guide-head">
+                <span>{WORDS.finale.guideLabel}</span>
+                <ForwardArrow />
+              </span>
+              <span className="home-end-summary">{WORDS.finale.guideSummary}</span>
+            </Link>
+
+            <nav className="home-end-doors" aria-label={WORDS.finale.doorsLabel}>
+              <Link className="button" to={indexPath()}>{WORDS.finale.doors.index}</Link>
+              <Link className="button" to="/automata">{WORDS.finale.doors.automata}</Link>
+              <Link className="button" to="/train">{WORDS.finale.doors.train}</Link>
+              <Link className="button" to="/picture">{WORDS.finale.doors.picture}</Link>
+            </nav>
+          </div>
           <p className="home-end-note">
             {still ? STILL_WORDS[still] : fillNodes(WORDS.end, {
               burn: <a href={BURN_URL} target="_blank" rel="noreferrer">{WORDS.burn}</a>,
@@ -440,6 +479,16 @@ function Chevron({ direction }: { direction: "left" | "right" | "down" }) {
   return (
     <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
       <polyline points={points} fill="none" stroke="currentColor" strokeWidth="1" />
+    </svg>
+  );
+}
+
+/** Drawn 1 px horizontal arrow for internal guide callouts. */
+function ForwardArrow() {
+  return (
+    <svg className="home-end-arrow" viewBox="0 0 14 14" width="14" height="14" aria-hidden="true">
+      <line x1="2" y1="7" x2="11.5" y2="7" stroke="currentColor" strokeWidth="1.1" />
+      <polyline points="8,3.5 11.5,7 8,10.5" fill="none" stroke="currentColor" strokeWidth="1.1" />
     </svg>
   );
 }

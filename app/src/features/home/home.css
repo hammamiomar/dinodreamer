@@ -44,8 +44,7 @@
 
 /* --- Entrance: pure negative space, centered doors, minimal foot --- */
 
-.home-entrance,
-.home-end {
+.home-entrance {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   justify-items: center;
@@ -54,7 +53,12 @@
 }
 
 .home-end {
+  display: grid;
+  align-content: center;
+  gap: var(--space-6);
+  min-height: var(--window);
   padding-top: calc(var(--top) + var(--space-10));
+  padding-bottom: var(--m);
   border-top: 1px solid var(--line);
 }
 
@@ -69,29 +73,15 @@
 
 .home-links {
   display: grid;
-  gap: 10px;
+  gap: 8px;
   align-self: center;
   justify-items: center;
   text-align: center;
 }
 
-.home-end-note {
-  max-width: 38ch;
-  margin: 0;
-  align-self: end;
-  text-align: center;
-  color: var(--ink-2);
-  font-family: var(--serif);
-  font-size: var(--s0);
-  line-height: 1.5;
-}
-
-.home-end-note a {
-  color: var(--ink);
-  text-underline-offset: 4px;
-}
-
 .home-links a {
+  display: inline-flex;
+  align-items: center;
   color: var(--ink);
   font-size: 34px;
   line-height: 40px;
@@ -99,9 +89,145 @@
   text-decoration: none;
 }
 
+.home-links a .external-mark {
+  width: 17px;
+  height: 17px;
+  margin-left: 8px;
+  opacity: 0.68;
+  transform: translateY(-1px);
+}
+
 .home-links a:hover {
   text-decoration: underline;
   text-underline-offset: 6px;
+}
+
+/* Closing two-path departure beside the living hibiscus. */
+.home-end-body {
+  display: grid;
+  gap: var(--patch);
+  width: 100%;
+}
+
+.home-end-essay,
+.home-end-guide {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 18px 20px 20px;
+  border: 1px solid var(--line-2);
+  background: var(--black);
+  color: var(--ink);
+  text-decoration: none;
+  transition:
+    border-color var(--motion),
+    background-color var(--motion);
+}
+
+.home-end-essay {
+  border-top: 2px solid var(--sampled, var(--strongest));
+}
+
+.home-end-guide {
+  padding: 15px 20px 17px;
+  border-color: var(--line);
+}
+
+.home-end-eyebrow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--sampled, var(--strongest));
+  font-size: var(--s-1);
+  font-weight: 500;
+  line-height: var(--lh-1);
+}
+
+.home-end-eyebrow .external-mark {
+  width: 13px;
+  height: 13px;
+  margin-left: 0;
+  opacity: 0.9;
+}
+
+.home-end-essay-title {
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: 24px;
+  font-weight: 460;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+.home-end-guide-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: 19px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.home-end-arrow {
+  flex: none;
+  color: var(--ink-2);
+}
+
+.home-end-summary {
+  color: var(--ink-2);
+  font-family: var(--serif);
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.home-end-doors {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.home-end-doors .button {
+  width: 100%;
+  padding-inline: 12px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .home-end-essay:hover {
+    border-color: var(--sampled, var(--ink));
+    background: var(--line-faint);
+  }
+
+  .home-end-essay:hover .home-end-essay-title,
+  .home-end-guide:hover .home-end-guide-head > span:first-child {
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+
+  .home-end-guide:hover {
+    border-color: var(--ink-2);
+    background: var(--line-faint);
+  }
+
+  .home-end-guide:hover .home-end-arrow {
+    color: var(--ink);
+  }
+}
+
+.home-end-note {
+  max-width: 44ch;
+  margin: 0;
+  color: var(--ink-3);
+  font-family: var(--serif);
+  font-size: var(--s-1);
+  line-height: var(--lh-1);
+}
+
+.home-end-note a {
+  color: var(--ink-2);
+  text-underline-offset: 3px;
 }
 
 .home-foot {
@@ -969,25 +1095,24 @@
     padding-inline: 0;
   }
 
-  .home-entrance,
-  .home-end {
+  .home-entrance {
     grid-template-rows: auto auto minmax(0, 1fr) auto;
     min-height: var(--window);
     padding: 0 var(--edge) var(--patch);
     container-type: inline-size;
-  }
-
-  .home-entrance {
     margin-bottom: max(0px, calc(var(--home-background-height, 100lvh) / var(--page-scale) - var(--window)));
   }
 
   .home-end {
+    align-content: start;
+    min-height: 0;
+    padding: 0 var(--edge) var(--m);
     border-top: 1px solid var(--line);
   }
 
   .home-narrow-entrance-field {
     width: calc(100% + 2 * var(--edge));
-    height: calc(0.48 * var(--window));
+    height: calc(0.44 * var(--window));
     margin-bottom: var(--patch);
     overflow: hidden;
   }
@@ -1039,12 +1164,26 @@
 
 @media (max-width: 640px) {
   .home-links {
-    gap: 6px;
+    gap: 4px;
   }
 
   .home-links a {
-    font-size: 28px;
-    line-height: 32px;
+    font-size: 26px;
+    line-height: 30px;
+  }
+
+  .home-links a .external-mark {
+    width: 14px;
+    height: 14px;
+    margin-left: 6px;
+  }
+
+  .home-end-essay-title {
+    font-size: 21px;
+  }
+
+  .home-end-doors {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .home-beat-words .heading {
