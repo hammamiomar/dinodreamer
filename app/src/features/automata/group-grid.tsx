@@ -2,20 +2,27 @@
 // thing its training asked for, and in a cell one picture, however many automata share the place. The
 // cell that holds the automaton on the stage is marked and shows that automaton. A phone's grid is
 // turned: the methods run down the page and the starts across it, so a picture keeps a useful size.
-// The grid is one stop for the Tab key; the arrow keys move from cell to cell and play each one.
+// The automata are one stop for the Tab key; the arrow keys move from cell to cell and play each one.
+// An empty place that Train offers is a link to Train with its start and method (trainPathOfPlace), a
+// Tab stop of its own; any other empty place shows a dash.
 
 import { useRef, type CSSProperties, type KeyboardEvent } from "react";
+import { Link } from "react-router";
 import { fill, SITE_WORDS } from "../../app/site-words";
 import type { GalleryMethod, GalleryPlace, GalleryStart } from "../gallery/gallery-place";
 import { samePlace } from "../gallery/gallery-place";
 import { ExplainButton, ExplanationReveal, useExplanation } from "../../ui/explain";
-import { cellAt, cellBeside, methodBands, pictureOfCell, type GalleryAutomaton, type GalleryCell, type GalleryGroup } from "./gallery";
+import { cellAt, cellBeside, methodBands, pictureOfCell, trainPathOfPlace, type GalleryAutomaton, type GalleryCell, type GalleryGroup } from "./gallery";
 
 const WORDS = SITE_WORDS.automata;
 const ARROWS = { ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down" } as const;
 
-/** What one cell of the table shows: its place, its automata when it holds any, and whether the stage plays one of them. */
-function Cell<T extends GalleryAutomaton>({ place, cell, playing, onChoose, caption }: {
+/**
+ * What one cell of the table shows: its automata when it holds any, and whether the stage plays one of
+ * them; else the way to train one there, or a dash where Train does not offer the place.
+ */
+function Cell<T extends GalleryAutomaton>({ group, place, cell, playing, onChoose, caption }: {
+  group: number;
   place: GalleryPlace;
   cell: GalleryCell<T> | null;
   playing: T;
@@ -25,6 +32,14 @@ function Cell<T extends GalleryAutomaton>({ place, cell, playing, onChoose, capt
 }) {
   const names = { start: WORDS.starts[place.start], method: WORDS.methods[place.method] };
   if (cell === null) {
+    const train = trainPathOfPlace(group, place);
+    if (train !== null) {
+      return (
+        <Link className="automata-cell automata-cell-empty automata-cell-train" to={train} aria-label={fill(WORDS.cellTrain, names)}>
+          {WORDS.cellTrainMark}
+        </Link>
+      );
+    }
     return (
       <span className="automata-cell automata-cell-empty" role="img" aria-label={fill(WORDS.cellEmpty, names)}>
         <span aria-hidden="true">{WORDS.cellEmptyMark}</span>
@@ -74,7 +89,7 @@ export function GroupGrid<T extends GalleryAutomaton>({ group, playing, turned, 
 
   const cell = (start: GalleryStart, method: GalleryMethod) => (
     <td key={`${start}/${method}`}>
-      <Cell place={{ start, method }} cell={cellAt(group, { start, method })} playing={playing} onChoose={onChoose} caption={cellCaption} />
+      <Cell group={group.group} place={{ start, method }} cell={cellAt(group, { start, method })} playing={playing} onChoose={onChoose} caption={cellCaption} />
     </td>
   );
   // The columns' title stands over the columns; the rows' title is the table's corner, over the rows' names.

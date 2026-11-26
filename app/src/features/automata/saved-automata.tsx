@@ -1,6 +1,6 @@
 // The visitor's saved automata, on this device (/automata?group=yours): what Train kept, what Save took
-// from a group's stage, and imported files. The same stage plays them; beside it, their pictures, with
-// Import for a file from the device, and Publish and Remove for the one that plays. They are read from
+// from a group's stage, and imported files. The same stage plays them and offers Publish beside Export;
+// beside it, their pictures, with Import for a file from the device, and Remove for the one that plays. They are read from
 // this browser's own store (storage/materials.ts) and never leave it unless the visitor publishes one.
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -10,7 +10,6 @@ import { readFigureMaterial, type FigureMaterial } from "../../materials/materia
 import { MATERIALS_KEPT_EVENT } from "../../replay/keep-material";
 import { MaterialStage, PUBLISHED_SOURCE } from "../../replay/material-stage";
 import { deleteMaterial, keepMaterial, keptMaterials } from "../../storage/materials";
-import { PublishMaterial } from "../gallery/publish-material";
 import { placeOf, type MaterialEntry } from "../gallery/material-index";
 import { keptEntry, withKept } from "./yours";
 import { addressSearch, SAVED_GROUP } from "./gallery";
@@ -100,7 +99,7 @@ export function SavedScreen({ saved }: { saved: SavedAutomata & { refresh: () =>
           <p className="automata-ways"><Link className="link-control" to="/automata">{WORDS.allGroups}</Link></p>
           <h1 className="automata-title"><span className="display">{WORDS.savedTitle}</span></h1>
         </header>
-        {playing && <MaterialStage entries={[playing.entry]} source={source} layout="instrument" />}
+        {playing && <MaterialStage entry={playing.entry} source={source} publishable />}
       </section>
       <div className="automata-pane automata-saved">
         <p className="automata-saved-line">
@@ -126,9 +125,8 @@ export function SavedScreen({ saved }: { saved: SavedAutomata & { refresh: () =>
           ))}
         </ul>
         {playing && (
-          <div key={playing.entry.id} className="automata-saved-actions" role="group" aria-label={playing.entry.title}>
-            <span>{playing.entry.title}</span>
-            <PublishMaterial file={playing.material.file} />
+          <div key={playing.entry.id} className="automata-saved-actions" role="group" aria-label={savedLine(playing.entry)}>
+            <span>{savedLine(playing.entry)}</span>
             <Remove id={playing.entry.id} onRemoved={() => { saved.refresh(); play(null); }} />
           </div>
         )}

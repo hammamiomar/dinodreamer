@@ -1,22 +1,18 @@
-// How the home moves (home-page.tsx): which beat the window is on as the page scrolls, how a beat's
-// figure plays once the beat has arrived, and what each figure shows at a point of its play
-// (home-panel.tsx). Pure, so the page only measures and applies. The browser owns the scroll.
+// How the home moves (home-page.tsx): which beat the window is on as the page scrolls, and which
+// sections may load their files (home-panel.tsx). Pure, so the page only measures and applies.
+// The browser owns the scroll.
 
-/** The page's sections in order: the entrance, the three beats, the end. */
-export const HOME_BEATS = ["entrance", "model", "basis", "automaton", "end"] as const;
+/** The page's sections in order: the entrance, the four scenes, and the closing hibiscus field. */
+export const HOME_BEATS = ["entrance", "properties", "collection", "train", "keep", "end"] as const;
 export type HomeBeat = (typeof HOME_BEATS)[number];
 
 /**
- * The line of the window the page reads at, from its top: the middle of the words' part of it. On a
- * wide window the words have the whole height; on a narrow one the panel takes `panelShare` of it
- * from the top (home.css, 60 %) and the words the rest.
+ * The line of the window the page reads at, from its top: the middle of the words' part of it.
+ * On a wide window the words have the whole height (`panelShare` 0).
  */
-export function readingLine(windowHeight: number, panelShare: number): number {
+export function readingLine(windowHeight: number, panelShare = 0): number {
   return windowHeight * (panelShare + (1 - panelShare) / 2);
 }
-
-/** The panel's share of a narrow window (home.css, .home-panel). */
-export const NARROW_PANEL_SHARE = 0.6;
 
 /**
  * The section the window is on, from the sections' tops in page pixels: the last one whose top is at
@@ -33,9 +29,9 @@ export function sectionAt(tops: readonly number[], scrollY: number, line: number
 }
 
 /**
- * The beats whose figures may load their files, from the furthest section the reader has reached (an index
+ * The beats whose stages may load their files, from the furthest section the reader has reached (an index
  * into HOME_BEATS) and whether the page has scrolled at all. The entrance loads at once. After the first
- * scroll, a beat loads while the reader is one section before it, so its figure is ready when its words
+ * scroll, a beat loads while the reader is one section before it, so its stage is ready when its words
  * arrive. A visitor who stays on the entrance downloads nothing for the sections below it.
  */
 export function approachedBeats(furthest: number, scrolled: boolean): Record<HomeBeat, boolean> {
@@ -44,22 +40,4 @@ export function approachedBeats(furthest: number, scrolled: boolean): Record<Hom
     approached[beat] = at === 0 || (scrolled && at <= furthest + 1);
   });
   return approached;
-}
-
-/** How long a beat's figure plays once the beat has arrived, in milliseconds; 0 where there is nothing to play. */
-export const BEAT_PLAY_MS: Record<HomeBeat, number> = { entrance: 0, model: 4000, basis: 3000, automaton: 6000, end: 0 };
-
-/** The frame for a progress from 0 to 1, of `count` frames: the first at 0, the last at 1. */
-export function frameAt(progress: number, count: number): number {
-  return Math.min(count - 1, Math.max(0, Math.round(progress * (count - 1))));
-}
-
-/** The model's layer the attention is read at, 1 to `layers`, over the play. */
-export function layerAt(progress: number, layers = 12): number {
-  return 1 + frameAt(progress, layers);
-}
-
-/** How much of the cloud has arrived: the four levels in order, then the patch's point; 0 to 5. */
-export function levelsArrived(progress: number): number {
-  return frameAt(progress, 6);
 }

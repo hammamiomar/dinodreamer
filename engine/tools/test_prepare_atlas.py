@@ -10,13 +10,24 @@ import numpy as np
 from prepare_atlas import (
     HEADER,
     PICTURE,
+    POINT_DTYPE,
     allocate_examples,
     choose_pictures,
+    flat_points,
     inspect_record,
     pack_record,
     prepare_block,
+    principal_axes,
     strength_bands,
 )
+
+
+def record_points(data: bytes) -> tuple[np.ndarray, np.ndarray, int]:
+    """A record's stored points, its plane axes [R, 2] and the flat view's point count."""
+    header = HEADER.unpack_from(data)
+    points_N = np.frombuffer(data, dtype=POINT_DTYPE, count=header[3], offset=HEADER.size)
+    axes_R2 = np.asarray(header[20:26], dtype=np.float64).reshape(2, 3).T
+    return points_N, axes_R2, header[26]
 
 
 def source():
@@ -104,11 +115,12 @@ class AtlasPreparationTests(unittest.TestCase):
         fixture, summary = source()
         data = pack_record(fixture, summary)
         self.assertEqual(data, pack_record(fixture, summary))
-        self.assertEqual(HEADER.size, 60)
-        self.assertEqual(data[:4], b"ATC2")
+        self.assertEqual(HEADER.size, 88)
+        self.assertEqual(POINT_DTYPE.itemsize, 7)
+        self.assertEqual(data[:4], b"ATC3")
         header = HEADER.unpack_from(data)
         self.assertEqual(sum(header[8:12]), 16)
-        offset = HEADER.size + header[3] * 5
+        offset = HEADER.size + header[3] * POINT_DTYPE.itemsize
         addresses = [
             PICTURE.unpack_from(data, offset + index * PICTURE.size)
             for index in range(header[4])
@@ -153,9 +165,48 @@ class AtlasPreparationTests(unittest.TestCase):
         data = pack_record(fixture, summary)
         self.assertEqual(data, pack_record(fixture, summary))
         header = HEADER.unpack_from(data)
-        self.assertEqual(header[3], 512)
+        self.assertEqual(header[3], 1024)
+        self.assertEqual(header[26], 512)
         self.assertEqual(header[11], 1)
         self.assertEqual(inspect_record(data)["counts"], [4095, 0, 0, 1])
+
+    def test_points_are_native_codes_and_the_flat_view_is_their_plane(self):
+        fixture, summary = source()
+        generator = np.random.default_rng(23)
+        codes_NR = generator.normal(size=(4096, 3)) * [6.0, 2.0, 0.5] + [9.0, 0.0, 0.0]
+        norms_N = np.linalg.norm(codes_NR, axis=1)
+        fixture["rows"] = [
+            {
+                "code": code.tolist(),
+                "norm": float(norm),
+                "image_id": 2**53 - 1 - index,
+                "slot": 5 + index % 256,
+                "public_preview": True,
+            }
+            for index, (code, norm) in enumerate(zip(codes_NR, norms_N))
+        ]
+        summary["sample"]["rows"] = 4096
+        points_N, axes_R2, flat_count = record_points(pack_record(fixture, summary))
+        self.assertEqual((len(points_N), flat_count), (1024, 512))
+        # Every stored point is one row of the sample, to float16, and no row is stored twice.
+        stored_NR = points_N["code"].astype(np.float64)
+        nearest_N = np.abs(stored_NR[:, None, :] - codes_NR[None, :, :]).sum(axis=2).argmin(axis=1)
+        self.assertEqual(len(set(nearest_N.tolist())), 1024)
+        np.testing.assert_allclose(stored_NR, codes_NR[nearest_N], rtol=6e-4, atol=1e-6)
+        # The axes are those of the whole sample, and the flat view is the leading points in them.
+        np.testing.assert_allclose(axes_R2, principal_axes(codes_NR, np.array([1.0, 0.0, 0.0])), atol=1e-6)
+        np.testing.assert_allclose(
+            flat_points(points_N[:flat_count], axes_R2),
+            codes_NR[nearest_N[:flat_count]] @ axes_R2,
+            atol=0.03,
+        )
+        # The strongest patch of the sample is in the flat view.
+        self.assertIn(int(norms_N.argmax()), nearest_N[:flat_count].tolist())
+
+    def test_a_small_sample_is_stored_whole_in_the_flat_view(self):
+        fixture, summary = source()
+        points_N, _, flat_count = record_points(pack_record(fixture, summary))
+        self.assertEqual((len(points_N), flat_count), (16, 16))
 
 
 if __name__ == "__main__":

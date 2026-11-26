@@ -1,28 +1,41 @@
-import { useRef } from "react";
+import { useRef, type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import { useUploadedPicture } from "../../app/uploaded-picture";
 import "./picture.css";
 
-/** Optional picture exploration from the Index. Reading continues on the picture's own page. */
-export function PictureEntry({ text }: {
-  text: { button: string; choose: string; view: string };
-}) {
+/**
+ * The door to Your picture: a button that opens the file chooser. The chosen picture is read on this
+ * device, and its page, /picture, opens. The home, Train, the Index and the picture page share it.
+ */
+export function ChoosePictureButton({ className, children }: { className: string; children: ReactNode }) {
   const upload = useUploadedPicture();
   const input = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const location = useLocation();
-  const to = picturePath(location.search);
   return (
-    <div className="picture-entry">
-      {upload.picture && <Link className="link-control" to={to}>{text.view}</Link>}
-      <input ref={input} type="file" accept="image/*" aria-label={text.choose} hidden onChange={(event) => {
+    <>
+      <input ref={input} type="file" accept="image/*" hidden onChange={(event) => {
         const file = event.currentTarget.files?.[0];
         event.currentTarget.value = "";
         if (!file) return;
         void upload.choose(file);
-        navigate(to);
+        navigate(picturePath(location.search));
       }} />
-      <button type="button" className="link-control" onClick={() => input.current?.click()}>{text.button}</button>
+      <button type="button" className={className} onClick={() => input.current?.click()}>{children}</button>
+    </>
+  );
+}
+
+/** Optional picture exploration from the Index. Reading continues on the picture's own page. */
+export function PictureEntry({ text }: {
+  text: { button: string; view: string };
+}) {
+  const upload = useUploadedPicture();
+  const location = useLocation();
+  return (
+    <div className="picture-entry">
+      {upload.picture && <Link className="link-control" to={picturePath(location.search)}>{text.view}</Link>}
+      <ChoosePictureButton className="button">{text.button}</ChoosePictureButton>
     </div>
   );
 }

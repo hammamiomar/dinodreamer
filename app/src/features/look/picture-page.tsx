@@ -1,14 +1,14 @@
 import { useCallback, useMemo, useRef, useState, type CSSProperties } from "react";
-import { Link, useNavigation, useOutlet } from "react-router";
+import { useNavigation, useOutlet } from "react-router";
 import { useLibrary } from "../../app/library-session";
 import { useUploadedPicture } from "../../app/uploaded-picture";
 import { useLoaded } from "../../ui/use-loaded";
 import { GRID, PATCH_SLOT_OFFSET } from "../../recipe";
 import { ResponseView } from "../../ui/responses";
-import { indexPath } from "../atlas/atlas-position";
 import { BasisGroupLink } from "./basis-group-panel";
 import { BasisGroupLinkLabel } from "../../ui/basis-group-link-label";
 import { LOOK_TEXT } from "./look-text";
+import { ChoosePictureButton } from "./picture-entry";
 import { firingCells } from "./strongest-blocks";
 import { PatchMap } from "./patch-map";
 import { GroupLevels, LEVELS, rowsToRead, useRowsInView } from "./picture-levels";
@@ -35,9 +35,10 @@ export function UploadedPicturePage() {
       <header className="picture-head">
         <div>
           <h1 className="heading">{text.label}</h1>
+          <p className="picture-privacy">Analyzed locally on your device — your picture never leaves your browser.</p>
           {upload.picture && <p className="picture-file">{upload.picture.name}</p>}
         </div>
-        <Link className="link-control" to={indexPath()}>{text.chooseAnother}</Link>
+        {upload.picture && <ChoosePictureButton className="link-control">{text.chooseAnother}</ChoosePictureButton>}
       </header>
       {upload.picture && upload.previewUrl ? (
         <PictureContent key={upload.revision} previewUrl={upload.previewUrl} readout={upload.readout} panelOpen={panel !== null} />
@@ -45,7 +46,7 @@ export function UploadedPicturePage() {
         <div className="picture-empty">
           {upload.phase === "empty" && <p>{text.empty}</p>}
           <PictureStatus />
-          {upload.phase !== "preparing" && <Link className="button" to={indexPath()}>{text.toExplore}</Link>}
+          {upload.phase !== "preparing" && <ChoosePictureButton className="button primary">{text.choose}</ChoosePictureButton>}
         </div>
       )}
       {panel}
@@ -87,6 +88,9 @@ function PictureContent({ previewUrl, readout, panelOpen }: {
       <figure className="picture-figure">
         <PatchMap src={previewUrl} name={text.mapName} lit={lit} chosen={patch}
           onChoose={(cell) => setPatch((previous) => (previous === cell ? null : cell))} onClear={() => setPatch(null)} />
+        <figcaption className="picture-map-legend">
+          {patch === null ? text.mapLegend : text.mapLegendPatch(column, row)}
+        </figcaption>
       </figure>
       <section className="picture-groups" aria-labelledby="picture-groups-title">
         <div className="picture-groups-head" aria-live="polite">
@@ -161,6 +165,7 @@ function GroupRow({ entry, norm, patch, previewUrl, reading, onSettled, onHover 
         <span className="picture-group-line">
           <b className="picture-group-number"><BasisGroupLinkLabel block={entry.block} /></b>
           <span>{text.rowPatches(entry.tokens.length)}</span>
+          <span className="picture-group-action">{text.rowAction}</span>
         </span>
         <div className="picture-group-yours" data-marked={band !== null || undefined} style={levelColour}>
           <ResponseView src={previewUrl} alt={text.locatorName(entry.block)} patches={patches} scale={1} />
@@ -176,11 +181,48 @@ function GroupRow({ entry, norm, patch, previewUrl, reading, onSettled, onHover 
 function PictureStatus() {
   const upload = useUploadedPicture();
   if (!upload.message) return null;
+  if (upload.phase === "preparing" || upload.phase === "reading") {
+    const fraction =
+      upload.progress && upload.progress.total > 0
+        ? Math.min(1, Math.max(0, upload.progress.done / upload.progress.total))
+        : null;
+    const percent = fraction !== null ? Math.round(fraction * 100) : null;
+    const [stageLabel, byteDetail] = upload.message.split(" · ");
+    return (
+      <div className="picture-status picture-status-card">
+        <div className="picture-status-top">
+          <p role="status">{byteDetail ? stageLabel : upload.message}</p>
+          <div className="picture-status-meta">
+            {byteDetail && <span className="picture-status-detail" aria-hidden="true">{byteDetail}</span>}
+            {percent !== null && <span className="picture-status-percent">{percent}%</span>}
+          </div>
+        </div>
+        <div
+          className="picture-progress-track"
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={percent ?? undefined}
+          aria-label={stageLabel}
+        >
+          <div
+            className="picture-progress-fill"
+            data-indeterminate={fraction === null || undefined}
+            style={fraction !== null ? { width: `${(fraction * 100).toFixed(1)}%` } : undefined}
+          />
+        </div>
+        <div className="picture-status-actions">
+          <button type="button" className="link-control" onClick={upload.clear}>{text.cancel}</button>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="picture-status">
       <p role={upload.phase === "failed" ? "alert" : "status"}>{upload.message}</p>
-      {upload.phase === "failed" && upload.picture && <button className="button" onClick={() => void upload.read()}>{text.readAgain}</button>}
-      {(upload.phase === "preparing" || upload.phase === "reading") && <button className="link-control" onClick={upload.clear}>{text.cancel}</button>}
+      {upload.phase === "failed" && upload.picture && (
+        <button type="button" className="button" onClick={() => void upload.read()}>{text.readAgain}</button>
+      )}
     </div>
   );
 }

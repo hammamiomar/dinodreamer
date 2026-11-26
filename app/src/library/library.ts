@@ -96,9 +96,10 @@ export async function openLibrary(location: LibraryLocation, fetcher: Fetch = fe
  */
 export function readCloudAtlasFiles(baseUrl: string, fetcher: Fetch = fetch): Promise<CloudAtlas> {
   const prefix = `${baseUrl}/${ATLAS_CLOUDS_PATH}`;
+  const init = baseUrl.startsWith("/remote-library") ? { cache: "no-cache" as const } : undefined;
   return Promise.all([
-    readFile(fetcher, `${prefix}/manifest.json`, "json", decodeAtlasManifest),
-    readFile(fetcher, `${prefix}/index.bin`, "bytes", decodeAtlasIndex),
+    readFile(fetcher, `${prefix}/manifest.json`, "json", decodeAtlasManifest, init),
+    readFile(fetcher, `${prefix}/index.bin`, "bytes", decodeAtlasIndex, init),
   ]).then(([manifest, entries]) => ({ manifest, entries }));
 }
 
@@ -141,7 +142,7 @@ export class Library {
     });
   }
 
-  /** At most 2,796 bytes; shared by Index cards and block headers. */
+  /** At most 7,432 bytes; shared by Index cards, Home, and basis-group headers. */
   atlasCloud(block: number, priority?: RequestPriority): Promise<AtlasCloud> {
     return this.read(
       `${this.baseUrl}/${ATLAS_CLOUDS_PATH}/blocks/${block}.bin`,

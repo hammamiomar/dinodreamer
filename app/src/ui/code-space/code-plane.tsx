@@ -182,10 +182,10 @@ export function CodePlane({ points, marks = [], arrows, pointColour, selectedKey
   );
 }
 
-/** The plane's accessible name: what it shows, then what a drag and the keys do. */
+/** The plane's accessible name: what it shows, then what pointer movement and the keys do. */
 export function planeLabel(label: string, axes: AxisPair, choose: boolean, place: boolean): string {
   const parts = [`${label}, response vector components ${axes[0] + 1} and ${axes[1] + 1}`];
-  if (place) parts.push("Drag the ring onto another point to move it there");
+  if (place) parts.push("Press and move the ring onto another point to move it there");
   if (choose && place) parts.push("Arrow keys step through the tokens, Enter chooses one and Space moves the ring to it");
   else if (choose) parts.push("Arrow keys step through the tokens and Enter chooses one");
   else if (place) parts.push("Arrow keys step through the tokens and Space moves the ring to one");

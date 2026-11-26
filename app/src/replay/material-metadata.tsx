@@ -25,7 +25,7 @@ export interface MetadataRow {
 }
 
 /**
- * The rows: a title of the person's own, the grids, where it starts and what its training asked for
+ * The rows: a title of the person's own and the name of its maker, the grids, where it starts and what its training asked for
  * (its place on the Automata page, in that page's words), the reference patch's level, the stored
  * value in m, the selection fraction, whether the selection target was met, and the update count.
  */
@@ -34,6 +34,7 @@ export function metadataRows(entry: MaterialEntry, updates: number, title = ""):
   const place = placeOf(entry);
   const rows: MetadataRow[] = [];
   if (title !== "") rows.push({ label: WORDS.title, value: title });
+  if (entry.credit !== "") rows.push({ label: WORDS.credit, value: entry.credit });
   rows.push({ label: SITE_WORDS.playground.rule, value: kind.rule });
   rows.push({ label: SITE_WORDS.playground.start, value: SITE_WORDS.automata.startsInLine[place.start] });
   rows.push({ label: WORDS.method, value: SITE_WORDS.automata.methods[place.method] });

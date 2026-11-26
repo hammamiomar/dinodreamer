@@ -2,8 +2,10 @@ import { describe, expect, test } from "vitest";
 import type { GalleryMethod, GalleryStart } from "../gallery/gallery-place";
 import {
   addressSearch, arrangeGroup, findGroups, neighboursOf, sortWall, arrangeGroups, automatonToPlay, axesOf, cellAt, cellBeside, COMMON_METHODS, COMMON_STARTS, groupOfAutomaton, methodBands,
-  groupPath, pictureOfCell, pictureOfGroup, readAddress, shownCount, tryAfter, wallOrder, type GalleryAutomaton,
+  groupPath, pictureOfCell, pictureOfGroup, readAddress, shownCount, trainPathOfPlace, tryAfter, wallOrder, type GalleryAutomaton,
 } from "./gallery";
+import { kindFromSearch } from "../../grow/material-kind";
+import { methodFromSearch } from "../../grow/train-method";
 
 function automaton(id: string, start: GalleryStart, method: GalleryMethod, changes: Partial<GalleryAutomaton> = {}): GalleryAutomaton {
   return {
@@ -229,5 +231,30 @@ describe("the address", () => {
   test("a group that is not a number is the wall", () => {
     expect(readAddress(new URLSearchParams("?group=abc")).group).toBeNull();
     expect(readAddress(new URLSearchParams("?group=123456")).group).toBeNull();
+  });
+});
+
+describe("an empty place of a group's grid", () => {
+  test("opens Train on the group with the place's start and method, as Train reads them back", () => {
+    const starts = { noise: "noise", circle: "centre-disc" } as const;
+    for (const [start, trainStart] of Object.entries(starts)) {
+      for (const method of ["basis-group-mean", "basis-group-distribution", "token-mean", "token-distribution"] as const) {
+        const path = trainPathOfPlace(4009, { start: start as GalleryStart, method })!;
+        const search = new URL(path, "https://site.test").searchParams;
+        expect(new URL(path, "https://site.test").pathname).toBe("/train");
+        expect(search.get("block")).toBe("4009");
+        expect(kindFromSearch(search).start).toBe(trainStart);
+        expect(methodFromSearch(search)).toBe(method);
+      }
+    }
+  });
+
+  test("has no Train address where Train does not offer the start or the method", () => {
+    for (const start of ["circle-on-noise", "circle-anywhere", "drawn"] as const) {
+      expect(trainPathOfPlace(4009, { start, method: "basis-group-mean" })).toBeNull();
+    }
+    for (const method of ["basis-group-mean-guided", "mean-distribution-mix", "unit-activation"] as const) {
+      expect(trainPathOfPlace(4009, { start: "noise", method })).toBeNull();
+    }
   });
 });

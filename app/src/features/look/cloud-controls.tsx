@@ -47,7 +47,7 @@ export function CloudTools({ tool, onTool, advanced, onAdvanced, reach, onReach,
   );
 }
 
-/** What the cloud draws, from which rows, and the way to draw more: one line, with a notice when loading failed. */
+/** Structured response-plot spec strip under the response levels, with load-more action and optional notice. */
 export function CloudDetails({ drawn, total, withoutPicture, sample, canLoadMore, loading, onLoadMore, wandLimit, notice }: {
   /** Distinct library patches drawn. */
   drawn: number;
@@ -66,17 +66,39 @@ export function CloudDetails({ drawn, total, withoutPicture, sample, canLoadMore
 }) {
   const text = LOOK_TEXT.details;
   return (
-    <p className="look-details">
-      <span>{text.drawn(drawn, total)}</span>
-      {withoutPicture > 0 && <span>{text.withoutPicture(withoutPicture)}</span>}
-      <span>{text.sample(sample)}</span>
-      {wandLimit !== null && <span>{LOOK_TEXT.wandLimit(wandLimit)}</span>}
-      {canLoadMore && (
-        <span>
-          <button className="link-control" disabled={loading} onClick={onLoadMore}>{loading ? LOOK_TEXT.loadingMore : text.more}</button>
-        </span>
-      )}
-      {notice && <span className="look-notice" role="status">{notice}</span>}
-    </p>
+    <div className="look-spec">
+      <div className="look-spec-bar" role="region" aria-label={text.name}>
+        <dl className="look-spec-cells">
+          <div className="look-spec-cell">
+            <dt>{text.plottedLabel}</dt>
+            <dd>{text.plottedValue(drawn, total)}</dd>
+          </div>
+          {withoutPicture > 0 && (
+            <div className="look-spec-cell">
+              <dt>{text.unpicturedLabel}</dt>
+              <dd>{text.unpicturedValue(withoutPicture)}</dd>
+            </div>
+          )}
+          <div className="look-spec-cell">
+            <dt>{text.sampleLabel}</dt>
+            <dd>{text.sampleValue(sample)}</dd>
+          </div>
+          {wandLimit !== null && (
+            <div className="look-spec-cell">
+              <dt>{text.wandLabel}</dt>
+              <dd>{text.wandValue(wandLimit)}</dd>
+            </div>
+          )}
+        </dl>
+        {canLoadMore && (
+          <div className="look-spec-action">
+            <button type="button" className="button" disabled={loading} onClick={onLoadMore}>
+              {loading ? LOOK_TEXT.loadingMore : text.more}
+            </button>
+          </div>
+        )}
+      </div>
+      {notice && <p className="look-notice" role="status">{notice}</p>}
+    </div>
   );
 }

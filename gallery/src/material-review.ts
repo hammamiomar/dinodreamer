@@ -23,7 +23,7 @@ import { previewKeys } from "./link-preview.ts";
 export const MATERIAL_DICTIONARIES: readonly string[] = ["monet-dtd-seed9-20261004-pass-003"];
 export const MATERIAL_LIMITS = { materialBytes: 256 * 1024, ...MATERIAL_SUBMISSION_LIMITS } as const;
 /** The project's own entries (seeds and promoted research runs) are attributed to it, not to a visitor. */
-export const PROJECT_CREDIT = "DinoDreamer project";
+export const PROJECT_CREDIT = "Omar Hammami";
 const PENDING_FILES = ["material.json", "poster.png", "meta.json"] as const;
 type PendingFile = (typeof PENDING_FILES)[number];
 
@@ -440,6 +440,31 @@ export async function renameMaterial(library: Bucket, id: string, label: { title
   const renamed = { ...entry, ...label };
   await writeMaterials(library, { entries: index.entries.map((shown) => shown.id === id ? renamed : shown) });
   return renamed;
+}
+
+/**
+ * Give every shown and hidden automaton credited to `from` the credit `to`: one index write, and one write
+ * per hidden record. Titles, places and marks stay. Without `write`, a dry run that lists them and writes
+ * nothing. The caller checks `to` as a label (submission.ts, readMaterialLabel).
+ */
+export async function renameCredit(submissions: Bucket, library: Bucket, from: string, to: string, write: boolean): Promise<{ shown: string[]; hidden: string[] }> {
+  const index = await readMaterials(library);
+  const shown = index.entries.filter((entry) => entry.credit === from).map((entry) => entry.id);
+  const hidden = (await hiddenMaterials(submissions)).filter((record) => record.credit === from).map((record) => record.id);
+  if (!write || from === to) return { shown, hidden };
+  if (shown.length > 0) {
+    await writeMaterials(library, { entries: index.entries.map((entry) => (entry.credit === from ? { ...entry, credit: to } : entry)) });
+  }
+  for (const id of hidden) {
+    const key = hiddenMaterialKey(id);
+    const stored = await submissions.get(key);
+    // The owner can restore the entry while this runs.
+    if (stored === null) continue;
+    const record = JSON.parse(await stored.text()) as HiddenMaterial;
+    if (record.credit !== from) continue;
+    await submissions.put(key, JSON.stringify({ ...record, credit: to }, null, 2), { httpMetadata: { contentType: "application/json" } });
+  }
+  return { shown, hidden };
 }
 
 /** Take a shown material out of the index and keep its objects; restore undoes it. */

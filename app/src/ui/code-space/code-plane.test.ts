@@ -52,24 +52,24 @@ describe("a code space with a ring to drag", () => {
     expect(markup).toContain('class="code-plane-drag-mark"');
     expect(markup.match(/r="7" stroke-width="2"/g)).toHaveLength(1);
     expect(markup).toContain('tabindex="0"');
-    expect(markup).toContain("Drag the ring onto another point to move it there. Arrow keys step through the tokens and Space moves the ring to one");
+    expect(markup).toContain("Press and move the ring onto another point to move it there. Arrow keys step through the tokens and Space moves the ring to one");
   });
 
   it("keeps the names of a map without a ring as they were", () => {
     expect(planeLabel("Code space", [0, 1], true, false)).toBe("Code space, response vector components 1 and 2. Arrow keys step through the tokens and Enter chooses one");
     expect(planeLabel("Code space", [1, 2], false, false)).toBe("Code space, response vector components 2 and 3");
     expect(orbitLabel("Code space", true, false)).toBe(
-      "Code space. Drag to turn it; Ctrl and the wheel, or a pinch, zoom. Arrow keys step through the tokens and Enter chooses one; Shift and an arrow key turn the view; plus and minus zoom, 0 resets.",
+      "Code space. Press and move to turn it; Ctrl and the wheel, or a pinch, zoom. Arrow keys step through the tokens and Enter chooses one; Shift and an arrow key turn the view; plus and minus zoom, 0 resets.",
     );
-    expect(orbitLabel("Code space", false, false)).toBe("Code space. Drag to turn it; Ctrl and the wheel, or a pinch, zoom. Arrow keys turn the view; plus and minus zoom, 0 resets.");
+    expect(orbitLabel("Code space", false, false)).toBe("Code space. Press and move to turn it; Ctrl and the wheel, or a pinch, zoom. Arrow keys turn the view; plus and minus zoom, 0 resets.");
   });
 
-  it("names the drag and both keys on a map with a ring and points to choose", () => {
+  it("names the pointer move and both keys on a map with a ring and points to choose", () => {
     expect(orbitLabel("Code space", true, true)).toBe(
-      "Code space. Drag the ring onto another point to move it there, or drag elsewhere to turn the view; Ctrl and the wheel, or a pinch, zoom. Arrow keys step through the tokens, Enter chooses one and Space moves the ring to it; Shift and an arrow key turn the view; plus and minus zoom, 0 resets.",
+      "Code space. Press and move the ring onto another point to move it there, or press and move elsewhere to turn the view; Ctrl and the wheel, or a pinch, zoom. Arrow keys step through the tokens, Enter chooses one and Space moves the ring to it; Shift and an arrow key turn the view; plus and minus zoom, 0 resets.",
     );
     expect(planeLabel("Code space", [0, 2], true, true)).toBe(
-      "Code space, response vector components 1 and 3. Drag the ring onto another point to move it there. Arrow keys step through the tokens, Enter chooses one and Space moves the ring to it",
+      "Code space, response vector components 1 and 3. Press and move the ring onto another point to move it there. Arrow keys step through the tokens, Enter chooses one and Space moves the ring to it",
     );
   });
 });

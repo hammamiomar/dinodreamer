@@ -1,17 +1,16 @@
 /*
- * The home (home-page.tsx): the words column at the left scrolling through five sections, the panel
- * at the right stuck to the window and reaching its top, right and bottom edges. The header is out
- * of view on the entrance and slides in after it (styles.css, .site[data-home]). Sizes sit on the
- * 64 px module. The automaton's field is home-material.css. Nothing is drawn on a material's cells.
+ * The home (home-page.tsx): on wide screens (>= 1024 px), a scrolling words column over the lattice
+ * paired with a pure-black sticky right-hand optical stage (home-panel.tsx). On narrow screens
+ * (<= 1023 px), the entrance shows the living field over the title and doors, and each scene below
+ * places its interactive stage directly beneath its prose.
+ *
+ * Typography uses only the four Paper Mono sizes (--s-1, --s0, --s1, --s2). Edges and spacing sit on
+ * the 64 px module (--m), 16 px patch (--patch), and 8 px baselines. Nothing is drawn over cells.
  */
 
 .home {
   --home-words: 448px;
-  /* The window's height as a page length: the site is drawn at --page-scale (styles.css), and a viewport unit inside it scales too. */
-  /* The small viewport: the window with a phone browser's bars shown. It stays fixed while the bars
-     hide during a scroll, so the panel and the sections never resize under the finger. */
   --window: calc(100svh / var(--page-scale));
-  /* The panel's width: the window less the band's edge, the words and a module. The words sit centred in the room left of it. */
   --home-panel: calc(100% - var(--edge) - var(--home-words) - var(--m));
   display: grid;
   grid-column: full;
@@ -24,11 +23,10 @@
   grid-column: 2;
   grid-row: 1;
   min-width: 0;
-  /* The title is sized to the column's width (cqw). */
   container-type: inline-size;
 }
 
-/* The panel: the whole window beside the words, held while they scroll; its ground covers the lattice. */
+/* Sticky pure-black stage on the right; a 1 px left rule separates it from the lattice after the entrance. */
 .home-panel {
   position: sticky;
   top: 0;
@@ -37,10 +35,17 @@
   height: var(--window);
   overflow: hidden;
   background: var(--black);
+  border-left: 1px solid transparent;
 }
 
-/* The entrance: the site's name across the top of the column, as large as the column allows, the four links centred under it. */
-.home-entrance {
+.home-panel[data-framed] {
+  border-left-color: var(--line);
+}
+
+/* --- Entrance: pure negative space, centered doors, minimal foot --- */
+
+.home-entrance,
+.home-end {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   justify-items: center;
@@ -48,7 +53,11 @@
   padding-block: var(--m);
 }
 
-/* The display face, fitted to the column: eleven characters of the mono face at about 0.56 em each, 104 px at most. */
+.home-end {
+  padding-top: calc(var(--top) + var(--space-10));
+  border-top: 1px solid var(--line);
+}
+
 .home-title {
   color: var(--ink);
   font-size: min(var(--s2), calc(100cqw / 6.2));
@@ -60,21 +69,41 @@
 
 .home-links {
   display: grid;
-  gap: 8px;
+  gap: 10px;
   align-self: center;
   justify-items: center;
   text-align: center;
 }
 
-.home-end .home-links {
-  justify-items: start;
-  text-align: left;
+.home-end-note {
+  max-width: 38ch;
+  margin: 0;
+  align-self: end;
+  text-align: center;
+  color: var(--ink-2);
+  font-family: var(--serif);
+  font-size: var(--s0);
+  line-height: 1.5;
 }
 
-/*
- * The column's foot: the chevron down at the bottom, the hint that the page goes on, and the arrows
- * that turn the entrance's automaton close above it. The two are one group, apart from the links.
- */
+.home-end-note a {
+  color: var(--ink);
+  text-underline-offset: 4px;
+}
+
+.home-links a {
+  color: var(--ink);
+  font-size: 34px;
+  line-height: 40px;
+  letter-spacing: -0.015em;
+  text-decoration: none;
+}
+
+.home-links a:hover {
+  text-decoration: underline;
+  text-underline-offset: 6px;
+}
+
 .home-foot {
   display: grid;
   gap: var(--space-1);
@@ -116,19 +145,6 @@
   color: var(--ink-3);
 }
 
-.home-links a {
-  color: var(--ink);
-  font-size: var(--s1);
-  line-height: var(--lh1);
-  letter-spacing: -0.02em;
-  text-decoration: none;
-}
-
-.home-links a:hover {
-  text-decoration: underline;
-  text-underline-offset: 6px;
-}
-
 .home-note {
   grid-row: 3;
   margin: var(--patch) 0 0;
@@ -136,35 +152,155 @@
   color: var(--ink-3);
 }
 
-/* A beat: one window, its words centred. */
-.home-beat,
-.home-end {
+/* --- Left-column scrolling beats --- */
+
+.home-beat {
   display: grid;
   align-content: center;
   min-height: var(--window);
+  scroll-margin-top: 0;
 }
 
 .home-beat-words {
   display: grid;
-  gap: var(--patch);
+  gap: var(--space-6);
   padding-block: var(--m);
+  font-optical-sizing: auto;
 }
 
-.home-beat-words .label {
-  margin: 0;
+.home-beat-words .heading {
+  font-family: var(--serif);
+  font-size: 36px;
+  font-weight: 460;
+  line-height: 1.15;
+  letter-spacing: -0.012em;
+}
+
+.home-prose {
+  display: grid;
+  gap: var(--patch);
+  max-width: 42ch;
 }
 
 .home-sentence {
-  max-width: 44ch;
+  max-width: 42ch;
   margin: 0;
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: 20px;
+  line-height: 1.55;
+}
+
+.home-hint {
+  max-width: 42ch;
+  margin: 0;
+  padding-top: var(--patch);
+  border-top: 1px solid var(--line);
+  font-size: var(--s-1);
+  line-height: var(--lh-1);
+  color: var(--ink-3);
+}
+
+/* Scene 2 left-column ledger: scannable live counts instead of prose. */
+.home-ledger {
+  display: grid;
+  margin: 0;
+  border-top: 1px solid var(--line);
+}
+
+.home-ledger-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--patch);
+  padding-block: var(--space-3);
+  border-bottom: 1px solid var(--line);
+}
+
+.home-ledger-row dt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
   color: var(--ink-2);
+  font-family: var(--serif);
+  font-size: 18px;
+  line-height: 1.4;
 }
 
-.home-end .home-links {
-  margin-top: var(--patch);
+.home-ledger-row dt strong {
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: 19px;
+  font-weight: 550;
 }
 
-/* The panel's layers, one per beat, cross-faded; only the shown one takes the pointer. */
+.home-ledger-row dd {
+  flex-shrink: 0;
+  margin: 0;
+  font-size: var(--s-1);
+  line-height: var(--lh-1);
+}
+
+/* Scene 3 left-column numbered workflow: three high-contrast steps. */
+.home-steps {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+
+.home-steps li {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: baseline;
+  padding-block: var(--space-3);
+  border-bottom: 1px solid var(--line);
+}
+
+.home-step-num {
+  font-size: var(--s-1);
+  line-height: var(--lh-1);
+  color: var(--ink-3);
+}
+
+.home-step-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.home-step-lead {
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: 19px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.home-step-detail {
+  color: var(--ink-2);
+  font-family: var(--serif);
+  font-size: 16px;
+  line-height: 1.45;
+}
+
+.home-doors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.home-doors .button {
+  min-height: 48px;
+  padding: 0 22px 1px;
+  font-size: 18px;
+}
+
+/* --- Right-hand panel layers & shared stage frame --- */
+
 .home-layer {
   position: absolute;
   inset: 0;
@@ -177,7 +313,6 @@
   pointer-events: auto;
 }
 
-/* The automaton fills the panel; the figures sit centred under the header's room. */
 .home-layer-live .home-material,
 .home-layer-live .home-field {
   height: 100%;
@@ -187,113 +322,662 @@
   display: none;
 }
 
-/* A replay that stopped says so inside the panel, at its foot. */
 .home-layer-live .home-material-note {
   top: auto;
   bottom: var(--patch);
   left: var(--patch);
 }
 
-.home-layer-figure {
-  display: grid;
-  align-content: center;
-  justify-content: center;
-  padding-top: var(--top);
+.home-layer-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: calc(var(--top) + var(--patch)) var(--m) var(--patch);
+  overflow-y: auto;
 }
 
-.home-figure {
-  display: grid;
-  gap: var(--patch);
+.home-layer-stage > .home-stage-frame {
+  margin-block: auto;
+}
+
+.home-stage-frame {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: min(100%, 592px);
+  min-width: 0;
+}
+
+/* Compact 12 px segmented tabs inside stages so named patterns sit on one crisp line. */
+.home-stage-frame .segmented {
+  gap: 10px var(--patch);
+  padding: 6px 0;
+}
+
+.home-stage-frame .segmented > button {
+  font-size: var(--s-1);
+  line-height: var(--lh-1);
+}
+
+.home-stage-frame .segmented > button::before {
+  bottom: -7px;
+}
+
+.home-stage-caption {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-2) var(--patch);
   margin: 0;
+  font-size: var(--s-1);
+  line-height: var(--lh-1);
+  color: var(--ink-2);
 }
 
-.home-picture {
+/* --- Marked patch thumbnails (shared by Scene 1, Scene 2, and Scene 3) --- */
+
+.home-patch-picture {
   position: relative;
+  display: block;
+  aspect-ratio: 1;
+  overflow: hidden;
+  background: var(--line-faint);
 }
 
-.home-neighbourhood {
+.home-patch-picture img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.home-patch-picture i {
   position: absolute;
-  box-sizing: border-box;
-  border: 1px dashed var(--ink);
+  width: 6.25%;
+  aspect-ratio: 1;
+  outline: 1px solid #fff;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.7);
   pointer-events: none;
 }
 
-.home-caption {
+/* --- Scene 1: Look Inside (Photos vs. Living Image) --- */
+
+.home-properties-pair {
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-6);
+  align-items: start;
+}
+
+.home-properties-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.home-patch-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px;
+  width: 100%;
+  aspect-ratio: 1;
+  border: 1px solid var(--line);
+  background: var(--black);
+}
+
+.home-square-placeholder {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  padding: var(--patch);
+  border: 1px solid var(--line);
+  text-align: center;
+  font-size: var(--s-1);
+}
+
+.home-properties-automaton {
+  width: 100%;
+  aspect-ratio: 1;
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.home-properties-automaton .home-material,
+.home-properties-automaton .home-field {
+  width: 100%;
+  height: 100%;
+}
+
+.home-properties-automaton .home-field-ticks {
+  display: none;
+}
+
+.home-properties-controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.home-properties-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2) var(--patch);
+}
+
+.home-regrow-button,
+.home-train-replay,
+.home-keep-restart {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* --- Scene 2: 16,384 Visual Patterns Coverage & Specimen --- */
+
+.home-coverage-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.home-coverage-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--patch);
+  font-variant-numeric: tabular-nums;
+}
+
+.home-coverage-bar {
+  display: flex;
+  width: 100%;
+  height: 8px;
+  border: 1px solid var(--line-2);
+  background: var(--line-faint);
+}
+
+.home-coverage-fill {
+  display: block;
+  height: 100%;
+  background: var(--ink);
+}
+
+.home-specimen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--patch);
+  padding: var(--patch);
+  border: 1px solid var(--line);
+  background: var(--black);
+}
+
+.home-specimen-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.home-specimen-identity {
+  display: flex;
+  flex-direction: column;
   gap: 4px;
-  min-height: 40px;
-  margin: 0;
+}
+
+.home-specimen-cloud {
+  position: relative;
+  border: 1px solid var(--line);
+  padding: var(--space-2);
+  background: var(--black);
+}
+
+.home-specimen-canvas {
+  display: block;
+  width: 100%;
+  height: 208px;
+  cursor: grab;
+  touch-action: none;
+}
+
+.home-specimen-cloud[data-dragging] .home-specimen-canvas {
+  cursor: grabbing;
+}
+
+.home-specimen-cloud-note {
+  display: block;
+  margin-top: 4px;
   font-size: var(--s-1);
   line-height: var(--lh-1);
   color: var(--ink-3);
 }
 
-/* The cloud's label hangs under its figure (ui/atlas-cloud-figure.css), so the caption keeps clear of it. */
-.home-cloud {
-  position: relative;
-  margin-bottom: var(--patch);
+.home-specimen-levels {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
 }
 
-/* The levels arrive in order with the beat's progress (home-panel.tsx, data-arrived 0 to 5), the lit point last. */
-.home-cloud .cloud-figure-band,
-.home-cloud .cloud-figure-lit,
-.home-cloud .cloud-figure-label {
-  opacity: 0;
+.home-specimen-level {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  cursor: default;
 }
 
-.home-cloud:not([data-arrived="0"]) .cloud-figure-band[data-band="barely"],
-.home-cloud:is([data-arrived="2"], [data-arrived="3"], [data-arrived="4"], [data-arrived="5"]) .cloud-figure-band[data-band="weakly"],
-.home-cloud:is([data-arrived="3"], [data-arrived="4"], [data-arrived="5"]) .cloud-figure-band[data-band="strongly"],
-.home-cloud:is([data-arrived="4"], [data-arrived="5"]) .cloud-figure-band[data-band="strongest"],
-.home-cloud[data-arrived="5"] .cloud-figure-lit,
-.home-cloud[data-arrived="5"] .cloud-figure-label {
-  opacity: 1;
+.home-specimen-level-pictures {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px;
+  padding-bottom: 6px;
+  margin-bottom: 2px;
+  border-bottom: 2px solid var(--level-line, var(--barely));
 }
 
-.home-strip {
-  position: relative;
-  overflow: hidden;
+.home-specimen-level[data-band="barely"] {
+  --level-line: var(--barely);
+}
+
+.home-specimen-level[data-band="weakly"] {
+  --level-line: var(--weakly);
+}
+
+.home-specimen-level[data-band="strongly"] {
+  --level-line: var(--strongly);
+}
+
+.home-specimen-level[data-band="strongest"] {
+  --level-line: var(--strongest);
+}
+
+.home-specimen-level-name {
+  font-size: var(--s-1);
+  line-height: var(--lh-1);
+  color: var(--ink-2);
+}
+
+.home-specimen-skeleton {
+  height: 288px;
   border: 1px solid var(--line);
+  background: var(--line-faint);
 }
 
-.home-strip img {
+.home-specimen-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--patch);
+}
+
+/* --- Scene 3: Recorded Training Scrubber & Gallery Plaque --- */
+
+.home-train-anchor,
+.home-train-growth {
+  width: 100%;
+  aspect-ratio: 1;
+  border: 1px solid var(--line);
+  background: var(--black);
+  overflow: hidden;
+}
+
+.home-train-anchor .home-patch-picture {
+  width: 100%;
+  height: 100%;
+}
+
+.home-train-growth .home-material,
+.home-train-growth .home-field,
+.home-train-fallback-player .home-material,
+.home-train-fallback-player .home-field {
+  width: 100%;
+  height: 100%;
+}
+
+.home-train-growth .home-field-ticks,
+.home-train-fallback-player .home-field-ticks {
+  display: none;
+}
+
+.home-train-strip-frame {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 1;
+  overflow: hidden;
+  background: var(--black);
+}
+
+.home-train-strip {
   position: absolute;
   top: 0;
+  display: block;
+  height: 100%;
   max-width: none;
   image-rendering: pixelated;
 }
 
-/* Continuity: the layers and the cloud's levels fade on the move curve; the scrubs themselves only move with the scroll. */
+.home-train-controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* Beat 1 visual dimensionality bar: 1 of 32 slots (3 numbers) vs all 32 slots (768 numbers). */
+.home-vector-meter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px var(--patch);
+  padding: 6px var(--space-2);
+  border: 1px solid var(--line);
+  background: var(--black);
+}
+
+.home-vector-slots {
+  display: grid;
+  grid-template-columns: repeat(32, minmax(0, 1fr));
+  gap: 2px;
+  flex: 1 1 120px;
+  height: 8px;
+}
+
+.home-vector-slot {
+  background: var(--line);
+}
+
+.home-vector-slot[data-lit] {
+  background: var(--sampled, var(--ink));
+}
+
+.home-vector-readout {
+  flex-shrink: 0;
+  font-size: var(--s-1);
+  line-height: var(--lh-1);
+  color: var(--ink-2);
+}
+
+.home-properties-column > .label,
+.home-keep-bar > .label {
+  color: var(--ink-2);
+}
+
+/* Beat 3 direct interactive selection-target curve scrubber across optimizer updates. */
+.home-train-sparkline {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  border: 1px solid var(--line);
+  background: var(--black);
+  padding: 4px 8px;
+  cursor: grab;
+  touch-action: pan-y;
+  user-select: none;
+}
+
+.home-train-sparkline:hover {
+  border-color: var(--line-2);
+}
+
+.home-train-sparkline[data-dragging] {
+  cursor: grabbing;
+  border-color: var(--ink-2);
+}
+
+.home-train-sparkline:focus-visible {
+  outline: 1px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.home-train-sparkline svg {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  height: auto;
+}
+
+.home-train-target-label {
+  flex-shrink: 0;
+  align-self: flex-start;
+  padding-top: 2px;
+  font-family: var(--mono);
+  font-size: var(--s-1);
+  line-height: var(--lh-1);
+  color: var(--ink-2);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.home-train-guide {
+  stroke: var(--line-2);
+  stroke-width: 1;
+  pointer-events: none;
+}
+
+.home-train-threshold {
+  stroke: var(--line-2);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  pointer-events: none;
+}
+
+.home-train-curve {
+  fill: none;
+  stroke: var(--ink-2);
+  stroke-width: 1.25;
+  pointer-events: none;
+}
+
+.home-train-point {
+  fill: var(--ink-3);
+  pointer-events: none;
+}
+
+.home-train-point[data-met] {
+  fill: var(--sampled, var(--ink));
+}
+
+.home-train-cursor-halo {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1;
+  opacity: 0.28;
+  pointer-events: none;
+}
+
+.home-train-cursor-halo[data-met] {
+  stroke: var(--sampled, var(--ink));
+  opacity: 0.35;
+}
+
+.home-train-sparkline:hover .home-train-cursor-halo,
+.home-train-sparkline:focus-visible .home-train-cursor-halo,
+.home-train-sparkline[data-dragging] .home-train-cursor-halo {
+  stroke: var(--ink);
+  opacity: 0.45;
+}
+
+.home-train-sparkline:hover .home-train-cursor-halo[data-met],
+.home-train-sparkline:focus-visible .home-train-cursor-halo[data-met],
+.home-train-sparkline[data-dragging] .home-train-cursor-halo[data-met] {
+  stroke: var(--sampled, var(--ink));
+  opacity: 0.55;
+}
+
+.home-train-cursor-ball {
+  fill: var(--ink);
+  stroke: var(--black);
+  stroke-width: 1.25;
+  pointer-events: none;
+}
+
+.home-train-cursor-ball[data-met] {
+  fill: var(--sampled, var(--ink));
+}
+
+.home-train-readout-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2) var(--patch);
+  font-size: var(--s-1);
+  line-height: var(--lh-1);
+  color: var(--ink-2);
+}
+
+.home-train-skeleton {
+  height: 360px;
+  border: 1px solid var(--line);
+  background: var(--line-faint);
+}
+
+.home-train-fallback-player {
+  width: min(100%, 288px);
+  aspect-ratio: 1;
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+
+/* --- Scene 4: Standalone Custom-Element Embed --- */
+
+.home-keep-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2) var(--patch);
+}
+
+.home-keep-canvas {
+  position: relative;
+  width: 100%;
+  height: 220px;
+  border: 1px solid var(--line);
+  background-color: var(--black);
+  background-repeat: repeat;
+  background-size: 220px 220px;
+  image-rendering: pixelated;
+  overflow: hidden;
+}
+
+/* Size the custom element via parent selector so React 18's `classname` attribute is unnecessary. */
+.home-keep-canvas > :not(.home-brush-ring) {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.home-keep-canvas .home-brush-ring[data-visible] {
+  opacity: 1;
+}
+
+.home-keep-draw-toggle {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: var(--space-2);
+  font-size: var(--s-1);
+  line-height: var(--lh-1);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.home-keep-draw-toggle code {
+  font-family: var(--mono);
+  color: var(--ink);
+}
+
+.home-keep-snippet {
+  max-width: 100%;
+  margin: 0;
+  padding: var(--space-3) var(--patch);
+  border: 1px solid var(--line);
+  background: var(--black);
+  color: var(--ink);
+  font: 400 var(--s-1) / var(--lh0) var(--mono);
+  overflow-x: auto;
+}
+
+.home-keep-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.home-keep-more {
+  margin-left: auto;
+}
+
+.home-keep-feedback {
+  margin: 0;
+  font-size: var(--s-1);
+  line-height: var(--lh-1);
+  color: var(--ink-2);
+}
+
+/* --- Motion continuity --- */
+
 @media (prefers-reduced-motion: no-preference) {
   .home-layer,
-  .home-cloud .cloud-figure-band,
-  .home-cloud .cloud-figure-lit,
-  .home-cloud .cloud-figure-label {
-    transition: opacity var(--motion-move);
+  .home-panel,
+  .home-specimen-points {
+    transition:
+      opacity var(--motion-move),
+      border-color var(--motion-move);
   }
 }
 
-/* Narrow: one column, the panel stuck at the top at 60 % of the window, the words under it in the band. */
+/* --- Narrow screens (<= 1023 px): full-bleed entrance top, inline interactive stages --- */
+
 @media (max-width: 1023px) {
   .home {
     display: block;
-  }
-
-  .home-panel {
-    z-index: 1;
-    height: calc(0.6 * var(--window));
+    max-width: 100%;
+    overflow-x: clip;
   }
 
   .home-words {
-    padding-inline: var(--edge);
+    padding-inline: 0;
   }
 
-  /* The lower 40 % of the window holds the title, the links and the foot: the foot keeps a patch above it, and the chevron is a lower hint at the bottom edge. */
+  .home-entrance,
+  .home-end {
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    min-height: var(--window);
+    padding: 0 var(--edge) var(--patch);
+    container-type: inline-size;
+  }
+
   .home-entrance {
-    min-height: calc(0.4 * var(--window));
-    /* Preserve foreground sizing; continue the background under floating browser controls. */
     margin-bottom: max(0px, calc(var(--home-background-height, 100lvh) / var(--page-scale) - var(--window)));
-    padding-block: var(--patch) var(--space-2);
+  }
+
+  .home-end {
+    border-top: 1px solid var(--line);
+  }
+
+  .home-narrow-entrance-field {
+    width: calc(100% + 2 * var(--edge));
+    height: calc(0.48 * var(--window));
+    margin-bottom: var(--patch);
+    overflow: hidden;
+  }
+
+  .home-narrow-entrance-field .home-material,
+  .home-narrow-entrance-field .home-field {
+    height: 100%;
+  }
+
+  .home-narrow-entrance-field .home-field-ticks {
+    display: none;
   }
 
   .home-foot {
@@ -301,27 +985,88 @@
   }
 
   .home-down {
-    height: 24px;
+    height: 32px;
   }
 
-  /*
-   * Only the window's lower 40 % shows the words, and they are usually taller than that. Each section
-   * is as tall as its words, so one beat's words follow the last with no empty window between them.
-   * A scroll to a section (the chevron) lands its words under the panel.
-   */
-  .home-beat,
-  .home-end {
-    align-content: start;
+  .home-beat {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
     min-height: 0;
-    scroll-margin-top: calc(0.6 * var(--window));
-  }
-
-  /* The footer follows the end's words: at the page's end both fit under the panel. */
-  .home-end .home-beat-words {
-    padding-bottom: var(--patch);
+    min-width: 0;
+    padding: var(--m) var(--edge);
+    border-top: 1px solid var(--line);
+    scroll-margin-top: var(--top);
   }
 
   .home-beat-words {
-    padding-block: var(--patch) var(--m);
+    min-width: 0;
+    padding-block: 0;
+  }
+
+  .home-inline-stage {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .home-stage-frame {
+    width: 100%;
+  }
+}
+
+/* --- Phone adjustments (<= 640 px) --- */
+
+@media (max-width: 640px) {
+  .home-links {
+    gap: 6px;
+  }
+
+  .home-links a {
+    font-size: 28px;
+    line-height: 32px;
+  }
+
+  .home-beat-words .heading {
+    font-size: 28px;
+  }
+
+  .home-sentence {
+    font-size: 18px;
+  }
+
+  .home-stage-frame .segmented {
+    flex-wrap: nowrap;
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .home-entrance,
+  .home-end,
+  .home-beat {
+    padding-inline: var(--patch);
+  }
+
+  .home-narrow-entrance-field {
+    width: calc(100% + 2 * var(--patch));
+  }
+
+  .home-properties-pair {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--patch);
+  }
+
+  .home-specimen-levels {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: var(--patch);
+  }
+
+  .home-train-sparkline svg {
+    min-height: 44px;
+  }
+
+  .home-keep-canvas {
+    height: 192px;
+    background-size: 192px 192px;
   }
 }

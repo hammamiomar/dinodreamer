@@ -26,16 +26,19 @@ describe("site copy helpers and placeholders", () => {
       for (const word of leaves(group)) expect(typeof word).toBe("string");
     }
 
-    expectPlaceholders(SITE_WORDS.home.layerLine, ["layer"]);
-    expectPlaceholders(SITE_WORDS.home.readoutLine, ["update", "strength"]);
-    expectPlaceholders(SITE_WORDS.home.firedLine, ["update", "wins"]);
+    expectPlaceholders(SITE_WORDS.home.properties.openGroup, ["block"]);
+    expectPlaceholders(SITE_WORDS.home.collection.heading, ["lit"]);
+    expectPlaceholders(SITE_WORDS.home.collection.barLabel, ["lit", "total"]);
+    expectPlaceholders(SITE_WORDS.home.collection.cloudSummary, ["patches"]);
+    expectPlaceholders(SITE_WORDS.home.train.readout, ["update", "wins"]);
+    expectPlaceholders(SITE_WORDS.home.train.stripAlt, ["block", "update"]);
+    expectPlaceholders(SITE_WORDS.home.keep.patternLabel, ["block"]);
     expectPlaceholders(SITE_WORDS.home.kind, ["rule"]);
     expectPlaceholders(SITE_WORDS.stage.readingToward, ["band"]);
     expectPlaceholders(SITE_WORDS.stage.readingStrength, ["strength"]);
-    expectPlaceholders(SITE_WORDS.stage.frameLabel, ["kind"]);
     expectPlaceholders(SITE_WORDS.stage.frameGrid, ["side"]);
     expectPlaceholders(SITE_WORDS.stage.canvasName, ["title"]);
-    expectPlaceholders(SITE_WORDS.stage.video, ["seconds"]);
+    expectPlaceholders(SITE_WORDS.stage.record, ["seconds"]);
 
     const grow = SITE_WORDS.grow;
     for (const time of [grow.timeBefore, grow.timeLeft, grow.timeTaken]) {

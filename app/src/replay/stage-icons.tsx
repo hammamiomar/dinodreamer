@@ -6,5 +6,3 @@ const Icon = ({ children }: { children: React.ReactNode }) => (
 );
 export const PlayIcon = () => <Icon><path d="M6 4.5v11l9-5.5z" fill="currentColor" stroke="none" /></Icon>;
 export const PauseIcon = () => <Icon><path d="M7 4.5v11M13 4.5v11" strokeWidth="2" /></Icon>;
-export const DownloadIcon = () => <Icon><path d="M10 3.5v9M6.5 9 10 12.5 13.5 9M4 16h12" /></Icon>;
-export const OptionsIcon = () => <Icon><circle cx="5" cy="10" r="1.2" fill="currentColor" stroke="none" /><circle cx="10" cy="10" r="1.2" fill="currentColor" stroke="none" /><circle cx="15" cy="10" r="1.2" fill="currentColor" stroke="none" /></Icon>;

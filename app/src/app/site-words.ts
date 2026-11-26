@@ -6,6 +6,9 @@ export const SITE_WORDS = {
     explore: "Index",
     playground: "Automata",
     grow: "Train",
+    picture: "Inspect picture",
+    /** Short label below 1056 px; assistive technology keeps the full label. */
+    pictureShortForm: "Inspect",
     how: "How it works",
     /** Short label below 1056 px; assistive technology keeps the full label. */
     howShortForm: "How",
@@ -39,49 +42,124 @@ export const SITE_WORDS = {
     nextAutomaton: "Next automaton",
     resetAutomaton: "Grow it again",
     nextSection: "Next section",
-    beats: {
-      model: {
-        label: "The model",
-        heading: "A vision model reads a picture as 256 patches.",
-        sentences: [
-          "DINOv3 is a vision model from Meta. It learned to see from a billion pictures and no labels.",
-          "It cuts a picture into 256 patches and describes each one in 768 numbers. Follow one patch of this hibiscus: layer by layer, its description takes in more of the picture, until it is written from the whole of it.",
-        ],
+    properties: {
+      heading: "What does a vision model see?",
+      bodyLead: "A vision model learns thousands of recurring visual features without labels, sorted here into 16,384 basis groups.",
+      bodyAction: "Pick a basis group to see what a cellular automaton grows for it. Draw across the cells to watch the pattern rebuild itself.",
+      groupChoiceName: "Basis group",
+      groupTab: "Group {block}",
+      targetChoiceName: "What the automaton matches",
+      targets: {
+        group: "Basis group",
+        token: "Patch token",
       },
-      basis: {
-        label: "The basis collection",
-        heading: "Each description is a point in a few small spaces.",
-        sentences: [
-          "We read the descriptions with a basis collection: 16,384 small learned spaces, three numbers wide. Every patch lands in a few of them.",
-          "This patch lands in basis group 4009, out among the library patches that respond to it most.",
-        ],
-      },
-      automaton: {
-        label: "The automaton",
-        heading: "Then we grow an image that lands on the same point.",
-        sentences: [
-          "A cellular automaton is a grid of 128 × 128 cells, each running the same tiny network. From noise, the cells grow an image.",
-          "Training nudges the network until DINOv3 reads the grown image as that patch.",
-        ],
+      regrow: "Regrow",
+      picturesHeading: "Where it responds in pictures",
+      automatonHeading: "Cellular automaton · draw to disturb",
+      automatonStillHeading: "Cellular automaton",
+      openGroup: "Basis group {block} →",
+      pictureAlt: "A library picture where basis group {block} responds strongly, with its patch outlined",
+      picturesFailed: "The library pictures for this basis group could not be read.",
+      fallbackCaption: "Basis group {block}, growing from noise.",
+      notes: {
+        6638: {
+          group: "Across belt pictures, the strap and buckle vanish. Only rows of punched holes remain.",
+          token: "Target the full patch token, and the leather strap and brass buckle return.",
+        },
+        13345: {
+          group: "Across dog pictures, only wet dark snouts and whiskers grow.",
+          token: "Target the full patch token, and a puppy's muzzle, fur, and eye return.",
+        },
+        729: {
+          group: "Across storefronts at night, only blue light on dark glass remains.",
+          token: "Target the full patch token, and a lit storefront under trees returns.",
+        },
+        2632: {
+          group: "Curved pink lips ripple and reform across the grid.",
+          token: "Target the full patch token, and a chin and lit skin frame the mouth.",
+        },
       },
     },
-    layerLine: "Layer {layer} of 12",
-    outsideLine: "{outside}% of the patch's attention falls outside its 3 × 3 neighborhood.",
-    cloudLabel: "this patch",
-    cloudLine: "Basis group {group}: {patches} library patches, placed by their three coordinates.",
-    readoutLine: "Update {update} · median response {strength} m",
-    firedLine: "Update {update} · the group selected on {wins}% of the patches: the selection target is met.",
+    collection: {
+      heading: "16,384 basis groups. Only {lit} have an automaton.",
+      headingLoading: "16,384 basis groups. Almost none have an automaton yet.",
+      grownLabel: "with a published automaton",
+      grownLink: "Automata →",
+      openLabel: "with no automaton yet",
+      openLink: "Browse all →",
+      bodyLead: "Pick an open basis group at random to turn its 3D response space.",
+      bodyAction: "Or inspect a picture of your own on your device.",
+      pictureDoor: "Inspect your own picture",
+      barLabel: "{lit} basis groups with a published automaton out of {total}",
+      specimenHeading: "Basis group {block}",
+      specimenStatus: "No automaton yet",
+      drawAnother: "Another at random",
+      cloudSummary: "Sample of {patches} library patches · press and move to turn 3D space · hover a level above",
+      cloudFailed: "The response map for basis group {block} could not be read.",
+      levelLabels: ["Level 1", "Level 2", "Level 3", "Level 4"],
+      trainGroup: "Train basis group {block}",
+      openInIndex: "Open in Index →",
+    },
+    train: {
+      heading: "Train an automaton in your browser. Publish it to the gallery.",
+      steps: [
+        {
+          lead: "Pick a picture or basis group",
+          detail: "Start from your own picture, or pick any open basis group.",
+        },
+        {
+          lead: "Train on WebGPU on your device",
+          detail: "Nothing to install. Training runs locally on your GPU in a few minutes.",
+        },
+        {
+          lead: "Title and credit your automaton",
+          detail: "Publish what grows to the public gallery under your name.",
+        },
+      ],
+      trainDoor: "Open Train",
+      randomDoor: "Random basis group",
+      storyChoiceName: "Recorded training run",
+      storyTab: "Group {block}",
+      targetHeading: "Reference patch",
+      growingHeading: "Cellular automaton training",
+      updateLabel: "Update",
+      replayTraining: "Replay training",
+      readout: "Optimizer update {update} · selected on {wins}% of patches",
+      stripAlt: "Basis group {block} after {update} optimizer updates",
+      plaqueLabel: "Published gallery plaque",
+      openInAutomata: "Open in Automata →",
+      storyFailed: "The recorded training runs could not be read.",
+    },
+    keep: {
+      heading: "Put a living automaton on your own website.",
+      bodyLead: "Every automaton exports as one standalone JavaScript file, with no packages, build step, or server.",
+      bodyAction: "Download the file and paste two lines of HTML onto your page.",
+      choiceName: "Embedded automaton",
+      groupTab: "Group {block}",
+      drawPrompt: "Draw inside the box to disturb cells",
+      readOnlyPrompt: "Read-only embed (brush off)",
+      restart: "Restart",
+      drawToggleBefore: "Let visitors draw (",
+      drawToggleCode: "draw",
+      drawToggleAfter: " attribute)",
+      patternLabel: "Basis group {block}",
+      standalone: "1 JS file · 0 network calls · Apache 2.0",
+      snippetLabel: "Two lines of HTML to embed this automaton",
+      downloadJs: "Download .js file",
+      copyHtml: "Copy HTML",
+      copiedHtml: "Copied two-line HTML snippet.",
+      moreExports: "More exports →",
+    },
     end: "Everything runs on WebGPU in your browser, training included, on a Rust engine built with {burn}.",
     burn: "Burn.rs",
-    pictureAlt: "A hibiscus, the library picture the automaton was trained toward, under the reader's 16 × 16 patch grid",
     kind: "{rule} automaton{pixels}, {start}",
     kindTwoPixels: " at 2 px per cell",
     kindNoise: "from a noise field",
     kindSeed: "from a noise disc",
     canvasLabel: "Automaton of basis group {block}, running; draw on it to disturb it",
     canvasStill: "Automaton of basis group {block}, running",
-    noWebGpu: "This browser has no WebGPU, so the automaton is a still image. A browser with WebGPU runs it.",
-    reducedMotion: "Reduced motion is on, so the automaton is a still image. The Automata page runs it when you press Play.",
+    noWebGpu: "This browser has no WebGPU, so the automata are still images. A browser with WebGPU grows them live.",
+    reducedMotion: "Reduced motion is on, so the automata are still images. The Automata page runs each one when you press Play.",
     materialFailed: "The automaton could not be read: {message}",
   },
 
@@ -95,6 +173,13 @@ export const SITE_WORDS = {
     previousStep: "Previous step",
     nextStep: "Next step",
     back: "Back",
+    /** After the last section, in Continue's place: the site's three next steps. */
+    nextSteps: {
+      name: "Where to go next",
+      index: "Index",
+      automata: "Automata",
+      train: "Train",
+    },
 
     acts: {
       overview: "Overview",
@@ -461,7 +546,6 @@ export const SITE_WORDS = {
   },
 
   stage: {
-    name: "Automata of this basis group",
     readingBlock: "Basis group {block}",
     readingToward: "trained toward a {band} reference patch",
     /** Labels keyed by `strengthStatistic`, all reported in multiples of the group median response (`m`). */
@@ -475,6 +559,7 @@ export const SITE_WORDS = {
     didNotFire: "selection target not met",
     metadata: {
       title: "Title",
+      credit: "Made by",
       method: "Asked for",
       reference: "Reference patch",
       projection: "Projection on the target",
@@ -488,11 +573,8 @@ export const SITE_WORDS = {
       notMet: "not met",
       updates: "Updates",
     },
+    /** The maker's name, after the title in the frame's corner; an automaton without a name shows none. */
     by: "by {credit}",
-    anonymous: "an anonymous trainer",
-    growAnother: "Train another variation",
-    continueTraining: "Continue training",
-    frameLabel: "{block} · {kind}",
     frameGrid: "{side} × {side} cells",
     loading: "Loading {name}…",
     canvasName: "{title}, running; draw on it to disturb it",
@@ -503,17 +585,18 @@ export const SITE_WORDS = {
     resetName: "Reset to step 0",
     speed: "Speed",
     brush: "Brush",
-    pixelsPerCell: "{pixels} px",
-    pixelsPerCellName: "Pixels per cell",
-    downloads: "Downloads",
     options: "Options",
+    /** The embed (replay/automaton-embed.ts): one JavaScript file that puts the automaton on another site. */
+    downloadEmbed: "Download for your site",
+    copyFailed: "It could not be copied: {message}",
     downloadMaterial: "Download automaton definition",
     downloadPage: "Download page",
     downloadShader: "Download WGSL shader",
     downloadShadertoy: "Download Shadertoy shader",
     shadertoyUnavailable: "Shadertoy export is not yet available for coarse + fine automata.",
-    video: "Video · {seconds} s",
-    videoSettings: "Video settings",
+    /** The record button in the controls row, and its settings under Options. */
+    record: "Record a {seconds} s video",
+    video: "Video",
     fromTick: "From step",
     seconds: "Seconds",
     framesPerSecond: "Frames per second",
@@ -523,11 +606,8 @@ export const SITE_WORDS = {
     growFromSeed: "Restart from this seed",
     grid: "Grid",
     gridOption: "{cells} cells",
-    thumbnails: "This basis group's automata",
-    keep: "Save on this device",
-    kept: "Saved. It is under {yours} in Automata.",
-    yoursLink: "Saved automata",
-    keepFailed: "It could not be saved: {message}",
+    /** The replay did not start: no WebGPU, or no adapter. The frame keeps the saved image. */
+    noReplay: "This browser could not start WebGPU, so this is the saved image.",
   },
 
   owner: {
@@ -539,6 +619,10 @@ export const SITE_WORDS = {
   },
 
   publish: {
+    /** The stage's quiet word, and what it says once the definition is sent (publish-material.tsx, PublishWord). */
+    word: "Publish",
+    publishedWord: "Published",
+    awaitingWord: "Sent for approval",
     open: "Publish to the gallery",
     published: "Published in the gallery",
     awaiting: "Sent to the gallery · waiting for the owner's approval",
@@ -551,6 +635,8 @@ export const SITE_WORDS = {
     credit: "Credit",
     creditHint: "Your name, optional",
     whatIsSent: "The gallery receives the automaton definition only: its weights, measurements and preview. It appears after the owner approves it.",
+    /** The terms a published automaton carries; the embed file's header states the same license. */
+    terms: "A published automaton is open: anyone may download, use and change it under the Apache License 2.0.",
     send: "Send",
     sending: "Sending…",
     cancel: "Cancel",
@@ -577,8 +663,20 @@ export const SITE_WORDS = {
     continuedRule: "A continued automaton keeps its grids.",
     choosing: "Choosing a Level 4 reference patch of basis group {block}.",
     noStrongest: "Basis group {block} has no Level 4 patch with a public picture. Pick a patch on its page.",
-    nothing: "Nothing to train yet. Pick a basis group in the Index, then a patch on its page.",
-    exploreLink: "Index",
+    /**
+     * With nothing to train toward, the three choices in the target's place (train-target-choices.tsx);
+     * `another` sits beside "Pick another patch" after a draw at random, and for a group Train cannot start.
+     */
+    targetChoices: {
+      lead: "Choose a training target on your device",
+      random: "Random basis group",
+      randomHint: "Draw uniformly from all 16,384 basis groups",
+      index: "Browse the Index",
+      indexHint: "Pick a basis group or patch from the 16,384 cards",
+      picture: "Inspect your own picture",
+      pictureHint: "Analyze an image locally and train from its patch",
+      another: "Another basis group at random",
+    },
     plant: "Localized activity simulation is not available yet. Your selection is retained.",
     noAnchor: "This selection has no reference patch, so Train has nothing to aim at. Open the basis group's page, select its patches and press Send to Train: the page then names the reference patch and its response level.",
     rule: "Grids",
@@ -686,7 +784,7 @@ export const SITE_WORDS = {
     },
     map: {
       heading: "The canvas in the group's space",
-      label: "The canvas's 64 patches as points among the patches of basis group {block}; drag or use the arrow keys to rotate",
+      label: "The canvas's 64 patches as points among the patches of basis group {block}; move pointer or use the arrow keys to rotate",
       meanLine: "The mean of the canvas's patches is {distance} m from the target.",
       spreadLine: "Each point is a patch of the canvas. The squares are the set's patches.",
       waiting: "The canvas's patches appear here at the first reading.",
@@ -760,6 +858,11 @@ export const SITE_WORDS = {
     failed: "The automata could not be read: {message}",
     nothingPublished: "No automaton is published yet.",
     unknownGroup: "Basis group {group} has no automaton yet.",
+    /** After unknownGroup: opens Train on that group. */
+    unknownGroupTrain: "Train one",
+    /** Under the wall's heading, with live numbers; wallNone links to the Index of the groups with none. */
+    wallCount: "{count} of {total} basis groups have an automaton. Move across a live tile to disturb its cells.",
+    wallNone: "See the {count} with none in the Index",
 
     allGroups: "All basis groups",
     previousGroup: "Previous",
@@ -775,8 +878,8 @@ export const SITE_WORDS = {
       "mean-distribution-mix": "mean/distribution mix",
       "unit-activation": "one DINO unit",
     },
-    gridsFine: "fine · {side} × {side} cells",
-    gridsCoarseFine: "coarse + fine · {side} × {side} cells",
+    gridsFine: "fine · {side} × {side} cells · draw to disturb",
+    gridsCoarseFine: "coarse + fine · {side} × {side} cells · draw to disturb",
 
     levelsName: "The basis group's own patches, by response level",
     levelsFailed: "The basis group's pictures could not be read.",
@@ -824,13 +927,16 @@ export const SITE_WORDS = {
     cellName: "{start}, {method}: {count}",
     cellEmpty: "{start}, {method}: no automaton",
     cellEmptyMark: "—",
+    /** An empty cell Train offers: its accessible name, and the word it shows. It opens Train with its start and method. */
+    cellTrain: "{start}, {method}: no automaton yet. Train one",
+    cellTrainMark: "+ Train",
     cellTries: "{count} tries",
     gridExplainSubject: "the grid",
     gridExplanation: [
       "A row is the state an automaton starts from: a noise field, with noise in every cell, or a noise disc at the center, alone or on faint noise.",
       "A column is what its training asked for. Basis-group matching compares the three numbers a basis group reads from each patch. Token matching compares DINO's whole token, 768 numbers. Mean matching asks the image's patches to give the target on average. Distribution matching asks them to be spread like the group's strongest patches. A guide also holds units inside DINO at the levels they have on the group's real images, for the first part of training.",
       "Two trainings with the same row and column give different automata. Those are the tries of a cell.",
-      "A dash means that no automaton was trained that way for this basis group.",
+      "An empty cell has no automaton yet. Where it says Train, it opens Train with that start and that method. A dash marks a start or a method that Train does not offer.",
     ],
 
     triesTitle: "Tries",
@@ -995,7 +1101,7 @@ export const SITE_WORDS = {
       title: "Train a cellular automaton in your browser · DinoDreamer",
       description: "Train a cellular automaton toward one basis group of DINOv3. It trains on your own device, in the browser, with WebGPU.",
       heading: "Train",
-      paragraph: "Train a cellular automaton toward a basis group. It trains on your own device with WebGPU: DINOv3, the basis collection and the training all run in this tab. Pick a group in the [Index](/index) and a patch on its page. Then choose a start, a noise field or a noise disc, and one of four methods: basis-group mean matching, basis-group distribution matching, token mean matching or token distribution matching. A finished automaton can be published to [Automata](/automata) or downloaded as a shader. [How it works](/how) explains what the training asks for.",
+      paragraph: "Train a cellular automaton toward a basis group. It trains on your own device with WebGPU: DINOv3, the basis collection and the training all run locally in your browser. Pick a group in the [Index](/index) and a patch on its page. Then choose a start, a noise field or a noise disc, and one of four methods: basis-group mean matching, basis-group distribution matching, token mean matching or token distribution matching. A finished automaton can be published to [Automata](/automata) or downloaded as a shader. [How it works](/how) explains what the training asks for.",
     },
     how: {
       title: "How DinoDreamer works: DINOv3, basis groups, automata",

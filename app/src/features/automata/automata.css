@@ -55,7 +55,9 @@
   left: 0;
   z-index: 1;
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
+  gap: var(--space-1) var(--patch);
   margin: 0;
   font-size: var(--s-1);
   line-height: 16px;
@@ -180,17 +182,24 @@
   @supports (width: round(down, 100px, 128px)) {
     .automata-group {
       /*
-       * The largest multiple of 128 px that leaves room for the head (128), the frame's room, the bar
-       * and the step's line (352 in all with the header), and for a pane of 624 px beside it: a row's
-       * name and four pictures of 112 px. At most 1024 px, the canvas's own limit.
+       * The largest multiple of 128 px that leaves room for the head (128), the frame's room, the bar,
+       * the gallery plaque and the step's line (480 in all with the header), and for a pane of 624 px
+       * beside it: a row's name and four pictures of 112 px. At most 1024 px, the canvas's own limit.
        */
-      --cells: min(1024px, max(256px, round(down, min(100dvh / var(--page-scale) - 352px, 100vw / var(--page-scale) - 848px), 128px)));
+      --cells: min(1024px, max(256px, round(down, min(100dvh / var(--page-scale) - 480px, 100vw / var(--page-scale) - 848px), 128px)));
     }
 
     /* The owner's view: its block stands under the step's line, so the cells leave it room. */
     .automata-group:has(.stage-owner) {
       --cells: min(1024px, max(256px, round(down, min(100dvh / var(--page-scale) - 512px, 100vw / var(--page-scale) - 848px), 128px)));
     }
+  }
+
+  .automata-stage {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-bottom: var(--patch);
   }
 
   .automata-pane {
@@ -476,6 +485,20 @@
   cursor: default;
 }
 
+/* An empty cell that opens Train: the word in the cell's square, inside a faint line. */
+.automata-cell-train {
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink-2);
+  font-size: var(--s-1);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.automata-cell-train:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: -2px;
+}
+
 /* The cell on the stage: an ink line around its picture, clear of it; its count in ink. */
 .automata-cell[aria-pressed="true"] img,
 .automata-try[aria-pressed="true"] img {
@@ -640,6 +663,18 @@
   .automata-grid,
   .automata-tries {
     grid-column: 1 / -1;
+  }
+
+  /*
+   * The saved automata have no levels, grid or tries to give the page: their pane stays one box across
+   * the page, under the bar, and the stage's controls follow it.
+   */
+  .automata-group[data-saved] .automata-saved {
+    display: block;
+    grid-row: 4;
+    grid-column: 1 / -1;
+    /* The bar above already parts it from the frame: no module above it, as one column has. */
+    padding-top: 0;
   }
 
   .automata-head {
@@ -829,23 +864,39 @@
   }
 
   /* The grid, turned: the starts across the page, each method a line of words over its row of pictures. */
+  /* Its own width container: on a phone the pane has no box, so 100cqw would be the screen's width, not the grid's. */
   .automata-grid[data-turned] {
     --label: 0px;
     --gap: 12px;
+    container-type: inline-size;
   }
 
+  /* The "?" ends the line at the grid's edge; its finger target (styles.css, 10 px around it) stops there, not past the screen. */
   .automata-grid[data-turned] .automata-grid-titles {
     padding-left: 0;
+    overflow-x: clip;
   }
 
+  /*
+   * The columns fill the width exactly: each is a tile and the gap after it, the last a tile alone,
+   * so the last cell ends on the pane's edge and nothing reaches past the screen.
+   */
   .automata-grid[data-turned] table {
     --tile: calc((100cqw - (var(--columns) - 1) * var(--gap)) / var(--columns));
-    width: calc(100% + var(--gap));
-    margin-right: calc(-1 * var(--gap));
+    width: 100%;
   }
 
   .automata-grid[data-turned] col.automata-grid-column {
-    width: auto;
+    width: calc(var(--tile) + var(--gap));
+  }
+
+  .automata-grid[data-turned] col.automata-grid-column:last-child {
+    width: var(--tile);
+  }
+
+  .automata-grid[data-turned] td:last-child,
+  .automata-grid[data-turned] thead th:last-child {
+    padding-right: 0;
   }
 
   .automata-grid[data-turned] thead th {
@@ -883,6 +934,11 @@
   .automata-grid[data-turned] tr:not(:has(button)) .automata-cell-empty {
     height: var(--patch);
     aspect-ratio: auto;
+  }
+
+  /* In such a row, a cell that opens Train keeps a finger's height. */
+  .automata-grid[data-turned] tr:not(:has(button)) .automata-cell-train {
+    height: var(--touch-target);
   }
 
   .automata-tries-line {
@@ -1019,6 +1075,26 @@
 .automata-status {
   margin: 0 0 var(--m);
   color: var(--ink-2);
+}
+
+/* The count of the groups with an automaton under the heading, and the way to those with none. */
+/* One line under the heading: it takes the head's width, not a paragraph's measure. */
+.automata-wall-count {
+  color: var(--ink-2);
+}
+
+.automata-wall-head .automata-wall-count {
+  max-width: none;
+}
+
+/* A link inside a sentence: the sentence's size, in ink and underlined, so a finger with no hover sees that it is a link. */
+.automata-wall-count .link-control,
+.automata-status .link-control {
+  font-size: inherit;
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--line-2);
+  text-underline-offset: 5px;
 }
 
 /* The find field and the order, on one line under the heading, as on the Index. */
@@ -1347,6 +1423,11 @@
 @media (hover: hover) and (pointer: fine) {
   .automata-cell:hover {
     color: var(--ink-2);
+  }
+
+  .automata-cell-train:hover {
+    box-shadow: inset 0 0 0 1px var(--line-2);
+    color: var(--ink);
   }
 
   .automata-cell:not([aria-pressed="true"]):hover img,

@@ -32,6 +32,7 @@ interface Waiting {
   /** Arrival order: equal priorities start first come, first served. */
   order: number;
   start: () => void;
+  cancel: () => void;
 }
 
 /**
@@ -75,6 +76,10 @@ export class LoadQueue {
             this.next();
           }
         },
+        cancel: () => {
+          this.loads.delete(key);
+          reject(new Error(`Load cancelled: ${key}`));
+        },
       });
     });
     this.loads.set(key, result);
@@ -103,6 +108,17 @@ export class LoadQueue {
   demote(key: string) {
     const entry = this.waiting.find((waiting) => waiting.key === key);
     if (entry) entry.priority = "stale";
+  }
+
+  /**
+   * Remove a still-waiting load so departed cards never starve visible ones. Loads already
+   * running continue to completion so in-flight work is not wasted.
+   */
+  cancel(key: string) {
+    const index = this.waiting.findIndex((waiting) => waiting.key === key);
+    if (index === -1) return;
+    const [removed] = this.waiting.splice(index, 1);
+    removed!.cancel();
   }
 
   private next() {

@@ -100,6 +100,31 @@ it("puts the loads of a card that left the page behind all others, until they ar
   expect(queue.queued()).toEqual(["left", "ahead"]);
 });
 
+it("cancels waiting loads without disturbing running loads and allows re-enqueueing later", async () => {
+  const queue = new LoadQueue(1);
+  const loads = manualLoads();
+  const running = queue.run("running", "screen", loads.load("running"));
+  const departed = queue.run("departed", "screen", loads.load("departed"));
+  const nextPage = queue.run("next-page", "screen", loads.load("next-page"));
+
+  queue.cancel("running"); // Already running: untouched.
+  queue.cancel("departed"); // Waiting: removed immediately and rejected.
+  await expect(departed).rejects.toThrow("Load cancelled: departed");
+  expect(queue.queued()).toEqual(["next-page"]);
+
+  loads.finish.get("running")!("ok");
+  await expect(running).resolves.toBe("ok");
+  expect(loads.started).toEqual(["running", "next-page"]);
+
+  loads.finish.get("next-page")!("page-2");
+  await expect(nextPage).resolves.toBe("page-2");
+
+  // A cancelled key can be re-enqueued cleanly if the user returns to that page.
+  const returned = queue.run("departed", "screen", loads.load("departed"));
+  loads.finish.get("departed")!("back");
+  await expect(returned).resolves.toBe("back");
+});
+
 describe("a card's content", () => {
   const cloud = (block: number, pictures: number) => ({
     block,

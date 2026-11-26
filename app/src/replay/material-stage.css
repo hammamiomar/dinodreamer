@@ -4,17 +4,6 @@
  * frame's line and the brush ring.
  */
 .material-stage { display: grid; gap: var(--space-3); width: 100%; }
-.stage-head h2 { margin: 0; font-size: var(--s0); font-weight: 400; }
-.stage-head p { margin: var(--space-1) 0 0; font-size: var(--s-1); color: var(--ink-2); }
-.stage-head a { color: var(--ink); }
-/*
- * The material on the left, the block's other materials in a labelled column on the right. The column
- * grows from 200 px to 360 px only with the room left beside a full-size canvas, so a narrower window
- * keeps the canvas as large as it was (544 px at 800 px wide, not 384).
- */
-.stage-body { display: grid; grid-template-columns: minmax(0, 640px) minmax(200px, clamp(200px, 100% - 640px - var(--space-4), 360px)); align-items: start; gap: var(--space-4); }
-.stage-view { display: grid; gap: var(--patch); min-width: 0; }
-.stage-body[data-single] { grid-template-columns: minmax(0, 640px); }
 
 /*
  * The canvas takes a whole number of pixels per cell (the zoom, material-stage.tsx), set on the
@@ -36,13 +25,7 @@
 .stage-controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--patch); font-size: var(--s-1); }
 .stage-icon { display: inline-grid; place-items: center; width: 40px; height: 40px; padding: 0; border: 1px solid var(--line-2); background: none; color: var(--ink); cursor: pointer; }
 .stage-icon:disabled { color: var(--ink-3); cursor: default; }
-.stage-icon[aria-expanded="true"] { border-color: var(--ink); background: var(--ink); color: var(--black); }
-/* Inside the box: the list scrolls, so it would clip a ring drawn outside. */
-.stage-thumbnails button:focus-visible { outline-offset: -2px; }
 .stage-controls .slider { width: 200px; }
-.stage-zoom { display: inline-flex; align-items: center; gap: var(--space-1); }
-.stage-zoom output { min-width: 3ch; text-align: center; color: var(--ink-2); }
-.stage-menus { display: inline-flex; gap: var(--space-1); margin-left: auto; }
 
 .stage-panel { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); padding: var(--space-3); border: 1px solid var(--line); background: var(--black); font-size: var(--s-1); }
 .stage-fields { display: flex; flex-wrap: wrap; align-items: end; gap: var(--space-2) var(--space-3); width: 100%; }
@@ -55,21 +38,6 @@
 /* The page's notice (the owner mode's warning or result) keeps three lines (the purge warning takes three at 390), so its text appearing or wrapping moves nothing. */
 .stage-notice { min-height: 48px; }
 
-/* Thumbnails: the block's other materials; those that did not fire stay dim. */
-.stage-thumbnails { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; max-height: 640px; overflow-y: auto; }
-.stage-thumbnails button { display: grid; grid-template-columns: 48px minmax(0, 1fr); align-items: center; gap: var(--space-2); width: 100%; padding: 4px; border: 1px solid transparent; background: none; color: var(--ink-2); font: inherit; font-size: var(--s-1); text-align: left; cursor: pointer; }
-.stage-thumbnails button[aria-pressed="true"] { border-color: var(--ink); color: var(--ink); }
-.stage-thumbnails button:not([data-fired]) img { opacity: 0.45; }
-.stage-thumbnails img { display: block; width: 48px; height: 48px; image-rendering: pixelated; }
-
-/* Phones: the thumbnails become a strip under the controls. */
-@media (max-width: 720px) {
-  .stage-body { grid-template-columns: minmax(0, 1fr); }
-  .stage-thumbnails { grid-auto-flow: column; grid-auto-columns: 56px; overflow-x: auto; max-height: none; }
-  .stage-thumbnails button { grid-template-columns: 1fr; padding: 2px; }
-  .stage-thumbnails span { display: none; }
-  .stage-menus { margin-left: 0; }
-}
 @media (pointer: coarse) {
   .stage-canvas { cursor: default; }
   .stage-ring { display: none; }
@@ -80,14 +48,13 @@
 /* Hover is for a mouse: on a finger it stays on after a tap. */
 @media (hover: hover) and (pointer: fine) {
   .stage-icon:hover:not(:disabled) { background: var(--line-faint); }
-  .stage-thumbnails button:hover { background: var(--line-faint); }
 }
 
 /*
- * The instrument (layout="instrument", Automata): the frame, playback bar, then readouts and
- * actions in one column. The page sets the canvas size from the available width.
+ * The instrument: the frame, playback bar, then readouts and actions in one column. The page sets
+ * the canvas size from the available width.
  */
-.material-stage[data-layout="instrument"] { container: stage / inline-size; gap: 0; }
+.material-stage { container: stage / inline-size; gap: 0; }
 .stage-instrument { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--patch); }
 .stage-instrument .stage-controls .slider { flex: 1 1 160px; width: auto; min-width: 0; }
 /* One column: the bar follows the frame, then the readouts and the actions. */
@@ -99,6 +66,7 @@
 .stage-instrument .stage-actions { height: 112px; align-content: space-between; }
 
 .stage-readouts { display: flex; flex-direction: column; gap: var(--space-6); min-width: 0; }
+.stage-readouts .maker-card { flex-basis: 100%; }
 .stage-readouts dl { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto; align-items: baseline; gap: var(--space-2) var(--patch); margin: 0; }
 /* A row is 24 px; a label longer than its column wraps in 16 px lines and the row grows. */
 .stage-readouts dl { grid-auto-rows: minmax(24px, auto); }

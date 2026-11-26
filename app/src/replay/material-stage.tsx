@@ -1,12 +1,13 @@
 import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 import { fill, SITE_WORDS } from "../app/site-words";
 import type { MaterialEntry } from "../features/gallery/material-index";
 import { fetchPublishedMaterial, materialFileUrl } from "../features/gallery/material-gallery";
 import { figurePlayback, PICTURE_SIDES, strengthStatistic, type FigureMaterial } from "../materials/material-file";
-import { kindLine } from "../features/automata/kind-line";
+import { kindLine, tileName } from "../features/automata/kind-line";
+import { useManifoldFocus } from "../ground/manifold-focus";
+import { MakerCard } from "./maker-card";
 import { MaterialMetadata, metadataRows } from "./material-metadata";
-import { kindWords } from "../features/home/home-material";
 import { BAND_NAMES, STRENGTH_BANDS } from "../features/look/strength-bands";
 import { downloadBlob } from "../ui/files";
 import { MaterialFrame } from "../ui/material-frame";
@@ -15,13 +16,15 @@ import { Slider } from "../ui/slider";
 import { SAMPLE_EVERY_TICKS, sampledAccent } from "../ui/sampled-accent";
 import { createFigureReplay } from "./figure-replay";
 import { FIGURE_SHADERS } from "./figure-shaders";
-import { KeepMaterial, KeepWord } from "./keep-material";
+import { KeepWord } from "./keep-material";
 import { MaterialExports } from "./material-exports";
-import { continueTrainingPath, growVariationPath } from "./published-material";
+import { growVariationPath } from "./published-material";
 import { REPLAY_DEFAULT_SPEED, REPLAY_SPEEDS, speedLabel } from "./replay-loop";
 import { openStageSession, type StageSession } from "./stage-session";
 import { checkVideoPlan, recordReplayVideo, videoFileName } from "./replay-video";
-import { DownloadIcon, OptionsIcon, PauseIcon, PlayIcon } from "./stage-icons";
+import { PauseIcon, PlayIcon } from "./stage-icons";
+import { makerLine, ownTitle } from "./material-facts";
+import { PublishPanel, PublishWord } from "../features/gallery/publish-material";
 import { ResetMark } from "../ui/reset-mark";
 import { useMediaMatch } from "../ui/media-match";
 import { assertUnsigned32 } from "../decode";
@@ -101,42 +104,42 @@ export const PUBLISHED_SOURCE: MaterialSource = {
   keepable: () => true,
 };
 
-/**
- * "page" puts the variation's name and reading above the frame, with other materials beside it.
- * "instrument" is Automata's stage: playback controls, step, actions and option panels below
- * the frame. The page supplies the basis group heading.
- */
-export type StageLayout = "page" | "instrument";
+/** The panel open under the quiet words: none, or the one the visitor asked for. */
+type StagePanel = "none" | "publish" | "video" | "export" | "options";
+/** The address's fragment that opens the Export panel from Home. */
+export const EXPORT_FRAGMENT = "#export";
 
 /**
- * A block's published materials on one stage: the selected material grows large, the canvas is
- * the brush, and the block's other materials wait beside it as thumbnails. Given one material (the
- * owner's view), the stage has no thumbnails. The Playground's Yours group plays the visitor's own
- * kept materials through its own `source`.
+ * One automaton on Automata's stage: the cells large in their frame, which is the brush, with the
+ * maker's title and name in its corner; the playback bar under it; then the step, the quiet words
+ * (Save or Publish, Video, Export, Options), each with its panel, and "Train a variation". The page
+ * supplies the basis group heading. Saved automata play the visitor's own through their own
+ * `source`, and offer Publish (`publishable`).
  */
-export function MaterialStage({ entries, source = PUBLISHED_SOURCE, layout = "page", ownerActions, notice, gridNote }: {
-  entries: MaterialEntry[];
+export function MaterialStage({ entry, source = PUBLISHED_SOURCE, publishable = false, ownerActions, notice, gridNote }: {
+  entry: MaterialEntry;
   source?: MaterialSource;
-  layout?: StageLayout;
+  /** The automaton is the visitor's own, saved on this device: the quiet words offer Publish. */
+  publishable?: boolean;
   /** The lower frame label for the selected grid size, in cells per side. */
   gridNote?: (side: number) => ReactNode;
-  /** The instrument's owner actions (the owner mode, features/owner/): a block in the readouts column, over Export and Options. */
+  /** The owner's actions (the owner mode, features/owner/): a block in the readouts column, over the quiet words. */
   ownerActions?: ReactNode;
   /** The page's line under the bar (the owner mode's result of an action), on its own line beside the stage's message; null for none yet. */
   notice?: string | null;
 }) {
-  const fillsMobileStage = useMediaMatch("(max-width: 640px)") && layout === "instrument";
-  const [selectedId, setSelectedId] = useState(entries[0]?.id);
-  const entry = entries.find((candidate) => candidate.id === selectedId) ?? entries[0];
+  const fillsMobileStage = useMediaMatch("(max-width: 640px)");
   const [material, setMaterial] = useState<FigureMaterial | null>(null);
+  const [sampled, setSampled] = useState<string | null>(null);
+  useManifoldFocus(entry.block, sampled);
   // A token method's layers, from the loaded file when it is this entry's: "Train a variation" keeps its depth.
-  const loadedLayers = material && entry && material.file.id === entry.materialId ? material.file.recipe.settings.layers : undefined;
+  const loadedLayers = material && material.file.id === entry.materialId ? material.file.recipe.settings.layers : undefined;
   // The grid is chosen by its picture width, so a 2 px material shows at the size of the others.
   const [pictureSide, setPictureSide] = useState<128 | 256>(128);
   const pixelsPerCell = material ? figurePlayback(material.file).pixelsPerCell : 1;
   const side = pictureSide / pixelsPerCell;
-  const [seed, setSeed] = useState(entry?.seed ?? 1);
-  const [seedText, setSeedText] = useState(String(entry?.seed ?? 1));
+  const [seed, setSeed] = useState(entry.seed);
+  const [seedText, setSeedText] = useState(String(entry.seed));
   // A material plays as soon as it is chosen, from its start; with reduced motion it waits for Play.
   const startPlaying = () => !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
   const [playing, setPlaying] = useState(startPlaying);
@@ -146,8 +149,7 @@ export function MaterialStage({ entries, source = PUBLISHED_SOURCE, layout = "pa
   const zoom = stageZoom(pictureSide, room);
   const [brush, setBrush] = useState(BRUSH.start);
   const hovering = useRef(false);
-  const [panel, setPanel] = useState<"none" | "downloads" | "options">("none");
-  const [videoOpen, setVideoOpen] = useState(false);
+  const [panel, setPanel] = useState<StagePanel>(useLocation().hash === EXPORT_FRAGMENT ? "export" : "none");
   const [video, setVideo] = useState(VIDEO);
   const [recording, setRecording] = useState(false);
   const [message, setMessage] = useState("");
@@ -166,9 +168,9 @@ export function MaterialStage({ entries, source = PUBLISHED_SOURCE, layout = "pa
 
   // The selected material's file, then a fresh replay from its reading's seed.
   useEffect(() => {
-    if (!entry) return;
     let current = true;
     setMaterial(null);
+    setSampled(null);
     setMessage("");
     setReplayStatus("opening");
     setRecording(false);
@@ -177,7 +179,7 @@ export function MaterialStage({ entries, source = PUBLISHED_SOURCE, layout = "pa
     source.load(entry).then((loaded) => { if (current) setMaterial(loaded); })
       .catch((error: unknown) => { if (current) { setMessage(String(error)); setReplayStatus("failed"); setPlaying(false); } });
     return () => { current = false; };
-  }, [entry?.id, entry?.tick, entry?.fileRevision, source]);
+  }, [entry.id, entry.tick, entry.fileRevision, source]);
 
   useEffect(() => {
     if (!material || !canvas.current) return;
@@ -186,8 +188,12 @@ export function MaterialStage({ entries, source = PUBLISHED_SOURCE, layout = "pa
     // replay every SAMPLE_EVERY_TICKS ticks while the loop holds still (a recording owns the replay
     // meanwhile, so it waits); a new material or a reset reads at its first frame.
     let sampledAt = -1;
+    let framed = false;
     const onFrame = (tick: number) => {
-      if (sampledAt === -1) setReplayStatus("ready");
+      if (!framed) {
+        framed = true;
+        setReplayStatus("ready");
+      }
       if (tickOutput.current) tickOutput.current.textContent = TICKS.format(tick);
       const due = Math.floor(tick / SAMPLE_EVERY_TICKS);
       const { replay, loop } = session;
@@ -195,20 +201,29 @@ export function MaterialStage({ entries, source = PUBLISHED_SOURCE, layout = "pa
       sampledAt = due;
       loop.hold(() => replay.readPixels()).then(
         (pixels_N4) => {
-          if (runtime.current === session) stageElement.current?.style.setProperty("--sampled", sampledAccent(pixels_N4, replay.pictureSide));
+          if (runtime.current === session) {
+            const accent = sampledAccent(pixels_N4, replay.pictureSide);
+            stageElement.current?.style.setProperty("--sampled", accent);
+            setSampled(accent);
+          }
         },
         () => {},
       );
     };
+    // A replay that fails before its first frame did not start in this browser: plain words, and the
+    // saved image stays. A failure after that is the replay's own, said as it is.
+    const fail = (error: unknown) => {
+      if (!framed) console.warn("The replay did not start:", error);
+      setMessage(framed ? String(error) : WORDS.noReplay);
+      setReplayStatus("failed");
+      setPlaying(false);
+    };
     const session = openStageSession(
       (signal) => createFigureReplay(
-        { canvas: target, side, seed, scale: CANVAS_PIXELS / side, ...figurePlayback(material.file), onDeviceLost: (message) => { setMessage(message); setReplayStatus("failed"); setPlaying(false); }, signal },
+        { canvas: target, side, seed, scale: CANVAS_PIXELS / side, ...figurePlayback(material.file), onDeviceLost: fail, signal },
         { values: material.values, fireRate: material.file.rule.fireRate }, FIGURE_SHADERS,
       ),
-      {
-        speed: REPLAY_SPEEDS[live.current.speed], playing: live.current.playing, onFrame,
-        onError: (error) => { setMessage(String(error)); setReplayStatus("failed"); setPlaying(false); },
-      },
+      { speed: REPLAY_SPEEDS[live.current.speed], playing: live.current.playing, onFrame, onError: fail },
     );
     runtime.current = session;
     setMessage("");
@@ -232,7 +247,6 @@ export function MaterialStage({ entries, source = PUBLISHED_SOURCE, layout = "pa
   }, []);
 
   // The cells' room: the frame's column less the frame's own room, measured whenever it changes.
-  const hasEntry = entry !== undefined;
   useLayoutEffect(() => {
     const element = fitBox.current;
     if (!element) return;
@@ -246,7 +260,7 @@ export function MaterialStage({ entries, source = PUBLISHED_SOURCE, layout = "pa
     const observer = new ResizeObserver(measure);
     observer.observe(element);
     return () => observer.disconnect();
-  }, [hasEntry]);
+  }, []);
 
   // The wheel over the stage sets the brush (up: larger), not the stage's size; the ring follows.
   useEffect(() => {
@@ -263,9 +277,8 @@ export function MaterialStage({ entries, source = PUBLISHED_SOURCE, layout = "pa
     };
     element.addEventListener("wheel", wheel, { passive: false });
     return () => element.removeEventListener("wheel", wheel);
-  }, [entry?.id]);
+  }, [entry.id]);
 
-  if (!entry) return null;
   const loop = () => runtime.current?.loop ?? undefined;
   const togglePlay = () => {
     const next = !playing;
@@ -326,70 +339,58 @@ export function MaterialStage({ entries, source = PUBLISHED_SOURCE, layout = "pa
     } catch (error) { if (runtime.current === current) setMessage(String(error)); } finally { if (runtime.current === current) setRecording(false); }
   };
 
-  const instrument = layout === "instrument";
-  const togglePanel = (next: "downloads" | "options") => setPanel(panel === next ? "none" : next);
-  // A title of the person's own; a title copied from the file's name is the research run's, not shown.
-  const ownTitle = material !== null && entry.title !== "" && entry.title !== material.file.name ? entry.title : "";
+  const togglePanel = (next: StagePanel) => setPanel(panel === next ? "none" : next);
+  const maker = { title: entry.title, credit: entry.credit };
+  // A title is the maker's when it differs from the definition's own name, so the line waits for the file.
+  const madeBy = material ? makerLine(maker, material.file) : "";
+  const stopped = recording || replayStatus === "failed";
   const controls = <div className="stage-controls" role="toolbar" aria-label={WORDS.controls}>
-    <button type="button" className="stage-icon" onClick={togglePlay} disabled={recording || replayStatus === "failed"} aria-label={playing ? WORDS.pause : WORDS.play}>{playing ? <PauseIcon /> : <PlayIcon />}</button>
-    <button type="button" className="stage-icon stage-reset reset-control" onClick={() => reset()} disabled={recording || replayStatus === "failed"} aria-label={WORDS.resetName} title={WORDS.resetName}><ResetMark /></button>
+    <button type="button" className="stage-icon" onClick={togglePlay} disabled={stopped} aria-label={playing ? WORDS.pause : WORDS.play}>{playing ? <PauseIcon /> : <PlayIcon />}</button>
+    <button type="button" className="stage-icon stage-reset reset-control" onClick={() => reset()} disabled={stopped} aria-label={WORDS.resetName} title={WORDS.resetName}><ResetMark /></button>
     <Slider label={WORDS.speed} value={speed} min={0} max={REPLAY_SPEEDS.length - 1} ticks={SPEED_TICKS}
-      valueText={speedLabel(REPLAY_SPEEDS[speed])} disabled={recording || replayStatus === "failed"} onChange={chooseSpeed} />
+      valueText={speedLabel(REPLAY_SPEEDS[speed])} disabled={stopped} onChange={chooseSpeed} />
     <Slider label={WORDS.brush} value={brush} min={BRUSH.min} max={BRUSH.max} ticks={BRUSH_TICKS}
       valueText={String(brush)} keyShortcuts="[ ]" onChange={setBrush} />
-    {/* The instrument opens its panels from the readouts' quiet words. The stage's size follows the window: no zoom control. */}
-    {!instrument && <>
-      <span className="stage-zoom">
-        <output aria-label={WORDS.pixelsPerCellName}>{fill(WORDS.pixelsPerCell, { pixels: canvasSize / side })}</output>
-      </span>
-      <span className="stage-menus">
-        <button type="button" className="stage-icon" aria-expanded={panel === "downloads"} aria-label={WORDS.downloads} onClick={() => togglePanel("downloads")}><DownloadIcon /></button>
-        <button type="button" className="stage-icon" aria-expanded={panel === "options"} aria-label={WORDS.options} onClick={() => togglePanel("options")}><OptionsIcon /></button>
-      </span>
-    </>}
   </div>;
 
   const panels = <>
-    {panel === "downloads" && material && <div className="stage-panel" role="group" aria-label={WORDS.downloads}>
-      {!instrument && source.keepable(entry) && <KeepMaterial key={entry.id} material={material} entryId={entry.id} />}
-      <MaterialExports material={material} onError={setMessage} />
-      <button type="button" className="button" onClick={() => void record()} disabled={recording || replayStatus === "failed"}>{fill(WORDS.video, { seconds: video.seconds })}</button>
-      <button type="button" className="link-control" aria-expanded={videoOpen} onClick={() => setVideoOpen(!videoOpen)}>{WORDS.videoSettings}</button>
-      {videoOpen && <div className="stage-fields">
+    {panel === "publish" && material && <div className="stage-panel" role="group" aria-label={SITE_WORDS.publish.word}>
+      <PublishPanel key={material.file.id} file={material.file} onClose={() => setPanel("none")} />
+    </div>}
+    {panel === "video" && <div className="stage-panel" role="group" aria-label={WORDS.video}>
+      <div className="stage-fields">
         <label>{WORDS.fromTick}<input type="number" min={0} step={1} value={video.fromTick} onChange={(event) => setVideo({ ...video, fromTick: Number(event.target.value) })} /></label>
         <label>{WORDS.seconds}<input type="number" min={1} max={120} step={1} value={video.seconds} onChange={(event) => setVideo({ ...video, seconds: Number(event.target.value) })} /></label>
         <label>{WORDS.framesPerSecond}<input type="number" min={1} max={60} step={1} value={video.fps} onChange={(event) => setVideo({ ...video, fps: Number(event.target.value) })} /></label>
         <label>{WORDS.ticksPerFrame}<input type="number" min={1} max={8} step={1} value={video.ticksPerFrame} onChange={(event) => setVideo({ ...video, ticksPerFrame: Number(event.target.value) })} /></label>
-      </div>}
+      </div>
+      <button type="button" className="button" onClick={() => void record()} disabled={stopped}>{fill(WORDS.record, { seconds: video.seconds })}</button>
+    </div>}
+    {panel === "export" && material && <div className="stage-panel" role="group" aria-label={INSTRUMENT_WORDS.export}>
+      <MaterialExports material={material} maker={maker} onError={setMessage} />
     </div>}
     {panel === "options" && <div className="stage-panel" role="group" aria-label={WORDS.options}>
       <div className="stage-fields">
         <label>{WORDS.seed}<input type="number" min={0} max={4294967295} step={1} value={seedText} onChange={(event) => setSeedText(event.target.value)} /></label>
-        <button type="button" className="button" disabled={recording || replayStatus === "failed"} onClick={() => reset(Number(seedText))}>{WORDS.growFromSeed}</button>
+        <button type="button" className="button" disabled={stopped} onClick={() => reset(Number(seedText))}>{WORDS.growFromSeed}</button>
         <label>{WORDS.grid}<Select value={pictureSide} onChange={(event) => setPictureSide(Number(event.target.value) as 128 | 256)}>
           {PICTURE_SIDES.map((pixels) => <option key={pixels} value={pixels}>{fill(WORDS.gridOption, { cells: pixels / pixelsPerCell })}</option>)}</Select></label>
       </div>
       {/* The automaton's metadata (material-metadata.tsx), read here on request, never on the stage or a tile. */}
-      {material && <MaterialMetadata rows={metadataRows(entry, material.file.training.updates, ownTitle)} />}
+      {material && <MaterialMetadata rows={metadataRows(entry, material.file.training.updates, ownTitle(entry.title, material.file))} />}
     </div>}
   </>;
 
-  const thumbnails = <ul className="stage-thumbnails" aria-label={WORDS.thumbnails}>
-    {entries.map((candidate) => <li key={candidate.id}>
-      <button type="button" aria-pressed={candidate.id === entry.id} data-fired={candidate.fired || undefined}
-        onClick={() => { if (candidate.id !== entry.id) { setSelectedId(candidate.id); setPlaying(startPlaying()); } }}>
-        <img src={source.poster(candidate)} width={candidate.side} height={candidate.side} alt="" loading="lazy" />
-        <span>{variationName(candidate)}</span>
-      </button>
-    </li>)}
-  </ul>;
+  // A quiet word that opens its panel under the line, and closes it again.
+  const panelWord = (name: StagePanel, words: string) => (
+    <button type="button" className="stage-word" aria-expanded={panel === name} onClick={() => togglePanel(name)}>{words}</button>
+  );
+  const dot = <span aria-hidden="true">·</span>;
 
   // The material in its frame, in a box as wide as the frame's column: the box is what the zoom fits.
-  // The instrument's page names the block over the frame, so its corner does not.
+  // The page names the basis group over the frame; the frame's corner names who made the automaton.
   const framed = <div className="stage-fit" ref={fitBox}>
-    <MaterialFrame patches={side / CELLS_PER_PATCH}
-      label={instrument ? undefined : fill(WORDS.frameLabel, { block: entry.block, kind: kindWords(entry) })}
-      note={gridNote?.(side) ?? fill(WORDS.frameGrid, { side })}>
+    <MaterialFrame patches={side / CELLS_PER_PATCH} label={madeBy || undefined} note={gridNote?.(side) ?? fill(WORDS.frameGrid, { side })}>
       <div className="stage-canvas"
         onPointerEnter={() => { hovering.current = true; }} onPointerLeave={() => { hovering.current = false; hideRing(); }}
         ref={view}>
@@ -404,49 +405,44 @@ export function MaterialStage({ entries, source = PUBLISHED_SOURCE, layout = "pa
     </MaterialFrame>
   </div>;
 
-  if (instrument) {
-    return <section ref={stageElement} className="material-stage" data-layout="instrument" aria-label={entry.title}>
-      <div className="stage-instrument">
-        {framed}
-        <aside className="stage-readouts" aria-label={INSTRUMENT_WORDS.readoutsName}>
-          {/* A panel opens below the frame; the step stays in its line. */}
-          <dl>
-            <dt className="label">{INSTRUMENT_WORDS.tick}</dt><dd><output ref={tickOutput}>0</output></dd>
-          </dl>
-          {panels}
-          {ownerActions && <div className="stage-owner">{ownerActions}</div>}
-          <div className="stage-actions">
-            <p className="stage-words">
-              {material && source.keepable(entry) && <><KeepWord key={entry.id} material={material} entryId={entry.id} className="stage-word" /><span aria-hidden="true">·</span></>}
-              <button type="button" className="stage-word" aria-expanded={panel === "downloads"} onClick={() => togglePanel("downloads")}>{INSTRUMENT_WORDS.export}</button>
-              <span aria-hidden="true">·</span>
-              <button type="button" className="stage-word" aria-expanded={panel === "options"} onClick={() => togglePanel("options")}>{INSTRUMENT_WORDS.options}</button>
-            </p>
-            <Link className="button" to={growVariationPath(entry, loadedLayers)}>{INSTRUMENT_WORDS.growVariation}</Link>
-          </div>
-        </aside>
-        {controls}
-        {message && <p className="stage-message" role="status">{message}</p>}
-        {/* Kept in place while the page gives a notice at all, so a result appearing moves nothing. */}
-        {notice !== undefined && <p className="stage-message stage-notice" role="status">{notice}</p>}
-      </div>
-    </section>;
-  }
-
-  return <section ref={stageElement} className="material-stage" aria-label={WORDS.name}>
-    <header className="stage-head">
-      <h2>{variationName(entry)}</h2>
-      <p>{readingLine(entry)} · {fill(WORDS.by, { credit: entry.credit || WORDS.anonymous })} · <Link to={growVariationPath(entry, loadedLayers)}>{WORDS.growAnother}</Link>
-        {" · "}<Link to={continueTrainingPath(entry)}>{WORDS.continueTraining}</Link></p>
-    </header>
-    <div className="stage-body" data-single={entries.length === 1 || undefined}>
-      <div className="stage-view">
-        {framed}
-        {controls}
+  return <section ref={stageElement} className="material-stage" aria-label={entry.title}>
+    <div className="stage-instrument">
+      {framed}
+      <aside className="stage-readouts" aria-label={INSTRUMENT_WORDS.readoutsName}>
+        {!ownerActions && (
+          <MakerCard
+            block={entry.block}
+            title={material ? entry.title : ""}
+            definitionName={material?.file.name ?? entry.materialId}
+            credit={entry.credit}
+            detail={tileName(entry).rule}
+            updates={material?.file.training.updates ?? null}
+            published={!publishable}
+          />
+        )}
+        {/* A panel opens below the frame; the step stays in its line. */}
+        <dl>
+          <dt className="label">{INSTRUMENT_WORDS.tick}</dt><dd><output ref={tickOutput}>0</output></dd>
+        </dl>
         {panels}
-        {message && <p className="stage-message" role="status">{message}</p>}
-      </div>
-      {entries.length > 1 && thumbnails}
+        {ownerActions && <div className="stage-owner">{ownerActions}</div>}
+        <div className="stage-actions">
+          <p className="stage-words">
+            {material && source.keepable(entry) && <><KeepWord key={entry.id} material={material} entryId={entry.id} className="stage-word" />{dot}</>}
+            {material && publishable && <><PublishWord key={entry.id} file={material.file} expanded={panel === "publish"} onToggle={() => togglePanel("publish")} className="stage-word" />{dot}</>}
+            {panelWord("video", WORDS.video)}
+            {dot}
+            {panelWord("export", INSTRUMENT_WORDS.export)}
+            {dot}
+            {panelWord("options", INSTRUMENT_WORDS.options)}
+          </p>
+          <Link className="button" to={growVariationPath(entry, loadedLayers)}>{INSTRUMENT_WORDS.growVariation}</Link>
+        </div>
+      </aside>
+      {controls}
+      {message && <p className="stage-message" role="status">{message}</p>}
+      {/* Kept in place while the page gives a notice at all, so a result appearing moves nothing. */}
+      {notice !== undefined && <p className="stage-message stage-notice" role="status">{notice}</p>}
     </div>
   </section>;
 }

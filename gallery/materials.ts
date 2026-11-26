@@ -8,6 +8,9 @@
 //   purge <id>           delete a shown or hidden material for good (asks y/N)
 //   feature <id>         mark a shown material featured for the Home pool and Automata page
 //   unfeature <id>       clear the mark
+//   rename-credit <from> <to> [--write]
+//                        give every shown and hidden automaton credited <from> the credit <to>; titles, places
+//                        and marks stay. Without --write a dry run that lists them and writes nothing
 //   version-files [--write]
 //                        count shown and hidden records that lack a file revision. With --write, copy their
 //                        existing files to versioned library keys and update the records.
@@ -38,8 +41,9 @@ import { FIGURE_PYRAMID_LAYOUT, type FigureMaterialFile } from "../app/src/mater
 import { materialKey } from "../app/src/features/gallery/material-index.ts";
 import {
   approveMaterial, checkedMaterial, findMaterial, hideMaterial, materialEntries, migrateMaterialVersions, publishMaterials,
-  purgeMaterial, readMaterials, replaceMaterialFiles, restoreMaterial, setMaterialFeatured,
+  purgeMaterial, readMaterials, renameCredit, replaceMaterialFiles, restoreMaterial, setMaterialFeatured,
 } from "./src/material-review.ts";
+import { readMaterialLabel } from "./src/submission.ts";
 import { reject } from "./src/review.ts";
 import { rereadProblem } from "./src/research.ts";
 import { localSeedMaterials, seedMaterialFolder } from "./material-seed.ts";
@@ -91,6 +95,19 @@ try {
   } else if (command === "feature" || command === "unfeature") {
     const entry = await setMaterialFeatured(submissions, library, need("id"), command === "feature");
     console.log(`${entry.id} is ${entry.featured ? "featured" : "not featured"}; /api/materials shows it after its minute's cache`);
+  } else if (command === "rename-credit") {
+    const [from, to] = args.filter((word) => !word.startsWith("--")).slice(1);
+    if (from === undefined || to === undefined) throw new Error("usage: pnpm run materials rename-credit <from> <to> [--write]");
+    const label = readMaterialLabel("", to);
+    if ("error" in label) throw new Error(`The new credit is refused: ${label.error}`);
+    const write = args.includes("--write");
+    const { shown, hidden } = await renameCredit(submissions, library, from, label.credit, write);
+    for (const id of shown) console.log(`  shown   ${id}`);
+    for (const id of hidden) console.log(`  hidden  ${id}`);
+    const counts = `${shown.length} shown and ${hidden.length} hidden automata credited "${terminalText(from)}"`;
+    console.log(write
+      ? `${counts} are now credited "${terminalText(label.credit)}"; /api/materials shows it after its minute's cache`
+      : `${counts} would be credited "${terminalText(label.credit)}". Dry run: nothing was written. Add --write to write them.`);
   } else if (command === "version-files") {
     const write = args.includes("--write");
     const { shown, hidden } = await migrateMaterialVersions(submissions, library, write);
@@ -166,6 +183,7 @@ try {
     }
   } else {
     console.error("usage: pnpm run materials <list | approve <id> | reject <id> | hide <id> | restore <id> | purge <id> | feature <id> | unfeature <id> | "
+      + "rename-credit <from> <to> [--write] | "
       + "version-files [--write] | reread <folder> [--write] | seed <folder> | seed-production <persist dir> [--production]> [--local <dir>]");
     process.exitCode = 2;
   }

@@ -117,7 +117,7 @@ export function PendingScreen({ submissions, onReviewed }: {
           <h1 className="automata-title"><span className="display">{WORDS.pendingTitle}</span></h1>
         </header>
         {playing && (
-          <MaterialStage key={playing.submission.id} entries={[playing.entry]} source={source} layout="instrument" ownerActions={actions}
+          <MaterialStage key={playing.submission.id} entry={playing.entry} source={source} ownerActions={actions}
             notice={asking ? WORDS.rejectWarning : null} />
         )}
       </section>

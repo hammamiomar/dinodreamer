@@ -284,7 +284,7 @@ function OwnerStage({ automaton, actions, notice }: { automaton: OwnerAutomaton;
   const played: MaterialEntry | null = entry ?? (privateFile.status === "ready" ? privateFile.value.entry : null);
   if (played === null) {
     return (
-      <section className="material-stage owner-stage-waiting" data-layout="instrument">
+      <section className="material-stage owner-stage-waiting">
         <div className="stage-fit">
           <MaterialFrame>
             <img className="owner-stage-still" src={automaton.pictureUrl} alt="" />
@@ -294,7 +294,7 @@ function OwnerStage({ automaton, actions, notice }: { automaton: OwnerAutomaton;
       </section>
     );
   }
-  return <MaterialStage entries={[played]} source={source} layout="instrument" gridNote={gridNoteOf(automaton)} ownerActions={actions} notice={notice} />;
+  return <MaterialStage entry={played} source={source} gridNote={gridNoteOf(automaton)} ownerActions={actions} notice={notice} />;
 }
 
 /**

@@ -276,14 +276,17 @@ function useDecksGlide(table: RefObject<HTMLElement | null>, order: string, stil
 export function GroupWall<T extends GalleryAutomaton>({ groups, names, status, aside, markOf, loadFace, lead, hidden = false, children }: {
   groups: readonly GalleryGroup<T>[];
   names: BasisGroupNames;
-  /** What the wall says in the decks' place while the automata load, or when there is none: null once it has decks. */
-  status: string | null;
+  /**
+   * What the wall says in the decks' place while the automata load, when there is none, or when the
+   * address names a group without one (with its way to Train): null once it has decks.
+   */
+  status: ReactNode;
   /** At the right of the heading: the way to the saved automata. */
   aside?: ReactNode;
   markOf?: (group: GalleryGroup<T>) => ReactNode;
   /** How a face grows; the page supplies it, since a page knows where its files are. Absent: every face is a still. */
   loadFace?: LoadFace<T>;
-  /** The owner's view: its line under the heading. A visitor's wall has the heading alone. */
+  /** The line under the heading: on the visitor's wall the count of groups with an automaton, on the owner's view its own line. */
   lead?: ReactNode;
   /** A group's screen is open over the wall: the wall keeps its recent faces and scroll position. */
   hidden?: boolean;

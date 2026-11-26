@@ -9,6 +9,8 @@
 // this module has no browser or React imports, so they are tested without a page.
 
 import { GALLERY_METHODS, GALLERY_STARTS, samePlace, type GalleryMethod, type GalleryPlace, type GalleryStart } from "../gallery/gallery-place";
+import type { GrowStart } from "../../grow/material-kind";
+import { methodOf, TRAIN_COMPARISONS, TRAIN_SPACES } from "../../grow/train-method";
 
 /** The grids an automaton has, Train's first choice: one fine grid, or a coarse grid under it. */
 export type GalleryGrids = "fine" | "coarse-fine";
@@ -141,6 +143,22 @@ export function arrangeGroups<T extends GalleryAutomaton>(automata: readonly T[]
 
 export function cellAt<T extends GalleryAutomaton>(group: GalleryGroup<T>, place: GalleryPlace): GalleryCell<T> | null {
   return group.cells.find((cell) => samePlace(cell.place, place)) ?? null;
+}
+
+/** The grid's starts that Train offers, by Train's own word for each: placeFromFile read backwards. */
+const TRAIN_STARTS: Partial<Record<GalleryStart, GrowStart>> = { noise: "noise", circle: "centre-disc" };
+/** The four methods Train offers: its two spaces by its two comparisons. */
+const TRAIN_METHODS: readonly string[] = TRAIN_SPACES.flatMap((space) => TRAIN_COMPARISONS.map((comparison) => methodOf(space, comparison)));
+
+/**
+ * The Train address for an empty place of a group's grid: Train opens on the group with that start
+ * and that method. Null where Train does not offer the start (a disc on faint noise, a disc placed
+ * anywhere, a drawn start) or the method (the guided mean and the research variants).
+ */
+export function trainPathOfPlace(group: number, place: GalleryPlace): string | null {
+  const start = TRAIN_STARTS[place.start];
+  if (start === undefined || !TRAIN_METHODS.includes(place.method)) return null;
+  return `/train?block=${group}&start=${start}&method=${place.method}`;
 }
 
 /** The picture a cell shows: its first try. */

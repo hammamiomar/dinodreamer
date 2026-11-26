@@ -21,6 +21,40 @@
  */
 
 @font-face {
+  font-family: "Piazzolla";
+  src: url("/fonts/piazzolla-roman.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Piazzolla";
+  src: url("/fonts/piazzolla-italic.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Piazzolla";
+  src: url("/fonts/piazzolla-greek-roman.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+
+@font-face {
+  font-family: "Piazzolla";
+  src: url("/fonts/piazzolla-greek-italic.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+
+@font-face {
   font-family: "Paper Mono";
   src: url("/fonts/PaperMono-Variable.woff2") format("woff2");
   font-weight: 100 900;
@@ -77,9 +111,10 @@
   --measure: var(--ink);
   --scrim: oklch(0% 0 none / 0.7);
 
+  --serif: "Piazzolla", Charter, "Iowan Old Style", Georgia, serif;
   --mono: "Paper Mono", ui-monospace, Menlo, Consolas, monospace;
   --s-1: 12px; /* labels, numbers, credits */
-  --s0: 15px; /* sentences */
+  --s0: 16px; /* sentences */
   --s1: 28px; /* a heading */
   --s2: 104px; /* the display */
   /* Each size's line, a whole number of 8 px baselines, so lines stack on the 8 px grid. */
@@ -172,9 +207,18 @@ body {
   margin: 0;
   background: var(--black);
   color: var(--ink);
-  font: 400 var(--s0) / var(--lh0) var(--mono);
+  font: 400 var(--s0) / var(--lh0) var(--serif);
+  font-optical-sizing: auto;
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code,
+pre,
+kbd,
+samp {
+  font-family: var(--mono);
 }
 
 ::selection {
@@ -575,12 +619,12 @@ select {
   justify-content: center;
   gap: var(--space-2);
   min-height: 40px;
-  padding: 0 16px;
+  padding: 0 18px 1px;
   border: 1px solid var(--line-2);
   border-radius: 0;
   background: none;
   color: var(--ink);
-  font: 500 var(--s-1) / var(--lh-1) var(--mono);
+  font: 500 var(--s0) / var(--lh0) var(--serif);
   text-decoration: none;
   cursor: pointer;
   touch-action: manipulation;
@@ -588,10 +632,11 @@ select {
 
 .button.primary {
   min-height: 48px;
-  padding: 0 22px;
+  padding: 0 22px 1px;
   border-color: var(--ink);
   background: var(--ink);
   color: var(--black);
+  font-size: 17px;
 }
 
 .button.danger {
@@ -604,12 +649,12 @@ select {
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  padding: 4px 8px;
+  padding: 4px 10px 5px;
   border: 1px solid transparent;
   border-radius: 0;
   background: none;
   color: var(--ink-2);
-  font: 500 var(--s-1) / var(--lh-1) var(--mono);
+  font: 500 14px / 20px var(--serif);
   white-space: nowrap;
   text-decoration: none;
   cursor: pointer;
@@ -846,6 +891,20 @@ select {
 
 .select > select {
   width: 100%;
+}
+
+.select-leading {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  pointer-events: none;
+}
+
+.select[data-leading] > select {
+  padding-left: 38px;
 }
 
 /* The select's mark: a small down chevron, the ordinary sign that a list opens. */

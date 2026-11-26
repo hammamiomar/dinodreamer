@@ -1,4 +1,11 @@
-"""Prepare compact Atlas records once. Full cloud fixtures stay off the Atlas path."""
+"""Prepare compact Atlas records once. Full cloud fixtures stay off the Atlas path.
+
+A record (signature ATC3) holds up to 1,024 sampled patches of one basis group in the group's
+own three coordinates, and the two axes of the plane that the flat view draws. The first points
+of a record, at most 512, are the flat view's sample, the same patches in the same order as the
+ATC2 records held. The points after them fill out the rotating view. The reader gets a flat
+point by one product, code_R @ axes_R2.
+"""
 
 from __future__ import annotations
 
@@ -13,19 +20,31 @@ import time
 import numpy as np
 
 SOURCE = "web/v2/readouts/5e2791a38795e8cc07b301307d137224d40d12a318547a038e49003ac29ed139/clouds"
-ATLAS_PATH = SOURCE.removesuffix("/clouds") + "/atlas-clouds"
+# Objects in the public bucket are immutable. A changed record format takes a new folder, and
+# the folder of the ATC2 records, atlas-clouds, stays for the application already released.
+ATLAS_PATH = SOURCE.removesuffix("/clouds") + "/atlas-clouds-3d"
 RELEASE = "pass-003"
+# The flat view's sample, unchanged from ATC2.
 POINT_LIMIT = 512
+# The rotating view draws the flat view's sample and as many patches again.
+CLOUD_POINT_LIMIT = 1024
 # Four pictures per band, so the rare strong bands show as many as Barely.
 PICTURES_PER_BAND = 4
 PICTURE_LIMIT = 4 * PICTURES_PER_BAND
-# ATC1 records held twelve pictures allotted by band population.
-RECORD_SIGNATURE = b"ATC2"
-HEADER = struct.Struct("<4sHHHBBff4HIffff3f")
+# ATC1 records held twelve pictures allotted by band population. ATC2 records held 512 points
+# as plane coordinates only.
+RECORD_SIGNATURE = b"ATC3"
+# The ATC2 header's 60 bytes, then the plane's two axes in native coordinates (6 float32),
+# the number of leading points in the flat view, and two reserved bytes.
+HEADER = struct.Struct("<4sHHHBBff4HIffff3f6fHH")
 INDEX_ROW = struct.Struct("<HHfff4H")
 PICTURE = struct.Struct("<QHB")
 # S indexes the four strength bands. N indexes sampled patches; R is native rank 3.
-POINT_DTYPE = np.dtype([("x", "<f2"), ("y", "<f2"), ("band", "u1")])
+POINT_DTYPE = np.dtype([("code", "<f2", (3,)), ("band", "u1")])
+# The seed of the flat view's sample is the ATC2 seed, so that sample does not change. The
+# rotating view's further patches come from a second, independent draw.
+FLAT_SAMPLE_SEED = 20261021
+CLOUD_SAMPLE_SEED = 20261125
 
 
 def allocate_examples(counts_S: np.ndarray, budget: int) -> np.ndarray:
@@ -73,11 +92,6 @@ def principal_axes(codes_NR: np.ndarray, direction_R: np.ndarray) -> np.ndarray:
     return axes_RR[:, :2]
 
 
-def principal_plane(codes_NR: np.ndarray, direction_R: np.ndarray) -> np.ndarray:
-    """The codes in the plane of principal_axes, [N, 2]."""
-    return codes_NR @ principal_axes(codes_NR, direction_R)
-
-
 def choose_pictures(
     rows: list[dict], norms_N: np.ndarray, bands_N: np.ndarray, counts_S: np.ndarray
 ) -> list[tuple[int, int, int]]:
@@ -113,6 +127,25 @@ def choose_pictures(
             chosen_by_band[band].append((row["image_id"], row["slot"], band))
     # Stored barely first; inside a band, in quantile order from the weakest.
     return [picture for band in chosen_by_band for picture in band]
+
+
+def sample_by_band(
+    bands_N: np.ndarray, counts_S: np.ndarray, budget: int, generator: np.random.Generator
+) -> np.ndarray:
+    """Positions of a sample of at most `budget` patches, each band at its share, in ascending order."""
+    selected: list[int] = []
+    for band, wanted in enumerate(allocate_examples(counts_S, budget)):
+        if wanted:
+            members_N = np.flatnonzero(bands_N == band)
+            selected.extend(
+                generator.choice(members_N, size=int(wanted), replace=False).tolist()
+            )
+    return np.asarray(sorted(selected), dtype=np.int64)
+
+
+def flat_points(points_N: np.ndarray, axes_R2: np.ndarray) -> np.ndarray:
+    """The stored codes in the flat view's plane, [N, 2], as the reader computes them."""
+    return points_N["code"].astype(np.float64) @ axes_R2
 
 
 def pack_record(fixture: dict, summary: dict) -> bytes:
@@ -153,26 +186,32 @@ def pack_record(fixture: dict, summary: dict) -> bytes:
     direction_R = np.asarray(
         (summary.get("main_lobe") or {}).get("direction", [1, 0, 0]), dtype=np.float64
     )
-    plane_ND = principal_plane(codes_NR, direction_R)  # D=2 displayed coordinates.
-    allocation_S = allocate_examples(counts_S, POINT_LIMIT)
-    generator = np.random.default_rng([20261021, block])
-    selected = []
-    for band, wanted in enumerate(allocation_S):
-        members_N = np.flatnonzero(bands_N == band)
-        if wanted:
-            selected.extend(
-                generator.choice(members_N, size=int(wanted), replace=False).tolist()
-            )
-    selected_N = np.asarray(sorted(selected), dtype=np.int64)
+    # The plane comes from every row of the sample, before any thinning. D=2.
+    axes_R2 = principal_axes(codes_NR, direction_R)
+    flat_N = sample_by_band(
+        bands_N, counts_S, POINT_LIMIT, np.random.default_rng([FLAT_SAMPLE_SEED, block])
+    )
     # Retain the actual outermost winning patch so the lobe's end is not lost in thinning.
-    if len(rows) and norms_N.argmax() not in selected_N:
-        replace = np.flatnonzero(bands_N[selected_N] == bands_N[norms_N.argmax()])[-1]
-        selected_N[replace] = norms_N.argmax()
-    points_N = np.empty(len(selected_N), dtype=POINT_DTYPE)
-    points_N["x"], points_N["y"] = plane_ND[selected_N].T
-    points_N["band"] = bands_N[selected_N]
-    if not np.isfinite(points_N["x"]).all() or not np.isfinite(points_N["y"]).all():
-        raise ValueError(f"Projection exceeds float16 for block {block}")
+    if len(rows) and norms_N.argmax() not in flat_N:
+        replace = np.flatnonzero(bands_N[flat_N] == bands_N[norms_N.argmax()])[-1]
+        flat_N[replace] = norms_N.argmax()
+    # The rotating view's further patches: the same proportional rule over the rows left.
+    left_N = np.setdiff1d(np.arange(len(rows)), flat_N)
+    further_N = left_N[
+        sample_by_band(
+            bands_N[left_N],
+            np.bincount(bands_N[left_N], minlength=4),
+            CLOUD_POINT_LIMIT - len(flat_N),
+            np.random.default_rng([CLOUD_SAMPLE_SEED, block]),
+        )
+    ]
+    stored_N = np.concatenate([flat_N, further_N])
+    points_N = np.empty(len(stored_N), dtype=POINT_DTYPE)
+    with np.errstate(over="ignore"):
+        points_N["code"] = codes_NR[stored_N]
+    points_N["band"] = bands_N[stored_N]
+    if not np.isfinite(points_N["code"]).all():
+        raise ValueError(f"Native coordinates exceed float16 for block {block}")
     pictures = choose_pictures(rows, norms_N, bands_N, counts_S)
     pole = summary.get("pole") or {}
     reach = max(0.0, float(summary["radius"]["p95"] or 0) - ring)
@@ -192,6 +231,9 @@ def pack_record(fixture: dict, summary: dict) -> bytes:
         float(summary["near_gate_fraction"] or 0),
         float(pole.get("share") or 0) if pole.get("present") else 0.0,
         *(ring + max(0.0, maximum - ring) * step / 4 for step in (1, 2, 3)),
+        *axes_R2.T.reshape(-1).tolist(),
+        len(flat_N),
+        0,
     )
     return (
         header
@@ -208,27 +250,38 @@ def inspect_record(data: bytes) -> dict:
     )
     counts = rest[:4]
     wins, public, reach, near, pole = rest[4:9]
+    # The header holds float32 axes; the reader multiplies by the same values.
+    axes_R2 = np.asarray(rest[12:18], dtype=np.float32).astype(np.float64).reshape(2, 3).T
+    flat_count = rest[18]
     if (
         signature != RECORD_SIGNATURE
-        or len(data) != HEADER.size + point_count * 5 + picture_count * PICTURE.size
+        or len(data)
+        != HEADER.size
+        + point_count * POINT_DTYPE.itemsize
+        + picture_count * PICTURE.size
         or sum(counts) != total
+        or flat_count > min(point_count, POINT_LIMIT)
+        or point_count > CLOUD_POINT_LIMIT
     ):
         raise ValueError("Incomplete Atlas record")
     points_N = np.frombuffer(
         data, dtype=POINT_DTYPE, count=point_count, offset=HEADER.size
     )
+    plane_N2 = flat_points(points_N[:flat_count], axes_R2)
     return {
         "block": block,
         "index": INDEX_ROW.pack(block, total, reach, near, pole, *counts),
         "counts": counts,
         "total": total,
         "bytes": len(data),
+        "points": point_count,
+        "flat_points": flat_count,
         "extent": [
-            float(points_N["x"].min()),
-            float(points_N["x"].max()),
-            float(np.abs(points_N["y"]).max()),
+            float(plane_N2[:, 0].min()),
+            float(plane_N2[:, 0].max()),
+            float(np.abs(plane_N2[:, 1]).max()),
         ]
-        if point_count
+        if flat_count
         else [0, 0, 0],
     }
 
@@ -301,6 +354,7 @@ def prepare_atlas(
         "source": SOURCE,
         "blocks": len(records),
         "pointLimit": POINT_LIMIT,
+        "cloudPointLimit": CLOUD_POINT_LIMIT,
         "pictureLimit": PICTURE_LIMIT,
         "index": "index.bin",
         "records": "blocks",
@@ -312,6 +366,7 @@ def prepare_atlas(
         },
         "bandRule": "Quarter the distance from median ring to sample maximum; inside-ring winners stay in barely.",
         "glyphRule": "Uncentred principal plane; PC1 toward main lobe; proportional band thinning with seed [20261021, block], retaining strongest point. Float16 is for display only.",
+        "cloudRule": "Native coordinates as float16. The first points, at most pointLimit, are the flat view's sample; a flat point is the code times the header's two axes. The points after them are a second proportional band sample of the rows left, seed [20261125, block].",
         "pictureRule": "Four per band, or every patch of a smaller band; norm quantiles within each band, preferring distinct image IDs, the strongest band choosing first.",
         "recordBytes": sum(record["bytes"] for record in records),
         "maximumRecordBytes": max(record["bytes"] for record in records),
