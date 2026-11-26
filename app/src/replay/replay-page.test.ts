@@ -84,7 +84,7 @@ describe("video plan", () => {
 describe("the page's controls set the element's attributes", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  function page({ webGpu = true, reducedMotion = false } = {}) {
+  function page({ webGpu = true } = {}) {
     const control = () => ({ value: "", textContent: "", disabled: false, onclick: () => {}, onchange: (_event: unknown) => {} });
     const controls = new Map(["#play", "#speed", "#seed", "#again", "#grid", "#download", "#status"].map((selector) => [selector, control()]));
     const attributes = new Map<string, string>();
@@ -99,7 +99,6 @@ describe("the page's controls set the element's attributes", () => {
     };
     const tagName = automatonTagName(kept());
     vi.stubGlobal("document", { querySelector: (selector: string) => (selector === tagName ? automaton : controls.get(selector)) });
-    vi.stubGlobal("matchMedia", () => ({ matches: reducedMotion }));
     vi.stubGlobal("navigator", { gpu: webGpu ? {} : undefined });
     runReplayPage(tagName, kept());
     return { controls, attributes, automaton };
@@ -125,7 +124,5 @@ describe("the page's controls set the element's attributes", () => {
     expect(noWebGpu.controls.get("#status")!.textContent).toMatch(/no WebGPU/);
     expect(["#play", "#speed", "#again", "#grid"].map((selector) => noWebGpu.controls.get(selector)!.disabled)).toEqual([true, true, true, true]);
     expect(noWebGpu.controls.get("#download")!.disabled).toBe(false);
-    vi.unstubAllGlobals();
-    expect(page({ reducedMotion: true }).controls.get("#status")!.textContent).toMatch(/reduced motion/);
   });
 });

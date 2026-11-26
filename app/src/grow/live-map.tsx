@@ -11,7 +11,6 @@ import { SITE_WORDS, fill } from "../app/site-words";
 import { bandColours, bandIndex } from "../features/look/strength-bands";
 import type { StrengthCuts } from "../recipe";
 import { orbitBy, projector, type Orbit, type Vec3, type View } from "../ui/code-space/projection";
-import { useMediaMatch } from "../ui/media-match";
 import {
   between, cloudPoints, distanceInMedians, inFrame, journeyFit, mapFrame, meanOf, patchPoints, scoredMean, widenedRadius, withMean,
 } from "./live-map-points";
@@ -67,7 +66,6 @@ export function LiveMap({ cloud, strength, target, comparison, shadow, patchCode
   const shown = useRef<Vec3[]>([]);
   const travel = useRef<{ from: Vec3[]; to: Vec3[]; started: number; frame: number } | null>(null);
   const path = useRef<Vec3[]>([]);
-  const still = useMediaMatch("(prefers-reduced-motion: reduce)");
   const [distance, setDistance] = useState<number | null>(null);
 
   const nativeRows = useMemo(() => cloudPoints(cloud.codes, cloud.count), [cloud]);
@@ -190,7 +188,7 @@ export function LiveMap({ cloud, strength, target, comparison, shadow, patchCode
     path.current = withMean(path.current, mean);
     setDistance(distanceInMedians(mean, targetMean, medianNorm));
     if (travel.current) cancelAnimationFrame(travel.current.frame);
-    if (still || shown.current.length === 0) {
+    if (shown.current.length === 0) {
       travel.current = null;
       shown.current = to;
       draw();
@@ -209,7 +207,7 @@ export function LiveMap({ cloud, strength, target, comparison, shadow, patchCode
     };
     travel.current = { from, to, started: performance.now(), frame: requestAnimationFrame(step) };
     return () => { if (travel.current) cancelAnimationFrame(travel.current.frame); };
-  }, [patchCodes, region, targetMean, medianNorm, still, draw, journey, frame]);
+  }, [patchCodes, region, targetMean, medianNorm, draw, journey, frame]);
 
   // Its box changed, or what it draws on did: draw again.
   useEffect(() => {

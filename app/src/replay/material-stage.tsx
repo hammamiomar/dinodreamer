@@ -140,9 +140,8 @@ export function MaterialStage({ entry, source = PUBLISHED_SOURCE, publishable = 
   const side = pictureSide / pixelsPerCell;
   const [seed, setSeed] = useState(entry.seed);
   const [seedText, setSeedText] = useState(String(entry.seed));
-  // A material plays as soon as it is chosen, from its start; with reduced motion it waits for Play.
-  const startPlaying = () => !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-  const [playing, setPlaying] = useState(startPlaying);
+  // A material plays as soon as it is chosen, from its start.
+  const [playing, setPlaying] = useState(true);
   const [speed, setSpeed] = useState(NORMAL_SPEED);
   // The largest zoom that fits; the room is measured from the frame's column.
   const [room, setRoom] = useState(0);

@@ -347,7 +347,7 @@ function LookBlock({ data, origin, scroller }: { data: LookData; origin: CloudTo
       {origin && (
         <OriginPlace origin={origin} strength={strength} onShow={() => {
           cloudState.setInspected(0);
-          cloudSection.current?.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+          cloudSection.current?.scrollIntoView({ block: "start", behavior: "smooth" });
         }} onGrow={origin.source === "library" ? () => growFrom(0) : null} />
       )}
       {showPictureHere && upload.picture && uploadUrl && (
@@ -358,7 +358,7 @@ function LookBlock({ data, origin, scroller }: { data: LookData; origin: CloudTo
             onHover={cloudState.setHovered}
             onShowInPlot={() => {
               cloudState.selectOwn();
-              cloudSection.current?.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+              cloudSection.current?.scrollIntoView({ block: "start", behavior: "smooth" });
             }}
             onTrain={cloudState.ownMain === null ? null : growFromPicture} onRemove={upload.clear} />
         </div>

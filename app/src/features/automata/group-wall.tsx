@@ -296,7 +296,6 @@ export function GroupWall<T extends GalleryAutomaton>({ groups, names, status, a
   const [words, setWords] = useState("");
   const name = (group: number) => nameOf(names, group);
   const ordered = findGroups(sortWall(groups, sort, name), words, name);
-  const still = useMediaMatch("(prefers-reduced-motion: reduce)");
   const touchPreview = useMediaMatch("(hover: none)");
   const table = useRef<HTMLOListElement>(null);
   const order = ordered.map(group => group.group).join(" ");
@@ -313,8 +312,8 @@ export function GroupWall<T extends GalleryAutomaton>({ groups, names, status, a
     return face !== null && !settled.has(face.pictureUrl);
   });
   const deferred = new Set(missingFiles.slice(CONCURRENT_FACE_FILES).map(group => group.group));
-  useWallEye(table, !still && !departing, admitting);
-  useDecksGlide(table, order, still);
+  useWallEye(table, !departing, admitting);
+  useDecksGlide(table, order, false);
   const [hovered, setHovered] = useState<number | null>(null);
   const [focused, setFocused] = useState<number | null>(null);
   const forward = admitting ? hovered ?? focused : null;
@@ -373,10 +372,10 @@ export function GroupWall<T extends GalleryAutomaton>({ groups, names, status, a
       {status === null && groups.length > 0 && ordered.length === 0 && (
         <p className="automata-status" role="status">{fill(WORDS.findNothing, { words: words.trim() })}</p>
       )}
-      <ol ref={table} className="automata-table" data-forward={forward !== null || undefined} data-still={still || undefined}>
+      <ol ref={table} className="automata-table" data-forward={forward !== null || undefined}>
         {ordered.map((group) => (
-          <Deck key={group.group} group={group} name={nameOf(names, group.group)} mark={markOf?.(group)} loadFace={still ? undefined : loadFace}
-            forward={forward === group.group} touchPreview={touchPreview} advance={!still && !touchPreview && hovered === group.group}
+          <Deck key={group.group} group={group} name={nameOf(names, group.group)} mark={markOf?.(group)} loadFace={loadFace}
+            forward={forward === group.group} touchPreview={touchPreview} advance={!touchPreview && hovered === group.group}
             visible={admitting && visible.has(group.group)} retained={visible.has(group.group) || recent.includes(group.group)} readFile={!deferred.has(group.group)} photosReady={missingFiles.length === 0} onFileSettled={onFileSettled}
             carried={carried === group.group} wallHidden={!admitting}
             onLook={() => look(group.group)} onLeave={() => leave(group.group)} onFocus={active => focus(active ? group.group : null)} onOpen={() => open(group.group)} />

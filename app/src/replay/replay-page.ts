@@ -17,13 +17,10 @@ export function runReplayPage(tagName: string, file: FigureMaterialFile): void {
   const automaton = element<HTMLElement & { restart(): void }>(tagName);
   const play = element<HTMLButtonElement>("#play");
   const seed = element<HTMLInputElement>("#seed");
-  const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (!navigator.gpu || reducedMotion) {
+  if (!navigator.gpu) {
     play.textContent = "Play";
     for (const control of ["#play", "#speed", "#again", "#grid"]) element<HTMLButtonElement>(control).disabled = true;
-    element("#status").textContent = navigator.gpu
-      ? "Your system asks for reduced motion, so this is the still image."
-      : "This browser has no WebGPU, so this is the still image. Open the page in a browser with WebGPU to grow it.";
+    element("#status").textContent = "This browser has no WebGPU, so this is the still image. Open the page in a browser with WebGPU to grow it.";
   }
   play.onclick = () => {
     const paused = automaton.toggleAttribute("paused");

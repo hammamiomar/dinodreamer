@@ -53,8 +53,6 @@
 }
 
 
-@media (prefers-reduced-motion: no-preference) {
-  .grow-kept::before {
-    transition: background-color var(--motion), border-color var(--motion);
-  }
+.grow-kept::before {
+  transition: background-color var(--motion), border-color var(--motion);
 }
