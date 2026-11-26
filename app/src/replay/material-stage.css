@@ -66,6 +66,7 @@
 .stage-instrument .stage-actions { height: 112px; align-content: space-between; }
 
 .stage-readouts { display: flex; flex-direction: column; gap: var(--space-6); min-width: 0; }
+.stage-readouts .maker-card { flex-basis: 100%; }
 .stage-readouts dl { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto; align-items: baseline; gap: var(--space-2) var(--patch); margin: 0; }
 /* A row is 24 px; a label longer than its column wraps in 16 px lines and the row grows. */
 .stage-readouts dl { grid-auto-rows: minmax(24px, auto); }

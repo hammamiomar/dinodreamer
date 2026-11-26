@@ -1,8 +1,9 @@
 import { useId, useState } from "react";
 import { TURNSTILE_SITE_KEY } from "../../app/config";
 import { fill, SITE_WORDS } from "../../app/site-words";
-import type { FigureMaterialFile } from "../../materials/material-file";
+import { FIGURE_PYRAMID_LAYOUT, type FigureMaterialFile } from "../../materials/material-file";
 import { MATERIAL_SUBMISSION_LIMITS, refreshMaterialIndex, submitMaterial, useMaterialIndex } from "./material-gallery";
+import { MakerCard } from "../../replay/maker-card";
 import { fileMetadataRows, MaterialMetadata } from "../../replay/material-metadata";
 import { publishState, readPublishRecords, rememberSent, type PublishState } from "./publish-records";
 import { submissionLabelProblem } from "./submission-label";
@@ -84,6 +85,16 @@ function PublishForm({ file, onSent, onCancel }: { file: FigureMaterialFile; onS
     }
   };
   return <form className="publish-material-form" onSubmit={(event) => { event.preventDefault(); void send(); }}>
+    <MakerCard
+      block={file.block}
+      title={form.title}
+      definitionName={file.name}
+      credit={form.credit}
+      detail={file.rule.layout === FIGURE_PYRAMID_LAYOUT ? "coarse + fine" : "fine"}
+      updates={file.training.updates}
+      preview
+      label="Gallery plaque"
+    />
     <div className="publish-material-recipe"><span className="label">{WORDS.recipe}</span><MaterialMetadata rows={fileMetadataRows(file)} /></div>
     <label>{WORDS.title}<input value={form.title} placeholder={WORDS.titleHint} aria-describedby={`${titleHelp} ${titleError}`} aria-invalid={titleProblem !== null}
       onChange={(event) => setForm({ ...form, title: event.target.value })} /></label>

@@ -27,6 +27,22 @@
   line-height: 32px;
 }
 
+.cloud-atlas-title-group {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cloud-atlas-subtitle {
+  margin: 0;
+  max-width: 64ch;
+  color: var(--ink-2);
+  font-family: var(--serif);
+  font-size: var(--s0);
+  line-height: 1.5;
+  font-optical-sizing: auto;
+}
+
 /*
  * The controls in two rows: find, sort and category, then the two checks, the count and Random at the end.
  * Each row's 40 px controls take the top of a 64 px band, 24 px under them, so the rows
@@ -54,6 +70,30 @@
   display: inline-flex;
   align-items: center;
   gap: 16px;
+}
+
+.atlas-sort-glyph {
+  display: block;
+  flex-shrink: 0;
+}
+
+.atlas-glyph-ring {
+  fill: none;
+  stroke: var(--ink-3);
+  stroke-width: 1;
+}
+
+.atlas-glyph-axis {
+  stroke: var(--line-2);
+  stroke-width: 1;
+}
+
+.atlas-glyph-dot {
+  fill: var(--strongly);
+}
+
+.atlas-glyph-dot-strong {
+  fill: var(--strongest);
 }
 
 /* Wide enough for its placeholder, "Basis group number, 0 to 16383" (30 characters of 15 px: 273 px, 291 with a finger's 16 px type) and its padding. */
@@ -160,9 +200,11 @@
   margin-top: 16px;
 }
 
+.atlas-cloud-area .rotating-cloud-3d,
 .atlas-cloud-area canvas {
   display: block;
   width: 100%;
+  height: 100%;
 }
 
 /* Until a card's record and pictures are ready, a hidden copy of its layout holds its place. */
@@ -320,13 +362,41 @@
   color: var(--ink-3);
 }
 
-/* 40 px of pagination, 24 px, and a 64 px band for this line: the page ends on the module. */
-.atlas-cloud-footer {
-  height: var(--m);
-  margin: 24px 0 0;
+/* Spec strip under pagination: 1 px framed specification cells in Paper Mono --s-1. */
+.atlas-spec-bar {
+  margin-top: 24px;
+  border: 1px solid var(--line);
+  background: var(--black);
+}
+
+.atlas-spec-cells {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0;
   font-size: var(--s-1);
   line-height: 16px;
+}
+
+.atlas-spec-cell {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 12px 16px;
+}
+
+.atlas-spec-cell + .atlas-spec-cell {
+  border-left: 1px solid var(--line);
+}
+
+.atlas-spec-cell dt {
   color: var(--ink-3);
+  font-weight: 500;
+}
+
+.atlas-spec-cell dd {
+  margin: 0;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -409,6 +479,15 @@
     order: -1;
     width: 100%;
     text-align: center;
+  }
+
+  .atlas-spec-cells {
+    flex-direction: column;
+  }
+
+  .atlas-spec-cell + .atlas-spec-cell {
+    border-top: 1px solid var(--line);
+    border-left: 0;
   }
 }
 

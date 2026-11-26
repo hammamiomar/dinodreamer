@@ -1,5 +1,5 @@
-/* Picture exploration is a secondary text action beside the Index heading. */
-.picture-entry { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 16px; font-size: var(--s-1); }
+/* Dedicated picture inspection action beside the Index heading. */
+.picture-entry { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; font-size: var(--s-1); }
 .picture-entry .link-control { text-align: left; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
 
 /*
@@ -11,10 +11,12 @@
 .picture-page { padding: var(--m) 0; }
 .picture-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 32px; min-height: var(--m); margin-bottom: var(--m); }
 .picture-head h1 { margin: 0; line-height: 32px; }
+.picture-privacy { margin: 8px 0 0; font-family: var(--serif); font-size: var(--s0); line-height: 24px; color: var(--ink-2); font-optical-sizing: auto; }
 .picture-file { margin: 8px 0 0; font-size: var(--s-1); line-height: 16px; color: var(--ink-3); overflow-wrap: anywhere; }
 .picture-head > .link-control { flex-shrink: 0; font-size: var(--s-1); }
 .picture-layout { display: grid; grid-template-columns: 512px minmax(0, 1fr); gap: var(--m); align-items: start; }
 .picture-figure { position: sticky; top: var(--m); margin: 0; }
+.picture-map-legend { margin-top: 8px; font-size: var(--s-1); line-height: 16px; color: var(--ink-2); }
 .picture-groups { --picture-columns: minmax(0, 128px) 8px repeat(4, minmax(0, 128px)); --picture-column-gap: 8px; }
 .picture-groups-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding-top: 15px; border-top: 1px solid var(--line); }
 .picture-groups-head h2 { margin: 0; font-size: var(--s0); font-weight: 400; }
@@ -40,7 +42,9 @@
 .picture-group-open { display: grid; grid-template-columns: var(--picture-columns); column-gap: var(--picture-column-gap); row-gap: 8px; color: inherit; text-decoration: none; }
 .picture-group-line { grid-column: 1 / -1; grid-row: 1; display: flex; align-items: baseline; gap: 16px; font-size: var(--s-1); line-height: 16px; color: var(--ink-3); }
 .picture-group-number { font-size: var(--s0); font-weight: 400; color: var(--ink); }
+.picture-group-action { margin-left: auto; font-size: var(--s-1); color: var(--ink-2); }
 .picture-group-open:hover .picture-group-number, .picture-group-open:focus-visible .picture-group-number { text-decoration: underline; text-underline-offset: 4px; }
+.picture-group-open:hover .picture-group-action, .picture-group-open:focus-visible .picture-group-action { color: var(--ink); }
 .picture-group-yours { position: relative; grid-column: 1; grid-row: 2; }
 .picture-group-yours-level { grid-column: 1; grid-row: 3; font-size: var(--s-1); line-height: 16px; }
 .picture-group-patch { position: absolute; width: 6.25%; height: 6.25%; border: 1px solid #fff; outline: 1px solid var(--black); pointer-events: none; }
@@ -56,6 +60,24 @@
 .picture-more { margin-top: 32px; font-size: var(--s-1); }
 .picture-status { margin: 16px 0; font-size: var(--s-1); line-height: 16px; color: var(--ink-2); }
 .picture-status [role=alert] { color: var(--danger); }
+.picture-status-card { display: flex; flex-direction: column; gap: 10px; max-width: 560px; padding: 12px 16px; border: 1px solid var(--line); background: var(--black); }
+.picture-status-top { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
+.picture-status-top > p { margin: 0; color: var(--ink); }
+.picture-status-meta { display: inline-flex; align-items: baseline; gap: 12px; flex-shrink: 0; }
+.picture-status-detail { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.picture-status-percent { flex-shrink: 0; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.picture-progress-track { position: relative; height: 8px; overflow: hidden; border: 1px solid var(--line-2); background: var(--black); }
+.picture-progress-fill { height: 100%; background: var(--ink); }
+.picture-progress-fill[data-indeterminate] { width: 32%; background: var(--ink-2); }
+.picture-status-actions { display: flex; justify-content: flex-end; }
+@media (prefers-reduced-motion: no-preference) {
+  .picture-progress-fill:not([data-indeterminate]) { transition: width 120ms linear; }
+  .picture-progress-fill[data-indeterminate] { animation: picture-progress-slide 1.4s ease-in-out infinite; }
+  @keyframes picture-progress-slide {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(312.5%); }
+  }
+}
 .picture-empty { padding: 15px 0 0; border-top: 1px solid var(--line); color: var(--ink-2); }
 .picture-empty > p { margin: 0; }
 .picture-empty > .button { margin-top: 16px; }

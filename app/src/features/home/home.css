@@ -44,12 +44,18 @@
 
 /* --- Entrance: pure negative space, centered doors, minimal foot --- */
 
-.home-entrance {
+.home-entrance,
+.home-end {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   justify-items: center;
   min-height: var(--window);
   padding-block: var(--m);
+}
+
+.home-end {
+  padding-top: calc(var(--top) + var(--space-10));
+  border-top: 1px solid var(--line);
 }
 
 .home-title {
@@ -63,23 +69,33 @@
 
 .home-links {
   display: grid;
-  gap: 8px;
+  gap: 10px;
   align-self: center;
   justify-items: center;
   text-align: center;
 }
 
-.home-end .home-links {
-  justify-items: start;
-  text-align: left;
-  margin-top: var(--space-6);
+.home-end-note {
+  max-width: 38ch;
+  margin: 0;
+  align-self: end;
+  text-align: center;
+  color: var(--ink-2);
+  font-family: var(--serif);
+  font-size: var(--s0);
+  line-height: 1.5;
+}
+
+.home-end-note a {
+  color: var(--ink);
+  text-underline-offset: 4px;
 }
 
 .home-links a {
   color: var(--ink);
-  font-size: var(--s1);
-  line-height: var(--lh1);
-  letter-spacing: -0.02em;
+  font-size: 34px;
+  line-height: 40px;
+  letter-spacing: -0.015em;
   text-decoration: none;
 }
 
@@ -149,16 +165,30 @@
   display: grid;
   gap: var(--space-6);
   padding-block: var(--m);
+  font-optical-sizing: auto;
 }
 
-.home-beat-words .label {
-  margin: 0 0 calc(-1 * var(--patch));
+.home-beat-words .heading {
+  font-family: var(--serif);
+  font-size: 36px;
+  font-weight: 460;
+  line-height: 1.15;
+  letter-spacing: -0.012em;
+}
+
+.home-prose {
+  display: grid;
+  gap: var(--patch);
+  max-width: 42ch;
 }
 
 .home-sentence {
-  max-width: 40ch;
+  max-width: 42ch;
   margin: 0;
-  color: var(--ink-2);
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: 20px;
+  line-height: 1.55;
 }
 
 .home-hint {
@@ -189,24 +219,30 @@
 
 .home-ledger-row dt {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   gap: var(--space-2);
   color: var(--ink-2);
+  font-family: var(--serif);
+  font-size: 18px;
+  line-height: 1.4;
 }
 
 .home-ledger-row dt strong {
   color: var(--ink);
-  font-size: var(--s0);
-  font-weight: 500;
+  font-family: var(--serif);
+  font-size: 19px;
+  font-weight: 550;
 }
 
 .home-ledger-row dd {
+  flex-shrink: 0;
   margin: 0;
   font-size: var(--s-1);
   line-height: var(--lh-1);
 }
 
-/* Scene 3 left-column numbered workflow: three single-breath lines. */
+/* Scene 3 left-column numbered workflow: three high-contrast steps. */
 .home-steps {
   display: grid;
   margin: 0;
@@ -221,7 +257,6 @@
   align-items: baseline;
   padding-block: var(--space-3);
   border-bottom: 1px solid var(--line);
-  color: var(--ink-2);
 }
 
 .home-step-num {
@@ -230,10 +265,38 @@
   color: var(--ink-3);
 }
 
+.home-step-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.home-step-lead {
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: 19px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.home-step-detail {
+  color: var(--ink-2);
+  font-family: var(--serif);
+  font-size: 16px;
+  line-height: 1.45;
+}
+
 .home-doors {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-3);
+}
+
+.home-doors .button {
+  min-height: 48px;
+  padding: 0 22px 1px;
+  font-size: 18px;
 }
 
 /* --- Right-hand panel layers & shared stage frame --- */
@@ -266,22 +329,26 @@
 }
 
 .home-layer-stage {
-  display: grid;
-  align-content: center;
-  justify-items: center;
-  padding: calc(var(--top) + var(--space-6)) var(--m) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: calc(var(--top) + var(--patch)) var(--m) var(--patch);
   overflow-y: auto;
+}
+
+.home-layer-stage > .home-stage-frame {
+  margin-block: auto;
 }
 
 .home-stage-frame {
   display: flex;
   flex-direction: column;
-  gap: var(--patch);
-  width: min(100%, 640px);
+  gap: var(--space-3);
+  width: min(100%, 592px);
   min-width: 0;
 }
 
-/* Compact 12 px segmented tabs inside stages so four named basis groups sit on one crisp line. */
+/* Compact 12 px segmented tabs inside stages so named patterns sit on one crisp line. */
 .home-stage-frame .segmented {
   gap: 10px var(--patch);
   padding: 6px 0;
@@ -308,7 +375,7 @@
   color: var(--ink-2);
 }
 
-/* --- Marked patch thumbnails (shared by Scene 1 and Scene 2) --- */
+/* --- Marked patch thumbnails (shared by Scene 1, Scene 2, and Scene 3) --- */
 
 .home-patch-picture {
   position: relative;
@@ -334,7 +401,7 @@
   pointer-events: none;
 }
 
-/* --- Scene 1: Photographs vs. Grown Automaton --- */
+/* --- Scene 1: Look Inside (Photos vs. Living Image) --- */
 
 .home-properties-pair {
   display: grid;
@@ -393,21 +460,37 @@
   gap: var(--space-3);
 }
 
-/* --- Scene 2: 16,384 Basis Groups Coverage & Specimen --- */
-
-.home-coverage {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.home-coverage-numbers {
+.home-properties-bar {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
+  align-items: center;
   gap: var(--space-2) var(--patch);
-  font-size: var(--s-1);
-  line-height: var(--lh-1);
+}
+
+.home-regrow-button,
+.home-train-replay,
+.home-keep-restart {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* --- Scene 2: 16,384 Visual Patterns Coverage & Specimen --- */
+
+.home-coverage-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.home-coverage-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--patch);
+  font-variant-numeric: tabular-nums;
 }
 
 .home-coverage-bar {
@@ -451,52 +534,19 @@
   position: relative;
   border: 1px solid var(--line);
   padding: var(--space-2);
+  background: var(--black);
 }
 
-.home-specimen-cloud svg {
+.home-specimen-canvas {
   display: block;
   width: 100%;
-  height: auto;
+  height: 208px;
+  cursor: grab;
+  touch-action: none;
 }
 
-.home-specimen-axis {
-  stroke: var(--line);
-  stroke-width: 1;
-  vector-effect: non-scaling-stroke;
-}
-
-.home-specimen-ring {
-  fill: rgb(255 255 255 / 0.03);
-  stroke: var(--ink-3);
-  stroke-width: 1;
-  vector-effect: non-scaling-stroke;
-}
-
-.home-specimen-points {
-  fill: none;
-  stroke-width: 4.8;
-  stroke-linecap: round;
-  opacity: 0.95;
-}
-
-.home-specimen-points[data-band="barely"] {
-  stroke: var(--barely);
-}
-
-.home-specimen-points[data-band="weakly"] {
-  stroke: var(--weakly);
-}
-
-.home-specimen-points[data-band="strongly"] {
-  stroke: var(--strongly);
-}
-
-.home-specimen-points[data-band="strongest"] {
-  stroke: var(--strongest);
-}
-
-.home-specimen-points[data-dimmed] {
-  opacity: 0.14;
+.home-specimen-cloud[data-dragging] .home-specimen-canvas {
+  cursor: grabbing;
 }
 
 .home-specimen-cloud-note {
@@ -564,174 +614,284 @@
   gap: var(--patch);
 }
 
-/* --- Scene 3: Train Preview & Starts × Methods Matrix --- */
+/* --- Scene 3: Recorded Training Scrubber & Gallery Plaque --- */
 
-.home-train-preview {
-  display: grid;
-  grid-template-columns: 160px minmax(0, 1fr);
-  gap: var(--space-6);
-  align-items: center;
-  padding-bottom: var(--patch);
-  border-bottom: 1px solid var(--line);
-}
-
-.home-train-player {
-  width: 160px;
-  height: 160px;
+.home-train-anchor,
+.home-train-growth {
+  width: 100%;
+  aspect-ratio: 1;
   border: 1px solid var(--line);
+  background: var(--black);
   overflow: hidden;
 }
 
-.home-train-player .home-material,
-.home-train-player .home-field {
+.home-train-anchor .home-patch-picture {
   width: 100%;
   height: 100%;
 }
 
-.home-train-player .home-field-ticks {
+.home-train-growth .home-material,
+.home-train-growth .home-field,
+.home-train-fallback-player .home-material,
+.home-train-fallback-player .home-field {
+  width: 100%;
+  height: 100%;
+}
+
+.home-train-growth .home-field-ticks,
+.home-train-fallback-player .home-field-ticks {
   display: none;
 }
 
-.home-train-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-}
-
-.home-train-meta p {
-  margin: 0;
-}
-
-.home-train-group {
-  align-self: flex-start;
-  font-size: var(--s-1);
-  line-height: var(--lh-1);
-  color: var(--ink-2);
-}
-
-.home-train-recipe {
-  font-size: var(--s0);
-  line-height: var(--lh0);
-  color: var(--ink);
-}
-
-.home-train-credit {
-  font-size: var(--s-1);
-  line-height: var(--lh-1);
-  color: var(--ink-2);
-}
-
-.home-train-scroll {
-  overflow-x: auto;
-}
-
-.home-train-table {
-  width: 100%;
-  border-collapse: collapse;
-  table-layout: fixed;
-  font-size: var(--s-1);
-  line-height: var(--lh-1);
-}
-
-.home-train-table th,
-.home-train-table td {
-  padding: var(--space-2);
-  border: 1px solid var(--line);
-  text-align: left;
-  vertical-align: middle;
-  font-weight: 400;
-}
-
-.home-train-corner {
-  width: 112px;
-  vertical-align: bottom;
-}
-
-.home-train-band {
-  color: var(--ink);
-  font-weight: 500;
-}
-
-.home-train-col {
-  color: var(--ink-2);
-}
-
-.home-train-row {
-  color: var(--ink-2);
-}
-
-.home-matrix-cell {
+.home-train-strip-frame {
   position: relative;
-  display: grid;
-  place-items: center;
-  width: 100%;
-  aspect-ratio: 1;
-  max-width: 96px;
-  margin-inline: auto;
-  padding: 0;
-  border: 1px solid var(--line-2);
-  background: var(--black);
-  color: var(--ink-2);
-  font-size: var(--s-1);
-  line-height: var(--lh-1);
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.home-matrix-cell img {
-  display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  aspect-ratio: 1;
+  overflow: hidden;
+  background: var(--black);
+}
+
+.home-train-strip {
+  position: absolute;
+  top: 0;
+  display: block;
+  height: 100%;
+  max-width: none;
   image-rendering: pixelated;
 }
 
-.home-matrix-cell[aria-pressed="true"] {
-  border-color: var(--ink);
+.home-train-controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* Beat 1 visual dimensionality bar: 1 of 32 slots (3 numbers) vs all 32 slots (768 numbers). */
+.home-vector-meter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px var(--patch);
+  padding: 6px var(--space-2);
+  border: 1px solid var(--line);
+  background: var(--black);
+}
+
+.home-vector-slots {
+  display: grid;
+  grid-template-columns: repeat(32, minmax(0, 1fr));
+  gap: 2px;
+  flex: 1 1 120px;
+  height: 8px;
+}
+
+.home-vector-slot {
+  background: var(--line);
+}
+
+.home-vector-slot[data-lit] {
+  background: var(--sampled, var(--ink));
+}
+
+.home-vector-readout {
+  flex-shrink: 0;
+  font-size: var(--s-1);
+  line-height: var(--lh-1);
+  color: var(--ink-2);
+}
+
+.home-properties-column > .label,
+.home-keep-bar > .label {
+  color: var(--ink-2);
+}
+
+/* Beat 3 direct interactive selection-target curve scrubber across optimizer updates. */
+.home-train-sparkline {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  border: 1px solid var(--line);
+  background: var(--black);
+  padding: 4px 8px;
+  cursor: grab;
+  touch-action: pan-y;
+  user-select: none;
+}
+
+.home-train-sparkline:hover {
+  border-color: var(--line-2);
+}
+
+.home-train-sparkline[data-dragging] {
+  cursor: grabbing;
+  border-color: var(--ink-2);
+}
+
+.home-train-sparkline:focus-visible {
   outline: 1px solid var(--ink);
   outline-offset: 2px;
 }
 
-.home-matrix-open {
-  border-style: dashed;
+.home-train-sparkline svg {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  height: auto;
+}
+
+.home-train-target-label {
+  flex-shrink: 0;
+  align-self: flex-start;
+  padding-top: 2px;
+  font-family: var(--mono);
+  font-size: var(--s-1);
+  line-height: var(--lh-1);
+  color: var(--ink-2);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.home-train-guide {
+  stroke: var(--line-2);
+  stroke-width: 1;
+  pointer-events: none;
+}
+
+.home-train-threshold {
+  stroke: var(--line-2);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  pointer-events: none;
+}
+
+.home-train-curve {
+  fill: none;
+  stroke: var(--ink-2);
+  stroke-width: 1.25;
+  pointer-events: none;
+}
+
+.home-train-point {
+  fill: var(--ink-3);
+  pointer-events: none;
+}
+
+.home-train-point[data-met] {
+  fill: var(--sampled, var(--ink));
+}
+
+.home-train-cursor-halo {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1;
+  opacity: 0.28;
+  pointer-events: none;
+}
+
+.home-train-cursor-halo[data-met] {
+  stroke: var(--sampled, var(--ink));
+  opacity: 0.35;
+}
+
+.home-train-sparkline:hover .home-train-cursor-halo,
+.home-train-sparkline:focus-visible .home-train-cursor-halo,
+.home-train-sparkline[data-dragging] .home-train-cursor-halo {
+  stroke: var(--ink);
+  opacity: 0.45;
+}
+
+.home-train-sparkline:hover .home-train-cursor-halo[data-met],
+.home-train-sparkline:focus-visible .home-train-cursor-halo[data-met],
+.home-train-sparkline[data-dragging] .home-train-cursor-halo[data-met] {
+  stroke: var(--sampled, var(--ink));
+  opacity: 0.55;
+}
+
+.home-train-cursor-ball {
+  fill: var(--ink);
+  stroke: var(--black);
+  stroke-width: 1.25;
+  pointer-events: none;
+}
+
+.home-train-cursor-ball[data-met] {
+  fill: var(--sampled, var(--ink));
+}
+
+.home-train-readout-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2) var(--patch);
+  font-size: var(--s-1);
+  line-height: var(--lh-1);
+  color: var(--ink-2);
+}
+
+.home-train-skeleton {
+  height: 360px;
+  border: 1px solid var(--line);
   background: var(--line-faint);
 }
 
-.home-matrix-cell:hover {
-  border-color: var(--ink);
-  color: var(--ink);
+.home-train-fallback-player {
+  width: min(100%, 288px);
+  aspect-ratio: 1;
+  border: 1px solid var(--line);
+  overflow: hidden;
 }
 
 /* --- Scene 4: Standalone Custom-Element Embed --- */
 
+.home-keep-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2) var(--patch);
+}
+
 .home-keep-canvas {
   position: relative;
   width: 100%;
-  height: 240px;
+  height: 220px;
   border: 1px solid var(--line);
   background-color: var(--black);
   background-repeat: repeat;
-  background-size: 240px 240px;
+  background-size: 220px 220px;
   image-rendering: pixelated;
   overflow: hidden;
 }
 
 /* Size the custom element via parent selector so React 18's `classname` attribute is unnecessary. */
-.home-keep-canvas > * {
+.home-keep-canvas > :not(.home-brush-ring) {
   display: block;
   width: 100%;
   height: 100%;
 }
 
-.home-keep-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin: 0;
+.home-keep-canvas .home-brush-ring[data-visible] {
+  opacity: 1;
+}
+
+.home-keep-draw-toggle {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: var(--space-2);
   font-size: var(--s-1);
   line-height: var(--lh-1);
   color: var(--ink-2);
+  cursor: pointer;
+}
+
+.home-keep-draw-toggle code {
+  font-family: var(--mono);
+  color: var(--ink);
 }
 
 .home-keep-snippet {
@@ -748,7 +908,12 @@
 .home-keep-actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-3);
+}
+
+.home-keep-more {
+  margin-left: auto;
 }
 
 .home-keep-feedback {
@@ -783,12 +948,20 @@
     padding-inline: 0;
   }
 
-  .home-entrance {
+  .home-entrance,
+  .home-end {
     grid-template-rows: auto auto minmax(0, 1fr) auto;
     min-height: var(--window);
-    margin-bottom: max(0px, calc(var(--home-background-height, 100lvh) / var(--page-scale) - var(--window)));
     padding: 0 var(--edge) var(--patch);
     container-type: inline-size;
+  }
+
+  .home-entrance {
+    margin-bottom: max(0px, calc(var(--home-background-height, 100lvh) / var(--page-scale) - var(--window)));
+  }
+
+  .home-end {
+    border-top: 1px solid var(--line);
   }
 
   .home-narrow-entrance-field {
@@ -844,6 +1017,23 @@
 /* --- Phone adjustments (<= 640 px) --- */
 
 @media (max-width: 640px) {
+  .home-links {
+    gap: 6px;
+  }
+
+  .home-links a {
+    font-size: 28px;
+    line-height: 32px;
+  }
+
+  .home-beat-words .heading {
+    font-size: 28px;
+  }
+
+  .home-sentence {
+    font-size: 18px;
+  }
+
   .home-stage-frame .segmented {
     flex-wrap: nowrap;
     max-width: 100%;
@@ -852,6 +1042,7 @@
   }
 
   .home-entrance,
+  .home-end,
   .home-beat {
     padding-inline: var(--patch);
   }
@@ -870,18 +1061,8 @@
     row-gap: var(--patch);
   }
 
-  .home-train-preview {
-    grid-template-columns: 112px minmax(0, 1fr);
-    gap: var(--patch);
-  }
-
-  .home-train-player {
-    width: 112px;
-    height: 112px;
-  }
-
-  .home-train-table-turned .home-train-corner {
-    width: 44%;
+  .home-train-sparkline svg {
+    min-height: 44px;
   }
 
   .home-keep-canvas {

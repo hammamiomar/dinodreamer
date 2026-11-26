@@ -43,7 +43,14 @@ function TrayAction({ state, onOpen }: { state: GrowState; onOpen: string | null
     return <button type="button" className="button" onClick={stop}>{WORDS.stop}</button>;
   }
   if (state === "retry") return <button type="button" className="button" onClick={trainRun.restart}>{WORDS.restart}</button>;
-  if (state === "stopped") return <button type="button" className="button" onClick={trainRun.resumeTraining}>{WORDS.resume}</button>;
+  if (state === "stopped") {
+    return (
+      <>
+        <button type="button" className="button" onClick={trainRun.resumeTraining}>{WORDS.resume}</button>
+        {onOpen !== null && <Link className="link-control" to={onOpen}>{WORDS.open}</Link>}
+      </>
+    );
+  }
   if (state === "done" && onOpen !== null) return <Link className="button" to={onOpen}>{WORDS.open}</Link>;
   return null;
 }
@@ -67,7 +74,7 @@ export function TrainTray() {
   if (!shown || settings === null) return null;
 
   const state = growState(run.record);
-  const result = state === "done" ? resultOutcome(run.record) : undefined;
+  const result = isHeld(state) ? resultOutcome(run.record) : undefined;
   const fired = hasFired(state, run.record);
   const sampled = fired && run.sampled ? ({ "--sampled": run.sampled } as CSSProperties) : undefined;
   const back = trainPath(settings);

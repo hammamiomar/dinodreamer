@@ -41,6 +41,55 @@ import { useBasisGroupNames } from "../automata/basis-group-names";
 const ANY_CATEGORY = "any";
 const NO_CATEGORIES: ReadonlyMap<number, string> = new Map();
 
+/**
+ * Compact 1 px geometric diagram of the active cloud sort (`reach`, `ring`, `pole`, `block`),
+ * visually explaining the median ring and point spread while keeping the true geometric labels.
+ */
+function SortGeometryGlyph({ order }: { order: CloudQuery["order"] }) {
+  return (
+    <svg className="atlas-sort-glyph" viewBox="0 0 28 28" width="22" height="22" aria-hidden="true">
+      {order === "reach" && (
+        <>
+          <circle cx="9" cy="14" r="5" className="atlas-glyph-ring" />
+          <line x1="14" y1="14" x2="24" y2="14" className="atlas-glyph-axis" />
+          <circle cx="18" cy="12.5" r="1.4" className="atlas-glyph-dot" />
+          <circle cx="21" cy="15.5" r="1.4" className="atlas-glyph-dot" />
+          <circle cx="24.5" cy="14" r="1.8" className="atlas-glyph-dot-strong" />
+        </>
+      )}
+      {order === "ring" && (
+        <>
+          <circle cx="14" cy="14" r="7" className="atlas-glyph-ring" />
+          <circle cx="14" cy="7" r="1.5" className="atlas-glyph-dot-strong" />
+          <circle cx="21" cy="14" r="1.5" className="atlas-glyph-dot-strong" />
+          <circle cx="14" cy="21" r="1.5" className="atlas-glyph-dot-strong" />
+          <circle cx="7" cy="14" r="1.5" className="atlas-glyph-dot-strong" />
+          <circle cx="19" cy="9" r="1.3" className="atlas-glyph-dot" />
+          <circle cx="9" cy="19" r="1.3" className="atlas-glyph-dot" />
+        </>
+      )}
+      {order === "pole" && (
+        <>
+          <circle cx="14" cy="14" r="4.5" className="atlas-glyph-ring" />
+          <line x1="3" y1="14" x2="25" y2="14" className="atlas-glyph-axis" />
+          <circle cx="4" cy="14" r="1.7" className="atlas-glyph-dot-strong" />
+          <circle cx="7" cy="12.5" r="1.3" className="atlas-glyph-dot" />
+          <circle cx="21" cy="15.5" r="1.3" className="atlas-glyph-dot" />
+          <circle cx="24" cy="14" r="1.7" className="atlas-glyph-dot-strong" />
+        </>
+      )}
+      {order === "block" && (
+        <>
+          <rect x="5" y="5" width="7" height="7" className="atlas-glyph-ring" />
+          <rect x="16" y="5" width="7" height="7" className="atlas-glyph-ring" />
+          <rect x="5" y="16" width="7" height="7" className="atlas-glyph-ring" />
+          <rect x="16" y="16" width="7" height="7" className="atlas-glyph-ring" />
+        </>
+      )}
+    </svg>
+  );
+}
+
 /** The route loads the index. Cards own their small, lazy record reads. */
 export function AtlasPage() {
   const { entries } = useLoaderData<typeof atlasLoader>();
@@ -143,7 +192,10 @@ export function AtlasPage() {
   return (
     <main className="cloud-atlas">
       <header className="cloud-atlas-heading">
-        <h1 className="heading">{ATLAS_TEXT.title}</h1>
+        <div className="cloud-atlas-title-group">
+          <h1 className="heading">{ATLAS_TEXT.title}</h1>
+          <p className="cloud-atlas-subtitle">{ATLAS_TEXT.subtitle}</p>
+        </div>
         <PictureEntry text={ATLAS_TEXT.upload} />
       </header>
       {/* Two control rows keep the cards in place when the result count changes. */}
@@ -167,6 +219,7 @@ export function AtlasPage() {
           <label className="atlas-sort">
             <span className="label">{ATLAS_TEXT.sort}</span>
             <Select
+              leading={<SortGeometryGlyph order={query.order} />}
               value={query.order}
               onChange={(event) =>
                 choose({ order: event.target.value as CloudQuery["order"] })
@@ -246,7 +299,18 @@ export function AtlasPage() {
           </button>
         </nav>
       )}
-      <p className="atlas-cloud-footer">{ATLAS_TEXT.footer}</p>
+      <footer className="atlas-spec-bar" aria-label={ATLAS_TEXT.specBar.name}>
+        <dl className="atlas-spec-cells">
+          <div className="atlas-spec-cell">
+            <dt>{ATLAS_TEXT.specBar.sampleLabel}</dt>
+            <dd>{ATLAS_TEXT.specBar.sampleValue}</dd>
+          </div>
+          <div className="atlas-spec-cell">
+            <dt>{ATLAS_TEXT.specBar.plotCapLabel}</dt>
+            <dd>{ATLAS_TEXT.specBar.plotCapValue}</dd>
+          </div>
+        </dl>
+      </footer>
       {/* The basis group panel over the Index, at /index/basis/:id (basis-group-panel.tsx). */}
       <Outlet />
     </main>

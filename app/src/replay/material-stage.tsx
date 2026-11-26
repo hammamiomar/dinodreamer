@@ -4,7 +4,9 @@ import { fill, SITE_WORDS } from "../app/site-words";
 import type { MaterialEntry } from "../features/gallery/material-index";
 import { fetchPublishedMaterial, materialFileUrl } from "../features/gallery/material-gallery";
 import { figurePlayback, PICTURE_SIDES, strengthStatistic, type FigureMaterial } from "../materials/material-file";
-import { kindLine } from "../features/automata/kind-line";
+import { kindLine, tileName } from "../features/automata/kind-line";
+import { useManifoldFocus } from "../ground/manifold-focus";
+import { MakerCard } from "./maker-card";
 import { MaterialMetadata, metadataRows } from "./material-metadata";
 import { BAND_NAMES, STRENGTH_BANDS } from "../features/look/strength-bands";
 import { downloadBlob } from "../ui/files";
@@ -104,7 +106,7 @@ export const PUBLISHED_SOURCE: MaterialSource = {
 
 /** The panel open under the quiet words: none, or the one the visitor asked for. */
 type StagePanel = "none" | "publish" | "video" | "export" | "options";
-/** The address's fragment that opens the Export panel: the home's link to the embed and the agent brief. */
+/** The address's fragment that opens the Export panel from Home. */
 export const EXPORT_FRAGMENT = "#export";
 
 /**
@@ -128,6 +130,8 @@ export function MaterialStage({ entry, source = PUBLISHED_SOURCE, publishable = 
 }) {
   const fillsMobileStage = useMediaMatch("(max-width: 640px)");
   const [material, setMaterial] = useState<FigureMaterial | null>(null);
+  const [sampled, setSampled] = useState<string | null>(null);
+  useManifoldFocus(entry.block, sampled);
   // A token method's layers, from the loaded file when it is this entry's: "Train a variation" keeps its depth.
   const loadedLayers = material && material.file.id === entry.materialId ? material.file.recipe.settings.layers : undefined;
   // The grid is chosen by its picture width, so a 2 px material shows at the size of the others.
@@ -166,6 +170,7 @@ export function MaterialStage({ entry, source = PUBLISHED_SOURCE, publishable = 
   useEffect(() => {
     let current = true;
     setMaterial(null);
+    setSampled(null);
     setMessage("");
     setReplayStatus("opening");
     setRecording(false);
@@ -196,7 +201,11 @@ export function MaterialStage({ entry, source = PUBLISHED_SOURCE, publishable = 
       sampledAt = due;
       loop.hold(() => replay.readPixels()).then(
         (pixels_N4) => {
-          if (runtime.current === session) stageElement.current?.style.setProperty("--sampled", sampledAccent(pixels_N4, replay.pictureSide));
+          if (runtime.current === session) {
+            const accent = sampledAccent(pixels_N4, replay.pictureSide);
+            stageElement.current?.style.setProperty("--sampled", accent);
+            setSampled(accent);
+          }
         },
         () => {},
       );
@@ -400,6 +409,17 @@ export function MaterialStage({ entry, source = PUBLISHED_SOURCE, publishable = 
     <div className="stage-instrument">
       {framed}
       <aside className="stage-readouts" aria-label={INSTRUMENT_WORDS.readoutsName}>
+        {!ownerActions && (
+          <MakerCard
+            block={entry.block}
+            title={material ? entry.title : ""}
+            definitionName={material?.file.name ?? entry.materialId}
+            credit={entry.credit}
+            detail={tileName(entry).rule}
+            updates={material?.file.training.updates ?? null}
+            published={!publishable}
+          />
+        )}
         {/* A panel opens below the frame; the step stays in its line. */}
         <dl>
           <dt className="label">{INSTRUMENT_WORDS.tick}</dt><dd><output ref={tickOutput}>0</output></dd>

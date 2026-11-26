@@ -7,7 +7,7 @@ import {
   type CSSProperties,
   type RefObject,
 } from "react";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 import { canvasPixelRatio, pageScale } from "../../ui/page-scale";
 import { BasisGroupLink } from "../look/basis-group-panel";
 import { useLibrary } from "../../app/library-session";
@@ -21,6 +21,7 @@ import type {
 import type { Library } from "../../library/library";
 import { LibraryImage, loadLibraryPicture } from "../../ui/library-image";
 import { LoadingIndicator } from "../../ui/loading-indicator";
+import { RotatingCloud3D } from "../../ui/rotating-cloud-3d";
 import { useLoaded } from "../../ui/use-loaded";
 import { CardLoader, LoadQueue, PICTURE_LOADS_AT_ONCE, pictureSlots, SCREEN_ONLY_LOADS, type PictureSlot } from "./card-loading";
 import { ATLAS_TEXT } from "./atlas-text";
@@ -119,6 +120,8 @@ export function CloudBlockCard({
   engine: string | null;
 }) {
   const library = useLibrary();
+  const { pathname } = useLocation();
+  const panelOpen = pathname.includes("/basis/");
   const self = useRef<HTMLElement>(null);
   const near = useNearScreen(self);
   const onScreen = useOnScreen(self);
@@ -131,7 +134,9 @@ export function CloudBlockCard({
   useEffect(() => {
     if (onScreen) loader.promote(entry.block);
   }, [loader, onScreen, entry.block]);
-  useEffect(() => () => loader.release(entry.block), [loader, entry.block]);
+  useEffect(() => () => {
+    loader.release(entry.block);
+  }, [loader, entry.block]);
   const cloud = content.status === "ready" ? content.value.cloud : null;
   // A thumbnail that failed to load, before the card was shown or after: its slot shows the
   // band's next picture or a tile, never a broken image.
@@ -167,9 +172,14 @@ export function CloudBlockCard({
           <BasisGroupLink
             className="atlas-cloud-area"
             block={entry.block}
-            aria-label={ATLAS_TEXT.cloudName(entry.block, cloud.points.length)}
+            aria-label={ATLAS_TEXT.cloudName(entry.block, cloud.nativePoints.length)}
           >
-            <CloudGlyph cloud={cloud} highlight={highlight} />
+            <RotatingCloud3D
+              cloud={cloud}
+              highlight={highlight}
+              active={onScreen && !panelOpen}
+              initialYawOffset={(entry.block % 17) * 0.18}
+            />
           </BasisGroupLink>
           {cloud.total > 0 ? (
             <BandStrip

@@ -5,11 +5,15 @@ import { useObjectUrl } from "../ui/files";
 import { LOOK_TEXT } from "../features/look/look-text";
 
 export interface PictureReaderProgress { message: string; done: number; total: number }
+export interface PictureProgress { done: number; total: number }
 export interface PictureReaderConnection {
+  readonly ready?: Promise<void>;
   readImage(pixels: Uint8ClampedArray): Promise<ImageAddresses>;
   dispose(): void;
 }
 type ReaderFactory = (onProgress: (progress: PictureReaderProgress) => void) => PictureReaderConnection;
+
+const ANALYZING_PATCHES_MESSAGE = "Analyzing 256 image patches on WebGPU…";
 
 interface PictureState {
   revision: number;
@@ -17,6 +21,7 @@ interface PictureState {
   readout: PictureReadout | null;
   phase: "empty" | "preparing" | "ready" | "reading" | "failed";
   message: string;
+  progress: PictureProgress | null;
 }
 interface UploadedPictureState extends PictureState {
   previewUrl: string | null;
@@ -24,7 +29,7 @@ interface UploadedPictureState extends PictureState {
   read(): Promise<void>;
   clear(): void;
 }
-const EMPTY_PICTURE: PictureState = { revision: 0, picture: null, readout: null, phase: "empty", message: "" };
+const EMPTY_PICTURE: PictureState = { revision: 0, picture: null, readout: null, phase: "empty", message: "", progress: null };
 const UploadedPictureContext = createContext<UploadedPictureState | null>(null);
 
 /** Picture and addresses survive block navigation; an old read cannot replace a newer upload. */
@@ -57,24 +62,52 @@ export function UploadedPictureProvider({ children, createReader }: { children: 
 
   async function readPreparedPicture(picture: PreparedPicture, revision: number) {
     let connection: PictureReaderConnection | null = null;
-    setState({ revision, picture, readout: null, phase: "reading", message: LOOK_TEXT.upload.starting });
+    setState({ revision, picture, readout: null, phase: "reading", message: LOOK_TEXT.upload.starting, progress: null });
     try {
-      if (!reader.current) reader.current = createReader((progress) => {
-        setState((current) => current.phase === "reading" ? { ...current, message: progress.message } : current);
-      });
+      if (!reader.current) {
+        reader.current = createReader((update) => {
+          setState((current) =>
+            current.phase === "reading"
+              ? {
+                  ...current,
+                  message: update.message,
+                  progress: update.total > 0 ? { done: update.done, total: update.total } : null,
+                }
+              : current,
+          );
+        });
+      }
       connection = reader.current;
+      // Once weights finish loading, surface the WebGPU patch-encoding step until readImage resolves.
+      if (connection.ready) {
+        void connection.ready.then(
+          () => {
+            if (version.current !== revision) return;
+            setState((current) =>
+              current.phase === "reading" && current.revision === revision
+                ? { ...current, message: ANALYZING_PATCHES_MESSAGE, progress: { done: 1, total: 1 } }
+                : current,
+            );
+          },
+          () => {
+            // Rejection is surfaced through the awaited readImage call below.
+          },
+        );
+      }
       // ReaderClient snapshots the input before it waits for its assets.
       const addresses = await connection.readImage(picture.pixels);
       if (version.current !== revision) return;
       const readout = pictureReadout(addresses);
-      setState({ revision, picture, readout, phase: "ready", message: "" });
+      setState({ revision, picture, readout, phase: "ready", message: "", progress: null });
     } catch (error) {
       // A failed device or load must get a fresh connection on Retry.
       if (reader.current === connection) {
         connection?.dispose();
         reader.current = null;
       }
-      if (version.current === revision) setState((current) => ({ ...current, phase: "failed", message: LOOK_TEXT.upload.notRead(errorMessage(error)) }));
+      if (version.current === revision) {
+        setState((current) => ({ ...current, phase: "failed", message: LOOK_TEXT.upload.notRead(errorMessage(error)), progress: null }));
+      }
     }
   }
 

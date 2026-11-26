@@ -335,19 +335,22 @@ function LookBlock({ data, origin, scroller }: { data: LookData; origin: CloudTo
   const sampleTotal = prepared.sampleCounts.reduce((sum, value) => sum + value, 0);
   const strongestAbout = aboutCount(estimatedBandRows(prepared.sampleCounts[STRONGEST], sampleTotal, cloud.whole.rows));
   const materials = materialIndex.status === "ready" ? materialsOfBlock(materialIndex.index, block).length : null;
+  const onAutomata = location.pathname.startsWith("/automata") || location.pathname.startsWith("/admin/automata");
   const uploadUrl = origin === null ? upload.previewUrl ?? undefined : undefined;
+  const showPictureHere = Boolean(!onAutomata && upload.readout && upload.picture && uploadUrl && !origin);
+  const pictureLeads = showPictureHere && prepared.ownByStrength.length > 0;
 
   return (
     <main ref={page} className="look-page">
       <BlockHead block={block} patches={cloud.whole.rows} materials={materials} growHref={trainPath(block, location.search)}
-        onGrow={growMaterial} onGrowHover={setGrowHovered} />
+        primaryGrow={!pictureLeads} onGrow={growMaterial} onGrowHover={setGrowHovered} />
       {origin && (
         <OriginPlace origin={origin} strength={strength} onShow={() => {
           cloudState.setInspected(0);
           cloudSection.current?.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
         }} onGrow={origin.source === "library" ? () => growFrom(0) : null} />
       )}
-      {upload.readout && upload.picture && uploadUrl && !origin && (
+      {showPictureHere && upload.picture && uploadUrl && (
         <div className="look-own">
           <PictureHere pictureName={upload.picture.name} uploadUrl={uploadUrl} ownByStrength={prepared.ownByStrength} token={token} strength={strength}
             chosen={cloudState.chosenAnchor} nearestStrongest={cloudState.nearestStrongest}

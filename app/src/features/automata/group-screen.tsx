@@ -7,6 +7,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import { fill, SITE_WORDS } from "../../app/site-words";
+import { YOURS_PATH } from "../../replay/keep-material";
 import { useMediaMatch } from "../../ui/media-match";
 import { Segmented } from "../../ui/segmented";
 import { BasisGroupLink } from "../look/basis-group-panel";
@@ -34,19 +35,27 @@ export function gridNoteOf(automaton: GalleryAutomaton): (side: number) => strin
   return side => fill(automaton.grids === "fine" ? WORDS.gridsFine : WORDS.gridsCoarseFine, { side });
 }
 
-/** The line above the number: back to the wall, and the neighbouring groups in the wall's order. */
-function GroupWays({ neighbours }: { neighbours: { previous: number | null; next: number | null } }) {
+/** The line above the number: back to the wall, saved automata when present, and the neighbouring groups in the wall's order. */
+function GroupWays({ neighbours, savedCount = 0 }: {
+  neighbours: { previous: number | null; next: number | null };
+  savedCount?: number;
+}) {
   const location = useLocation();
   const navigate = useNavigate();
   const cameFromWall = (location.state as { fromWall?: boolean } | null)?.fromWall === true;
   return (
     <p className="automata-ways">
-      {/* From the wall, the way back is Back: the wall returns at the place it was left. */}
-      <Link className="link-control" to={{ search: "" }} onClick={(event) => {
-        if (!cameFromWall) return;
-        event.preventDefault();
-        navigate(-1);
-      }}>{WORDS.allGroups}</Link>
+      <span>
+        {/* From the wall, the way back is Back: the wall returns at the place it was left. */}
+        <Link className="link-control" to={{ search: "" }} onClick={(event) => {
+          if (!cameFromWall) return;
+          event.preventDefault();
+          navigate(-1);
+        }}>{WORDS.allGroups}</Link>
+        {savedCount > 0 && (
+          <Link className="link-control" to={YOURS_PATH}>{fill(WORDS.savedLineCount, { count: savedCount })}</Link>
+        )}
+      </span>
       <span>
         {neighbours.previous !== null && <Link className="link-control" to={{ search: addressSearch({ group: neighbours.previous, automaton: null }) }} state={location.state} replace>{WORDS.previousGroup}</Link>}
         {neighbours.next !== null && <Link className="link-control" to={{ search: addressSearch({ group: neighbours.next, automaton: null }) }} state={location.state} replace>{WORDS.nextGroup}</Link>}
@@ -55,7 +64,7 @@ function GroupWays({ neighbours }: { neighbours: { previous: number | null; next
   );
 }
 
-export function GroupScreen<T extends GalleryAutomaton>({ group, name, neighbours, playing, stage, onChoose, nameField, paneHead, cellCaption, children }: {
+export function GroupScreen<T extends GalleryAutomaton>({ group, name, neighbours, playing, stage, onChoose, savedCount = 0, nameField, paneHead, cellCaption, children }: {
   group: GalleryGroup<T>;
   /** The owner's name for the group, or null when it has none. */
   name: string | null;
@@ -63,6 +72,8 @@ export function GroupScreen<T extends GalleryAutomaton>({ group, name, neighbour
   playing: { automaton: T; cell: GalleryCell<T> };
   stage: ReactNode;
   onChoose: (automaton: T) => void;
+  /** Count of saved automata on this device, shown beside All basis groups when greater than zero. */
+  savedCount?: number;
   /** The owner's view: the field that names the group, in the name's place. */
   nameField?: ReactNode;
   /** The owner's view: its line at the top of the pane, and what a cell says under its picture. */
@@ -81,7 +92,7 @@ export function GroupScreen<T extends GalleryAutomaton>({ group, name, neighbour
     <main className="automata-group" data-group={group.group} data-phone-view={phone ? phoneView : undefined}>
       <section className="automata-stage" aria-label={String(group.group)}>
         <header className="automata-head">
-          <GroupWays neighbours={neighbours} />
+          <GroupWays neighbours={neighbours} savedCount={savedCount} />
           <div className="automata-stage-heading">
             <h1 className="automata-title">
               <span className="display"><BasisGroupLink block={group.group} /></span>

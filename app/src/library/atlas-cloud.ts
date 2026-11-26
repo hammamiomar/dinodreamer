@@ -1,12 +1,25 @@
 import { LOOK_CLOUDS_PATH } from "./look-cloud";
 
-// Prepared by engine/tools/prepare_atlas.py beside the response-set samples.
+// Prepared by engine/tools/prepare_atlas.py beside the response-set samples. Objects in the
+// library are immutable, so each record format has its own folder: atlas-clouds holds the ATC2
+// records of the releases before this one, and stays.
 export const ATLAS_CLOUDS_PATH = LOOK_CLOUDS_PATH.replace(
   /\/clouds$/,
-  "/atlas-clouds",
+  "/atlas-clouds-3d",
 );
-export const ATLAS_RECORD_HEADER_BYTES = 60;
-/** Format ATC2: four picture addresses per band, or every patch of a band with fewer. */
+/**
+ * Format ATC3. The ATC2 header's 60 bytes, then the flat view's two axes in native coordinates
+ * (6 float32), the flat view's point count (uint16) and two reserved bytes.
+ */
+export const ATLAS_RECORD_HEADER_BYTES = 88;
+/** One point: the native code as three float16, then its response level. */
+const POINT_BYTES = 7;
+const PICTURE_BYTES = 11;
+/** The flat view draws at most this many points: the first ones of a record. */
+export const ATLAS_FLAT_POINT_LIMIT = 512;
+/** A record holds at most this many points; the rotating view draws them all. */
+export const ATLAS_NATIVE_POINT_LIMIT = 1024;
+/** Four picture addresses per band, or every patch of a band with fewer. */
 export const ATLAS_PICTURES_PER_BAND = 4;
 export type BandCounts = readonly [number, number, number, number];
 export type AtlasBand = 0 | 1 | 2 | 3;
@@ -20,12 +33,26 @@ export interface AtlasIndexEntry {
   counts: BandCounts;
 }
 
+/** A patch's three coordinates along its basis group's own directions. */
+export type NativeCode = readonly [number, number, number];
+
 export interface AtlasCloud extends AtlasIndexEntry {
   ring: number;
   maximum: number;
   cuts: readonly [number, number, number];
   wins: number;
   publicShare: number;
+  /**
+   * Every stored patch in native coordinates, at most 1,024, for a view in three dimensions.
+   * The first `points.length` of them are the flat view's patches, in the same order.
+   */
+  nativePoints: ReadonlyArray<{ code: NativeCode; band: AtlasBand }>;
+  /**
+   * The two axes of the flat view's plane, in native coordinates. They come from the whole
+   * sample of 4,096 patches, not from the stored points.
+   */
+  planeAxes: readonly [NativeCode, NativeCode];
+  /** The flat view: at most 512 patches in the plane, x = code · planeAxes[0], y = code · planeAxes[1]. */
   points: ReadonlyArray<{ x: number; y: number; band: AtlasBand }>;
   pictures: ReadonlyArray<{ imageId: number; slot: number; band: AtlasBand }>;
 }
@@ -171,7 +198,17 @@ function halfAt(view: DataView, offset: number): number {
   );
 }
 
-/** Float16 belongs to this glyph only. Look and Studio still use native codes. */
+function axisAt(view: DataView, offset: number): NativeCode {
+  const axis = [0, 4, 8].map((step) => view.getFloat32(offset + step, true));
+  check(axis.every(Number.isFinite), "plane axis");
+  return axis as unknown as NativeCode;
+}
+
+function dot(code: NativeCode, axis: NativeCode): number {
+  return code[0] * axis[0] + code[1] * axis[1] + code[2] * axis[2];
+}
+
+/** Float16 belongs to the Index cards only. Look and Studio still use the full native codes. */
 export function decodeAtlasCloud(buffer: ArrayBuffer): AtlasCloud {
   check(buffer.byteLength >= ATLAS_RECORD_HEADER_BYTES, "response set header");
   const view = new DataView(buffer);
@@ -179,22 +216,26 @@ export function decodeAtlasCloud(buffer: ArrayBuffer): AtlasCloud {
   const total = view.getUint16(6, true);
   const pointCount = view.getUint16(8, true);
   const pictureCount = view.getUint8(10);
+  const flatPointCount = view.getUint16(84, true);
   check(
-    signature(view, "ATC2") &&
+    signature(view, "ATC3") &&
       block < 16384 &&
-      pointCount <= 512 &&
+      pointCount <= ATLAS_NATIVE_POINT_LIMIT &&
+      flatPointCount <= Math.min(pointCount, ATLAS_FLAT_POINT_LIMIT) &&
       pictureCount <= 4 * ATLAS_PICTURES_PER_BAND,
     "response set size",
   );
   check(
     buffer.byteLength ===
-      ATLAS_RECORD_HEADER_BYTES + pointCount * 5 + pictureCount * 11,
+      ATLAS_RECORD_HEADER_BYTES +
+        pointCount * POINT_BYTES +
+        pictureCount * PICTURE_BYTES,
     "response set length",
   );
   check(
     pointCount <= total &&
       pictureCount <= total &&
-      (total === 0 || pointCount > 0),
+      (total === 0 || flatPointCount > 0),
     "sample size",
   );
   const counts = countsAt(view, 20, total);
@@ -212,19 +253,29 @@ export function decodeAtlasCloud(buffer: ArrayBuffer): AtlasCloud {
       cuts[2] <= Math.max(maximum, ring),
     "response level cuts",
   );
+  const planeAxes = [axisAt(view, 60), axisAt(view, 72)] as const;
   let offset = ATLAS_RECORD_HEADER_BYTES;
+  const nativePoints: AtlasCloud["nativePoints"][number][] = [];
   const points: AtlasCloud["points"][number][] = [];
-  for (let index = 0; index < pointCount; index++, offset += 5) {
-    const band = view.getUint8(offset + 4);
+  for (let index = 0; index < pointCount; index++, offset += POINT_BYTES) {
+    const band = view.getUint8(offset + 6);
     check(band < 4 && counts[band] > 0, "point response level");
-    points.push({
-      x: halfAt(view, offset),
-      y: halfAt(view, offset + 2),
-      band: band as AtlasBand,
-    });
+    const code: NativeCode = [
+      halfAt(view, offset),
+      halfAt(view, offset + 2),
+      halfAt(view, offset + 4),
+    ];
+    nativePoints.push({ code, band: band as AtlasBand });
+    if (index < flatPointCount) {
+      points.push({
+        x: dot(code, planeAxes[0]),
+        y: dot(code, planeAxes[1]),
+        band: band as AtlasBand,
+      });
+    }
   }
   const pictures: AtlasCloud["pictures"][number][] = [];
-  for (let index = 0; index < pictureCount; index++, offset += 11) {
+  for (let index = 0; index < pictureCount; index++, offset += PICTURE_BYTES) {
     const imageId = Number(view.getBigUint64(offset, true));
     const slot = view.getUint16(offset + 8, true);
     const band = view.getUint8(offset + 10);
@@ -254,6 +305,8 @@ export function decodeAtlasCloud(buffer: ArrayBuffer): AtlasCloud {
     maximum,
     cuts,
     counts,
+    nativePoints,
+    planeAxes,
     points,
     pictures,
     wins: view.getUint32(28, true),

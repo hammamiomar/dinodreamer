@@ -1,78 +1,32 @@
-// Scene 2 stage: proportional bar of the 16,384-group basis collection over one unexplored basis
-// group drawn uniformly at random, showing its three-coordinate patch cloud and four response levels.
+// Scene 2 stage: proportional bar of the 16,384-group basis collection over one open basis group
+// drawn uniformly at random, placing its four marked-picture response levels first over an
+// interactive, gently orbiting 3-D response cloud.
 
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { useLibrary } from "../../app/library-session";
 import { fill, SITE_WORDS } from "../../app/site-words";
+import type { ManifoldFocus } from "../../ground/manifold-focus";
 import { DRAWN_AT_RANDOM } from "../../grow/random-group";
-import type { AtlasBand, AtlasCloud } from "../../library/atlas-cloud";
+import type { AtlasBand } from "../../library/atlas-cloud";
 import { ResetMark } from "../../ui/reset-mark";
+import { RotatingCloud3D } from "../../ui/rotating-cloud-3d";
 import { useLoaded } from "../../ui/use-loaded";
-import { nameOf, type BasisGroupNames } from "../gallery/basis-groups";
 import type { MaterialEntry } from "../gallery/material-index";
 import { STRENGTH_BANDS } from "../look/strength-bands";
 import { MarkedPatchPicture } from "./home-properties-stage";
 import { collectionCoverage, groupsWithAutomata, randomUnexploredGroup } from "./home-specimens";
 
 const WORDS = SITE_WORDS.home.collection;
-const CLOUD_BOX = { width: 560, height: 192, margin: 16 } as const;
 const BANDS: readonly AtlasBand[] = [0, 1, 2, 3];
 const PICTURES_PER_LEVEL = 2;
 
-/** Compact SVG projection of a basis group's sampled library patches in its 3-coordinate space. */
-function SpecimenCloudSvg({ cloud, highlightedBand }: {
-  cloud: AtlasCloud;
-  highlightedBand: AtlasBand | null;
-}) {
-  const { width, height, margin } = CLOUD_BOX;
-  const xMin = Math.min(-cloud.ring, ...cloud.points.map((point) => point.x));
-  const xMax = Math.max(cloud.ring, ...cloud.points.map((point) => point.x));
-  const yExtent = Math.max(cloud.ring, ...cloud.points.map((point) => Math.abs(point.y)), 0.001);
-  const xSpan = Math.max(xMax - xMin, 0.001);
-  const scale = Math.min((width - 2 * margin) / xSpan, (height - 2 * margin) / (2 * yExtent));
-  const originX = (width - xSpan * scale) / 2 - xMin * scale;
-  const originY = height / 2;
-  const toX = (value: number) => (originX + value * scale).toFixed(1);
-  const toY = (value: number) => (originY - value * scale).toFixed(1);
-
-  return (
-    <div className="home-specimen-cloud" data-highlighted={highlightedBand !== null ? String(highlightedBand) : undefined}>
-      <svg
-        viewBox={`0 0 ${width} ${height}`}
-        role="img"
-        aria-label={fill(WORDS.cloudSummary, { patches: cloud.wins.toLocaleString("en-US") })}
-      >
-        <line className="home-specimen-axis" x1={0} x2={width} y1={originY} y2={originY} />
-        <circle className="home-specimen-ring" cx={toX(0)} cy={toY(0)} r={(cloud.ring * scale).toFixed(1)} />
-        {BANDS.map((band) => {
-          const d = cloud.points
-            .filter((point) => point.band === band)
-            .map((point) => `M${toX(point.x)} ${toY(point.y)}h0`)
-            .join("");
-          return (
-            <path
-              key={band}
-              className="home-specimen-points"
-              data-band={STRENGTH_BANDS[band]}
-              data-dimmed={highlightedBand !== null && highlightedBand !== band ? "" : undefined}
-              d={d}
-            />
-          );
-        })}
-      </svg>
-      <span className="home-specimen-cloud-note">
-        {fill(WORDS.cloudSummary, { patches: cloud.wins.toLocaleString("en-US") })}
-      </span>
-    </div>
-  );
-}
-
-export function HomeCollectionStage({ entries, indexReady, names, approached }: {
+export function HomeCollectionStage({ entries, indexReady, approached, active = true, onFocus }: {
   entries: readonly MaterialEntry[];
   indexReady: boolean;
-  names: BasisGroupNames;
   approached: boolean;
+  active?: boolean;
+  onFocus?: (focus: ManifoldFocus) => void;
 }) {
   const library = useLibrary();
   const [block, setBlock] = useState(() => randomUnexploredGroup([], Math.random(), null));
@@ -86,9 +40,13 @@ export function HomeCollectionStage({ entries, indexReady, names, approached }: 
     }
   }, [indexReady, entries, block]);
 
+  useEffect(() => {
+    onFocus?.({ group: block, accent: null });
+  }, [onFocus, block]);
+
   const coverage = collectionCoverage(entries);
   const cloud = useLoaded(approached ? `collection:${block}` : null, () => (approached ? library.atlasCloud(block) : null));
-  const groupName = nameOf(names, block);
+  const cloudSummary = cloud.status === "ready" ? fill(WORDS.cloudSummary, { patches: cloud.value.nativePoints.length.toLocaleString("en-US") }) : "";
 
   const drawAnother = () => {
     setHighlightedBand(null);
@@ -97,27 +55,36 @@ export function HomeCollectionStage({ entries, indexReady, names, approached }: 
 
   return (
     <div className="home-stage-frame home-collection">
-      <div
-        className="home-coverage-bar"
-        role="img"
-        aria-label={fill(WORDS.barLabel, {
-          lit: coverage.withAutomaton.toLocaleString("en-US"),
-          total: coverage.total.toLocaleString("en-US"),
-        })}
-      >
-        <span
-          className="home-coverage-fill"
-          style={{ width: indexReady ? `max(3px, ${(coverage.fraction * 100).toFixed(3)}%)` : "3px" }}
-        />
+      <div className="home-coverage-head">
+        <div className="home-coverage-meta">
+          <span className="label">
+            {fill(WORDS.barLabel, {
+              lit: coverage.withAutomaton.toLocaleString("en-US"),
+              total: coverage.total.toLocaleString("en-US"),
+            })}
+          </span>
+          <span className="label">{`${(coverage.fraction * 100).toFixed(2)}%`}</span>
+        </div>
+        <div
+          className="home-coverage-bar"
+          role="img"
+          aria-label={fill(WORDS.barLabel, {
+            lit: coverage.withAutomaton.toLocaleString("en-US"),
+            total: coverage.total.toLocaleString("en-US"),
+          })}
+        >
+          <span
+            className="home-coverage-fill"
+            style={{ width: indexReady ? `max(3px, ${(coverage.fraction * 100).toFixed(3)}%)` : "3px" }}
+          />
+        </div>
       </div>
 
       <article className="home-specimen" aria-label={fill(WORDS.specimenHeading, { block })}>
         <header className="home-specimen-header">
           <div className="home-specimen-identity">
             <h3 className="heading">{fill(WORDS.specimenHeading, { block })}</h3>
-            <span className="label">
-              {groupName ? `${groupName} · ${WORDS.specimenStatus}` : WORDS.specimenStatus}
-            </span>
+            <span className="label">{WORDS.specimenStatus}</span>
           </div>
           <button type="button" className="button" onClick={drawAnother}>
             <ResetMark />
@@ -129,7 +96,6 @@ export function HomeCollectionStage({ entries, indexReady, names, approached }: 
           <p className="muted">{fill(WORDS.cloudFailed, { block })}</p>
         ) : cloud.status === "ready" ? (
           <>
-            <SpecimenCloudSvg cloud={cloud.value} highlightedBand={highlightedBand} />
             <div className="home-specimen-levels" onMouseLeave={() => setHighlightedBand(null)}>
               {BANDS.map((band) => {
                 const bandPictures = cloud.value.pictures
@@ -155,11 +121,21 @@ export function HomeCollectionStage({ entries, indexReady, names, approached }: 
                         <span key={`empty-${index}`} className="home-patch-picture" aria-hidden="true" />
                       ))}
                     </div>
-                    <span className="home-specimen-level-name">{fill(WORDS.levelLabel, { level: band + 1 })}</span>
+                    <span className="home-specimen-level-name">{WORDS.levelLabels[band]}</span>
                     <span className="label">{cloud.value.counts[band].toLocaleString("en-US")}</span>
                   </div>
                 );
               })}
+            </div>
+            <div className="home-specimen-cloud">
+              <RotatingCloud3D
+                cloud={cloud.value}
+                highlight={highlightedBand}
+                active={active && approached}
+                height={208}
+                ariaLabel={cloudSummary}
+              />
+              <span className="home-specimen-cloud-note">{cloudSummary}</span>
             </div>
           </>
         ) : (

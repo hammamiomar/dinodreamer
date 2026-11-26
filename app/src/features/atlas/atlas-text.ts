@@ -2,11 +2,12 @@ import { BAND_NAMES } from "../look/strength-bands";
 
 /** Index wording, grouped by where it appears. */
 export const ATLAS_TEXT = {
-  // The head (atlas-page.tsx): the heading and the upload line beside it.
+  // The head (atlas-page.tsx): the heading, plain-English orientation line, and upload line beside it.
   title: "The shape of a basis group",
+  subtitle: "16,384 basis groups learned from DINOv3 without labels. Open any card to inspect its patches or train an automaton.",
   upload: {
-    button: "Explore your own picture (optional)",
-    view: "View your picture",
+    button: "Inspect your own picture",
+    view: "Open inspected picture →",
   },
 
   // The controls (atlas-page.tsx).
@@ -16,10 +17,10 @@ export const ATLAS_TEXT = {
   searchPlaceholder: "Basis group number, 0 to 16383",
   sort: "Sort",
   orders: {
-    reach: "Reaches farther past the ring",
-    ring: "More patches at the ring",
-    pole: "Larger opposite-direction extension",
-    block: "Basis group order",
+    reach: "Reaches farther past the median ring",
+    ring: "More patches above the median ring",
+    pole: "Larger opposite-direction spread",
+    block: "Basis group order (0–16,383)",
   },
   /** The automaton filter (atlas-page.tsx): every group, the groups with an automaton, or those with none. */
   automaton: {
@@ -71,8 +72,13 @@ export const ATLAS_TEXT = {
   previous: "Previous basis groups",
   next: "Next basis groups",
   pagination: "Index pages",
-  footer:
-    "Pictures and counts use the full patch sample. Each response plot draws up to 512 of those patches.",
+  specBar: {
+    name: "Sample specification",
+    sampleLabel: "Sample",
+    sampleValue: "4,096 library patches per basis group",
+    plotCapLabel: "Plot cap",
+    plotCapValue: "Up to 1,024 sampled patches drawn in 3D per card",
+  },
 
   // A basis group's response category in words: the Inspect page's line, the Automata choices and How it works.
   families: {

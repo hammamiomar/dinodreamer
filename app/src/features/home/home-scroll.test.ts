@@ -1,8 +1,8 @@
 import { describe, expect, test } from "vitest";
 import { approachedBeats, HOME_BEATS, readingLine, sectionAt } from "./home-scroll";
 
-// Five sections on a 900 px window, one window each.
-const tops = [0, 900, 1800, 2700, 3600];
+// Six sections on a 900 px window, one window each.
+const tops = [0, 900, 1800, 2700, 3600, 4500];
 
 describe("the reading line", () => {
   test("is the middle of the window, or of the part under a reserved share", () => {
@@ -13,12 +13,12 @@ describe("the reading line", () => {
 
 describe("the section the window is on", () => {
   test("is the one whose top the reading line has passed", () => {
-    expect(HOME_BEATS).toEqual(["entrance", "properties", "collection", "train", "keep"]);
+    expect(HOME_BEATS).toEqual(["entrance", "properties", "collection", "train", "keep", "end"]);
     expect(sectionAt(tops, 0, 450)).toBe(0);
     expect(sectionAt(tops, 449, 450)).toBe(0);
     expect(sectionAt(tops, 450, 450)).toBe(1);
     expect(sectionAt(tops, 2700 - 450, 450)).toBe(3);
-    expect(sectionAt(tops, 9000, 450)).toBe(4);
+    expect(sectionAt(tops, 9000, 450)).toBe(5);
   });
 });
 
@@ -30,8 +30,9 @@ describe("the beats whose files load", () => {
       collection: false,
       train: false,
       keep: false,
+      end: false,
     });
-    expect(approachedBeats(3, false).keep).toBe(false);
+    expect(approachedBeats(4, false).end).toBe(false);
   });
 
   test("each beat while the reader is one section before it", () => {
@@ -41,6 +42,7 @@ describe("the beats whose files load", () => {
       collection: false,
       train: false,
       keep: false,
+      end: false,
     });
     expect(approachedBeats(2, true)).toEqual({
       entrance: true,
@@ -48,8 +50,11 @@ describe("the beats whose files load", () => {
       collection: true,
       train: true,
       keep: false,
+      end: false,
     });
     expect(approachedBeats(3, true).keep).toBe(true);
-    expect(approachedBeats(4, true).keep).toBe(true);
+    expect(approachedBeats(3, true).end).toBe(false);
+    expect(approachedBeats(4, true).end).toBe(true);
+    expect(approachedBeats(5, true).end).toBe(true);
   });
 });

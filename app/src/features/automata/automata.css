@@ -55,7 +55,9 @@
   left: 0;
   z-index: 1;
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
+  gap: var(--space-1) var(--patch);
   margin: 0;
   font-size: var(--s-1);
   line-height: 16px;
@@ -180,17 +182,24 @@
   @supports (width: round(down, 100px, 128px)) {
     .automata-group {
       /*
-       * The largest multiple of 128 px that leaves room for the head (128), the frame's room, the bar
-       * and the step's line (352 in all with the header), and for a pane of 624 px beside it: a row's
-       * name and four pictures of 112 px. At most 1024 px, the canvas's own limit.
+       * The largest multiple of 128 px that leaves room for the head (128), the frame's room, the bar,
+       * the gallery plaque and the step's line (480 in all with the header), and for a pane of 624 px
+       * beside it: a row's name and four pictures of 112 px. At most 1024 px, the canvas's own limit.
        */
-      --cells: min(1024px, max(256px, round(down, min(100dvh / var(--page-scale) - 352px, 100vw / var(--page-scale) - 848px), 128px)));
+      --cells: min(1024px, max(256px, round(down, min(100dvh / var(--page-scale) - 480px, 100vw / var(--page-scale) - 848px), 128px)));
     }
 
     /* The owner's view: its block stands under the step's line, so the cells leave it room. */
     .automata-group:has(.stage-owner) {
       --cells: min(1024px, max(256px, round(down, min(100dvh / var(--page-scale) - 512px, 100vw / var(--page-scale) - 848px), 128px)));
     }
+  }
+
+  .automata-stage {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-bottom: var(--patch);
   }
 
   .automata-pane {
@@ -479,7 +488,7 @@
 /* An empty cell that opens Train: the word in the cell's square, inside a faint line. */
 .automata-cell-train {
   box-shadow: inset 0 0 0 1px var(--line);
-  color: var(--ink-3);
+  color: var(--ink-2);
   font-size: var(--s-1);
   text-decoration: none;
   cursor: pointer;

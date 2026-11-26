@@ -24,7 +24,8 @@ export const LOOK_TEXT = {
     title: "Level 4",
     /** After the level's word: its estimated patches in the whole response set. */
     about: (value: string) => `about ${value} patches`,
-    /** At the end of the row's heading line, for the picture under the pointer, in focus or tapped. */
+    /** At the end of the row's heading line, at rest and when a picture is under the pointer, in focus or tapped. */
+    growHint: "Click a picture to train from its patch",
     growFrom: "Train from this patch",
     /** A picture's name for a screen reader. */
     picture: (picture: string, column: number, row: number) => `${picture}, patch ${column}, ${row}`,
@@ -57,7 +58,7 @@ export const LOOK_TEXT = {
     advanced: "Advanced",
     /** One line at the view's lower right, for the tool in use. */
     hints: {
-      turn: "Drag to turn. Click a dot to see its picture.",
+      turn: "Press and move to turn. Click a dot to see its picture.",
       lasso: "Draw around dots. Turn and draw again to keep what is inside both.",
       wand: "Click a dot. The response selection spreads from it. Shift-click adds a start.",
     },
@@ -67,17 +68,23 @@ export const LOOK_TEXT = {
     growFrom: "Train from this patch",
   },
 
-  // The details line under the response levels (cloud-controls.tsx CloudDetails).
+  // The spec strip under the response levels (cloud-controls.tsx CloudDetails).
   details: {
-    drawn: (drawn: number, total: number) => `${count(drawn)} of ${patches(total)} drawn`,
-    withoutPicture: (value: number) => `${count(value)} without a public picture`,
-    sample: (sample: number) => `pictures and counts from a public sample of ${count(sample)}`,
+    name: "Response plot specification",
+    plottedLabel: "Plotted",
+    plottedValue: (drawn: number, total: number) => `${count(drawn)} of ${patches(total)}`,
+    unpicturedLabel: "Unpictured",
+    unpicturedValue: (value: number) => `${count(value)} ${value === 1 ? "row" : "rows"}`,
+    sampleLabel: "Level sample",
+    sampleValue: (sample: number) => patches(sample),
+    wandLabel: "Wand reach",
+    wandValue: (reach: number) => `First ${count(reach)}`,
     /** Loads the next part of the basis group's full response set. */
-    more: "draw more",
+    more: "Load more patches",
   },
 
   // The view (cloud-view.tsx, cloud-drawing.ts).
-  canvasLabel: "Response plot. Drag to turn. Arrow keys turn; Shift with arrow keys moves; plus and minus zoom. Click the plot, then scroll to zoom.",
+  canvasLabel: "Response plot. Press and move to turn. Arrow keys turn; Shift with arrow keys moves; plus and minus zoom. Click the plot, then scroll to zoom.",
   planes: { "12": "Flat: side", "13": "Flat: top", "23": "Flat: end-on" } as Record<"12" | "13" | "23", string>,
   /** The display basis's axes: the first points along the published main direction. */
   axes: ["main direction", "2", "3"],
@@ -232,9 +239,12 @@ export const LOOK_TEXT = {
 
   // The picture page (/picture, picture-page.tsx): your uploaded picture and the basis groups selected in it.
   picturePage: {
-    label: "Your picture",
+    label: "Inspect your picture",
     /** The map's name for a screen reader. */
     mapName: "Your picture. Point at a patch, or move with the arrow keys and press Enter, to list the basis groups selected there.",
+    /** Visible legend directly under the picture map. */
+    mapLegend: "Click any patch to filter basis groups there · hover a row to mark its patches.",
+    mapLegendPatch: (column: number, row: number) => `Patch ${column}, ${row} selected · click again or Show all to clear.`,
     /** The list's heading: every group, or those at the chosen patch; Show all follows the second. */
     groupsTitle: "Basis groups in your picture",
     groupsAtPatchTitle: (column: number, row: number) => `Basis groups at patch ${column}, ${row}`,
@@ -245,11 +255,12 @@ export const LOOK_TEXT = {
     stronger: "stronger",
     /** A row's line over its pictures, after the group's number. */
     rowPatches: (count: number) => `${count} of your ${count === 1 ? "patch" : "patches"}`,
+    rowAction: "Inspect & train ›",
     /** A row's first square for a screen reader. */
     locatorName: (block: number) => `Where basis group ${block} is selected in your picture`,
     chooseAnother: "Choose another picture",
-    /** With no picture open: what the page does with one. The picture is read in this tab and is not sent. */
-    empty: "Choose a picture of your own. It is read in this tab, and this page lists the basis groups its patches select.",
+    /** With no picture open: what the page does with one. Every step runs locally in the browser. */
+    empty: "Choose a picture from your device. Every step runs locally in your browser, and this page lists the basis groups its patches select.",
     choose: "Choose a picture",
     listCount: (shown: number, total: number) => `${shown} of ${total} selected basis groups`,
     more: "Show more basis groups",

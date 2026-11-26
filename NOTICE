@@ -13,7 +13,9 @@ Material that is not covered by that license:
   each picture's source and license are shown on the Inspect page of its basis group. The pictures
   and videos in app/public/how and app/public/story are made from library pictures and keep their
   licenses.
-- Paper Mono, the site's typeface, under the SIL Open Font License 1.1
+- Piazzolla, by Juan Pablo del Peral / Huerta Tipográfica, under the SIL Open Font License 1.1
+  (app/public/fonts/Piazzolla-LICENSE.txt).
+- Paper Mono, under the SIL Open Font License 1.1
   (app/public/fonts/PaperMono-LICENSE.txt).
 - cubecl-wgpu 0.11.0 in engine/vendor, a patched copy under MIT OR Apache-2.0
   (engine/vendor/cubecl-wgpu-0.11.0/LICENSE-MIT, LICENSE-APACHE).

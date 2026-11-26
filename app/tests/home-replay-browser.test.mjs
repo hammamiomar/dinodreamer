@@ -118,7 +118,7 @@ test("an untouched entrance downloads none of the cloud records below it", async
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   const below = [];
   page.on("request", (request) => {
-    if (/atlas-clouds\/.*\.bin/.test(request.url())) below.push(new URL(request.url()).pathname);
+    if (/atlas-clouds-3d\/.*\.bin/.test(request.url())) below.push(new URL(request.url()).pathname);
   });
   try {
     await page.goto(base);

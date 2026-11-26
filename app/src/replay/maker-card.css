@@ -1,0 +1,74 @@
+/*
+ * Tangible gallery plaque (`replay/maker-card.tsx`).
+ * Uses only the site's Paper Mono sizes (--s-1, --s0), 1 px borders, pure --black plate,
+ * and a 2 px left rule that takes the living automaton's --sampled colour when available.
+ */
+
+.maker-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--space-3) var(--patch);
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--sampled, var(--line-2));
+  background: var(--black);
+}
+
+.maker-card-eyebrow {
+  margin-bottom: 2px;
+}
+
+.maker-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-2) var(--patch);
+}
+
+.maker-card-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.maker-card-title {
+  margin: 0;
+  font-size: var(--s0);
+  font-weight: 500;
+  line-height: var(--lh0);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.maker-card-title[data-placeholder] {
+  font-weight: 400;
+  color: var(--ink-2);
+}
+
+.maker-card-credit {
+  margin: 0;
+  font-size: var(--s-1);
+  line-height: var(--lh-1);
+  color: var(--ink-2);
+}
+
+.maker-card-credit[data-placeholder] {
+  color: var(--ink-3);
+}
+
+.maker-card-action {
+  flex-shrink: 0;
+  font-size: var(--s-1);
+  line-height: var(--lh-1);
+}
+
+.maker-card-facts {
+  margin: 0;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+  font-size: var(--s-1);
+  line-height: var(--lh-1);
+  color: var(--ink-3);
+}

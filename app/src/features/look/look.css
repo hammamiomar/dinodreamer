@@ -68,8 +68,7 @@
   color: var(--ink-2);
 }
 
-.look-line > span + span::before,
-.look-details > span + span::before {
+.look-line > span + span::before {
   content: "·";
   padding: 0 8px;
   color: var(--ink-3);
@@ -83,19 +82,18 @@
 }
 
 /*
- * "Train from this patch" for the picture under the pointer, in focus or tapped (strongest-pictures.tsx).
- * It keeps its place in the line while hidden, so the line never changes, and nothing covers a picture.
+ * Click-to-train cue for the Level 4 strip (strongest-pictures.tsx): quiet at rest,
+ * full ink for the picture under the pointer, in focus or tapped.
  */
 .look-fires-action {
   margin-left: auto;
   font-size: var(--s-1);
-  color: var(--ink);
+  color: var(--ink-2);
   white-space: nowrap;
-  visibility: hidden;
 }
 
 .look-fires[data-current] .look-fires-action {
-  visibility: visible;
+  color: var(--ink);
 }
 
 .look-pictures {
@@ -375,19 +373,61 @@
   color: var(--ink-3);
 }
 
-/* 6 · The details line, a module under the bands, so the page ends on the module. */
-.look-details {
+/* 6 · The spec strip, a module under the bands, so the page ends on the module. */
+.look-spec {
   margin: var(--m) 0 0;
-  font-size: var(--s-1);
-  line-height: 16px;
-  color: var(--ink-3);
 }
 
-.look-details .link-control {
+.look-spec-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  justify-content: space-between;
+  border: 1px solid var(--line);
+  background: var(--black);
+}
+
+.look-spec-cells {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0;
   font-size: var(--s-1);
+  line-height: 16px;
+}
+
+.look-spec-cell {
+  display: grid;
+  gap: 4px;
+  padding: 12px 16px;
+}
+
+.look-spec-cell + .look-spec-cell {
+  border-left: 1px solid var(--line);
+}
+
+.look-spec-cell dt {
+  color: var(--ink-3);
+  font-weight: 500;
+}
+
+.look-spec-cell dd {
+  margin: 0;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.look-spec-action {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+  padding: 8px 16px;
+  border-left: 1px solid var(--line);
 }
 
 .look-notice {
+  margin: 12px 0 0;
+  font-size: var(--s-1);
+  line-height: 16px;
   color: var(--warn);
 }
 
@@ -858,6 +898,24 @@
   .look-request-anchor {
     grid-template-columns: 96px minmax(0, 1fr);
   }
+  .look-spec-bar {
+    flex-direction: column;
+  }
+
+  .look-spec-cells {
+    flex-direction: column;
+  }
+
+  .look-spec-cell + .look-spec-cell {
+    border-top: 1px solid var(--line);
+    border-left: 0;
+  }
+
+  .look-spec-action {
+    margin-left: 0;
+    border-top: 1px solid var(--line);
+    border-left: 0;
+  }
 }
 
 /* A finger: every target is 44 px. */
@@ -865,19 +923,13 @@
   .look-plane,
   .look-view-reset,
   .look-band-label button,
-  .look-request-bands button {
+  .look-request-bands button,
+  .look-spec-action .button {
     min-height: var(--touch-target);
   }
 
   .look-strip-step {
     width: var(--touch-target);
-  }
-
-  /* The link keeps its 44 px target with padding and cancels it with a margin, so the line does not grow. */
-  .look-details .link-control {
-    min-height: 0;
-    padding-block: 14px;
-    margin-block: -14px;
   }
 }
 

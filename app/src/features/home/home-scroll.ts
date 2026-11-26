@@ -2,8 +2,8 @@
 // sections may load their files (home-panel.tsx). Pure, so the page only measures and applies.
 // The browser owns the scroll.
 
-/** The page's sections in order: the entrance and the four scenes. */
-export const HOME_BEATS = ["entrance", "properties", "collection", "train", "keep"] as const;
+/** The page's sections in order: the entrance, the four scenes, and the closing hibiscus field. */
+export const HOME_BEATS = ["entrance", "properties", "collection", "train", "keep", "end"] as const;
 export type HomeBeat = (typeof HOME_BEATS)[number];
 
 /**

@@ -9,6 +9,7 @@ import { forwardRef, useEffect, useRef, useState, type PointerEvent } from "reac
 import { Link, useLocation, useNavigate, useOutletContext, useParams, type LinkProps } from "react-router";
 import { useLibrary } from "../../app/library-session";
 import { registerFloatingDockSlot } from "../../app/library-dock";
+import { useManifoldFocus } from "../../ground/manifold-focus";
 import { anchorToken, type CloudToken } from "./cloud-token";
 import { LookContent, lookData, type LookData } from "./look-page";
 import { LoadingIndicator } from "../../ui/loading-indicator";
@@ -127,6 +128,7 @@ export function BasisGroupPanel({ home }: { home: PanelHome }) {
   const content = usePanelContent(block, useOutletContext<BasisGroupPanelOutlet | undefined>());
   const [entered, setEntered] = useState(false);
   const [closing, setClosing] = useState(false);
+  useManifoldFocus(closing ? null : block);
 
   // Restore focus to the opener on close; mount the view after the entrance animation.
   useEffect(() => {

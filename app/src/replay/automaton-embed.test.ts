@@ -3,7 +3,7 @@ import { Script } from "node:vm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FigureMaterialFile } from "../materials/material-file";
 import {
-  agentBrief, automatonEmbed, automatonTagName, defineAutomatonElement, embeddedAutomaton, embedSnippet, type EmbeddedAutomaton,
+  automatonEmbed, automatonTagName, defineAutomatonElement, embeddedAutomaton, embedSnippet, type EmbeddedAutomaton,
 } from "./automaton-embed";
 import type { FigureReplay, FigureReplayOptions } from "./figure-replay";
 import type { FigureShaderSources } from "./figure-shaders";
@@ -66,23 +66,11 @@ describe("the embed file", () => {
     expect(header.endsWith(" */")).toBe(true);
   });
 
-  it("gives the two lines a visitor copies, with the file's own name or another address", () => {
+  it("gives the two lines a visitor copies, with the file's own name, another address, or the draw attribute", () => {
     const embed = automatonEmbed(kept(), unnamed);
     expect(embedSnippet(embed)).toBe(`<script src="${embed.fileName}" defer></script>\n<${embed.tagName}></${embed.tagName}>`);
+    expect(embedSnippet(embed, embed.fileName, { draw: true })).toBe(`<script src="${embed.fileName}" defer></script>\n<${embed.tagName} draw></${embed.tagName}>`);
     expect(embedSnippet(embed, "blob:x")).toMatch(/^<script src="blob:x" defer><\/script>\n/);
-  });
-
-  it("briefs a coding agent: the file, where it goes, the element, the size, and the word that turns on drawing", () => {
-    const file = seedMaterial("block-4009-figure-2px-strongest-seed-0");
-    const embed = automatonEmbed(file, unnamed);
-    const brief = agentBrief(embed, file);
-    expect(brief).toContain(`I downloaded the file ${embed.fileName}.`);
-    expect(brief).toContain(`<script src="/${embed.fileName}" defer></script>`);
-    expect(brief).toContain(`<${embed.tagName} draw></${embed.tagName}>`);
-    expect(brief).toContain(`seed="${file.reading.seed}"`);
-    expect(brief).toContain('cells="64" (the grid: 64 or 128 cells a side)');
-    expect(brief).toContain("speed=\"1\" (0.25 to 8)");
-    expect(brief).not.toMatch(/\{\w+\}/);
   });
 });
 

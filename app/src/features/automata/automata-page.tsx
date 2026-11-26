@@ -102,6 +102,7 @@ function PublishedGallery({ groups, names, status }: { groups: GalleryGroup<Publ
       </GroupWall>
       {open && (
         <GroupScreen group={group} name={nameOf(names, group.group)} neighbours={neighboursOf(groups, group.group)} playing={playing} onChoose={choose}
+          savedCount={saved.automata.length}
           stage={<MaterialStage entry={playing.automaton.entry} source={PUBLISHED_SOURCE} gridNote={gridNoteOf(playing.automaton)} />}>
           {panel}
         </GroupScreen>

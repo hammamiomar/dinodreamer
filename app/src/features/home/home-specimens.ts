@@ -1,22 +1,21 @@
-// Domain selections and matrix builders for the four home stages (`features/home/*-stage.tsx`).
+// Domain selections and curated specimen rules for the four home stages (`features/home/*-stage.tsx`).
 // Pure functions with no browser or React dependencies, tested directly in `home-specimens.test.ts`.
 
-import { trainPathOfPlace } from "../automata/gallery";
-import type { GalleryMethod, GalleryStart } from "../gallery/gallery-place";
-import { featuredInBlock, placeOf, type MaterialEntry } from "../gallery/material-index";
+import type { MaterialEntry } from "../gallery/material-index";
+import type { StoryRecord } from "../how/training-story";
 
 /** Total basis groups in the released DINOv3 block-sparse featurizer. */
 export const TOTAL_BASIS_GROUPS = 16384;
 
-// --- Scene 1: Photographs vs. Grown Automata ---
+// --- Scene 1: Look Inside (Isolated Pattern vs. Surrounding Scene) ---
 
 export const PROPERTY_GROUPS = [6638, 13345, 729, 2632] as const;
 export type PropertyGroup = (typeof PROPERTY_GROUPS)[number];
 export type PropertyTarget = "group" | "token";
 
 /**
- * Verified published automata pairing a 3-number basis-group target against a 768-number token target
- * on the same group's patches.
+ * Verified published automata pairing an isolated 3-number pattern target against a full 768-number
+ * surrounding-patch target on the same group's photographs.
  */
 export const PROPERTY_AUTOMATA: Record<PropertyGroup, Record<PropertyTarget, string>> = {
   6638: {
@@ -32,7 +31,7 @@ export const PROPERTY_AUTOMATA: Record<PropertyGroup, Record<PropertyTarget, str
     token: "729-given-set-centre-disc-seed-0",
   },
   2632: {
-    group: "block-2632-stage-6-pyramid-seeded-strongest-seed-0",
+    group: "2632-guided-release-floor-0p5-all-noise-seed-0",
     token: "2632-given-set-centre-disc-seed-0",
   },
 };
@@ -60,13 +59,13 @@ export function resolvePropertyView(
   return { entry: entries[0] ?? null, exact: false };
 }
 
-// --- Scene 2: The 16,384 Basis Groups ---
+// --- Scene 2: The 16,384 Visual Patterns ---
 
 export interface CollectionCoverage {
   total: number;
   withAutomaton: number;
   withoutAutomaton: number;
-  /** Fraction in [0, 1] of groups that have at least one published automaton. */
+  /** Fraction in [0, 1] of patterns that have at least one published living image. */
   fraction: number;
 }
 
@@ -81,7 +80,7 @@ export function groupsWithAutomata(entries: readonly Pick<MaterialEntry, "block"
   return [...seen].sort((a, b) => a - b);
 }
 
-/** Summary counts of explored vs. open basis groups across the 16,384-group collection. */
+/** Summary counts of explored vs. open visual patterns across the 16,384-pattern collection. */
 export function collectionCoverage(entries: readonly Pick<MaterialEntry, "block">[]): CollectionCoverage {
   const withAutomaton = groupsWithAutomata(entries).length;
   const withoutAutomaton = Math.max(0, TOTAL_BASIS_GROUPS - withAutomaton);
@@ -94,9 +93,8 @@ export function collectionCoverage(entries: readonly Pick<MaterialEntry, "block"
 }
 
 /**
- * Draw a basis group uniformly at random (`random` in `[0, 1)`) from those with no published
- * automaton yet, excluding `current` so repeated clicks always deal a fresh group. No group is
- * preferred for how well it trains.
+ * Draw a pattern uniformly at random (`random` in `[0, 1)`) from those with no published living
+ * image yet, excluding `current` so repeated clicks always deal a fresh pattern.
  */
 export function randomUnexploredGroup(
   entries: readonly Pick<MaterialEntry, "block">[],
@@ -117,84 +115,51 @@ export function randomUnexploredGroup(
   return 0;
 }
 
-// --- Scene 3: Starts × Methods Training Matrix ---
+// --- Scene 3: Recorded Training Runs ---
 
-export const TRAIN_STAGE_GROUP = 6638;
-export const TRAIN_STAGE_STARTS = ["noise", "circle"] as const satisfies readonly GalleryStart[];
-export type TrainStageStart = (typeof TRAIN_STAGE_STARTS)[number];
+/** Verified crisp noise training runs from `/story/story.json`, ordered for the Beat 3 story tabs. */
+export const TRAIN_STORY_MATERIAL_IDS = [
+  "block-4009-figure-pyramid-strongest-seed-0",
+  "block-14544-stage-6-noise-strongest-seed-0",
+  "block-13345-stage-6-pyramid-strongest-seed-1",
+] as const;
+export type TrainStoryMaterialId = (typeof TRAIN_STORY_MATERIAL_IDS)[number];
 
-export const TRAIN_STAGE_METHODS = [
-  "basis-group-mean",
-  "basis-group-distribution",
-  "token-mean",
-  "token-distribution",
-] as const satisfies readonly GalleryMethod[];
-export type TrainStageMethod = (typeof TRAIN_STAGE_METHODS)[number];
-
-export interface TrainMatrixCell {
-  start: TrainStageStart;
-  method: TrainStageMethod;
-  /** First published automaton occupying this cell, or null when open. */
-  entry: MaterialEntry | null;
-  /** Direct `/train?block=...&start=...&method=...` link for open cells. */
-  trainPath: string;
-}
-
-export interface TrainStageMatrix {
-  group: number;
-  cells: TrainMatrixCell[];
-  filledCount: number;
+/**
+ * Select the curated training story records in display order. Falls back to the first three
+ * records when a fixture supplies a reduced story list.
+ */
+export function selectTrainStories(records: readonly StoryRecord[]): StoryRecord[] {
+  const byMaterial = new Map(records.map((record) => [record.material, record]));
+  const curated = TRAIN_STORY_MATERIAL_IDS.flatMap((id) => {
+    const match = byMaterial.get(id);
+    return match ? [match] : [];
+  });
+  if (curated.length > 0) return curated;
+  return records.slice(0, TRAIN_STORY_MATERIAL_IDS.length);
 }
 
 /**
- * Choose the group whose Starts × Methods matrix is shown in Scene 3: `TRAIN_STAGE_GROUP` when
- * present in `entries`, else the first group in `entries`, else `TRAIN_STAGE_GROUP` (all open).
+ * Find the published gallery entry corresponding to a recorded training run: exact `id` match
+ * first, then any entry of the same block so fixture indices still link cleanly.
  */
-export function chooseTrainMatrixGroup(entries: readonly Pick<MaterialEntry, "block">[]): number {
-  if (entries.some((entry) => entry.block === TRAIN_STAGE_GROUP)) return TRAIN_STAGE_GROUP;
-  return entries[0]?.block ?? TRAIN_STAGE_GROUP;
+export function storyEntryForRecord(
+  entries: readonly MaterialEntry[],
+  record: Pick<StoryRecord, "material" | "block">,
+): MaterialEntry | null {
+  const exact = entries.find((candidate) => candidate.id === record.material);
+  if (exact) return exact;
+  return entries.find((candidate) => candidate.block === record.block) ?? null;
 }
 
-function compareCellCandidates(a: MaterialEntry, b: MaterialEntry): number {
-  return Number(Boolean(b.cellPicture)) - Number(Boolean(a.cellPicture))
-    || Number(featuredInBlock(b)) - Number(featuredInBlock(a))
-    || Number(b.fired) - Number(a.fired)
-    || (b.strength ?? -Infinity) - (a.strength ?? -Infinity)
-    || b.publishedAt.localeCompare(a.publishedAt)
-    || a.id.localeCompare(b.id);
-}
+// --- Scene 4: Standalone Embed ---
 
-/**
- * Build the `2 × 4` trainable Starts × Methods grid for `group`. Within each cell, featured and
- * target-meeting entries rank ahead of unfired runs, matching the gallery's own cell picture rule.
- */
-export function buildTrainMatrix(entries: readonly MaterialEntry[], group: number): TrainStageMatrix {
-  const groupEntries = entries.filter((entry) => entry.block === group).sort(compareCellCandidates);
-  const cells: TrainMatrixCell[] = [];
-  let filledCount = 0;
-  for (const start of TRAIN_STAGE_STARTS) {
-    for (const method of TRAIN_STAGE_METHODS) {
-      const entry = groupEntries.find((candidate) => {
-        const place = placeOf(candidate);
-        if (place.start !== start) return false;
-        if (place.method === method) return true;
-        return method === "basis-group-mean" && place.method === "basis-group-mean-guided";
-      }) ?? null;
-      if (entry !== null) filledCount++;
-      const trainPath = trainPathOfPlace(group, { start, method }) ?? `/train?block=${group}`;
-      cells.push({ start, method, entry, trainPath });
-    }
-  }
-  return { group, cells, filledCount };
-}
-
-// --- Scene 4: Standalone Embed & Rule Size ---
-
-/** Featured automata offered in the standalone custom-element stage: two single-grid (7,776) and one two-grid (17,088). */
+/** Verified continuously moving automata offered in the standalone custom-element stage. */
 export const KEEP_AUTOMATON_IDS = [
-  "block-12002-figure-strongest-mean-seed-0",
-  "block-16250-figure-strongest-mean-seed-0",
   "2801-plain-all-noise-seed-0",
+  "2088-guided-all-noise-seed-0",
+  "12956-guided-all-noise-seed-0",
+  "block-16250-figure-strongest-mean-seed-0",
 ] as const;
 
 /**

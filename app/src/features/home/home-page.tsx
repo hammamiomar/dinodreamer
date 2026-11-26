@@ -1,18 +1,22 @@
-// The home page (`/`): an untouched negative-space entrance followed by four concise, scannable
+// The home page (`/`): an untouched negative-space entrance followed by four zero-prerequisite
 // scenes paired with interactive stages on the pure-black right-hand panel (or inline on narrow screens).
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
+import { fillNodes } from "../../app/fill-nodes";
 import { fill, SITE_WORDS } from "../../app/site-words";
+import { useManifoldFocus, type ManifoldFocus } from "../../ground/manifold-focus";
+import { DRAWN_AT_RANDOM } from "../../grow/random-group";
 import type { FigureMaterial } from "../../materials/material-file";
 import { useMediaMatch } from "../../ui/media-match";
 import { ResetMark } from "../../ui/reset-mark";
 import { usePrefersReducedMotion } from "../../ui/tween";
-import type { Loaded } from "../../ui/use-loaded";
+import { useLoaded, type Loaded } from "../../ui/use-loaded";
 import { indexPath } from "../atlas/atlas-position";
-import { useBasisGroupNames } from "../automata/basis-group-names";
 import { useMaterialIndex, usePublishedMaterial } from "../gallery/material-gallery";
 import type { MaterialEntry } from "../gallery/material-index";
+import { AUTOMATON_RECORD_FOLDER, loadAutomatonState } from "../how/automaton-record";
+import { HOW_AUTOMATON, HOW_REGROW_AT_TICK } from "../how/figures/figure-data";
 import { ChoosePictureButton } from "../look/picture-entry";
 import { HomeCollectionStage } from "./home-collection-stage";
 import { HomeKeepStage } from "./home-keep-stage";
@@ -22,18 +26,23 @@ import { FIELD_DRAW_RATIO, HomePanel, type Shown } from "./home-panel";
 import { HomePropertiesStage } from "./home-properties-stage";
 import { entranceAutomaton } from "./home-relay";
 import { approachedBeats, HOME_BEATS, readingLine, sectionAt, type HomeBeat } from "./home-scroll";
-import { collectionCoverage } from "./home-specimens";
+import { collectionCoverage, PROPERTY_GROUPS, randomUnexploredGroup } from "./home-specimens";
 import { HomeTrainStage } from "./home-train-stage";
 import "./home.css";
 
 const WORDS = SITE_WORDS.home;
 const HEADER = SITE_WORDS.header;
+const BURN_URL = "https://burn.dev";
 const NARROW_QUERY = "(max-width: 1023px)";
 
 const STILL_WORDS: Record<Exclude<HomeStill, null>, string> = {
   "no-webgpu": WORDS.noWebGpu,
   "reduced-motion": WORDS.reducedMotion,
 };
+
+function sameFocus(a: ManifoldFocus, b: ManifoldFocus): boolean {
+  return a.group === b.group && a.accent === b.accent;
+}
 
 /** The entrance's automaton (home-relay.ts, entranceAutomaton), keeping the running field during relays. */
 function useEntranceAutomaton(choice: MaterialEntry | null, file: Loaded<FigureMaterial>): Shown | null {
@@ -58,7 +67,6 @@ export function HomePage() {
   }, []);
 
   const index = useMaterialIndex();
-  const names = useBasisGroupNames();
   const reducedMotion = usePrefersReducedMotion();
   const narrow = useMediaMatch(NARROW_QUERY);
 
@@ -87,6 +95,66 @@ export function HomePage() {
   const [place, setPlace] = useState<{ beat: HomeBeat; scrolled: boolean }>({ beat: "entrance", scrolled: false });
   const [reached, setReached] = useState({ furthest: 0, scrolled: false });
   const approached = approachedBeats(reached.furthest, reached.scrolled);
+
+  // Closing hibiscus automaton (basis group 4009, the site's favicon figure), loaded only as Beat 4 is reached.
+  const endEntry = useMemo(() => entries.find((candidate) => candidate.id === HOW_AUTOMATON) ?? null, [entries]);
+  const endLoads = still === null && approached.end;
+  const endMaterial = usePublishedMaterial(endLoads ? endEntry : null);
+  const endState = useLoaded(endLoads ? "end-state" : null, () => (endLoads ? loadAutomatonState() : null));
+  const endShown: Shown | null = endEntry ? { entry: endEntry, material: endMaterial.status === "ready" ? endMaterial.value : null } : null;
+  const endInitialState = useMemo(() => (endState.status === "ready" ? {
+    tick: endState.value.replay.tick,
+    fine: endState.value.fine.state,
+    coarse: endState.value.coarse.state,
+  } : undefined), [endState]);
+
+  // Track active pattern and sampled accent per beat so the site-wide 3D manifold morphs live.
+  const [entranceAccent, setEntranceAccent] = useState<string | null>(null);
+  const [propertiesFocus, setPropertiesFocus] = useState<ManifoldFocus>({ group: PROPERTY_GROUPS[0], accent: null });
+  const [collectionFocus, setCollectionFocus] = useState<ManifoldFocus>({ group: null, accent: null });
+  const [trainFocus, setTrainFocus] = useState<ManifoldFocus>({ group: null, accent: null });
+  const [keepFocus, setKeepFocus] = useState<ManifoldFocus>({ group: null, accent: null });
+  const [endAccent, setEndAccent] = useState<string | null>(null);
+
+  const onEntranceAccent = useCallback((accent: string) => {
+    setEntranceAccent((previous) => (previous === accent ? previous : accent));
+  }, []);
+  const onPropertiesFocus = useCallback((focus: ManifoldFocus) => {
+    setPropertiesFocus((previous) => (sameFocus(previous, focus) ? previous : focus));
+  }, []);
+  const onCollectionFocus = useCallback((focus: ManifoldFocus) => {
+    setCollectionFocus((previous) => (sameFocus(previous, focus) ? previous : focus));
+  }, []);
+  const onTrainFocus = useCallback((focus: ManifoldFocus) => {
+    setTrainFocus((previous) => (sameFocus(previous, focus) ? previous : focus));
+  }, []);
+  const onKeepFocus = useCallback((focus: ManifoldFocus) => {
+    setKeepFocus((previous) => (sameFocus(previous, focus) ? previous : focus));
+  }, []);
+  const onEndAccent = useCallback((accent: string) => {
+    setEndAccent((previous) => (previous === accent ? previous : accent));
+  }, []);
+
+  const activeFocus: ManifoldFocus = (() => {
+    switch (place.beat) {
+      case "entrance":
+        return { group: entrance?.entry.block ?? null, accent: entranceAccent };
+      case "properties":
+        return propertiesFocus;
+      case "collection":
+        return collectionFocus;
+      case "train":
+        return trainFocus;
+      case "keep":
+        return keepFocus;
+      case "end":
+        return { group: endEntry?.block ?? 4009, accent: endAccent };
+    }
+  })();
+  useManifoldFocus(activeFocus.group, activeFocus.accent);
+
+  const [fallbackRandomOpen] = useState(() => randomUnexploredGroup([], Math.random(), null));
+  const randomOpen = collectionFocus.group ?? fallbackRandomOpen;
 
   useEffect(() => {
     const read = () => {
@@ -124,11 +192,15 @@ export function HomePage() {
       <Link to={indexPath()}>{HEADER.explore}</Link>
       <Link to="/automata">{HEADER.playground}</Link>
       <Link to="/train">{HEADER.grow}</Link>
+      <Link to="/picture">{HEADER.picture}</Link>
       <Link to="/how">{HEADER.how}</Link>
     </nav>
   );
 
   const openIndexUrl = `${indexPath()}?material=none`;
+  const collectionHeading = index.status === "ready"
+    ? fill(WORDS.collection.heading, { lit: coverage.withAutomaton.toLocaleString("en-US") })
+    : WORDS.collection.headingLoading;
 
   return (
     <main ref={home} className="home" data-beat={place.beat}>
@@ -137,12 +209,19 @@ export function HomePage() {
           beat={place.beat}
           still={still}
           entrance={entrance}
+          end={endShown}
+          endState={endState.status === "ready" ? endState.value : null}
           reset={reset}
           entries={entries}
           indexReady={index.status === "ready"}
-          names={names}
           approached={approached}
           onNoReplay={replayFailed}
+          onEntranceAccent={onEntranceAccent}
+          onPropertiesFocus={onPropertiesFocus}
+          onCollectionFocus={onCollectionFocus}
+          onTrainFocus={onTrainFocus}
+          onKeepFocus={onKeepFocus}
+          onEndAccent={onEndAccent}
         />
       )}
 
@@ -161,6 +240,7 @@ export function HomePage() {
                   regrowAtTick={Number.POSITIVE_INFINITY}
                   stepsPerSecond={HOME_TICKS_PER_SECOND}
                   carryCells
+                  onAccent={onEntranceAccent}
                   onNoReplay={replayFailed}
                 />
               )}
@@ -199,33 +279,33 @@ export function HomePage() {
           {problem && <p className="home-note" role="status">{problem}</p>}
         </section>
 
-        {/* 1. Why grow them: concise contrast + brush note */}
+        {/* 1. Look inside: isolated pattern vs. surrounding scene */}
         <section ref={section(1)} className="home-beat" data-beat="properties">
           <div className="home-beat-words">
-            <p className="label">{WORDS.properties.label}</p>
             <h2 className="heading">{WORDS.properties.heading}</h2>
-            <p className="home-sentence">{WORDS.properties.body}</p>
-            {!still && <p className="home-hint">{WORDS.properties.brushHint}</p>}
+            <div className="home-prose">
+              <p className="home-sentence">{WORDS.properties.bodyLead}</p>
+              <p className="home-sentence">{WORDS.properties.bodyAction}</p>
+            </div>
           </div>
           {narrow && (
             <div className="home-inline-stage">
               <HomePropertiesStage
                 entries={entries}
-                names={names}
                 approached={approached.properties}
                 active={place.beat === "properties"}
                 still={still}
                 onNoReplay={replayFailed}
+                onFocus={onPropertiesFocus}
               />
             </div>
           )}
         </section>
 
-        {/* 2. The open collection: 2-row tabular ledger + picture door */}
+        {/* 2. The open collection: 2-row tabular ledger + photo door */}
         <section ref={section(2)} className="home-beat" data-beat="collection">
           <div className="home-beat-words">
-            <p className="label">{WORDS.collection.label}</p>
-            <h2 className="heading">{WORDS.collection.heading}</h2>
+            <h2 className="heading">{collectionHeading}</h2>
             <dl className="home-ledger">
               <div className="home-ledger-row">
                 <dt>
@@ -242,9 +322,12 @@ export function HomePage() {
                 <dd><Link className="link-control" to={openIndexUrl}>{WORDS.collection.openLink}</Link></dd>
               </div>
             </dl>
-            <p className="home-sentence">{WORDS.collection.body}</p>
+            <div className="home-prose">
+              <p className="home-sentence">{WORDS.collection.bodyLead}</p>
+              <p className="home-sentence">{WORDS.collection.bodyAction}</p>
+            </div>
             <div className="home-doors">
-              <ChoosePictureButton className="button">{WORDS.collection.pictureDoor}</ChoosePictureButton>
+              <ChoosePictureButton className="button primary">{WORDS.collection.pictureDoor}</ChoosePictureButton>
             </div>
           </div>
           {narrow && (
@@ -252,64 +335,99 @@ export function HomePage() {
               <HomeCollectionStage
                 entries={entries}
                 indexReady={index.status === "ready"}
-                names={names}
                 approached={approached.collection}
+                active={place.beat === "collection"}
+                onFocus={onCollectionFocus}
               />
             </div>
           )}
         </section>
 
-        {/* 3. Train & publish: 3 scannable one-line steps */}
+        {/* 3. Make your own: 3 high-contrast steps + recorded training scrubber */}
         <section ref={section(3)} className="home-beat" data-beat="train">
           <div className="home-beat-words">
-            <p className="label">{WORDS.train.label}</p>
             <h2 className="heading">{WORDS.train.heading}</h2>
             <ol className="home-steps">
               {WORDS.train.steps.map((step, indexAt) => (
-                <li key={step}>
+                <li key={step.lead}>
                   <span className="home-step-num" aria-hidden="true">{indexAt + 1}</span>
-                  <span>{step}</span>
+                  <div className="home-step-body">
+                    <span className="home-step-lead">{step.lead}</span>
+                    <span className="home-step-detail">{step.detail}</span>
+                  </div>
                 </li>
               ))}
             </ol>
             <div className="home-doors">
-              <Link className="button" to="/train">{WORDS.train.trainDoor}</Link>
+              <Link className="button primary" to="/train">{WORDS.train.trainDoor}</Link>
+              <Link className="button" to={`/train?block=${randomOpen}`} state={DRAWN_AT_RANDOM}>
+                {WORDS.train.randomDoor}
+              </Link>
             </div>
           </div>
           {narrow && (
             <div className="home-inline-stage">
               <HomeTrainStage
                 entries={entries}
-                names={names}
                 approached={approached.train}
                 active={place.beat === "train"}
                 still={still}
                 onNoReplay={replayFailed}
+                onFocus={onTrainFocus}
               />
             </div>
           )}
         </section>
 
-        {/* 4. Take it with you: concise takeaway + closing doors */}
-        <section ref={section(4)} className="home-beat home-end" data-beat="keep">
+        {/* 4. Take it with you: standalone embed */}
+        <section ref={section(4)} className="home-beat" data-beat="keep">
           <div className="home-beat-words">
-            <p className="label">{WORDS.keep.label}</p>
             <h2 className="heading">{WORDS.keep.heading}</h2>
-            <p className="home-sentence">{WORDS.keep.body}</p>
-            {still && <p className="home-hint">{STILL_WORDS[still]}</p>}
+            <div className="home-prose">
+              <p className="home-sentence">{WORDS.keep.bodyLead}</p>
+              <p className="home-sentence">{WORDS.keep.bodyAction}</p>
+            </div>
             {narrow && (
               <div className="home-inline-stage">
                 <HomeKeepStage
                   entries={entries}
-                  names={names}
                   approached={approached.keep}
                   active={place.beat === "keep"}
                   still={still}
+                  onFocus={onKeepFocus}
                 />
               </div>
             )}
-            {links}
           </div>
+        </section>
+
+        {/* 5. Finale: closing navigation doors paired with the living hibiscus automaton */}
+        <section ref={section(5)} className="home-end" data-beat="end">
+          {narrow && (
+            <div className="home-narrow-entrance-field">
+              {endShown && (
+                <HomeMaterial
+                  entry={endShown.entry}
+                  material={!still && endInitialState ? endShown.material : null}
+                  initialState={endInitialState}
+                  playing={place.beat === "end"}
+                  posterUrl={`${AUTOMATON_RECORD_FOLDER}picture-128.png`}
+                  drawRatio={FIELD_DRAW_RATIO}
+                  regrowAtTick={HOW_REGROW_AT_TICK}
+                  stepsPerSecond={HOME_TICKS_PER_SECOND}
+                  onAccent={onEndAccent}
+                  onNoReplay={replayFailed}
+                />
+              )}
+            </div>
+          )}
+          <Link to="/" className="home-title">{SITE_WORDS.frame.wordmark}</Link>
+          {links}
+          <p className="home-end-note">
+            {still ? STILL_WORDS[still] : fillNodes(WORDS.end, {
+              burn: <a href={BURN_URL} target="_blank" rel="noreferrer">{WORDS.burn}</a>,
+            })}
+          </p>
         </section>
       </div>
     </main>

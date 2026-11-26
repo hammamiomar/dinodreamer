@@ -24,6 +24,7 @@ import {
 import { DEFAULT_DEPTH, depthFromSearch, depthOfLayers, methodFromSearch } from "./train-method";
 import { AnotherRandomGroup, TrainTargetChoices } from "./train-target-choices";
 import { drawnAtRandom } from "./random-group";
+import { useManifoldFocus } from "../ground/manifold-focus";
 import "./grow.css";
 
 const WORDS = SITE_WORDS.grow;
@@ -263,6 +264,7 @@ export function GrowPage() {
   const sourceReady = source !== null && request?.block === source.block && !reference.loading && reference.problem === null;
   const waiting = loading || problem !== null || (continuing && !sourceReady);
   const block = continuing ? source?.block ?? null : waiting ? asked : request?.block ?? asked;
+  useManifoldFocus(block);
   // The method: "Train a variation" names it in the address; a continuation trains by its definition's own.
   const [chosenMethod, setChosenMethod] = useState<FigureMethod>(() => methodFromSearch(search));
   const method = continuing && source ? source.objective.method : chosenMethod;

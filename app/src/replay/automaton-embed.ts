@@ -1,4 +1,3 @@
-import { fill, SITE_WORDS } from "../app/site-words";
 import { figurePlayback, readingPictureSide, replayGridSides, type FigureMaterialFile, type FigurePlayback } from "../materials/material-file";
 import { createFigureReplay, type FigureReplay, type FigureReplayOptions, type FigureRule } from "./figure-replay";
 import { FIGURE_SHADERS, type FigureShaderSources } from "./figure-shaders";
@@ -401,21 +400,12 @@ const automaton = ${scriptJson(automaton)};
   return { tagName, fileName: `${tagName}.js`, script };
 }
 
-/** The brief a visitor gives a coding agent with the downloaded embed file: where the file goes and how to place it. */
-export function agentBrief(embed: AutomatonEmbed, file: FigureMaterialFile): string {
-  const grids = replayGridSides(file);
-  return fill(SITE_WORDS.stage.agentBrief, {
-    file: embed.fileName,
-    tag: embed.tagName,
-    seed: file.reading.seed,
-    cells: grids.includes(file.reading.side) ? file.reading.side : grids[0]!,
-    grids: grids.join(" or "),
-    slowest: REPLAY_SPEEDS[0]!,
-    fastest: REPLAY_SPEEDS[REPLAY_SPEEDS.length - 1]!,
-  });
-}
-
 /** The two lines a visitor puts on their page: the script, deferred so that it never holds up the page, then the element. */
-export function embedSnippet(embed: Pick<AutomatonEmbed, "tagName" | "fileName">, src = embed.fileName): string {
-  return `<script src="${src}" defer></script>\n<${embed.tagName}></${embed.tagName}>`;
+export function embedSnippet(
+  embed: Pick<AutomatonEmbed, "tagName" | "fileName">,
+  src = embed.fileName,
+  options?: { draw?: boolean },
+): string {
+  const attributes = options?.draw ? " draw" : "";
+  return `<script src="${src}" defer></script>\n<${embed.tagName}${attributes}></${embed.tagName}>`;
 }

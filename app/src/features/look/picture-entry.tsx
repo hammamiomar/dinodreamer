@@ -35,7 +35,7 @@ export function PictureEntry({ text }: {
   return (
     <div className="picture-entry">
       {upload.picture && <Link className="link-control" to={picturePath(location.search)}>{text.view}</Link>}
-      <ChoosePictureButton className="link-control">{text.button}</ChoosePictureButton>
+      <ChoosePictureButton className="button">{text.button}</ChoosePictureButton>
     </div>
   );
 }

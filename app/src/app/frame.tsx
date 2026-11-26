@@ -75,8 +75,9 @@ export function keepsPageScaleOne(pathname: string): boolean {
   return pathname === "/create" || pathname.startsWith("/create/");
 }
 
-/** The lattice behind every page (ground/lattice.ts): one canvas, drawn on scroll and resize only. */
+/** The curved 3-D latent manifold ground behind every page (ground/lattice.ts). */
 function Ground({ bends, pathname = "" }: { bends: boolean; pathname?: string }) {
+  const { search } = useLocation();
   const canvas = useRef<HTMLCanvasElement>(null);
   const lattice = useRef<Lattice | null>(null);
   useEffect(() => {
@@ -91,11 +92,11 @@ function Ground({ bends, pathname = "" }: { bends: boolean; pathname?: string })
   useEffect(() => {
     lattice.current?.setBends(bends);
   }, [bends]);
-  // A new route may change the page scale (the image editor keeps 1, ui/page-scale.ts) with no scroll or resize; the
-  // redraw runs after the frame's own effects, once the site carries the new route's scale.
+  // A route or query change can alter the page scale or reading corridors with no scroll or resize;
+  // redraw after layout commits so corridor bounds and scale match the new screen.
   useEffect(() => {
     lattice.current?.redraw();
-  }, [pathname]);
+  }, [pathname, search]);
   return <canvas ref={canvas} className="ground" aria-hidden="true" />;
 }
 
@@ -239,18 +240,21 @@ export function SiteNavLinks({ pathname }: { pathname?: string }) {
       <NavLink to={indexPath()}>{SITE_WORDS.header.explore}</NavLink>
       <NavLink to="/automata">{SITE_WORDS.header.playground}</NavLink>
       <NavLink to="/train">{SITE_WORDS.header.grow}</NavLink>
-      {/* Below 1056 px the short label replaces the full text (styles.css); aria-label keeps the full name. */}
-      <NavLink to="/how" aria-label={SITE_WORDS.header.how}>
+      {/* Below 1056 px CSS toggles .frame-nav-full and .frame-nav-short with display: none so visible and accessible labels match. */}
+      <NavLink to="/picture">
+        <span className="frame-nav-full">{SITE_WORDS.header.picture}</span>
+        <span className="frame-nav-short">{SITE_WORDS.header.pictureShortForm}</span>
+      </NavLink>
+      <NavLink to="/how">
         <span className="frame-nav-full">{SITE_WORDS.header.how}</span>
         <span className="frame-nav-short">{SITE_WORDS.header.howShortForm}</span>
       </NavLink>
       <NavLink
         to="/canvas"
         className={({ isPending }) => [pathname !== undefined && experimentalPage(pathname) && "active", isPending && "pending"].filter(Boolean).join(" ")}
-        aria-label={SITE_WORDS.header.experimental}
       >
         <span className="frame-nav-full">{SITE_WORDS.header.experimental}</span>
-        <span className="frame-nav-short" aria-hidden="true">{SITE_WORDS.header.experimentalShortForm}</span>
+        <span className="frame-nav-short">{SITE_WORDS.header.experimentalShortForm}</span>
       </NavLink>
     </>
   );

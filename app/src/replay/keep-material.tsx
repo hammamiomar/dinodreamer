@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router";
 import { fill, SITE_WORDS } from "../app/site-words";
 import { rememberSavedFrom } from "../features/gallery/publish-records";
 import { keepPublishedMaterial } from "../storage/materials";
@@ -42,11 +43,18 @@ function useKeep(file: FigureMaterialFile, entryId: string): { state: KeepState;
   return { state, keep };
 }
 
-/** Automata's quiet "Save": one word, then "Saved"; the tile appears under Saved automata on the same page. */
+/** Automata's quiet "Save": one word, then a link to Saved automata on this device. */
 export function KeepWord({ material, entryId, className }: { material: FigureMaterial; entryId: string; className: string }) {
   const { state, keep } = useKeep(material.file, entryId);
   const words = SITE_WORDS.playground;
-  if (state.status === "kept") return <span className={className} role="status">{words.kept}</span>;
+  if (state.status === "kept") {
+    return (
+      <>
+        <Link className={className} to={YOURS_PATH}>{words.kept} →</Link>
+        <span className="visually-hidden" role="status">{words.kept}</span>
+      </>
+    );
+  }
   return <>
     <button type="button" className={className} onClick={keep}>{words.keep}</button>
     {state.status === "failed" && <span role="alert">{fill(words.keepFailed, { message: state.message })}</span>}

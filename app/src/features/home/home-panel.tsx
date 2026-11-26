@@ -3,10 +3,12 @@
 // stages as the reader scrolls. Inactive layers are marked `inert` so keyboard focus and pointer
 // events only reach the stage currently shown.
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, type ReactNode } from "react";
+import type { ManifoldFocus } from "../../ground/manifold-focus";
 import type { FigureMaterial } from "../../materials/material-file";
-import type { BasisGroupNames } from "../gallery/basis-groups";
 import type { MaterialEntry } from "../gallery/material-index";
+import { AUTOMATON_RECORD_FOLDER, type AutomatonState } from "../how/automaton-record";
+import { HOW_REGROW_AT_TICK } from "../how/figures/figure-data";
 import { HomeCollectionStage } from "./home-collection-stage";
 import { HomeKeepStage } from "./home-keep-stage";
 import { HOME_TICKS_PER_SECOND } from "./home-material";
@@ -44,25 +46,45 @@ export function HomePanel({
   beat,
   still,
   entrance,
+  end,
+  endState,
   reset,
   entries,
   indexReady,
-  names,
   approached,
   onNoReplay,
+  onEntranceAccent,
+  onPropertiesFocus,
+  onCollectionFocus,
+  onTrainFocus,
+  onKeepFocus,
+  onEndAccent,
 }: {
   beat: HomeBeat;
   still: HomeStill;
   entrance: Shown | null;
+  end: Shown | null;
+  endState: AutomatonState | null;
   reset: number;
   entries: readonly MaterialEntry[];
   indexReady: boolean;
-  names: BasisGroupNames;
   approached: Record<HomeBeat, boolean>;
   onNoReplay: () => void;
+  onEntranceAccent: (accent: string) => void;
+  onPropertiesFocus: (focus: ManifoldFocus) => void;
+  onCollectionFocus: (focus: ManifoldFocus) => void;
+  onTrainFocus: (focus: ManifoldFocus) => void;
+  onKeepFocus: (focus: ManifoldFocus) => void;
+  onEndAccent: (accent: string) => void;
 }) {
+  const endInitialState = useMemo(() => (endState ? {
+    tick: endState.replay.tick,
+    fine: endState.fine.state,
+    coarse: endState.coarse.state,
+  } : undefined), [endState]);
+
   return (
-    <div className="home-panel" data-framed={beat !== "entrance" || undefined}>
+    <div className="home-panel" data-framed={(beat !== "entrance" && beat !== "end") || undefined}>
       <StageLayer shown={beat === "entrance"} className="home-layer-live">
         {entrance && (
           <HomeMaterial
@@ -75,6 +97,7 @@ export function HomePanel({
             stepsPerSecond={HOME_TICKS_PER_SECOND}
             brushRing
             carryCells
+            onAccent={onEntranceAccent}
             onNoReplay={onNoReplay}
           />
         )}
@@ -83,11 +106,11 @@ export function HomePanel({
       <StageLayer shown={beat === "properties"} className="home-layer-stage">
         <HomePropertiesStage
           entries={entries}
-          names={names}
           approached={approached.properties}
           active={beat === "properties"}
           still={still}
           onNoReplay={onNoReplay}
+          onFocus={onPropertiesFocus}
         />
       </StageLayer>
 
@@ -95,30 +118,49 @@ export function HomePanel({
         <HomeCollectionStage
           entries={entries}
           indexReady={indexReady}
-          names={names}
           approached={approached.collection}
+          active={beat === "collection"}
+          onFocus={onCollectionFocus}
         />
       </StageLayer>
 
       <StageLayer shown={beat === "train"} className="home-layer-stage">
         <HomeTrainStage
           entries={entries}
-          names={names}
           approached={approached.train}
           active={beat === "train"}
           still={still}
           onNoReplay={onNoReplay}
+          onFocus={onTrainFocus}
         />
       </StageLayer>
 
       <StageLayer shown={beat === "keep"} className="home-layer-stage">
         <HomeKeepStage
           entries={entries}
-          names={names}
           approached={approached.keep}
           active={beat === "keep"}
           still={still}
+          onFocus={onKeepFocus}
         />
+      </StageLayer>
+
+      <StageLayer shown={beat === "end"} className="home-layer-live">
+        {end && (
+          <HomeMaterial
+            entry={end.entry}
+            material={!still && endInitialState ? end.material : null}
+            initialState={endInitialState}
+            playing={beat === "end"}
+            posterUrl={`${AUTOMATON_RECORD_FOLDER}picture-128.png`}
+            drawRatio={FIELD_DRAW_RATIO}
+            regrowAtTick={HOW_REGROW_AT_TICK}
+            stepsPerSecond={HOME_TICKS_PER_SECOND}
+            brushRing
+            onAccent={onEndAccent}
+            onNoReplay={onNoReplay}
+          />
+        )}
       </StageLayer>
     </div>
   );

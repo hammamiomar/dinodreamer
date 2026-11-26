@@ -62,7 +62,11 @@ export function StrongestPictures({ indices, about, token, lit, onHover, onGrow 
       <div className="look-group-head">
         <h2 id="look-fires-title" className="band strongest">{LOOK_TEXT.fires.title}</h2>
         <span className="look-count">{LOOK_TEXT.fires.about(about)}</span>
-        {indices.length > 0 && <span id="look-fires-action" className="look-fires-action">{LOOK_TEXT.fires.growFrom}</span>}
+        {indices.length > 0 && (
+          <span id="look-fires-action" className="look-fires-action">
+            {current !== null ? LOOK_TEXT.fires.growFrom : LOOK_TEXT.fires.growHint}
+          </span>
+        )}
       </div>
       {indices.length === 0 ? (
         <p className="muted">{LOOK_TEXT.fires.empty}</p>

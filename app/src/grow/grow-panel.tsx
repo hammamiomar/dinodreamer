@@ -155,19 +155,19 @@ function ChoiceFaces({ kind, method, methodName, advanced, face, onFace }: {
   kind: ReactNode; method: ReactNode; methodName: string; advanced: ReactNode; face: ChoiceFace; onFace: (face: ChoiceFace) => void;
 }) {
   const shown = (name: ChoiceFace) => ({ "data-shown": face === name || undefined, "aria-hidden": face !== name || undefined });
-  const toggle = (name: Exclude<ChoiceFace, "kind">, words: string) => (
-    <button type="button" className="grow-advanced-toggle label" aria-expanded={face === name} aria-controls={`grow-${name}`}
-      onClick={() => onFace(face === name ? "kind" : name)}>{words}</button>
-  );
   return <div className="grow-settings">
     <div className="grow-faces">
       <div className="grow-face" {...shown("kind")}>{kind}</div>
       <div className="grow-face" id="grow-method" {...shown("method")}>{method}</div>
       <div className="grow-face" id="grow-advanced" {...shown("advanced")}>{advanced}</div>
     </div>
-    <div className="grow-face-toggles">
-      {toggle("method", methodName)}
-      {toggle("advanced", WORDS.advanced)}
+    <div className="grow-face-toggles" role="group" aria-label="Training configuration">
+      <button type="button" className="grow-face-button" aria-pressed={face === "kind"}
+        onClick={() => onFace("kind")}>{WORDS.rule}</button>
+      <button type="button" className="grow-face-button" aria-pressed={face === "method"} aria-controls="grow-method"
+        onClick={() => onFace(face === "method" ? "kind" : "method")}>{methodName}</button>
+      <button type="button" className="grow-face-button" aria-pressed={face === "advanced"} aria-controls="grow-advanced"
+        onClick={() => onFace(face === "advanced" ? "kind" : "advanced")}>{WORDS.advanced}</button>
     </div>
   </div>;
 }
@@ -176,9 +176,10 @@ function ChoiceFaces({ kind, method, methodName, advanced, face, onFace }: {
 type RunFace = "map" | "dino";
 
 /**
- * The choices' place while a run trains: the live map, and under it the toggle to the groups DINO sees
- * in its place, as the choices' faces are shown (ChoiceFaces). The toggle waits, hidden but holding its
- * line, until the first reading gives DINO's groups, so nothing moves when it comes.
+ * The choices' place while a run trains: the live map, and under it the buttons to switch between
+ * the response space and the groups DINO sees, as the choices' faces are shown (ChoiceFaces). The
+ * controls wait, hidden but holding their line, until the first reading gives DINO's groups, so
+ * nothing moves when it comes.
  */
 function RunFaces({ face, onFace, map, dino }: { face: RunFace; onFace: (face: RunFace) => void; map: ReactNode; dino: ReactNode }) {
   const shown = (name: RunFace) => ({ "data-shown": face === name || undefined, "aria-hidden": face !== name || undefined });
@@ -187,8 +188,10 @@ function RunFaces({ face, onFace, map, dino }: { face: RunFace; onFace: (face: R
       <div className="grow-face" {...shown("map")}>{map}</div>
       <div className="grow-face" id="grow-dino" {...shown("dino")}>{dino}</div>
     </div>
-    <div className="grow-face-toggles" data-waiting={dino === null || undefined}>
-      <button type="button" className="grow-advanced-toggle label" aria-expanded={face === "dino"} aria-controls="grow-dino"
+    <div className="grow-face-toggles" role="group" aria-label="Training readout" data-waiting={dino === null || undefined}>
+      <button type="button" className="grow-face-button" aria-pressed={face === "map"}
+        onClick={() => onFace("map")}>Response space</button>
+      <button type="button" className="grow-face-button" aria-pressed={face === "dino"} aria-controls="grow-dino"
         onClick={() => onFace(face === "dino" ? "map" : "dino")}>{WORDS.map.toggle}</button>
     </div>
   </div>;
@@ -371,6 +374,9 @@ export function GrowPanel({ block, request, origin, continuation, method, onMeth
     </div>;
   } else if (primary === "open" || primary === "resume") {
     runLine = <div className="grow-publish">
+      {primary === "resume" && result && (
+        <Link className="button" to={`/automata?material=${encodeURIComponent(result.id)}`}>{WORDS.open}</Link>
+      )}
       {resultFile && publishable && <PublishMaterial key={resultFile.id} file={resultFile} />}
       {/* After Stop, Resume is the primary; after a run's end, a word here, since opening the result is the likelier step. */}
       {primary === "open" && record.progress && <button type="button" className="button" onClick={trainRun.resumeTraining}>

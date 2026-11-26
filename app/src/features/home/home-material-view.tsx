@@ -31,6 +31,12 @@ import "./home-material.css";
 const WORDS = SITE_WORDS.home;
 /** The brush's radius in cells of a 128-cell grid: the Automata page's default brush. */
 const BRUSH_RADIUS = 12;
+/** One-time self-demonstrating stroke timings for Beat 1's living image. */
+const DEMO_STROKE_DELAY_MS = 1800;
+const DEMO_STROKE_DURATION_MS = 520;
+/** Shared across all HomeMaterial instances so any manual brush stroke suppresses the demo stroke. */
+let visitorHasBrushed = false;
+let demoStrokePlayed = false;
 /** Why an automaton is a still: the browser cannot grow it, or the visitor asked for no motion. */
 export type HomeStill = "no-webgpu" | "reduced-motion" | null;
 
@@ -288,7 +294,9 @@ export function HomeMaterial({
   posterWhileRunning = true,
   brush = true,
   brushRing = false,
+  demoStroke = false,
   carryCells = false,
+  onAccent,
   onNoReplay,
   regrowAtTick = REGROW_AT_TICK,
   children,
@@ -313,11 +321,15 @@ export function HomeMaterial({
   brush?: boolean;
   /** Whether a mouse pointer over the live canvas shows a 1 px ring at the brush's cell diameter. */
   brushRing?: boolean;
+  /** Whether to run one brief self-demonstrating brush stroke once live, if the visitor has not brushed yet. */
+  demoStroke?: boolean;
   /**
    * Whether another automaton's material takes over the running cells (the relay, home-relay.ts)
    * instead of starting from its own start. Its other settings are fixed for the field's life.
    */
   carryCells?: boolean;
+  /** Called whenever the live replay samples its dominant accent colour. */
+  onAccent?: (accent: string) => void;
   /** The replay failed before its first frame: the browser has no usable WebGPU adapter, so the poster stays. */
   onNoReplay: () => void;
   /** The tick the replay regrows from the next seed at; a page that wants the growth alone, not the dissolve, shortens it, and one with its own reset passes Infinity. */
@@ -333,6 +345,7 @@ export function HomeMaterial({
   const visible = useRef(true);
   const requestedPlaying = useRef(playing);
   requestedPlaying.current = playing;
+  const cancelDemo = useRef<(() => void) | null>(null);
   const [live, setLive] = useState(false);
   const [message, setMessage] = useState("");
   const [accent, setAccent] = useState<string | null>(null);
@@ -343,9 +356,11 @@ export function HomeMaterial({
   // ticks and the replay agree; unknown until the field is measured.
   const [cellPixels, setCellPixels] = useState<number | null>(null);
   const last = useRef<{ x: number; y: number } | null>(null);
-  // The page's callback, read when the replay fails: a new function on a render must not restart the replay.
+  // Callbacks stored in refs so new function identities on render do not restart the replay.
   const noReplay = useRef(onNoReplay);
   noReplay.current = onNoReplay;
+  const accentCallback = useRef(onAccent);
+  accentCallback.current = onAccent;
   // The entry the next run starts, read in the effect below: the run follows its material, side and seed, not the object.
   const requestedEntry = useRef(entry);
   requestedEntry.current = entry;
@@ -390,7 +405,10 @@ export function HomeMaterial({
       visible,
       requestedPlaying,
       onFirstFrame,
-      onAccent: setAccent,
+      onAccent: (nextAccent) => {
+        setAccent(nextAccent);
+        accentCallback.current?.(nextAccent);
+      },
       onMessage: setMessage,
       onNoReplay: () => noReplay.current(),
     });
@@ -427,7 +445,90 @@ export function HomeMaterial({
     }
   }, [playing]);
 
-  // The canvas is the brush: a drag stamps soft discs along its path; holding still stamps nothing.
+  // One-time self-demonstrating brush stroke across Beat 1 once live and playing.
+  useEffect(() => {
+    if (!demoStroke || !live || !playing || !brush || !brushRing || message !== "") return;
+    if (visitorHasBrushed || demoStrokePlayed) return;
+    if (typeof window === "undefined" || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    let cancelled = false;
+    let rafId = 0;
+    const hideDemoRing = () => {
+      if (ring.current) delete ring.current.dataset.visible;
+    };
+    const stop = (keepRing = false) => {
+      cancelled = true;
+      window.clearTimeout(timerId);
+      if (rafId) window.cancelAnimationFrame(rafId);
+      rafId = 0;
+      if (!keepRing) hideDemoRing();
+      cancelDemo.current = null;
+    };
+
+    const timerId = window.setTimeout(() => {
+      if (cancelled || visitorHasBrushed || demoStrokePlayed) return;
+      const area = field.current;
+      const shown = runs.current.shown;
+      if (!area || !shown || shown.handingOver || !ring.current) return;
+      const { width, height } = fieldSize(area, side);
+      if (width <= 0 || height <= 0) return;
+
+      demoStrokePlayed = true;
+      const startX = width * 0.38;
+      const startY = height * 0.56;
+      const endX = width * 0.62;
+      const endY = height * 0.44;
+      const toCell = (px: number, py: number) => ({
+        x: (px / width) * (shown.canvas.width / shown.scale),
+        y: (py / height) * (shown.canvas.height / shown.scale),
+      });
+
+      let startTime: number | null = null;
+      let prevCell = toCell(startX, startY);
+      ring.current.style.left = `${startX}px`;
+      ring.current.style.top = `${startY}px`;
+      ring.current.dataset.visible = "";
+
+      const step = (now: number) => {
+        if (cancelled || visitorHasBrushed) {
+          hideDemoRing();
+          return;
+        }
+        if (startTime === null) startTime = now;
+        const progress = Math.min(1, (now - startTime) / DEMO_STROKE_DURATION_MS);
+        const eased = 0.5 - 0.5 * Math.cos(Math.PI * progress);
+        const x = startX + (endX - startX) * eased;
+        const y = startY + (endY - startY) * eased;
+
+        if (ring.current) {
+          ring.current.style.left = `${x}px`;
+          ring.current.style.top = `${y}px`;
+          ring.current.dataset.visible = "";
+        }
+        const nextCell = toCell(x, y);
+        const currentRun = runs.current.shown;
+        if (currentRun && !currentRun.handingOver) {
+          const { x0, y0, x1, y1 } = strokeOnTorus(prevCell, nextCell, side);
+          currentRun.session.loop?.stroke(x0, y0, x1, y1, (BRUSH_RADIUS * side) / 128);
+        }
+        prevCell = nextCell;
+
+        if (progress < 1) {
+          rafId = window.requestAnimationFrame(step);
+        } else {
+          hideDemoRing();
+          cancelDemo.current = null;
+        }
+      };
+
+      rafId = window.requestAnimationFrame(step);
+    }, DEMO_STROKE_DELAY_MS);
+
+    cancelDemo.current = () => stop(true);
+    return () => stop(false);
+  }, [demoStroke, live, playing, brush, brushRing, message, side]);
+
+  // The canvas is the brush: drawing stamps soft discs along its path; holding still stamps nothing.
   // Places are in cells of the repeated grid, not yet wrapped (strokeOnTorus wraps each segment).
   const cellAt = (event: PointerEvent<HTMLCanvasElement>) => {
     const box = event.currentTarget.getBoundingClientRect();
@@ -462,6 +563,8 @@ export function HomeMaterial({
   const canvasProps = {
     "aria-label": fill(brush ? WORDS.canvasLabel : WORDS.canvasStill, { block: onField.block }),
     onPointerDown: brush ? (event: PointerEvent<HTMLCanvasElement>) => {
+      visitorHasBrushed = true;
+      cancelDemo.current?.();
       event.currentTarget.setPointerCapture(event.pointerId);
       showRing(event);
       last.current = cellAt(event);

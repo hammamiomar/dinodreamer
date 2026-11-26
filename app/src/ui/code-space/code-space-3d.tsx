@@ -587,16 +587,16 @@ const KEYS_LINE = {
   both: "Arrow keys step through the tokens, Enter chooses one and Space moves the ring to it; Shift and an arrow key turn the view",
 } as const;
 
-/** The view's accessible name: what it shows, then what a drag and the keys do. */
+/** The view's accessible name: what it shows, then what pointer movement and the keys do. */
 export function orbitLabel(label: string, choose: boolean, place: boolean): string {
-  const drags = place
-    ? "Drag the ring onto another point to move it there, or drag elsewhere to turn the view; Ctrl and the wheel, or a pinch, zoom."
-    : "Drag to turn it; Ctrl and the wheel, or a pinch, zoom.";
+  const pointer = place
+    ? "Press and move the ring onto another point to move it there, or press and move elsewhere to turn the view; Ctrl and the wheel, or a pinch, zoom."
+    : "Press and move to turn it; Ctrl and the wheel, or a pinch, zoom.";
   let keys: string = KEYS_LINE.turn;
   if (choose && place) keys = KEYS_LINE.both;
   else if (choose) keys = KEYS_LINE.choose;
   else if (place) keys = KEYS_LINE.place;
-  return `${label}. ${drags} ${keys}; plus and minus zoom, 0 resets.`;
+  return `${label}. ${pointer} ${keys}; plus and minus zoom, 0 resets.`;
 }
 
 

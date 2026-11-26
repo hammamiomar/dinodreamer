@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import {
   ATLAS_CLOUDS_PATH,
+  ATLAS_RECORD_HEADER_BYTES,
   decodeAtlasCloud,
   decodeAtlasIndex,
 } from "./atlas-cloud";
@@ -31,6 +32,9 @@ function example(): ArrayBuffer {
   return Uint8Array.from(bytes).buffer;
 }
 
+/** Where the fixture's picture addresses begin: after the header and its 1,024 points of 7 bytes. */
+const PICTURES_AT = ATLAS_RECORD_HEADER_BYTES + 1024 * 7;
+
 describe("compact Atlas boundary", () => {
   it("reads the real Python producer output, with exact picture addresses", () => {
     const cloud = decodeAtlasCloud(example());
@@ -52,7 +56,32 @@ describe("compact Atlas boundary", () => {
       cloud.ring + (cloud.maximum - cloud.ring) / 4,
       5,
     );
-    expect(example().byteLength).toBe(2796);
+    expect(example().byteLength).toBe(7432);
+  });
+
+  it("gives every stored patch in native coordinates, and the flat view as their plane", () => {
+    const cloud = decodeAtlasCloud(example());
+    expect(cloud.nativePoints).toHaveLength(1024);
+    // The flat view is the first 512 stored patches, projected on the two stored axes.
+    const [first, second] = cloud.planeAxes;
+    cloud.points.forEach((point, index) => {
+      const { code, band } = cloud.nativePoints[index];
+      expect(point.band).toBe(band);
+      expect(point.x).toBeCloseTo(code[0] * first[0] + code[1] * first[1] + code[2] * first[2], 10);
+      expect(point.y).toBeCloseTo(code[0] * second[0] + code[1] * second[1] + code[2] * second[2], 10);
+    });
+    // The axes are two unit directions at right angles.
+    const dot = (a: readonly number[], b: readonly number[]) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    expect(dot(first, first)).toBeCloseTo(1, 5);
+    expect(dot(second, second)).toBeCloseTo(1, 5);
+    expect(dot(first, second)).toBeCloseTo(0, 5);
+    // The strongest patch of the sample is stored, in the flat view: its norm is the sample maximum, to float16.
+    const norms = cloud.nativePoints.map(({ code }) => Math.hypot(...code));
+    expect(Math.max(...norms.slice(0, 512)) / cloud.maximum).toBeCloseTo(1, 3);
+    // A patch's stored response level is its norm's level, apart from norms that float16 moved across a cut.
+    const level = (norm: number) => cloud.cuts.filter((cut) => norm >= cut).length;
+    const moved = cloud.nativePoints.filter(({ band }, index) => level(norms[index]) !== band);
+    expect(moved.length).toBeLessThanOrEqual(2);
   });
 
   it("rejects truncated records, inconsistent counts and unsafe picture IDs", () => {
@@ -63,17 +92,22 @@ describe("compact Atlas boundary", () => {
     new DataView(counts).setUint16(20, 3, true);
     expect(() => decodeAtlasCloud(counts)).toThrow("patch counts");
     const ids = example();
-    new DataView(ids).setBigUint64(60 + 512 * 5, 2n ** 53n, true);
+    new DataView(ids).setBigUint64(PICTURES_AT, 2n ** 53n, true);
     expect(() => decodeAtlasCloud(ids)).toThrow("picture record");
   });
 
-  it("rejects an older format and a band with the wrong number of pictures", () => {
-    const older = example();
-    new DataView(older).setUint8(3, "1".charCodeAt(0));
-    expect(() => decodeAtlasCloud(older)).toThrow("response set size");
+  it("rejects an older format, a flat view larger than its limit and a band with the wrong number of pictures", () => {
+    for (const version of ["1", "2"]) {
+      const older = example();
+      new DataView(older).setUint8(3, version.charCodeAt(0));
+      expect(() => decodeAtlasCloud(older)).toThrow("response set size");
+    }
+    const wide = example();
+    new DataView(wide).setUint16(84, 513, true);
+    expect(() => decodeAtlasCloud(wide)).toThrow("response set size");
     // The first picture moved from Barely to Weakly: five Weakly pictures, three Barely.
     const moved = example();
-    new DataView(moved).setUint8(60 + 512 * 5 + 10, 1);
+    new DataView(moved).setUint8(PICTURES_AT + 10, 1);
     expect(() => decodeAtlasCloud(moved)).toThrow("pictures per response level");
   });
 

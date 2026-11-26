@@ -1,17 +1,19 @@
 import { describe, expect, test } from "vitest";
 import { FIGURE_LAYOUT, FIGURE_PYRAMID_LAYOUT } from "../../materials/material-file";
 import type { MaterialEntry } from "../gallery/material-index";
+import type { StoryRecord } from "../how/training-story";
 import {
-  buildTrainMatrix,
-  chooseTrainMatrixGroup,
   collectionCoverage,
   groupsWithAutomata,
+  KEEP_AUTOMATON_IDS,
   PROPERTY_AUTOMATA,
   randomUnexploredGroup,
   resolveKeepCandidates,
   resolvePropertyView,
+  selectTrainStories,
+  storyEntryForRecord,
   TOTAL_BASIS_GROUPS,
-  TRAIN_STAGE_GROUP,
+  TRAIN_STORY_MATERIAL_IDS,
 } from "./home-specimens";
 
 function makeEntry(overrides: Partial<MaterialEntry>): MaterialEntry {
@@ -39,14 +41,42 @@ function makeEntry(overrides: Partial<MaterialEntry>): MaterialEntry {
   };
 }
 
+function makeStoryRecord(material: string, block: number): StoryRecord {
+  return {
+    material,
+    block,
+    anchor: {
+      imageId: 1001,
+      slot: 59,
+      band: "strongest",
+      atlasPoint: [1.2, 0.3],
+      atlasPlane: [[1, 0, 0], [0, 1, 0]],
+    },
+    training: {
+      strip: `${material}-training.webp`,
+      frameSide: 128,
+      tick: 600,
+      medianNorm: 1.0,
+      frames: [
+        { update: 0, winnerFraction: 0.0, strength: 0.1 },
+        { update: 400, winnerFraction: 0.94, strength: 1.5 },
+      ],
+    },
+    run: "run-0",
+  };
+}
+
 describe("property stage resolution", () => {
   test("selects the exact paired automaton when present and falls back cleanly on fixture indices", () => {
     const groupEntry = makeEntry({ id: PROPERTY_AUTOMATA[6638].group, block: 6638 });
     const tokenEntry = makeEntry({ id: PROPERTY_AUTOMATA[6638].token, block: 6638, start: "centre-disc" });
+    const lipsEntry = makeEntry({ id: PROPERTY_AUTOMATA[2632].group, block: 2632 });
     const fixtureOnly = makeEntry({ id: "block-4009-figure-pyramid-strongest-seed-0", block: 4009 });
 
+    expect(PROPERTY_AUTOMATA[2632].group).toBe("2632-guided-release-floor-0p5-all-noise-seed-0");
     expect(resolvePropertyView([groupEntry, tokenEntry], 6638, "group")).toEqual({ entry: groupEntry, exact: true });
     expect(resolvePropertyView([groupEntry, tokenEntry], 6638, "token")).toEqual({ entry: tokenEntry, exact: true });
+    expect(resolvePropertyView([lipsEntry], 2632, "group")).toEqual({ entry: lipsEntry, exact: true });
     expect(resolvePropertyView([fixtureOnly], 6638, "group")).toEqual({ entry: fixtureOnly, exact: false });
     expect(resolvePropertyView([], 6638, "group")).toEqual({ entry: null, exact: false });
   });
@@ -68,53 +98,42 @@ describe("collection coverage and unbiased random draws", () => {
 
   test("draws uniformly among groups with no automaton and never repeats the current group", () => {
     const entries = [makeEntry({ id: "a", block: 0 }), makeEntry({ id: "b", block: 2 })];
-    // Blocks 0 and 2 have automata; current is 1 -> first available open group at random=0 is 3.
     expect(randomUnexploredGroup(entries, 0, 1)).toBe(3);
-    // Without a current group, random=0 picks block 1 (since 0 has an automaton).
     expect(randomUnexploredGroup(entries, 0, null)).toBe(1);
-    // Near 1, picks the final open group (16383).
     expect(randomUnexploredGroup(entries, 0.999999, 1)).toBe(TOTAL_BASIS_GROUPS - 1);
   });
 });
 
-describe("trainable starts by methods matrix", () => {
-  test("places best published entries into matching cells and links empty cells directly to Train", () => {
-    const entries = [
-      makeEntry({ id: "6638-plain-all-noise-seed-0", block: 6638, start: "noise", loss: "plain", fired: false }),
-      makeEntry({ id: "6638-guided-all-noise-seed-0", block: 6638, start: "noise", loss: "guided", fired: true, featuredInBlock: true }),
-      makeEntry({ id: "6638-plain-centre-disc-seed-0", block: 6638, start: "centre-disc", loss: "plain", fired: true }),
-      makeEntry({
-        id: "6638-given-set-centre-disc-seed-0",
-        block: 6638,
-        start: "centre-disc",
-        gallery: { start: "circle", method: "token-distribution" },
-      }),
-    ];
-    expect(chooseTrainMatrixGroup(entries)).toBe(TRAIN_STAGE_GROUP);
-    const matrix = buildTrainMatrix(entries, TRAIN_STAGE_GROUP);
-    expect(matrix.cells).toHaveLength(8);
-    expect(matrix.filledCount).toBe(3);
+describe("recorded training stories selection", () => {
+  test("selects the three curated training stories in order and matches published entries", () => {
+    const r13345 = makeStoryRecord(TRAIN_STORY_MATERIAL_IDS[2], 13345);
+    const r4009 = makeStoryRecord(TRAIN_STORY_MATERIAL_IDS[0], 4009);
+    const r14544 = makeStoryRecord(TRAIN_STORY_MATERIAL_IDS[1], 14544);
+    const rExtra = makeStoryRecord("block-2632-stage-6-pyramid-seeded-strongest-seed-0", 2632);
 
-    const noiseMean = matrix.cells.find((cell) => cell.start === "noise" && cell.method === "basis-group-mean")!;
-    expect(noiseMean.entry?.id).toBe("6638-guided-all-noise-seed-0");
+    const selected = selectTrainStories([rExtra, r13345, r4009, r14544]);
+    expect(selected.map((record) => record.material)).toEqual([...TRAIN_STORY_MATERIAL_IDS]);
 
-    const noiseDist = matrix.cells.find((cell) => cell.start === "noise" && cell.method === "basis-group-distribution")!;
-    expect(noiseDist.entry).toBeNull();
-    expect(noiseDist.trainPath).toBe("/train?block=6638&start=noise&method=basis-group-distribution");
+    const fallback = selectTrainStories([rExtra]);
+    expect(fallback.map((record) => record.material)).toEqual([rExtra.material]);
 
-    const discTokenMean = matrix.cells.find((cell) => cell.start === "circle" && cell.method === "token-mean")!;
-    expect(discTokenMean.entry).toBeNull();
-    expect(discTokenMean.trainPath).toBe("/train?block=6638&start=centre-disc&method=token-mean");
+    const exactEntry = makeEntry({ id: r4009.material, block: 4009 });
+    const otherSameBlock = makeEntry({ id: "other-4009", block: 4009 });
+    expect(storyEntryForRecord([otherSameBlock, exactEntry], r4009)).toBe(exactEntry);
+    expect(storyEntryForRecord([otherSameBlock], r4009)).toBe(otherSameBlock);
+    expect(storyEntryForRecord([], r4009)).toBeNull();
   });
 });
 
 describe("standalone embed candidates", () => {
-  test("returns curated embed automata in order and falls back to the first fixture entry", () => {
-    const eyes = makeEntry({ id: "block-12002-figure-strongest-mean-seed-0", block: 12002, layout: FIGURE_LAYOUT });
-    const leafVeins = makeEntry({ id: "2801-plain-all-noise-seed-0", block: 2801 });
-    expect(resolveKeepCandidates([leafVeins, eyes]).map((entry) => entry.id)).toEqual([
-      "block-12002-figure-strongest-mean-seed-0",
-      "2801-plain-all-noise-seed-0",
+  test("returns curated moving embed automata in order and falls back to the first fixture entry", () => {
+    const leafVeins = makeEntry({ id: KEEP_AUTOMATON_IDS[0], block: 2801 });
+    const paintings = makeEntry({ id: KEEP_AUTOMATON_IDS[1], block: 2088 });
+    const wings = makeEntry({ id: KEEP_AUTOMATON_IDS[2], block: 12956 });
+    const curves = makeEntry({ id: KEEP_AUTOMATON_IDS[3], block: 16250, layout: FIGURE_LAYOUT });
+
+    expect(resolveKeepCandidates([curves, wings, paintings, leafVeins]).map((entry) => entry.id)).toEqual([
+      ...KEEP_AUTOMATON_IDS,
     ]);
 
     const fixture = makeEntry({ id: "fixture-only", block: 4009 });

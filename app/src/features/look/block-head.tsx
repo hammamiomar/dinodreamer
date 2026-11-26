@@ -9,13 +9,15 @@ import { ATLAS_TEXT } from "../atlas/atlas-text";
 import { CloudGlyph } from "../atlas/cloud-card";
 import { LOOK_TEXT } from "./look-text";
 
-export function BlockHead({ block, patches, materials, growHref, onGrow, onGrowHover }: {
+export function BlockHead({ block, patches, materials, growHref, primaryGrow = true, onGrow, onGrowHover }: {
   block: number;
   /** The block's patches in the library: the full cloud's row count. */
   patches: number;
   /** Its published materials, or null while the index is read. */
   materials: number | null;
   growHref: string;
+  /** False when PictureHere leads the panel with its own primary Train button. */
+  primaryGrow?: boolean;
   /** Grow a material: the page hands Grow its default occurrence before the link opens it. */
   onGrow: () => void;
   /** The pointer or focus is on Grow a material: the page outlines the picture it grows toward. */
@@ -48,7 +50,7 @@ export function BlockHead({ block, patches, materials, growHref, onGrow, onGrowH
           {starred ? LOOK_TEXT.head.starred : LOOK_TEXT.head.star}
         </button>
         <Link
-          className="button primary look-grow"
+          className={primaryGrow ? "button primary look-grow" : "button look-grow"}
           to={growHref}
           onClick={(event) => {
             event.preventDefault();
