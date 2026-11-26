@@ -110,7 +110,6 @@ interface ElementUnderTest extends FakeElement {
 describe("the element", () => {
   let observers: { resize: ((records: unknown[]) => void)[]; view: ((records: unknown[]) => void)[] };
   let defined: Map<string, new () => ElementUnderTest>;
-  let reducedMotion: boolean;
   let webGpu: boolean;
   let starts: { options: FigureReplayOptions; resolve: (replay: FigureReplay) => void; reject: (error: Error) => void }[];
   let loops: { options: ReplayLoopOptions; loop: Record<string, ReturnType<typeof vi.fn>> }[];
@@ -118,13 +117,11 @@ describe("the element", () => {
   beforeEach(() => {
     observers = { resize: [], view: [] };
     defined = new Map();
-    reducedMotion = false;
     webGpu = true;
     starts = [];
     loops = [];
     vi.stubGlobal("HTMLElement", FakeElement);
     vi.stubGlobal("customElements", { get: (name: string) => defined.get(name), define: (name: string, type: new () => ElementUnderTest) => defined.set(name, type) });
-    vi.stubGlobal("matchMedia", () => ({ get matches() { return reducedMotion; }, addEventListener() {}, removeEventListener() {} }));
     vi.stubGlobal("navigator", new Proxy({}, { has: (_target, key) => key === "gpu" && webGpu }));
     vi.stubGlobal("devicePixelRatio", 2);
     vi.stubGlobal("ResizeObserver", class { constructor(callback: (records: unknown[]) => void) { observers.resize.push(callback); } observe() {} disconnect() {} });
@@ -181,13 +178,10 @@ describe("the element", () => {
     expect(element.still.style.backgroundSize).toBe(`${128 * 4 / (600 / 256)}px`);
   });
 
-  it("shows the still image without WebGPU, with reduced motion, and while paused before it ever played", async () => {
+  it("shows the still image without WebGPU and while paused before it ever played", () => {
     webGpu = false;
     place(kept());
-    reducedMotion = true;
     webGpu = true;
-    place(kept());
-    reducedMotion = false;
     const paused = place(kept(), { attributes: { paused: "" } });
     expect(starts).toHaveLength(0);
     paused.removeAttribute("paused");

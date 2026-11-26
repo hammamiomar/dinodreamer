@@ -222,8 +222,7 @@ export const CloudView = forwardRef<CloudViewHandle, {
     showBand(band) {
       const members = codes.filter((_, index) => bands[index] === band);
       setCamera((current) => frameCodes(current, frame, members));
-      const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      frameElement.current?.scrollIntoView({ block: "nearest", behavior: reducedMotion ? "instant" : "smooth" });
+      frameElement.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
     },
   }), [codes, bands, frame]);
 

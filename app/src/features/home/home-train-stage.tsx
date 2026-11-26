@@ -62,11 +62,11 @@ function SelectionSparkline({
   if (frames.length < 2) return null;
 
   const width = 560;
-  const height = 56;
-  const padTop = 10;
-  const padBottom = 10;
-  const padLeft = 12;
-  const padRight = 16;
+  const height = 88;
+  const padTop = 18;
+  const padBottom = 18;
+  const padLeft = 26;
+  const padRight = 26;
   const plotW = width - padLeft - padRight;
   const plotH = height - padTop - padBottom;
   const lastIndex = frames.length - 1;
@@ -154,49 +154,67 @@ function SelectionSparkline({
       onLostPointerCapture={stopDragging}
       onKeyDown={handleKeyDown}
     >
-      <svg ref={svgRef} viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
-        <line
-          className="home-train-guide"
-          x1={activeX}
-          x2={activeX}
-          y1={padTop}
-          y2={height - padBottom}
-        />
-        <line
-          className="home-train-threshold"
-          x1={padLeft}
-          x2={width - padRight}
-          y1={targetY}
-          y2={targetY}
-        />
-        <path className="home-train-curve" d={path} />
-        {frames.map((frame, index) => (
-          <circle
-            key={frame.update}
-            className="home-train-point"
-            cx={toX(index)}
-            cy={toY(frame.winnerFraction)}
-            r={2}
-            data-active={index === stepIndex || undefined}
-            data-met={frame.winnerFraction >= FIRES || undefined}
+      <div className="home-train-sparkline-head" aria-hidden="true">
+        <span className="home-train-scrub-hint">{WORDS.scrubPrompt}</span>
+        <span className="home-train-target-label">90% target</span>
+      </div>
+      <div className="home-train-plot" aria-hidden="true">
+        <svg ref={svgRef} viewBox={`0 0 ${width} ${height}`}>
+          <line
+            className="home-train-guide"
+            x1={activeX}
+            x2={activeX}
+            y1={padTop}
+            y2={height - padBottom}
           />
-        ))}
-        <circle
-          className="home-train-cursor-halo"
-          cx={activeX}
-          cy={activeY}
-          r={8}
+          <line
+            className="home-train-threshold"
+            x1={padLeft}
+            x2={width - padRight}
+            y1={targetY}
+            y2={targetY}
+          />
+          <path className="home-train-curve" d={path} />
+          {frames.map((frame, index) => (
+            <circle
+              key={frame.update}
+              className="home-train-point"
+              cx={toX(index)}
+              cy={toY(frame.winnerFraction)}
+              r={2.2}
+              data-active={index === stepIndex || undefined}
+              data-met={frame.winnerFraction >= FIRES || undefined}
+            />
+          ))}
+        </svg>
+        <span
+          className="home-train-thumb"
           data-met={activeMet || undefined}
-        />
-        <circle
-          className="home-train-cursor-ball"
-          cx={activeX}
-          cy={activeY}
-          r={4.5}
-          data-met={activeMet || undefined}
-        />
-      </svg>
-      <span className="home-train-target-label" aria-hidden="true">90% target</span>
+          style={{
+            left: `${(activeX / width) * 100}%`,
+            top: `${(activeY / height) * 100}%`,
+          }}
+        >
+          <svg viewBox="0 0 16 16" width="14" height="14">
+            <polyline
+              points="6.2,4.8 3.2,8 6.2,11.2"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <polyline
+              points="9.8,4.8 12.8,8 9.8,11.2"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </span>
+      </div>
     </div>
   );
 }

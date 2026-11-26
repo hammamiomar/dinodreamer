@@ -1359,14 +1359,6 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .automata-deck-words,
-  .automata-deck-face::after,
-  .automata-deck-plate::before {
-    transition: none;
-  }
-}
-
 /*
  * The passage to a group's screen and back (wall-passage.ts): the face travels to the stage and each
  * plate to its level, in under half a second, while the rest of the page crosses over.
@@ -1388,14 +1380,6 @@
 
 .automata-group .stage-canvas {
   view-transition-name: automata-stage;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  ::view-transition-group(*),
-  ::view-transition-old(*),
-  ::view-transition-new(*) {
-    animation: none !important;
-  }
 }
 
 /* At narrow phone widths the selection takes its own full row directly below the group title. */

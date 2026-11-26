@@ -449,7 +449,7 @@ export function HomeMaterial({
   useEffect(() => {
     if (!demoStroke || !live || !playing || !brush || !brushRing || message !== "") return;
     if (visitorHasBrushed || demoStrokePlayed) return;
-    if (typeof window === "undefined" || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (typeof window === "undefined") return;
 
     let cancelled = false;
     let rafId = 0;

@@ -515,13 +515,6 @@ button.grow-target-door {
   transition: opacity var(--motion-move) var(--face-leave), visibility 0s;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .grow-faces > .grow-face,
-  .grow-faces > .grow-face[data-shown] {
-    transition: none;
-  }
-}
-
 /* Face-switching buttons under the configuration and live-run faces. */
 .grow-face-toggles {
   display: flex;

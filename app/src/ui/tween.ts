@@ -6,7 +6,6 @@
 // "reduce motion" set, values change at once.
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useMediaMatch } from "./media-match";
 
 const NO_VALUES: readonly number[] = [];
 
@@ -105,7 +104,7 @@ export function useMovingVec3(
   );
 }
 
-/** The visitor asks for reduced motion; follows a change while the page is open. */
+/** Reduced-motion enforcement is disabled so cellular automata, 3-D clouds, and transitions stay live. */
 export function usePrefersReducedMotion(): boolean {
-  return useMediaMatch("(prefers-reduced-motion: reduce)");
+  return false;
 }

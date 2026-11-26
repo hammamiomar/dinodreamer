@@ -621,7 +621,6 @@ export interface Lattice {
  */
 export function startLattice(canvas: HTMLCanvasElement): Lattice {
   const context = canvas.getContext("2d");
-  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   const finePointer = window.matchMedia("(pointer: fine)");
 
   let bends = false;
@@ -673,28 +672,22 @@ export function startLattice(canvas: HTMLCanvasElement): Lattice {
       morphStartMs = now;
     }
     if (morphStartMs !== null) {
-      if (reducedMotion.matches) {
-        displayedSignature = morphTo;
-        morphStartMs = null;
-      } else {
-        const progress = clamp((now - morphStartMs) / MORPH_MS, 0, 1);
-        displayedSignature = interpolateSignature(morphFrom, morphTo, progress);
-        if (progress >= 1) morphStartMs = null;
-        else morphActive = true;
-      }
+      const progress = clamp((now - morphStartMs) / MORPH_MS, 0, 1);
+      displayedSignature = interpolateSignature(morphFrom, morphTo, progress);
+      if (progress >= 1) morphStartMs = null;
+      else morphActive = true;
     }
 
-    const allowMotion = !reducedMotion.matches;
-    const progress = bends && allowMotion ? scrollProgress(window.scrollY, root.scrollHeight, root.clientHeight) : 0;
+    const progress = bends ? scrollProgress(window.scrollY, root.scrollHeight, root.clientHeight) : 0;
 
     drawLattice(context, {
       width,
       height,
       scrollY,
-      scrollParallax: allowMotion ? SCROLL_PARALLAX : 1,
+      scrollParallax: SCROLL_PARALLAX,
       scrollProgress: progress,
       signature: displayedSignature,
-      pointer: allowMotion && finePointer.matches ? pointer : null,
+      pointer: finePointer.matches ? pointer : null,
       accent: focus.accent,
       corridors: resolveViewportCorridors(cachedCorridors, scrollY),
     });
@@ -721,18 +714,10 @@ export function startLattice(canvas: HTMLCanvasElement): Lattice {
     corridorsDirty = true;
     if (groupChanged) {
       const target = manifoldSignature(next.group);
-      if (reducedMotion.matches) {
-        morphFrom = target;
-        morphTo = target;
-        displayedSignature = target;
-        morphStartMs = null;
-        morphPending = false;
-      } else {
-        morphFrom = displayedSignature;
-        morphTo = target;
-        morphStartMs = null;
-        morphPending = true;
-      }
+      morphFrom = displayedSignature;
+      morphTo = target;
+      morphStartMs = null;
+      morphPending = true;
     }
     return true;
   };
@@ -742,7 +727,7 @@ export function startLattice(canvas: HTMLCanvasElement): Lattice {
   };
 
   const onPointerMove = (event: PointerEvent) => {
-    if (reducedMotion.matches || !finePointer.matches) return;
+    if (!finePointer.matches) return;
     if (event.pointerType && event.pointerType !== "mouse" && event.pointerType !== "pen") return;
     pointer = { x: event.clientX / scale, y: event.clientY / scale };
     schedule();
@@ -755,12 +740,7 @@ export function startLattice(canvas: HTMLCanvasElement): Lattice {
   };
 
   const onMediaChange = () => {
-    if (reducedMotion.matches) {
-      displayedSignature = morphTo;
-      morphStartMs = null;
-      morphPending = false;
-      pointer = null;
-    } else if (!finePointer.matches) {
+    if (!finePointer.matches) {
       pointer = null;
     }
     schedule();
@@ -775,7 +755,6 @@ export function startLattice(canvas: HTMLCanvasElement): Lattice {
   window.addEventListener("pointermove", onPointerMove, { passive: true });
   document.documentElement.addEventListener("pointerleave", onPointerClear);
   window.addEventListener("blur", onPointerClear);
-  reducedMotion.addEventListener("change", onMediaChange);
   finePointer.addEventListener("change", onMediaChange);
 
   return {
@@ -797,7 +776,6 @@ export function startLattice(canvas: HTMLCanvasElement): Lattice {
       window.removeEventListener("pointermove", onPointerMove);
       document.documentElement.removeEventListener("pointerleave", onPointerClear);
       window.removeEventListener("blur", onPointerClear);
-      reducedMotion.removeEventListener("change", onMediaChange);
       finePointer.removeEventListener("change", onMediaChange);
     },
   };

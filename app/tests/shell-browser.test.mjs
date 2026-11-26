@@ -23,18 +23,15 @@ test("a changed media query reports its current match without a resize", () => i
   await page.waitForFunction(() => document.querySelector("output")?.textContent === "true", null, { timeout: 2000, polling: 50 });
 }));
 
-for (const setting of ["instant", "reduced motion"]) {
-  test(`${setting} finishes an in-progress value transition`, () => inPage(async (page) => {
-    await page.goto(harness("moving"));
-    await page.getByRole("button", { name: "Move", exact: true }).waitFor();
-    // Hold animation frames so a failure cannot pass merely because 240 ms elapsed.
-    await page.evaluate(() => { window.requestAnimationFrame = () => 1; });
-    await page.getByRole("button", { name: "Move", exact: true }).evaluate((button) => button.click());
-    if (setting === "instant") await page.getByRole("button", { name: "Finish now" }).evaluate((button) => button.click());
-    else await page.emulateMedia({ reducedMotion: "reduce" });
-    await page.waitForFunction(() => document.querySelector("output")?.textContent === "100", null, { timeout: 2000, polling: 50 });
-  }));
-}
+test("instant finishes an in-progress value transition", () => inPage(async (page) => {
+  await page.goto(harness("moving"));
+  await page.getByRole("button", { name: "Move", exact: true }).waitFor();
+  // Hold animation frames so a failure cannot pass merely because 240 ms elapsed.
+  await page.evaluate(() => { window.requestAnimationFrame = () => 1; });
+  await page.getByRole("button", { name: "Move", exact: true }).evaluate((button) => button.click());
+  await page.getByRole("button", { name: "Finish now" }).evaluate((button) => button.click());
+  await page.waitForFunction(() => document.querySelector("output")?.textContent === "100", null, { timeout: 2000, polling: 50 });
+}));
 
 test("synchronous load failures remain in their views", () => inPage(async (page) => {
   await page.goto(harness("loading"));
@@ -73,14 +70,6 @@ test("a failed growth recording shows the exported picture", () => inPage(async 
   assert.equal(await page.locator(".how-painted[data-growing]").count(), 0);
 }));
 
-test("reduced motion stops a growth recording already playing", () => inPage(async (page) => {
-  await page.goto(`${base}/how#visualization`);
-  await page.waitForFunction(() => [...document.querySelectorAll(".how-painted video")].some((video) => !video.paused));
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.waitForFunction(() => document.querySelectorAll(".how-painted[data-growing]").length === 0);
-  assert.ok(await page.locator(".how-painted video").evaluateAll((videos) => videos.every((video) => video.paused)));
-}));
-
 test("a failed attention layer reports its error even when another layer is selected", () => inPage(async (page) => {
   await page.route("**/how/recorded/**/attention-01.bin", (route) => route.fulfill({ status: 503, body: "unavailable" }));
   await page.goto(`${base}/how#attention`);
@@ -106,10 +95,9 @@ for (const [section, pattern] of [
   }));
 }
 
-for (const reason of ["no WebGPU", "reduced motion", "loading"]) {
+for (const reason of ["no WebGPU", "loading"]) {
   test(`Home disables regrowing while it shows a still for ${reason}`, () => inPage(async (page) => {
     if (reason === "no WebGPU") await page.addInitScript(() => { delete Navigator.prototype.gpu; });
-    if (reason === "reduced motion") await page.emulateMedia({ reducedMotion: "reduce" });
     // The entrance shows only the essay's automata (home-material.ts, ENTRANCE_AUTOMATA), so the index offers two of them.
     const entries = [["2088-guided-all-noise-seed-0", 2088], ["12240-plain-all-noise-seed-0", 12240]].map(([id, block]) => ({
       id, title: "Test automaton", credit: "", publishedAt: "2026-10-29", materialId: id,

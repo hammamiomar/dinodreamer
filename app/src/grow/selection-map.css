@@ -26,8 +26,6 @@
   fill: var(--sampled, var(--ink));
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .selection-map rect {
-    transition: fill var(--motion);
-  }
+.selection-map rect {
+  transition: fill var(--motion);
 }

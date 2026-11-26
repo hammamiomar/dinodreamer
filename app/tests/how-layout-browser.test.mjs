@@ -109,6 +109,7 @@ for (const viewport of layoutViewports) {
   if (requestedViewports && !requestedViewports.includes(size)) continue;
   test(`all How figures fit and stay fixed at ${width}×${height}px`, async () => {
     const page = await browser.newPage({ viewport, reducedMotion: 'reduce' });
+    await page.addInitScript(() => { delete Navigator.prototype.gpu; });
     const errors = [];
     const findings = [];
     page.on('pageerror', (error) => errors.push(error.message));

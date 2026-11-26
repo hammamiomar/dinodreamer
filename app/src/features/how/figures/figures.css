@@ -238,10 +238,8 @@
   max-width: 576px;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .how-shares-bar span {
-    transition: flex-grow var(--motion-move);
-  }
+.how-shares-bar span {
+  transition: flex-grow var(--motion-move);
 }
 
 .how-bars {
@@ -677,15 +675,6 @@
 .how-stack[data-stacked] .how-stack-fine-label {
   opacity: 0;
   transition-delay: 0ms, 800ms;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .how-stack-coarse,
-  .how-stack-stretched,
-  .how-stack-image,
-  .how-stack-label {
-    transition: none;
-  }
 }
 
 .how-cell-row {

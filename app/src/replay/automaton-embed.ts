@@ -84,7 +84,6 @@ export function defineAutomatonElement(
   const bytes = Uint8Array.from(atob(automaton.rule), (character) => character.charCodeAt(0));
   const rule: FigureRule = { values: new Float32Array(bytes.buffer), fireRate: automaton.fireRate };
   const pixelsPerCell = automaton.playback.pixelsPerCell;
-  const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
   const number = (text: string | null) => (text === null || text.trim() === "" ? Number.NaN : Number(text));
 
   class AutomatonElement extends HTMLElement {
@@ -115,7 +114,6 @@ export function defineAutomatonElement(
       this.#inView = records[records.length - 1]!.isIntersecting;
       this.#update();
     });
-    #motion = () => this.#update();
 
     constructor() {
       super();
@@ -156,14 +154,12 @@ export function defineAutomatonElement(
         this.#resize.observe(this.#canvas);
       }
       this.#view.observe(this);
-      reducedMotion.addEventListener("change", this.#motion);
       this.#update();
     }
 
     disconnectedCallback() {
       this.#resize.disconnect();
       this.#view.disconnect();
-      reducedMotion.removeEventListener("change", this.#motion);
       this.#inView = false;
       this.#close();
     }
@@ -238,7 +234,7 @@ export function defineAutomatonElement(
 
     /** The one rule for what the element shows: the still image, a paused replay or a growing one. */
     #update() {
-      const still = this.#failure !== null || !("gpu" in navigator) || reducedMotion.matches;
+      const still = this.#failure !== null || !("gpu" in navigator);
       if (still) {
         this.#close();
         return;

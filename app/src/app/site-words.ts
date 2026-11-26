@@ -123,6 +123,7 @@ export const SITE_WORDS = {
       targetHeading: "Reference patch",
       growingHeading: "Cellular automaton training",
       updateLabel: "Update",
+      scrubPrompt: "Slide the handle to scrub training",
       replayTraining: "Replay training",
       readout: "Optimizer update {update} · selected on {wins}% of patches",
       stripAlt: "Basis group {block} after {update} optimizer updates",

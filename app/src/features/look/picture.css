@@ -70,13 +70,11 @@
 .picture-progress-fill { height: 100%; background: var(--ink); }
 .picture-progress-fill[data-indeterminate] { width: 32%; background: var(--ink-2); }
 .picture-status-actions { display: flex; justify-content: flex-end; }
-@media (prefers-reduced-motion: no-preference) {
-  .picture-progress-fill:not([data-indeterminate]) { transition: width 120ms linear; }
-  .picture-progress-fill[data-indeterminate] { animation: picture-progress-slide 1.4s ease-in-out infinite; }
-  @keyframes picture-progress-slide {
-    0% { transform: translateX(-100%); }
-    100% { transform: translateX(312.5%); }
-  }
+.picture-progress-fill:not([data-indeterminate]) { transition: width 120ms linear; }
+.picture-progress-fill[data-indeterminate] { animation: picture-progress-slide 1.4s ease-in-out infinite; }
+@keyframes picture-progress-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(312.5%); }
 }
 .picture-empty { padding: 15px 0 0; border-top: 1px solid var(--line); color: var(--ink-2); }
 .picture-empty > p { margin: 0; }

@@ -710,23 +710,23 @@
 /* Beat 3 direct interactive selection-target curve scrubber across optimizer updates. */
 .home-train-sparkline {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: var(--space-2);
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-2);
   background: var(--black);
-  padding: 4px 8px;
+  padding: 8px 12px 10px;
   cursor: grab;
   touch-action: pan-y;
   user-select: none;
 }
 
 .home-train-sparkline:hover {
-  border-color: var(--line-2);
+  border-color: var(--ink-2);
 }
 
 .home-train-sparkline[data-dragging] {
   cursor: grabbing;
-  border-color: var(--ink-2);
+  border-color: var(--ink);
 }
 
 .home-train-sparkline:focus-visible {
@@ -734,24 +734,39 @@
   outline-offset: 2px;
 }
 
-.home-train-sparkline svg {
-  display: block;
-  flex: 1 1 auto;
-  min-width: 0;
-  width: 100%;
-  height: auto;
+.home-train-sparkline-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
+  pointer-events: none;
+}
+
+.home-train-scrub-hint {
+  font-size: var(--s-1);
+  line-height: var(--lh-1);
+  color: var(--ink-2);
 }
 
 .home-train-target-label {
   flex-shrink: 0;
-  align-self: flex-start;
-  padding-top: 2px;
   font-family: var(--mono);
   font-size: var(--s-1);
   line-height: var(--lh-1);
   color: var(--ink-2);
   white-space: nowrap;
   pointer-events: none;
+}
+
+.home-train-plot {
+  position: relative;
+  width: 100%;
+}
+
+.home-train-sparkline svg {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 
 .home-train-guide {
@@ -770,7 +785,7 @@
 .home-train-curve {
   fill: none;
   stroke: var(--ink-2);
-  stroke-width: 1.25;
+  stroke-width: 1.5;
   pointer-events: none;
 }
 
@@ -780,45 +795,53 @@
 }
 
 .home-train-point[data-met] {
-  fill: var(--sampled, var(--ink));
+  fill: var(--sampled, var(--strongest));
 }
 
-.home-train-cursor-halo {
-  fill: none;
-  stroke: var(--ink);
-  stroke-width: 1;
-  opacity: 0.28;
+.home-train-thumb {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--sampled, var(--strongest));
+  color: var(--black);
+  border: 2px solid var(--black);
+  box-shadow:
+    0 0 0 1.5px var(--sampled, var(--strongest)),
+    0 0 0 5px rgb(255 255 255 / 0.14);
+  transform: translate(-50%, -50%);
+  transition:
+    transform var(--motion-press),
+    box-shadow var(--motion-press);
   pointer-events: none;
 }
 
-.home-train-cursor-halo[data-met] {
-  stroke: var(--sampled, var(--ink));
-  opacity: 0.35;
+.home-train-thumb svg {
+  width: 14px;
+  height: 14px;
 }
 
-.home-train-sparkline:hover .home-train-cursor-halo,
-.home-train-sparkline:focus-visible .home-train-cursor-halo,
-.home-train-sparkline[data-dragging] .home-train-cursor-halo {
-  stroke: var(--ink);
-  opacity: 0.45;
+.home-train-sparkline:hover .home-train-thumb,
+.home-train-sparkline:focus-visible .home-train-thumb,
+.home-train-sparkline[data-dragging] .home-train-thumb {
+  transform: translate(-50%, -50%) scale(1.08);
+  box-shadow:
+    0 0 0 2px var(--ink),
+    0 0 0 7px rgb(255 255 255 / 0.22);
 }
 
-.home-train-sparkline:hover .home-train-cursor-halo[data-met],
-.home-train-sparkline:focus-visible .home-train-cursor-halo[data-met],
-.home-train-sparkline[data-dragging] .home-train-cursor-halo[data-met] {
-  stroke: var(--sampled, var(--ink));
-  opacity: 0.55;
-}
+@media (pointer: coarse) {
+  .home-train-thumb {
+    width: 30px;
+    height: 30px;
+  }
 
-.home-train-cursor-ball {
-  fill: var(--ink);
-  stroke: var(--black);
-  stroke-width: 1.25;
-  pointer-events: none;
-}
-
-.home-train-cursor-ball[data-met] {
-  fill: var(--sampled, var(--ink));
+  .home-train-thumb svg {
+    width: 16px;
+    height: 16px;
+  }
 }
 
 .home-train-readout-row {
@@ -925,14 +948,12 @@
 
 /* --- Motion continuity --- */
 
-@media (prefers-reduced-motion: no-preference) {
-  .home-layer,
-  .home-panel,
-  .home-specimen-points {
-    transition:
-      opacity var(--motion-move),
-      border-color var(--motion-move);
-  }
+.home-layer,
+.home-panel,
+.home-specimen-points {
+  transition:
+    opacity var(--motion-move),
+    border-color var(--motion-move);
 }
 
 /* --- Narrow screens (<= 1023 px): full-bleed entrance top, inline interactive stages --- */
@@ -1071,8 +1092,14 @@
     row-gap: var(--patch);
   }
 
-  .home-train-sparkline svg {
-    min-height: 44px;
+  .home-train-thumb {
+    width: 30px;
+    height: 30px;
+  }
+
+  .home-train-thumb svg {
+    width: 16px;
+    height: 16px;
   }
 
   .home-keep-canvas {

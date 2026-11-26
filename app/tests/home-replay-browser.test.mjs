@@ -134,16 +134,14 @@ test("an untouched entrance downloads none of the cloud records below it", async
   } finally { await page.close(); }
 });
 
-for (const mode of ["reduced motion", "no WebGPU"]) {
-  test(`${mode} keeps still posters without starting WebGPU canvases`, async () => {
-    const page = await browser.newPage({ reducedMotion: mode === "reduced motion" ? "reduce" : "no-preference" });
-    try {
-      if (mode === "no WebGPU") await page.addInitScript(() => { delete Navigator.prototype.gpu; });
-      await page.goto(base);
-      await page.locator(".home-down").waitFor();
-      await page.evaluate(() => document.querySelector('.home-beat[data-beat="keep"]').scrollIntoView());
-      await page.waitForFunction(() => document.querySelector(".home")?.dataset.beat === "keep");
-      assert.equal(await page.locator(".home-field canvas").count(), 0);
-    } finally { await page.close(); }
-  });
-}
+test("no WebGPU keeps still posters without starting WebGPU canvases", async () => {
+  const page = await browser.newPage();
+  try {
+    await page.addInitScript(() => { delete Navigator.prototype.gpu; });
+    await page.goto(base);
+    await page.locator(".home-down").waitFor();
+    await page.evaluate(() => document.querySelector('.home-beat[data-beat="keep"]').scrollIntoView());
+    await page.waitForFunction(() => document.querySelector(".home")?.dataset.beat === "keep");
+    assert.equal(await page.locator(".home-field canvas").count(), 0);
+  } finally { await page.close(); }
+});
