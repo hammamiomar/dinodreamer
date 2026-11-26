@@ -150,11 +150,11 @@
   min-width: 0;
 }
 
-/* A card's name on a line: the number, which opens the block, and Grow. 32 px with the line. */
+/* A card's name on a line: the number, which opens the block, and its name or category. 32 px with the line. */
 .atlas-cloud-identity {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 16px;
   height: 32px;
   border-bottom: 1px solid var(--line);
@@ -166,20 +166,12 @@
   text-decoration: none;
 }
 
-.atlas-grow {
-  font-size: var(--s-1);
-  color: var(--ink-2);
-  text-decoration: none;
-  white-space: nowrap;
-}
-
 /*
- * After the number, the owner's name for the group and its response category, on one line; Train stays
- * at the right. A long line is cut on a narrow card.
+ * After the number, the owner's name for the group and its response category, on one line.
+ * A long line is cut on a narrow card.
  */
 .atlas-cloud-label {
   min-width: 0;
-  margin-right: auto;
   overflow: hidden;
   font-size: var(--s-1);
   color: var(--ink-2);
@@ -399,13 +391,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-@media (hover: hover) and (pointer: fine) {
-  .atlas-grow:hover {
-    text-decoration: underline;
-    text-underline-offset: 4px;
-  }
-}
-
 @media (max-width: 1439px) {
   .atlas-band-groups {
     gap: 16px;
@@ -418,16 +403,78 @@
   }
 }
 
-/* A phone: 16 px gutters; the controls wrap; a band's count may take three lines. */
+.atlas-mobile-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.atlas-filter-toggle {
+  padding-inline: 14px;
+}
+
+.atlas-filter-toggle[aria-expanded="true"] {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--black);
+}
+
+.atlas-filter-toggle[aria-expanded="true"] .atlas-filter-glyph rect {
+  fill: var(--ink);
+  stroke: var(--black);
+}
+
+.atlas-filter-glyph {
+  display: block;
+  flex-shrink: 0;
+}
+
+.atlas-mobile-results {
+  margin-inline: auto 0;
+  font-size: var(--s-1);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.atlas-mobile-picture {
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+}
+
+/* A phone: 16 px gutters; compact filter bar keeps the first 3D card above the fold. */
 @media (max-width: 640px) {
   .cloud-atlas {
-    padding: 32px 0 var(--m);
+    padding: 24px 0 var(--m);
   }
 
   .cloud-atlas-heading {
     flex-direction: column;
     align-items: flex-start;
+    min-height: 0;
+    margin-bottom: 16px;
+  }
+
+  .atlas-mobile-bar .atlas-random {
+    min-width: 0;
+    padding-inline: 14px;
+  }
+
+  .cloud-atlas-controls[data-mobile-drawer] {
+    padding: 16px;
     margin-bottom: 24px;
+    border: 1px solid var(--line);
+    background: var(--black);
+  }
+
+  .atlas-cloud-area {
+    height: 240px;
+  }
+
+  .atlas-cloud-loading {
+    height: 240px;
   }
 
   /* The label over the field, so the field and the longest order take the full width. */
@@ -493,14 +540,8 @@
 
 /* A finger: every target is 44 px. */
 @media (pointer: coarse) {
-  .atlas-check,
-  .atlas-grow {
+  .atlas-check {
     min-height: var(--touch-target);
-  }
-
-  .atlas-grow {
-    display: inline-flex;
-    align-items: center;
   }
 }
 

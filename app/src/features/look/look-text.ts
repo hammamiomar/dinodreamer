@@ -223,10 +223,6 @@ export const LOOK_TEXT = {
   canvasFull: "The Painter holds four requests already. Remove one there first.",
   canvasLibraryOnly: "The Painter takes a library patch, with its recorded code.",
 
-  // An Index card's link to Train (features/atlas/cloud-card.tsx).
-  grow: "Train ↗",
-
-
   // Your picture's status while it is opened and analyzed (app/uploaded-picture.tsx): under the picture
   // page's head, on the Index's upload line and over a basis group's page. The error follows the failures.
   upload: {
