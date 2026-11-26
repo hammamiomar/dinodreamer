@@ -9,6 +9,20 @@ import { ATLAS_TEXT } from "../atlas/atlas-text";
 import { CloudGlyph } from "../atlas/cloud-card";
 import { LOOK_TEXT } from "./look-text";
 
+function StarMark({ filled }: { filled: boolean }) {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+      <polygon
+        points="8,1.6 9.9,5.7 14.4,6.2 11.1,9.3 12,13.8 8,11.6 4,13.8 4.9,9.3 1.6,6.2 6.1,5.7"
+        fill={filled ? "currentColor" : "none"}
+        stroke="currentColor"
+        strokeWidth="1.1"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function BlockHead({ block, patches, materials, growHref, primaryGrow = true, onGrow, onGrowHover }: {
   block: number;
   /** The block's patches in the library: the full cloud's row count. */
@@ -46,7 +60,7 @@ export function BlockHead({ block, patches, materials, growHref, primaryGrow = t
           aria-pressed={starred}
           onClick={() => toggleStar(block)}
         >
-          <span aria-hidden="true">{starred ? "★" : "☆"}</span>
+          <StarMark filled={starred} />
           {starred ? LOOK_TEXT.head.starred : LOOK_TEXT.head.star}
         </button>
         <Link

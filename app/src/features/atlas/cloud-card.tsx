@@ -7,7 +7,7 @@ import {
   type CSSProperties,
   type RefObject,
 } from "react";
-import { Link, useLocation } from "react-router";
+import { useLocation } from "react-router";
 import { canvasPixelRatio, pageScale } from "../../ui/page-scale";
 import { BasisGroupLink } from "../look/basis-group-panel";
 import { useLibrary } from "../../app/library-session";
@@ -26,8 +26,6 @@ import { useLoaded } from "../../ui/use-loaded";
 import { CardLoader, LoadQueue, PICTURE_LOADS_AT_ONCE, pictureSlots, SCREEN_ONLY_LOADS, type PictureSlot } from "./card-loading";
 import { ATLAS_TEXT } from "./atlas-text";
 import { BAND_COLOURS, bandColours } from "../look/strength-bands";
-import { LOOK_TEXT } from "../look/look-text";
-import { trainPath } from "../look/strongest-request";
 
 const NO_SLOTS: readonly (readonly PictureSlot[])[] = [[], [], [], []];
 
@@ -110,14 +108,12 @@ export function CloudBlockCard({
   entry,
   category,
   name,
-  engine,
 }: {
   entry: AtlasIndexEntry;
   /** The block's response category word (the patch role's), or null for a block without one. */
   category: string | null;
   /** The owner's name for the group (basis-groups.ts), or null for a group without one. */
   name: string | null;
-  engine: string | null;
 }) {
   const library = useLibrary();
   const { pathname } = useLocation();
@@ -163,9 +159,6 @@ export function CloudBlockCard({
           {name !== null && <span className="atlas-cloud-name">{name}</span>}
           {category !== null && <span className="atlas-cloud-category">{ATLAS_TEXT.category.card(categoryName(category))}</span>}
         </span>
-        <Link className="atlas-grow" to={trainPath(entry.block, engine === "fake" ? "?engine=fake" : "")}>
-          {LOOK_TEXT.grow}
-        </Link>
       </header>
       {cloud ? (
         <>

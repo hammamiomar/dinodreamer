@@ -12,6 +12,7 @@ import { useLibrary } from "../../app/library-session";
 import { useStarredBlocks } from "../../storage/starred-blocks";
 import { Select } from "../../ui/select";
 import { LoadingIndicator } from "../../ui/loading-indicator";
+import { useMediaMatch } from "../../ui/media-match";
 import { useLoaded } from "../../ui/use-loaded";
 import { PictureEntry } from "../look/picture-entry";
 import { rememberAtlasPosition } from "./atlas-position";
@@ -90,9 +91,22 @@ function SortGeometryGlyph({ order }: { order: CloudQuery["order"] }) {
   );
 }
 
+function FilterSlidersGlyph() {
+  return (
+    <svg className="atlas-filter-glyph" viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+      <line x1="2" y1="5" x2="14" y2="5" stroke="currentColor" strokeWidth="1" />
+      <rect x="4.5" y="3" width="3" height="4" fill="var(--black)" stroke="currentColor" strokeWidth="1" />
+      <line x1="2" y1="11" x2="14" y2="11" stroke="currentColor" strokeWidth="1" />
+      <rect x="9.5" y="9" width="3" height="4" fill="var(--black)" stroke="currentColor" strokeWidth="1" />
+    </svg>
+  );
+}
+
 /** The route loads the index. Cards own their small, lazy record reads. */
 export function AtlasPage() {
   const { entries } = useLoaderData<typeof atlasLoader>();
+  const mobile = useMediaMatch("(max-width: 640px)");
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [search] = useSearchParams();
   const [initialRandom] = useState(Math.random);
   const initialSearch = initialCloudSearch(search, entries.length, initialRandom);
@@ -186,6 +200,13 @@ export function AtlasPage() {
     if (randomPage === null) return;
     navigate(`/index${cloudSearch({ ...query, page: randomPage }, engine)}`, { preventScrollReset: true });
   };
+  const activeFilterCount = Number(Boolean(blockSearch))
+    + Number(order !== "block")
+    + Number(category !== null)
+    + Number(automaton !== "any")
+    + Number(starredOnly);
+  const showControlsPanel = !mobile || mobileFiltersOpen;
+
   if (location.pathname === "/index" && initialSearch !== null) {
     return <Navigate replace to={`/index${initialSearch}${location.hash}`} />;
   }
@@ -196,78 +217,118 @@ export function AtlasPage() {
           <h1 className="heading">{ATLAS_TEXT.title}</h1>
           <p className="cloud-atlas-subtitle">{ATLAS_TEXT.subtitle}</p>
         </div>
-        <PictureEntry text={ATLAS_TEXT.upload} />
+        {!mobile && <PictureEntry text={ATLAS_TEXT.upload} />}
       </header>
-      {/* Two control rows keep the cards in place when the result count changes. */}
-      <div className="cloud-atlas-controls">
-        <div className="atlas-control-row">
-          <label className="atlas-search">
-            <input
-              className="input"
-              inputMode="numeric"
-              aria-label={ATLAS_TEXT.search}
-              placeholder={ATLAS_TEXT.searchPlaceholder}
-              value={query.search}
-              onChange={(event) =>
-                choose(
-                  { search: event.target.value.replace(/\D/g, "").slice(0, 5) },
-                  true,
-                )
-              }
-            />
-          </label>
-          <label className="atlas-sort">
-            <span className="label">{ATLAS_TEXT.sort}</span>
-            <Select
-              leading={<SortGeometryGlyph order={query.order} />}
-              value={query.order}
-              onChange={(event) =>
-                choose({ order: event.target.value as CloudQuery["order"] })
-              }
-            >
-              {CLOUD_ORDERS.map((order) => (
-                <option key={order} value={order}>
-                  {ATLAS_TEXT.orders[order]}
-                </option>
-              ))}
-            </Select>
-          </label>
-          {showCategories && (
-            <label className="atlas-category">
-              <span className="label">{ATLAS_TEXT.category.label}</span>
-              <Select
-                value={query.category ?? ANY_CATEGORY}
-                onChange={(event) => choose({ category: parseCategory(event.target.value) })}
-              >
-                <option value={ANY_CATEGORY}>{ATLAS_TEXT.category.any}</option>
-                {CLOUD_CATEGORIES.map((word) => (
-                  <option key={word} value={word}>
-                    {ATLAS_TEXT.families[word]}
-                  </option>
-                ))}
-              </Select>
-            </label>
-          )}
-        </div>
-        <div className="atlas-control-row">
-          <label className="atlas-automaton">
-            <span className="label">{ATLAS_TEXT.automaton.label}</span>
-            <Select value={query.automaton} onChange={(event) => choose({ automaton: event.target.value as CloudQuery["automaton"] })}>
-              {AUTOMATON_FILTERS.map((filter) => <option key={filter} value={filter}>{ATLAS_TEXT.automaton.filters[filter]}</option>)}
-            </Select>
-          </label>
-          <label className="atlas-check">
-            <input type="checkbox" checked={query.starred} onChange={(event) => choose({ starred: event.target.checked })} />
-            {ATLAS_TEXT.starred}
-          </label>
-          {hasResults && <span className="atlas-results">{resultsLine}</span>}
+      {mobile && (
+        <div className="atlas-mobile-bar">
+          <button
+            type="button"
+            className="button atlas-filter-toggle"
+            aria-expanded={mobileFiltersOpen}
+            aria-controls="atlas-controls-panel"
+            onClick={() => setMobileFiltersOpen((open) => !open)}
+          >
+            <FilterSlidersGlyph />
+            <span>{activeFilterCount > 0 ? ATLAS_TEXT.filterToggleActive(activeFilterCount) : ATLAS_TEXT.filterToggle}</span>
+          </button>
           {hasResults && (
-            <button className="button atlas-random" disabled={pages === 1} onClick={openRandomPage}>
+            <span className="atlas-mobile-results">
+              {ATLAS_TEXT.mobileResults(first + 1, first + cards.length, shown.length)}
+            </span>
+          )}
+          {hasResults && (
+            <button type="button" className="button atlas-random" disabled={pages === 1} onClick={openRandomPage}>
               {ATLAS_TEXT.random}
             </button>
           )}
         </div>
-      </div>
+      )}
+      {/* Two control rows on desktop; collapsible filter & sort panel on mobile so cards start above the fold. */}
+      {showControlsPanel && (
+        <div
+          id="atlas-controls-panel"
+          className="cloud-atlas-controls"
+          data-mobile-drawer={mobile || undefined}
+        >
+          <div className="atlas-control-row">
+            <label className="atlas-search">
+              <input
+                className="input"
+                inputMode="numeric"
+                aria-label={ATLAS_TEXT.search}
+                placeholder={ATLAS_TEXT.searchPlaceholder}
+                value={query.search}
+                onChange={(event) =>
+                  choose(
+                    { search: event.target.value.replace(/\D/g, "").slice(0, 5) },
+                    true,
+                  )
+                }
+              />
+            </label>
+            <label className="atlas-sort">
+              <span className="label">{ATLAS_TEXT.sort}</span>
+              <Select
+                leading={<SortGeometryGlyph order={query.order} />}
+                value={query.order}
+                onChange={(event) =>
+                  choose({ order: event.target.value as CloudQuery["order"] })
+                }
+              >
+                {CLOUD_ORDERS.map((order) => (
+                  <option key={order} value={order}>
+                    {ATLAS_TEXT.orders[order]}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            {showCategories && (
+              <label className="atlas-category">
+                <span className="label">{ATLAS_TEXT.category.label}</span>
+                <Select
+                  value={query.category ?? ANY_CATEGORY}
+                  onChange={(event) => choose({ category: parseCategory(event.target.value) })}
+                >
+                  <option value={ANY_CATEGORY}>{ATLAS_TEXT.category.any}</option>
+                  {CLOUD_CATEGORIES.map((word) => (
+                    <option key={word} value={word}>
+                      {ATLAS_TEXT.families[word]}
+                    </option>
+                  ))}
+                </Select>
+              </label>
+            )}
+          </div>
+          <div className="atlas-control-row">
+            <label className="atlas-automaton">
+              <span className="label">{ATLAS_TEXT.automaton.label}</span>
+              <Select value={query.automaton} onChange={(event) => choose({ automaton: event.target.value as CloudQuery["automaton"] })}>
+                {AUTOMATON_FILTERS.map((filter) => <option key={filter} value={filter}>{ATLAS_TEXT.automaton.filters[filter]}</option>)}
+              </Select>
+            </label>
+            <label className="atlas-check">
+              <input type="checkbox" checked={query.starred} onChange={(event) => choose({ starred: event.target.checked })} />
+              {ATLAS_TEXT.starred}
+            </label>
+            {mobile && activeFilterCount > 0 && (
+              <button type="button" className="link-control" onClick={reset}>
+                {ATLAS_TEXT.reset}
+              </button>
+            )}
+            {!mobile && hasResults && <span className="atlas-results">{resultsLine}</span>}
+            {!mobile && hasResults && (
+              <button className="button atlas-random" disabled={pages === 1} onClick={openRandomPage}>
+                {ATLAS_TEXT.random}
+              </button>
+            )}
+          </div>
+          {mobile && (
+            <div className="atlas-mobile-picture">
+              <PictureEntry text={ATLAS_TEXT.upload} />
+            </div>
+          )}
+        </div>
+      )}
       <div className="atlas-cloud-grid">
         {cards.map((entry) => (
           <CloudBlockCard
@@ -275,7 +336,6 @@ export function AtlasPage() {
             entry={entry}
             category={categories?.get(entry.block) ?? null}
             name={nameOf(names, entry.block)}
-            engine={engine}
           />
         ))}
       </div>

@@ -763,8 +763,7 @@
     background: var(--black);
   }
 
-  .automata-group .stage-controls > .stage-icon,
-  .automata-phone-views {
+  .automata-group .stage-controls > .stage-icon {
     grid-row: 3;
     position: sticky;
     top: calc(var(--phone-frame) + 18px);
@@ -783,14 +782,33 @@
   }
 
   .automata-phone-views {
+    grid-row: 3;
     grid-column: 3;
     justify-self: end;
+    align-self: stretch;
+    position: sticky;
+    top: calc(var(--phone-frame) + 12px);
+    z-index: 3;
+    display: flex;
+    align-items: stretch;
+    height: 56px;
+    margin-top: 0;
   }
 
   .automata-phone-views .segmented {
     flex-wrap: nowrap;
-    padding: 10px 0;
+    align-items: stretch;
+    height: 100%;
+    padding: 0;
     border-bottom: 0;
+  }
+
+  .automata-phone-views .segmented > button {
+    height: 100%;
+  }
+
+  .automata-phone-views .segmented > button::before {
+    bottom: 0;
   }
 
   /* Under the bar: the gallery's parts, or the stage's controls. */

@@ -6,10 +6,10 @@ export const SITE_WORDS = {
     explore: "Index",
     playground: "Automata",
     grow: "Train",
-    picture: "Inspect picture",
+    picture: "Inspect Picture",
     /** Short label below 1056 px; assistive technology keeps the full label. */
     pictureShortForm: "Inspect",
-    how: "How it works",
+    how: "How It Works",
     /** Short label below 1056 px; assistive technology keeps the full label. */
     howShortForm: "How",
     experimental: "Experimental",

@@ -44,6 +44,10 @@ export const ATLAS_TEXT = {
   },
   results: (first: number, last: number, total: number) =>
     `${first.toLocaleString()}–${last.toLocaleString()} of ${total.toLocaleString()} ${total === 1 ? "basis group" : "basis groups"}`,
+  mobileResults: (first: number, last: number, total: number) =>
+    `${first.toLocaleString()}–${last.toLocaleString()} of ${total.toLocaleString()}`,
+  filterToggle: "Filter & sort",
+  filterToggleActive: (active: number) => `Filter & sort · ${active}`,
   /** The button at the end of the control line: it opens another page of the same choices at random. */
   random: "Random",
 

@@ -1036,9 +1036,19 @@
 
   .home-stage-frame .segmented {
     flex-wrap: nowrap;
+    align-items: stretch;
     max-width: 100%;
+    padding: 0;
     overflow-x: auto;
     scrollbar-width: none;
+  }
+
+  .home-stage-frame .segmented > button {
+    min-height: 40px;
+  }
+
+  .home-stage-frame .segmented > button::before {
+    bottom: 0;
   }
 
   .home-entrance,
