@@ -33,6 +33,9 @@ describe("site copy helpers and placeholders", () => {
     expectPlaceholders(SITE_WORDS.home.train.readout, ["update", "wins"]);
     expectPlaceholders(SITE_WORDS.home.train.stripAlt, ["block", "update"]);
     expectPlaceholders(SITE_WORDS.home.keep.patternLabel, ["block"]);
+    expectPlaceholders(SITE_WORDS.home.finale.guideLead, ["guide"]);
+    expectPlaceholders(SITE_WORDS.home.finale.essayLead, ["essay"]);
+    expectPlaceholders(SITE_WORDS.home.finale.exploreLead, ["index", "automata", "train", "inspect"]);
     expectPlaceholders(SITE_WORDS.home.kind, ["rule"]);
     expectPlaceholders(SITE_WORDS.stage.readingToward, ["band"]);
     expectPlaceholders(SITE_WORDS.stage.readingStrength, ["strength"]);

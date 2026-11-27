@@ -470,13 +470,6 @@ select {
   display: none;
 }
 
-.external-mark {
-  flex: none;
-  margin-left: 5px;
-  opacity: 0.72;
-  transform: translateY(-0.5px);
-}
-
 /* The author's site leaves this one: it stands apart, at the right end of the header's line. */
 .frame-nav-site {
   margin-left: auto;
@@ -1180,10 +1173,10 @@ html {
 }
 
 /*
- * Below 1248 px, use the short Inspect, Guide, and Lab labels so the seven navigation destinations
- * and author site link fit comfortably on one line. Below 1040 px, the author site link moves to the
- * footer only; below 864 px, compact header spacing keeps all seven links clear down to 641 px.
- * Below 640 px, the menu disclosure lists the full destination names and site link.
+ * Below 1120 px, Experimental shortens to Lab so the seven single-word destinations and author site
+ * link fit comfortably on one line. Below 1040 px, the author site link moves to the footer only;
+ * below 864 px, compact header spacing keeps all seven links clear down to 641 px. Below 640 px,
+ * the menu disclosure lists the full destination names and site link.
  */
 @media (min-width: 641px) and (max-width: 1039px) {
   .frame-nav a.frame-nav-site {
@@ -1203,7 +1196,7 @@ html {
   }
 }
 
-@media (max-width: 1247px) {
+@media (max-width: 1119px) {
   .frame-nav-full {
     display: none;
   }
